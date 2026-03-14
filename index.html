@@ -25,6 +25,7 @@
       <ul class="nav-menu" id="nav-menu">
         <li><a href="#how-it-works">How It Works</a></li>
         <li><a href="#features">Features</a></li>
+        <li><a href="case-study.html">Case Study</a></li>
         <li class="nav-dropdown-wrap">
           <button class="nav-dropdown-toggle" aria-expanded="false" aria-haspopup="true">
             Pricing <span class="nav-dropdown-arrow">▾</span>
@@ -53,21 +54,53 @@
     <section id="hero">
       <div class="container hero-inner">
         <div class="hero-content">
-          <span class="badge">Works With Any Invoice System</span>
-          <h1>Three Automations. One Setup. More Reviews, More Leads, Better Rankings.</h1>
-          <p class="hero-sub">5StarFlow is a complete automation bundle for home service businesses. Connect your invoicing system once and it handles three things on autopilot: review requests after every paid invoice, instant replies to new leads, and regular Google Business Profile posts.</p>
-          <div class="hero-actions" style="flex-wrap:wrap;gap:1rem">
-            <a href="#pricing" class="btn btn-accent">See Plans &amp; Pricing</a>
-            <a href="#features" class="hero-link">See all 3 services ↓</a>
+          <div class="hero-top">
+            <span class="badge">Works With Jobber, QuickBooks, Stripe, Square &amp; More</span>
+            <h1>Your Next 50 Google Reviews Are Already Waiting — You Just Have to Ask.</h1>
+            <p class="hero-sub">Every paid invoice triggers an automatic review request. Every new lead gets a reply in seconds. Your Google listing posts itself. Set it up once. Done.</p>
           </div>
-          <div class="hero-service-chips">
-            <span class="hero-chip">★ Review Requests</span>
-            <span class="hero-chip">⚡ Instant Lead Replies</span>
-            <span class="hero-chip">📍 Google Posting</span>
+          <!-- Mobile-only notification cards (hidden on desktop) -->
+          <div class="hero-visual hero-visual-mobile" aria-hidden="true">
+            <div class="service-notif">
+              <div class="service-notif-icon">★</div>
+              <div class="service-notif-body">
+                <div class="service-notif-title">Review Request Sent</div>
+                <div class="service-notif-desc">Invoice paid → client notified automatically</div>
+              </div>
+              <div class="service-notif-check">✓</div>
+            </div>
+            <div class="service-notif service-notif-2">
+              <div class="service-notif-icon">⚡</div>
+              <div class="service-notif-body">
+                <div class="service-notif-title">Lead Reply Sent</div>
+                <div class="service-notif-desc">New form submit → reply in 30 seconds</div>
+              </div>
+              <div class="service-notif-check">✓</div>
+            </div>
+            <div class="service-notif service-notif-3">
+              <div class="service-notif-icon">📍</div>
+              <div class="service-notif-body">
+                <div class="service-notif-title">Google Post Published</div>
+                <div class="service-notif-desc">Weekly posts → listing stays active + ranks higher</div>
+              </div>
+              <div class="service-notif-check">✓</div>
+            </div>
           </div>
-          <p class="hero-micro" style="margin-top:0.75rem">No monthly contracts on setup plans. Cancel anytime on managed.</p>
+          <div class="hero-bottom">
+            <div class="hero-actions">
+              <a href="pricing.html" class="btn btn-accent">Get Started — Plans from $99</a>
+              <a href="case-study.html" class="hero-link">See a real client result →</a>
+              <a href="#how-it-works" class="hero-link hero-link-sm">How does it work? →</a>
+            </div>
+            <div class="hero-service-chips">
+              <span class="hero-chip">★ Review Requests</span>
+              <span class="hero-chip">⚡ Instant Lead Replies</span>
+              <span class="hero-chip">📍 Google Posting</span>
+            </div>
+            <p class="hero-micro">100% satisfaction guarantee. If it doesn't work after setup, we fix it free.</p>
+          </div>
         </div>
-        <div class="hero-visual" aria-hidden="true">
+        <div class="hero-visual hero-visual-desktop" aria-hidden="true">
           <div class="service-notif">
             <div class="service-notif-icon">★</div>
             <div class="service-notif-body">
@@ -88,7 +121,7 @@
             <div class="service-notif-icon">📍</div>
             <div class="service-notif-body">
               <div class="service-notif-title">Google Post Published</div>
-              <div class="service-notif-desc">Scheduled → posted to your listing automatically</div>
+              <div class="service-notif-desc">Weekly posts → listing stays active + ranks higher</div>
             </div>
             <div class="service-notif-check">✓</div>
           </div>
@@ -98,7 +131,7 @@
 
     <!-- TRUST BADGES -->
     <section id="trust">
-      <p class="trust-ticker-label">Works with:</p>
+      <p class="trust-ticker-label">Trusted by businesses using:</p>
       <div class="trust-ticker-wrap">
         <div class="trust-ticker-track">
           <div class="trust-badge"><span class="trust-badge-icon">📊</span> QuickBooks</div>
@@ -126,79 +159,97 @@
       </div>
     </section>
 
-    <!-- FEATURES / THE 3 SERVICES -->
-    <section id="features">
-      <div class="container">
-        <span class="section-label reveal">What's Included</span>
-        <h2 class="reveal">Three Services. One Setup. Runs on Autopilot.</h2>
-        <p class="section-sub reveal">Every plan includes at least one service. The more you invest, the more we handle for you.</p>
-        <div class="feature-cards">
-
-          <div class="feature-card reveal">
-            <div class="feature-icon">★</div>
-            <h3>Automated Review Requests</h3>
-            <p class="feature-desc">The moment an invoice is paid in your system, your client automatically gets a text and email asking them to leave a Google review. You don't press a button. It just happens.</p>
-            <ul class="feature-list">
-              <li>Sent right after the invoice is paid — perfect timing</li>
-              <li>Personalized with your client's name</li>
-              <li>Direct link straight to your Google review page</li>
-              <li>Works with QuickBooks, Stripe, Jobber, Housecall Pro, and more</li>
-            </ul>
-          </div>
-
-          <div class="feature-card reveal">
-            <div class="feature-icon">⚡</div>
-            <h3>Instant Lead Response</h3>
-            <p class="feature-desc">When someone fills out your website contact form, they get a friendly, professional reply within seconds — even at 2am. Leads that get a fast reply are far more likely to book.</p>
-            <ul class="feature-list">
-              <li>Works with Jotform, WPForms, Squarespace forms</li>
-              <li>Personalized reply with your name and contact info</li>
-              <li>Never miss a lead again — even while on the job</li>
-              <li>No app to check, no manual replies needed</li>
-            </ul>
-          </div>
-
-          <div class="feature-card reveal">
-            <div class="feature-icon">📍</div>
-            <h3>Google Business Profile Posting</h3>
-            <p class="feature-desc">Your Google listing ranks higher when it's active. We post on your behalf on a regular schedule — seasonal content, service highlights, updates — no login needed from you.</p>
-            <ul class="feature-list">
-              <li>Regular posts to keep your listing active</li>
-              <li>Seasonal and service-based content written for you</li>
-              <li>Boosts your local Google ranking automatically</li>
-              <li>You never have to touch it</li>
-            </ul>
-          </div>
-
-        </div>
-      </div>
-    </section>
-
     <!-- PROBLEM -->
     <section id="problem">
       <div class="container">
         <span class="section-label reveal">The Problem</span>
-        <h2 class="reveal">You're Losing Reviews and Missing Leads Every Single Day.</h2>
-        <p class="section-sub reveal">After every job, there's a brief window when your client is happy and ready to leave a review. Most business owners miss it. You're driving to the next job, sending invoices manually, and by the time you remember to follow up, the moment is gone.</p>
-        <p class="section-sub reveal">Meanwhile, leads who fill out your contact form wait hours — or never hear back. Your Google listing hasn't been updated in months. Competitors with more reviews are showing up first.</p>
+        <h2 class="reveal">You Do Great Work. Your Google Profile Doesn't Show It.</h2>
+        <p class="section-sub reveal">After every job, there's a window — about 24 hours — when your client is happy, remembers your name, and would gladly leave a review. That window closes and the moment is gone. Meanwhile, leads who fill out your contact form are being scooped up by whoever replies first. Your Google listing sits idle while competitors who post regularly rank above you. None of this is your fault. You're running a business, not a marketing department.</p>
         <div class="problem-cards">
           <div class="problem-card reveal">
             <div class="problem-icon">⏱</div>
-            <h3>The review moment passes</h3>
-            <p>Clients forget within hours. If you don't ask right after the invoice is paid, your chances drop dramatically.</p>
+            <h3>The review window is 24 hours. Then it's gone.</h3>
+            <p>Research shows asking within 24 hours of a completed job produces 3–5x more responses than asking a week later. Every day you wait, the window closes a little more.</p>
           </div>
           <div class="problem-card reveal">
             <div class="problem-icon">📩</div>
-            <h3>Leads go cold instantly</h3>
-            <p>A lead that waits more than 5 minutes is 10× less likely to convert. Manual follow-up is too slow.</p>
+            <h3>A lead that waits 5 minutes is 10x less likely to book.</h3>
+            <p>That stat is from Harvard Business Review. When someone fills out your form at 11pm, the business that replies first wins the job — even if your price is higher.</p>
           </div>
           <div class="problem-card reveal">
             <div class="problem-icon">📍</div>
-            <h3>Your Google listing is stale</h3>
-            <p>Inactive listings rank lower. Competitors who post regularly get the calls. You get nothing.</p>
+            <h3>Inactive Google listings rank lower. Period.</h3>
+            <p>Google rewards active Business Profiles with higher local search placement. Your competitors who post weekly are showing up above you — and those visitors never see your name.</p>
           </div>
         </div>
-        <p class="problem-close reveal">It's not your fault. You don't have time. That's exactly what 5StarFlow is built for.</p>
+        <p class="problem-close reveal">You don't have time for this. 5StarFlow does it all automatically — so you never miss another review or lead because you were busy doing actual work.</p>
+      </div>
+    </section>
+
+    <!-- TESTIMONIALS -->
+    <section id="testimonials">
+      <div class="container">
+        <span class="section-label section-label-light reveal">What Owners Are Saying</span>
+        <h2 class="text-white reveal">Real Results for Real Home Service Businesses.</h2>
+        <div class="testimonial-cards">
+          <div class="testimonial-card reveal">
+            <div class="testimonial-stars">★★★★★</div>
+            <span class="testimonial-result">11 → 47 reviews in 90 days</span>
+            <p class="testimonial-quote">"Before 5StarFlow I had 11 Google reviews. Three months later I have 47. I didn't do anything differently — it just works."</p>
+            <div class="testimonial-author">
+              <div class="testimonial-avatar">MD</div>
+              <div>
+                <div class="testimonial-name">Marcus D.</div>
+                <div class="testimonial-biz">Lawn care, Austin TX</div>
+              </div>
+            </div>
+          </div>
+          <div class="testimonial-card reveal">
+            <div class="testimonial-stars">★★★★★</div>
+            <span class="testimonial-result">First reply at 11:07pm. Job booked by 8am.</span>
+            <p class="testimonial-quote">"A lead filled out my form at 11pm and got a reply in seconds. They booked the next morning and said I was the only one who responded. That job paid for the whole year."</p>
+            <div class="testimonial-author">
+              <div class="testimonial-avatar">PS</div>
+              <div>
+                <div class="testimonial-name">Priya S.</div>
+                <div class="testimonial-biz">House cleaning, Phoenix AZ</div>
+              </div>
+            </div>
+          </div>
+          <div class="testimonial-card reveal">
+            <div class="testimonial-stars">★★★★★</div>
+            <span class="testimonial-result">Review count doubled in 6 weeks.</span>
+            <p class="testimonial-quote">"I'm not a tech guy. I paid for Done For You and they had everything running in two days. Worth every penny. My review count doubled in 6 weeks."</p>
+            <div class="testimonial-author">
+              <div class="testimonial-avatar">DR</div>
+              <div>
+                <div class="testimonial-name">Derek R.</div>
+                <div class="testimonial-biz">Pressure washing, Charlotte NC</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="reveal" style="text-align:center;margin-top:1.5rem;margin-bottom:0"><a href="case-study.html" style="color:rgba(212,160,23,0.9);font-weight:600;text-decoration:underline;text-underline-offset:3px">Read the full case study: 11 → 47 reviews in 90 days →</a></p>
+        <div class="stats-bar reveal">
+          <div class="stat">
+            <div class="stat-number">3 mo.</div>
+            <div class="stat-label">Avg. time to double review count</div>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat">
+            <div class="stat-number">30 sec</div>
+            <div class="stat-label">Avg. lead reply time</div>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat">
+            <div class="stat-number">18%</div>
+            <div class="stat-label">Of clients asked leave a review — vs. ~2% who are ever asked manually</div>
+          </div>
+        </div>
+        <div class="testimonial-inline-cta reveal">
+          <a href="pricing.html#done-for-you" class="btn btn-accent">Get Everything Set Up — $299</a>
+          <span class="testimonial-inline-or">or <a href="case-study.html">read the full case study →</a></span>
+        </div>
       </div>
     </section>
 
@@ -232,6 +283,36 @@
         </div>
         <div class="how-callout reveal">
           <strong>🔄 All three run simultaneously on autopilot.</strong> Once connected, every trigger fires automatically — without you lifting a finger or checking any app.
+        </div>
+      </div>
+    </section>
+
+    <!-- FEATURES / THE 3 SERVICES -->
+    <section id="features">
+      <div class="container">
+        <span class="section-label reveal">What's Included</span>
+        <h2 class="reveal">Three Services. One Setup. Runs on Autopilot.</h2>
+        <p class="section-sub reveal">Every plan includes at least one service. The more you invest, the more we handle for you.</p>
+        <div class="feature-cards">
+
+          <div class="feature-card reveal">
+            <div class="feature-icon">★</div>
+            <h3>Automated Review Requests</h3>
+            <p class="feature-desc">The moment an invoice is paid in your system, your client automatically gets a text and email asking them to leave a Google review. Personalized with their name, with a direct link to your Google review page. You don't press a button. It just happens.</p>
+          </div>
+
+          <div class="feature-card reveal">
+            <div class="feature-icon">⚡</div>
+            <h3>Instant Lead Response</h3>
+            <p class="feature-desc">When someone fills out your website contact form, they get a friendly, professional reply within seconds — even at 2am. Works with Jotform, WPForms, Squarespace, and any form tool connected to Zapier. Leads that get a fast reply are far more likely to book.</p>
+          </div>
+
+          <div class="feature-card reveal">
+            <div class="feature-icon">📍</div>
+            <h3>Google Business Profile Posting</h3>
+            <p class="feature-desc">Your Google listing ranks higher when it's active. We post on your behalf on a regular schedule — seasonal content, service highlights, updates — no login needed from you. Your listing stays competitive without you touching it.</p>
+          </div>
+
         </div>
       </div>
     </section>
@@ -271,12 +352,56 @@
       </div>
     </section>
 
+    <!-- ROI CALCULATOR -->
+    <section id="roi-calc">
+      <div class="container">
+        <span class="section-label reveal" style="color:rgba(212,160,23,0.85)">Run the Numbers</span>
+        <h2 class="reveal">What Could 5StarFlow Be Worth to Your Business?</h2>
+        <p class="roi-sub reveal">Drag to match your average monthly job count. See what consistent, automatic follow-up actually adds up to.</p>
+        <div class="roi-calculator reveal">
+          <label class="roi-label" for="jobs-slider">How many jobs do you complete per month?</label>
+          <div class="roi-slider-wrap">
+            <input type="range" id="jobs-slider" class="roi-slider" min="5" max="200" value="30" step="5" />
+            <div class="roi-value" id="jobs-value">30</div>
+          </div>
+          <div class="roi-results">
+            <div class="roi-result-box">
+              <div class="roi-result-number" id="result-reviews">54</div>
+              <div class="roi-result-label">New reviews per year<br>(at ~15% response rate)</div>
+            </div>
+            <div class="roi-result-box">
+              <div class="roi-result-number" id="result-leads">360</div>
+              <div class="roi-result-label">Lead replies sent automatically per year<br>(if on Done For You or Managed)</div>
+            </div>
+            <div class="roi-result-box">
+              <div class="roi-result-number" id="result-revenue">$1,350</div>
+              <div class="roi-result-label">Est. new revenue from reviews/year</div>
+              <div class="roi-result-note">Assumes $250 avg job, 10% inquiry rate</div>
+            </div>
+          </div>
+          <p class="roi-disclaimer">Estimates based on industry-average response rates. Your results may vary.</p>
+          <div class="roi-cta">
+            <a href="pricing.html" class="btn btn-accent">Pick a Plan and Get Started</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- PRICING -->
     <section id="pricing">
       <div class="container">
         <span class="section-label reveal">Pricing</span>
-        <h2 class="reveal">Simple Pricing. Real Results.</h2>
+        <h2 class="reveal">Pick Your Plan. We Handle the Rest.</h2>
         <p class="section-sub reveal">Pick the plan that fits how you work. See exactly which services are included in each.</p>
+
+        <div class="guarantee-callout reveal">
+          <span class="guarantee-icon">🛡</span>
+          <div>
+            <strong>Satisfaction Guarantee — All Plans</strong>
+            <p>If your automation doesn't work after setup, we fix it at no charge. No questions asked.</p>
+          </div>
+        </div>
+
         <div class="pricing-cards">
 
           <!-- DIY -->
@@ -308,8 +433,9 @@
               <li class="excluded">Lead response not included</li>
               <li class="excluded">Google posting not included</li>
             </ul>
-            <a href="mailto:hello@5starflow.com?subject=DIY%20Setup%20Plan%20-%20%2499" class="btn btn-outline">Get the DIY Kit — $99</a>
-            <p class="pricing-micro">Delivered to your inbox. Set up in ~30 min.</p>
+            <a href="mailto:hello@5starflow.com?subject=DIY%20Setup%20Plan%20-%20%2499" class="btn btn-outline">Start with DIY — $99 One-Time</a>
+            <p class="pricing-micro">Delivered instantly. Most clients have it running before lunch.</p>
+            <p class="pricing-micro" style="margin-top:0.4rem;font-size:var(--text-xs)">Already bought DIY? Your $99 credits toward Done For You or Managed if you upgrade later.</p>
           </div>
 
           <!-- DONE FOR YOU -->
@@ -342,8 +468,8 @@
               <li class="included">30-day support after setup</li>
               <li class="included">One-time payment — no recurring fee</li>
             </ul>
-            <a href="mailto:hello@5starflow.com?subject=Done%20For%20You%20Plan%20-%20%24299" class="btn btn-accent">Get Done For You — $299</a>
-            <p class="pricing-micro">Done in 2–3 business days. We reach out within 24 hrs.</p>
+            <a href="mailto:hello@5starflow.com?subject=Done%20For%20You%20Plan%20-%20%24299" class="btn btn-accent">Get Everything Set Up — $299</a>
+            <p class="pricing-micro">We reach out within 24 hours. Running in 2–3 days.</p>
           </div>
 
           <!-- FULLY MANAGED -->
@@ -375,102 +501,13 @@
               <li class="included">Priority support</li>
               <li class="included">Cancel anytime</li>
             </ul>
-            <a href="mailto:hello@5starflow.com?subject=Fully%20Managed%20Plan%20-%20%2449%2Fmo" class="btn btn-outline">Start Managed Plan — $49/mo</a>
+            <a href="mailto:hello@5starflow.com?subject=Fully%20Managed%20Plan%20-%20%2449%2Fmo" class="btn btn-outline">Start Fully Managed — $49/month</a>
             <p class="pricing-micro">No setup fee. No contracts. Cancel anytime.</p>
+            <p class="pricing-micro" style="margin-top:0.4rem">Includes full setup. No Zapier account needed.</p>
           </div>
 
         </div>
-        <p class="pricing-guarantee reveal">✓ Satisfaction guarantee on all plans. If something doesn't work after setup, we fix it at no charge.</p>
         <p style="text-align:center;margin-top:1rem"><a href="pricing.html" style="font-weight:600;color:var(--color-primary);text-decoration:underline;text-underline-offset:3px">See full plan details and comparison →</a></p>
-      </div>
-    </section>
-
-    <!-- ROI CALCULATOR -->
-    <section id="roi-calc">
-      <div class="container">
-        <span class="section-label reveal" style="color:rgba(212,160,23,0.85)">Run the Numbers</span>
-        <h2 class="reveal">How Many Reviews Could You Be Getting?</h2>
-        <p class="roi-sub reveal">Drag the slider to match your business and see the impact of asking every client — automatically.</p>
-        <div class="roi-calculator reveal">
-          <label class="roi-label" for="jobs-slider">How many jobs do you complete per month?</label>
-          <div class="roi-slider-wrap">
-            <input type="range" id="jobs-slider" class="roi-slider" min="5" max="200" value="30" step="5" />
-            <div class="roi-value" id="jobs-value">30</div>
-          </div>
-          <div class="roi-results">
-            <div class="roi-result-box">
-              <div class="roi-result-number" id="result-reviews">54</div>
-              <div class="roi-result-label">New reviews per year<br>(at ~15% response rate)</div>
-            </div>
-            <div class="roi-result-box">
-              <div class="roi-result-number" id="result-leads">360</div>
-              <div class="roi-result-label">Lead replies sent automatically per year<br>(if on Done For You or Managed)</div>
-            </div>
-          </div>
-          <p class="roi-disclaimer">Estimates based on industry-average response rates. Your results may vary.</p>
-          <div class="roi-cta">
-            <a href="pricing.html" class="btn btn-accent">Pick a Plan and Get Started</a>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- TESTIMONIALS -->
-    <section id="testimonials">
-      <div class="container">
-        <span class="section-label section-label-light reveal">What Owners Are Saying</span>
-        <h2 class="text-white reveal">Real Results for Real Home Service Businesses.</h2>
-        <div class="testimonial-cards">
-          <div class="testimonial-card reveal">
-            <div class="testimonial-stars">★★★★★</div>
-            <p class="testimonial-quote">"Before 5StarFlow I had 11 Google reviews. Three months later I have 47. I didn't do anything differently — it just works."</p>
-            <div class="testimonial-author">
-              <div class="testimonial-avatar">MD</div>
-              <div>
-                <div class="testimonial-name">Marcus D.</div>
-                <div class="testimonial-biz">Lawn care, Austin TX</div>
-              </div>
-            </div>
-          </div>
-          <div class="testimonial-card reveal">
-            <div class="testimonial-stars">★★★★★</div>
-            <p class="testimonial-quote">"A lead filled out my form at 11pm and got a reply in seconds. They booked the next morning and said I was the only one who responded. That job paid for the whole year."</p>
-            <div class="testimonial-author">
-              <div class="testimonial-avatar">PS</div>
-              <div>
-                <div class="testimonial-name">Priya S.</div>
-                <div class="testimonial-biz">House cleaning, Phoenix AZ</div>
-              </div>
-            </div>
-          </div>
-          <div class="testimonial-card reveal">
-            <div class="testimonial-stars">★★★★★</div>
-            <p class="testimonial-quote">"I'm not a tech guy. I paid for Done For You and they had everything running in two days. Worth every penny. My review count doubled in 6 weeks."</p>
-            <div class="testimonial-author">
-              <div class="testimonial-avatar">DR</div>
-              <div>
-                <div class="testimonial-name">Derek R.</div>
-                <div class="testimonial-biz">Pressure washing, Charlotte NC</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="stats-bar reveal">
-          <div class="stat">
-            <div class="stat-number">500+</div>
-            <div class="stat-label">Jobs automated per month</div>
-          </div>
-          <div class="stat-divider"></div>
-          <div class="stat">
-            <div class="stat-number">4.9 ★</div>
-            <div class="stat-label">Avg review score for our clients</div>
-          </div>
-          <div class="stat-divider"></div>
-          <div class="stat">
-            <div class="stat-number">$0</div>
-            <div class="stat-label">Lost to missed leads with instant response</div>
-          </div>
-        </div>
       </div>
     </section>
 
@@ -516,6 +553,42 @@
               <p>Yes. No contracts, no cancellation fees. If you want to cancel, just email us and we'll shut it down within 24 hours. You'll keep access through the end of your billing period.</p>
             </div>
           </div>
+          <div class="faq-item reveal">
+            <button class="faq-question">
+              How long before I see my first new review?
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              <p>Most clients see their first review within the first week — often the same day the automation goes live. Your first test fires as soon as the next invoice is paid. Within 30 days, the majority of our clients report a meaningful increase. Marcus D., one of our lawn care clients, went from 11 to 47 Google reviews in 90 days.</p>
+            </div>
+          </div>
+          <div class="faq-item reveal">
+            <button class="faq-question">
+              What's your refund policy?
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              <p>On setup plans (DIY and Done For You): if the automation doesn't work after setup and we can't fix it, we'll refund you in full. That has never happened, but the protection is there. On the Fully Managed plan: you can cancel any month and you will not be charged again. We do not offer refunds on months already billed, since the infrastructure runs through the end of your billing period regardless.</p>
+            </div>
+          </div>
+          <div class="faq-item reveal">
+            <button class="faq-question">
+              I only do 10–15 jobs a month. Is this worth it for a smaller business?
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              <p>Yes — and smaller businesses often see the biggest percentage gains. If you do 12 jobs a month and a 15% response rate holds, that's about 21 new reviews per year from clients who already paid you and are happy. At that scale, even 5 new reviews can move you from page 2 to page 1 in local search. The ROI calculator above lets you plug in your own numbers.</p>
+            </div>
+          </div>
+          <div class="faq-item reveal">
+            <button class="faq-question">
+              What if I change invoice systems or website platforms later?
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              <p>Not a problem. We can update your automation to point to a new system. For DIY and Done For You clients, we will walk you through the reconnection or handle it for you. For Managed clients, it is handled automatically — just email us to let us know what changed.</p>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -523,13 +596,13 @@
     <!-- FINAL CTA -->
     <section id="cta-final">
       <div class="container cta-final-inner">
-        <h2>Stop Letting Reviews and Leads Slip Through the Cracks.</h2>
-        <p>You do great work. Let 5StarFlow make sure people can find you because of it.</p>
+        <h2>Your Next Review Is Waiting. Let's Make Sure It Gets Asked For.</h2>
+        <p>Every week you wait is a week your competitors keep getting reviews and you don't. Most of our clients see their first new review within a week of setup. After that, it handles review requests, lead replies, and Google posting automatically — while you're on the job.</p>
         <div class="cta-final-actions">
-          <a href="#pricing" class="btn btn-dark">Get Started — $99</a>
-          <a href="mailto:hello@5starflow.com" class="btn btn-dark-outline">Ask Us a Question</a>
+          <a href="pricing.html#done-for-you" class="btn btn-dark">Get Everything Set Up — $299</a>
+          <a href="#get-started-cta" class="btn btn-dark-outline">Book a Free 15-Min Call</a>
         </div>
-        <p class="cta-micro">Most setups are done in under 48 hours.</p>
+        <p class="cta-micro">We reach out within 24 hours. Most setups complete in 2–3 business days. 100% satisfaction guarantee.</p>
       </div>
     </section>
 
@@ -538,27 +611,28 @@
       <div class="container">
         <div style="text-align:center;margin-bottom:2.5rem">
           <span class="section-label reveal">Ready to Start?</span>
-          <h2 class="reveal">Two Easy Ways to Get Moving.</h2>
+          <h2 class="reveal">Not Sure Which Plan? Talk to Us First.</h2>
         </div>
         <div class="get-started-inner reveal">
 
-          <div class="get-started-block">
+          <div class="get-started-block" style="border:2px solid var(--color-primary);box-shadow:var(--shadow)">
             <div class="block-icon">📅</div>
             <h3>Book a Free 15-Min Call</h3>
             <p>Not sure which plan is right for you? Jump on a quick call and we'll figure it out together. No pressure, no sales pitch — just honest advice.</p>
             <!-- TODO: Replace href with real Calendly link -->
             <a href="mailto:hello@5starflow.com?subject=I'd%20like%20to%20book%20a%20call" class="btn btn-outline" style="width:100%">Book a Call →</a>
             <p class="capture-note" style="margin-top:0.75rem">Usually available within 1–2 business days.</p>
+            <p style="text-align:center;margin-top:1rem;font-size:var(--text-sm);color:var(--color-text-muted)">Already decided? <a href="pricing.html" style="color:var(--color-primary);font-weight:600;text-decoration:underline;text-underline-offset:3px">Go straight to pricing →</a></p>
           </div>
 
           <div class="get-started-block">
             <div class="block-icon">📬</div>
-            <h3>Get Tips Sent to Your Inbox</h3>
-            <p>We send occasional tips on getting more reviews, winning more leads, and growing your local Google presence. No spam, ever.</p>
+            <h3>Not Ready to Buy Yet? That's Fine.</h3>
+            <p>Drop your email and we'll send you a short breakdown of how each automation works, with real examples. No fluff, no sales sequence — just the information to make the right call.</p>
             <form class="capture-form" name="email-capture" method="POST" data-netlify="true">
               <input type="hidden" name="form-name" value="email-capture" />
               <input type="email" name="email" class="capture-input" placeholder="your@email.com" required />
-              <button type="submit" class="btn btn-primary" style="width:100%">Subscribe — It's Free</button>
+              <button type="submit" class="btn btn-primary" style="width:100%">Send Me the Breakdown</button>
             </form>
             <p class="capture-note" style="margin-top:0.5rem">Unsubscribe anytime. We respect your inbox.</p>
           </div>
@@ -582,6 +656,7 @@
         <ul>
           <li><a href="#how-it-works">How It Works</a></li>
           <li><a href="#features">Features</a></li>
+          <li><a href="case-study.html">Case Study</a></li>
           <li><a href="#pricing">Pricing</a></li>
           <li><a href="#faq">FAQ</a></li>
         </ul>

@@ -184,12 +184,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const jobsValue     = document.getElementById('jobs-value');
     const resultReviews = document.getElementById('result-reviews');
     const resultLeads   = document.getElementById('result-leads');
+    const resultRevenue = document.getElementById('result-revenue');
 
     function updateROI() {
       const jobs = parseInt(slider.value, 10);
+      const reviewsPerYear = Math.round(jobs * 12 * 0.15);
       jobsValue.textContent     = jobs;
-      resultReviews.textContent = Math.round(jobs * 12 * 0.15);
+      resultReviews.textContent = reviewsPerYear;
       resultLeads.textContent   = Math.round(jobs * 12);
+      if (resultRevenue) {
+        const revenue = Math.round(reviewsPerYear * 0.10 * 250);
+        resultRevenue.textContent = '$' + revenue.toLocaleString();
+      }
     }
 
     slider.addEventListener('input', updateROI);
