@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>body{margin:0;padding:0}</style>
+<script>
+window.addEventListener('load', function() {
+  // Scroll to testimonials section
+  var el = parent.document.getElementById('testimonials');
+  if(el) el.scrollIntoView();
+});
+</script>
+</head>
+<body>
+<iframe src="file:///C:/Users/steph/Desktop/5starflow/index.html" 
+  style="width:1440px;height:900px;border:none" id="f"></iframe>
+<script>
+document.getElementById('f').onload = function() {
+  try {
+    var el = this.contentDocument.getElementById('testimonials');
+    if(el) this.contentDocument.documentElement.scrollTop = el.offsetTop;
+  } catch(e) {}
+};
+</script>
+</body>
+</html>
