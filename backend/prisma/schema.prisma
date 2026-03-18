@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // Stores the connected Jobber account's OAuth tokens.
@@ -142,6 +142,44 @@ model SeoChange {
   appliedAt   DateTime?
   errorMsg    String?
   createdAt   DateTime  @default(now())
+}
+
+// Website Audit: FTP server credentials (singleton — one config per app instance).
+model FtpConfig {
+  id                String   @id @default(cuid())
+  host              String
+  user              String
+  encryptedPassword String
+  rootPath          String   @default("/public_html")
+  port              Int      @default(21)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Website Audit: path patterns to exclude from FTP scans (e.g. "cgi-bin", "wp-admin").
+model AuditIgnore {
+  id        String   @id @default(cuid())
+  pattern   String   @unique
+  createdAt DateTime @default(now())
+}
+
+// Website Audit: one row per HTML file discovered on the FTP server.
+// Status flow: discovered → pulled → auditing → audited → edited → pushed → done
+model AuditPage {
+  id              String    @id @default(cuid())
+  path            String    @unique   // full remote path e.g. /public_html/about.html
+  filename        String
+  status          String    @default("discovered")
+  localContent    String?             // raw HTML pulled from server
+  lastPulled      DateTime?
+  lastPushed      DateTime?
+  auditScore      Int?                // composite 0-100 (SEO + perf)
+  seoScore        Int?
+  perfScore       Int?
+  auditIssuesJson String?             // JSON: [{ type, severity, message, fix }]
+  pageUrl         String?             // full public URL for PageSpeed
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 // SEO: singleton settings row — site URL, competitors, deploy config, Google tokens.

@@ -4,7 +4,7 @@
   "description": "Jobber webhook handler, OAuth, and token manager for 5StarFlow",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "prisma migrate deploy && node server.js",
     "dev": "nodemon server.js",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
