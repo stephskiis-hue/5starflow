@@ -52,26 +52,21 @@ router.get('/status', async (req, res) => {
       : { connected: false, hasRefreshToken: false };
 
     // ── Gmail ───────────────────────────────────────────────────────────────
-    const gmailUser = process.env.GMAIL_USER;
-    const gmailPass = process.env.GMAIL_APP_PASSWORD;
-    const gmail = {
-      configured:  !!(gmailUser && gmailPass),
-      fromAddress: gmailUser || null,
-      fromName:    process.env.EMAIL_FROM_NAME || null,
-    };
+    const gmailCred = await prisma.gmailCredential.findUnique({ where: { userId: req.user.userId } });
+    const gmail = gmailCred
+      ? { configured: true, fromAddress: gmailCred.gmailUser, fromName: gmailCred.fromName || null }
+      : { configured: false, fromAddress: null, fromName: null };
 
     // ── Twilio ──────────────────────────────────────────────────────────────
-    const twilioSid   = process.env.TWILIO_ACCOUNT_SID;
-    const twilioToken = process.env.TWILIO_AUTH_TOKEN;
-    const twilio = {
-      configured:  !!(twilioSid && twilioToken),
-      fromNumber:  process.env.TWILIO_FROM_NUMBER || null,
-      accountSid:  twilioSid ? `${twilioSid.slice(0, 8)}...` : null,
-    };
+    const twilioCred = await prisma.twilioCredential.findUnique({ where: { userId: req.user.userId } });
+    const twilio = twilioCred
+      ? { configured: true, fromNumber: twilioCred.fromNumber, accountSid: twilioCred.accountSid.slice(0, 8) + '...' }
+      : { configured: false, fromNumber: null, accountSid: null };
 
     // ── OpenWeatherMap ──────────────────────────────────────────────────────
     const owKey = process.env.OPENWEATHER_API_KEY;
     const latestWeather = await prisma.weatherCheck.findFirst({
+      where:   { userId: req.user.userId },
       orderBy: { checkedAt: 'desc' },
     });
     const openweather = {
@@ -82,7 +77,7 @@ router.get('/status', async (req, res) => {
     };
 
     // ── Google (placeholder) ────────────────────────────────────────────────
-    const seoSettings = await prisma.seoSettings.findFirst();
+    const seoSettings = await prisma.seoSettings.findFirst({ where: { userId: req.user.userId } });
     const google = {
       connected:   !!(seoSettings && seoSettings.googleAccessToken),
       placeholder: true,
@@ -131,21 +126,21 @@ router.post('/test/:service', async (req, res) => {
 
       case 'gmail': {
         const nodemailer = require('nodemailer');
-        const user = process.env.GMAIL_USER;
-        const pass = process.env.GMAIL_APP_PASSWORD;
-        if (!user || !pass) return res.json({ ok: false, message: 'GMAIL_USER or GMAIL_APP_PASSWORD not set' });
-        const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } });
+        const { getGmailCreds } = require('../services/emailService');
+        const creds = await getGmailCreds(req.user.userId);
+        if (!creds.user || !creds.pass) return res.json({ ok: false, message: 'Gmail credentials not configured — add them in Settings' });
+        const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: creds.user, pass: creds.pass } });
         await transporter.verify();
-        return res.json({ ok: true, message: `SMTP verified — ready to send as ${user}` });
+        return res.json({ ok: true, message: `SMTP verified — ready to send as ${creds.user}` });
       }
 
       case 'twilio': {
         const twilio = require('twilio');
-        const sid   = process.env.TWILIO_ACCOUNT_SID;
-        const token = process.env.TWILIO_AUTH_TOKEN;
-        if (!sid || !token) return res.json({ ok: false, message: 'TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN not set' });
-        const client  = twilio(sid, token);
-        const account = await client.api.accounts(sid).fetch();
+        const { getTwilioCreds } = require('../services/smsService');
+        const creds = await getTwilioCreds(req.user.userId);
+        if (!creds.accountSid || !creds.authToken) return res.json({ ok: false, message: 'Twilio credentials not configured — add them in Settings' });
+        const client  = twilio(creds.accountSid, creds.authToken);
+        const account = await client.api.accounts(creds.accountSid).fetch();
         return res.json({ ok: true, message: `Twilio connected — status: ${account.status}` });
       }
 

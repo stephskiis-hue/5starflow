@@ -23,12 +23,15 @@ const prisma  = require('../lib/prismaClient');
 // ---------------------------------------------------------------------------
 
 /**
- * Get or create the singleton SeoSettings row.
+ * Get or create the SeoSettings row for a specific user.
+ *
+ * @param {string|null} userId
  */
-async function getSettings() {
-  let settings = await prisma.seoSettings.findFirst();
+async function getSettings(userId) {
+  const where = userId ? { userId } : { userId: null };
+  let settings = await prisma.seoSettings.findFirst({ where });
   if (!settings) {
-    settings = await prisma.seoSettings.create({ data: {} });
+    settings = await prisma.seoSettings.create({ data: userId ? { userId } : {} });
   }
   return settings;
 }

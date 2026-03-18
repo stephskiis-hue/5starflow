@@ -129,6 +129,7 @@ async function handleInvoicePaid(invoiceData) {
         smsAllowed,
         email: primaryEmail,
         scheduledAt,
+        userId,
       },
     });
 

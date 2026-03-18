@@ -1,9 +1,7 @@
 const express  = require('express');
 const router   = express.Router();
-const { PrismaClient } = require('@prisma/client');
+const prisma   = require('../lib/prismaClient');
 const { hashPassword } = require('../lib/auth');
-
-const prisma = new PrismaClient();
 
 // GET /api/settings/users — list all users
 router.get('/users', async (req, res) => {
@@ -33,7 +31,7 @@ router.post('/users', async (req, res) => {
   try {
     const hashed = hashPassword(password);
     const user   = await prisma.user.create({
-      data: { email: email.trim().toLowerCase(), password: hashed },
+      data: { email: email.trim().toLowerCase(), passwordHash: hashed },
       select: { id: true, email: true, createdAt: true },
     });
     res.json({ success: true, user });
@@ -48,12 +46,9 @@ router.post('/users', async (req, res) => {
 
 // DELETE /api/settings/users/:id — delete a user (cannot delete yourself)
 router.delete('/users/:id', async (req, res) => {
-  const targetId = parseInt(req.params.id, 10);
+  const targetId = req.params.id;
   const selfId   = req.user?.userId;
 
-  if (isNaN(targetId)) {
-    return res.status(400).json({ error: 'Invalid user ID' });
-  }
   if (targetId === selfId) {
     return res.status(400).json({ error: 'You cannot delete your own account' });
   }
@@ -67,6 +62,98 @@ router.delete('/users/:id', async (req, res) => {
     }
     console.error('[settings] delete user error:', err.message);
     res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Twilio credentials (per-user)
+// ---------------------------------------------------------------------------
+
+// GET /api/settings/credentials — return masked Twilio + Gmail creds for current user
+router.get('/credentials', async (req, res) => {
+  try {
+    const [twilio, gmail] = await Promise.all([
+      prisma.twilioCredential.findUnique({ where: { userId: req.user.userId } }),
+      prisma.gmailCredential.findUnique({ where: { userId: req.user.userId } }),
+    ]);
+
+    res.json({
+      twilio: twilio ? {
+        configured:  true,
+        accountSid:  twilio.accountSid.slice(0, 8) + '...',
+        fromNumber:  twilio.fromNumber,
+        updatedAt:   twilio.updatedAt,
+      } : { configured: false },
+      gmail: gmail ? {
+        configured:  true,
+        gmailUser:   gmail.gmailUser,
+        fromName:    gmail.fromName,
+        updatedAt:   gmail.updatedAt,
+      } : { configured: false },
+    });
+  } catch (err) {
+    console.error('[settings] /credentials error:', err.message);
+    res.status(500).json({ error: 'Failed to load credentials' });
+  }
+});
+
+// POST /api/settings/twilio — upsert Twilio credentials for current user
+router.post('/twilio', async (req, res) => {
+  const { accountSid, authToken, fromNumber } = req.body || {};
+
+  if (!accountSid || !authToken || !fromNumber) {
+    return res.status(400).json({ error: 'accountSid, authToken, and fromNumber are required' });
+  }
+
+  try {
+    const cred = await prisma.twilioCredential.upsert({
+      where:  { userId: req.user.userId },
+      update: { accountSid, authToken, fromNumber },
+      create: { userId: req.user.userId, accountSid, authToken, fromNumber },
+    });
+
+    res.json({
+      success: true,
+      twilio: {
+        configured:  true,
+        accountSid:  cred.accountSid.slice(0, 8) + '...',
+        fromNumber:  cred.fromNumber,
+        updatedAt:   cred.updatedAt,
+      },
+    });
+  } catch (err) {
+    console.error('[settings] /twilio save error:', err.message);
+    res.status(500).json({ error: 'Failed to save Twilio credentials' });
+  }
+});
+
+// POST /api/settings/gmail — upsert Gmail credentials for current user
+router.post('/gmail', async (req, res) => {
+  const { gmailUser, appPassword, fromName } = req.body || {};
+
+  if (!gmailUser || !appPassword) {
+    return res.status(400).json({ error: 'gmailUser and appPassword are required' });
+  }
+
+  try {
+    const cred = await prisma.gmailCredential.upsert({
+      where:  { userId: req.user.userId },
+      update: { gmailUser, appPassword, fromName: fromName || '' },
+      create: { userId: req.user.userId, gmailUser, appPassword, fromName: fromName || '' },
+    });
+
+    res.json({
+      success: true,
+      gmail: {
+        configured:  true,
+        gmailUser:   cred.gmailUser,
+        fromName:    cred.fromName,
+        updatedAt:   cred.updatedAt,
+      },
+    });
+  } catch (err) {
+    console.error('[settings] /gmail save error:', err.message);
+    res.status(500).json({ error: 'Failed to save Gmail credentials' });
   }
 });
 

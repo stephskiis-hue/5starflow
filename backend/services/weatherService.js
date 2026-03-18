@@ -4,6 +4,8 @@ const nodemailer = require('nodemailer');
 const twilio  = require('twilio');
 const prisma  = require('../lib/prismaClient');
 const { jobberGraphQL } = require('./jobberClient');
+const { getTwilioCreds } = require('./smsService');
+const { getGmailCreds }  = require('./emailService');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -36,12 +38,12 @@ const ADD_CLIENT_TAG = `
 `;
 
 // Fetch all Jobber clients in one paginated pass. Internal — used by getOpenDays().
-async function fetchAllClients() {
+async function fetchAllClients(userId) {
   const allClients = [];
   let cursor = null;
   let hasNext = true;
   while (hasNext) {
-    const data = await jobberGraphQL(GET_ALL_CLIENTS, { cursor });
+    const data = await jobberGraphQL(GET_ALL_CLIENTS, { cursor }, userId);
     const nodes    = data?.clients?.nodes    ?? [];
     const pageInfo = data?.clients?.pageInfo ?? {};
     allClients.push(...nodes);
@@ -90,12 +92,16 @@ function toE164(raw, countryCode = '1') {
 }
 
 /**
- * Load WeatherSettings from DB (creates default row if none exists).
+ * Load WeatherSettings from DB for a specific user.
+ * Creates a default row if none exists.
+ *
+ * @param {string|null} userId
  */
-async function getSettings() {
-  let settings = await prisma.weatherSettings.findFirst();
+async function getSettings(userId) {
+  const where = userId ? { userId } : { userId: null };
+  let settings = await prisma.weatherSettings.findFirst({ where });
   if (!settings) {
-    settings = await prisma.weatherSettings.create({ data: {} });
+    settings = await prisma.weatherSettings.create({ data: userId ? { userId } : {} });
   }
   return settings;
 }
@@ -217,22 +223,9 @@ async function checkRainToday(settings) {
  * Fetch all Jobber clients and filter by day tag (e.g., "monday").
  * Returns clients with phone/email contact info.
  */
-async function getClientsByTag(dayTag) {
+async function getClientsByTag(dayTag, userId) {
   const tag = dayTag.toLowerCase().trim();
-  const allClients = [];
-  let cursor = null;
-  let hasNext = true;
-
-  while (hasNext) {
-    const data = await jobberGraphQL(GET_ALL_CLIENTS, { cursor });
-    const nodes    = data?.clients?.nodes    ?? [];
-    const pageInfo = data?.clients?.pageInfo ?? {};
-
-    allClients.push(...nodes);
-    hasNext = pageInfo.hasNextPage;
-    cursor  = pageInfo.endCursor ?? null;
-    if (hasNext) await sleep(500);
-  }
+  const allClients = await fetchAllClients(userId);
 
   return allClients
     .filter((c) => c.tags?.nodes?.some((t) => t.label.toLowerCase() === tag))
@@ -254,12 +247,12 @@ async function getClientsByTag(dayTag) {
  * For each of the next `daysAhead` days, check how many clients are tagged
  * for that day. Used to show "busy" vs "open" in the reschedule dropdown.
  */
-async function getOpenDays(daysAhead = 14) {
+async function getOpenDays(daysAhead = 14, userId) {
   const results = [];
   const today   = new Date();
 
   // Fetch all clients once, then filter in memory for each day — avoids 14 separate Jobber API calls
-  const allClients = await fetchAllClients();
+  const allClients = await fetchAllClients(userId);
 
   for (let i = 1; i <= daysAhead; i++) {
     const d       = new Date(today);
@@ -290,9 +283,9 @@ async function getOpenDays(daysAhead = 14) {
 // ---------------------------------------------------------------------------
 
 /**
- * Send rain reschedule SMS via Twilio.
+ * Send rain reschedule SMS via Twilio (uses per-user DB creds).
  */
-async function sendRainSMS(phone, firstName, newDateLabel, customMessage) {
+async function sendRainSMS(phone, firstName, newDateLabel, customMessage, userId) {
   const to   = toE164(phone);
   const body = customMessage ||
     `Hey there! Due to rain in the forecast, your lawn cut has been rescheduled ` +
@@ -303,25 +296,20 @@ async function sendRainSMS(phone, firstName, newDateLabel, customMessage) {
     return 'dry-run';
   }
 
-  const sid   = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  if (!sid || !token) throw new Error('Twilio credentials not configured');
+  const creds = await getTwilioCreds(userId);
+  if (!creds.accountSid || !creds.authToken) throw new Error('Twilio credentials not configured');
 
-  const client = twilio(sid, token);
-  const msg    = await client.messages.create({
-    body,
-    from: process.env.TWILIO_FROM_NUMBER,
-    to,
-  });
+  const client = twilio(creds.accountSid, creds.authToken);
+  const msg    = await client.messages.create({ body, from: creds.fromNumber, to });
 
   console.log(`[weatherService] Rain SMS sent to ${to} | SID: ${msg.sid}`);
   return msg.sid;
 }
 
 /**
- * Send rain reschedule email via Gmail.
+ * Send rain reschedule email via Gmail (uses per-user DB creds).
  */
-async function sendRainEmail(to, firstName, newDateLabel, customMessage) {
+async function sendRainEmail(to, firstName, newDateLabel, customMessage, userId) {
   const text = customMessage ||
     `Hey there! Due to rain in the forecast, your lawn cut has been rescheduled ` +
     `to ${newDateLabel}. We appreciate your flexibility! — No-Bs Yardwork`;
@@ -331,11 +319,10 @@ async function sendRainEmail(to, firstName, newDateLabel, customMessage) {
     return 'dry-run';
   }
 
-  const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
-  if (!user || !pass) throw new Error('Gmail credentials not configured');
+  const creds = await getGmailCreds(userId);
+  if (!creds.user || !creds.pass) throw new Error('Gmail credentials not configured');
 
-  const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } });
+  const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: creds.user, pass: creds.pass } });
 
   const html = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"></head>
@@ -348,7 +335,7 @@ async function sendRainEmail(to, firstName, newDateLabel, customMessage) {
 </body></html>`;
 
   const info = await transporter.sendMail({
-    from: `"${process.env.EMAIL_FROM_NAME || 'No-Bs Yardwork'}" <${user}>`,
+    from: `"${creds.fromName}" <${creds.user}>`,
     to,
     subject: 'Your lawn cut has been rescheduled',
     html,
@@ -378,7 +365,7 @@ async function addRainTag(clientId) {
  * Send rain reschedule notifications to a list of clients.
  * Returns counts for logging.
  */
-async function batchNotify({ clients, newDate, newDateLabel, customMessage }) {
+async function batchNotify({ clients, newDate, newDateLabel, customMessage, userId }) {
   let smsCount   = 0;
   let emailCount = 0;
   const errors   = [];
@@ -388,7 +375,7 @@ async function batchNotify({ clients, newDate, newDateLabel, customMessage }) {
 
     if (phone && smsAllowed) {
       try {
-        await sendRainSMS(phone, firstName, newDateLabel, customMessage);
+        await sendRainSMS(phone, firstName, newDateLabel, customMessage, userId);
         smsCount++;
       } catch (err) {
         console.error(`[weatherService] SMS failed for ${client.name}:`, err.message);
@@ -398,7 +385,7 @@ async function batchNotify({ clients, newDate, newDateLabel, customMessage }) {
 
     if (email) {
       try {
-        await sendRainEmail(email, firstName, newDateLabel, customMessage);
+        await sendRainEmail(email, firstName, newDateLabel, customMessage, userId);
         emailCount++;
       } catch (err) {
         console.error(`[weatherService] Email failed for ${client.name}:`, err.message);
@@ -419,37 +406,53 @@ async function batchNotify({ clients, newDate, newDateLabel, customMessage }) {
 // ---------------------------------------------------------------------------
 
 /**
- * Runs at 5:30 AM daily. Checks weather and logs result.
- * Does NOT auto-notify clients — operator always approves first from dashboard.
+ * Run a morning rain check for a single user's WeatherSettings.
  */
-async function runMorningCheck() {
-  console.log('[weatherService] Running morning rain check...');
-
+async function runMorningCheckForUser(userId) {
   try {
-    const settings = await getSettings();
-    if (!settings.checkEnabled) {
-      console.log('[weatherService] Weather check disabled in settings — skipping.');
-      return;
-    }
+    const settings = await getSettings(userId);
+    if (!settings.checkEnabled) return;
 
     const result = await checkRainToday(settings);
 
     await prisma.weatherCheck.create({
       data: {
-        date:           toDateString(),
-        rainExpected:   result.rainExpected,
-        maxPrecipProb:  result.maxPop,
+        date:            toDateString(),
+        rainExpected:    result.rainExpected,
+        maxPrecipProb:   result.maxPop,
         forecastSummary: result.summary,
+        userId:          userId || null,
       },
     });
 
     if (result.rainExpected) {
-      const dayTag = getDayTag();
-      console.log(`[weatherService] *** RAIN ALERT *** ${result.summary}`);
-      console.log(`[weatherService] Clients tagged "${dayTag}" may need rescheduling.`);
-      console.log('[weatherService] Open the dashboard → Rain Alerts to notify clients.');
+      console.log(`[weatherService][user:${userId}] *** RAIN ALERT *** ${result.summary}`);
     } else {
-      console.log(`[weatherService] Morning check complete — no rain expected. ${result.summary}`);
+      console.log(`[weatherService][user:${userId}] No rain expected. ${result.summary}`);
+    }
+  } catch (err) {
+    console.error(`[weatherService][user:${userId}] Morning check failed:`, err.message);
+  }
+}
+
+/**
+ * Runs at 5:30 AM daily. Iterates all users with WeatherSettings and checks weather.
+ * Does NOT auto-notify clients — operator always approves first from dashboard.
+ */
+async function runMorningCheck() {
+  console.log('[weatherService] Running morning rain check for all users...');
+
+  try {
+    const allSettings = await prisma.weatherSettings.findMany();
+
+    if (allSettings.length === 0) {
+      // No users have configured weather yet — run a single anonymous check
+      await runMorningCheckForUser(null);
+      return;
+    }
+
+    for (const s of allSettings) {
+      await runMorningCheckForUser(s.userId);
     }
   } catch (err) {
     console.error('[weatherService] Morning check failed:', err.message);

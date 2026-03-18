@@ -49,6 +49,7 @@ model User {
   id           String   @id @default(cuid())
   email        String   @unique
   passwordHash String
+  role         String   @default("client")  // "admin" | "client"
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
 }
@@ -67,6 +68,7 @@ model PendingReview {
   scheduledAt DateTime          // when to send = enqueued time + REVIEW_DELAY_MINUTES
   processed   Boolean  @default(false)
   cancelled   Boolean  @default(false)
+  userId      String?           // portal user who owns this queued review
   createdAt   DateTime @default(now())
 }
 
@@ -77,7 +79,10 @@ model WeatherCheck {
   rainExpected    Boolean
   maxPrecipProb   Float    // 0.0–1.0 (highest pop in business hours)
   forecastSummary String   // e.g. "Rain likely 9am–2pm (72%)"
+  userId          String?  // portal user who owns this check
   checkedAt       DateTime @default(now())
+
+  @@index([userId])
 }
 
 // Audit log for every rain reschedule batch notification sent.
@@ -90,12 +95,16 @@ model RainReschedule {
   smsCount     Int      @default(0)
   emailCount   Int      @default(0)
   message      String   // actual message text that was sent
+  userId       String?  // portal user who owns this reschedule
   notifiedAt   DateTime @default(now())
+
+  @@index([userId])
 }
 
-// Singleton settings row for the weather/rain feature.
+// Per-user settings row for the weather/rain feature.
 model WeatherSettings {
   id                     String  @id @default(cuid())
+  userId                 String? @unique  // one row per user
   city                   String  @default("Winnipeg")
   rainThreshold          Float   @default(0.4)   // 40% pop = rain warning
   businessStartHour      Int     @default(7)
@@ -116,7 +125,10 @@ model SeoAudit {
   keywordsJson     String?  // JSON array: [{ keyword, clicks, impressions, position }]
   competitorJson   String?  // JSON array: [{ url, title, h1s, wordCount, schema }]
   insightJson      String?  // JSON array: generated insights
+  userId           String?  // portal user who owns this audit
   runAt            DateTime @default(now())
+
+  @@index([userId])
 }
 
 // SEO: one proposal per audit — operator approves or declines.
@@ -126,8 +138,11 @@ model SeoProposal {
   status      String    @default("pending")  // pending | approved | declined
   title       String
   summaryJson String    // JSON array: [{ insight, impact, fix, fileTarget }]
+  userId      String?   // portal user who owns this proposal
   respondedAt DateTime?
   createdAt   DateTime  @default(now())
+
+  @@index([userId])
 }
 
 // SEO: individual file changes attached to a proposal.
@@ -139,14 +154,18 @@ model SeoChange {
   newContent  String
   description String
   status      String    @default("pending")  // pending | applied | failed
+  userId      String?   // portal user who owns this change
   appliedAt   DateTime?
   errorMsg    String?
   createdAt   DateTime  @default(now())
+
+  @@index([userId])
 }
 
-// Website Audit: FTP server credentials (singleton — one config per app instance).
+// Website Audit: FTP server credentials — one config per user.
 model FtpConfig {
   id                String   @id @default(cuid())
+  userId            String?  // portal user who owns this config
   host              String
   user              String
   encryptedPassword String
@@ -154,23 +173,30 @@ model FtpConfig {
   port              Int      @default(21)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // Website Audit: path patterns to exclude from FTP scans (e.g. "cgi-bin", "wp-admin").
 model AuditIgnore {
   id        String   @id @default(cuid())
-  pattern   String   @unique
+  pattern   String
+  userId    String?  // portal user who owns this ignore rule
   createdAt DateTime @default(now())
+
+  @@unique([userId, pattern])
+  @@index([userId])
 }
 
 // Website Audit: one row per HTML file discovered on the FTP server.
 // Status flow: discovered → pulled → auditing → audited → edited → pushed → done
 model AuditPage {
   id              String    @id @default(cuid())
-  path            String    @unique   // full remote path e.g. /public_html/about.html
+  path            String    // full remote path e.g. /public_html/about.html
   filename        String
   status          String    @default("discovered")
   localContent    String?             // raw HTML pulled from server
+  userId          String?             // portal user who owns this page
   lastPulled      DateTime?
   lastPushed      DateTime?
   auditScore      Int?                // composite 0-100 (SEO + perf)
@@ -180,11 +206,15 @@ model AuditPage {
   pageUrl         String?             // full public URL for PageSpeed
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, path])
+  @@index([userId])
 }
 
-// SEO: singleton settings row — site URL, competitors, deploy config, Google tokens.
+// SEO: per-user settings row — site URL, competitors, deploy config, Google tokens.
 model SeoSettings {
   id                 String   @id @default(cuid())
+  userId             String?  @unique  // one row per user
   siteUrl            String   @default("")
   competitorUrls     String   @default("[]")   // JSON array of competitor URLs
   deployType         String   @default("none") // "git" | "ftp" | "none"
@@ -202,4 +232,26 @@ model SeoSettings {
   deepAnalysis       Boolean  @default(false) // true = Sonnet (~4¢), false = Haiku (~0.7¢)
   updatedAt          DateTime @updatedAt
   createdAt          DateTime @default(now())
+}
+
+// Per-user Twilio SMS credentials.
+model TwilioCredential {
+  id          String   @id @default(cuid())
+  userId      String   @unique  // one row per user
+  accountSid  String
+  authToken   String
+  fromNumber  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Per-user Gmail credentials for outbound email.
+model GmailCredential {
+  id          String   @id @default(cuid())
+  userId      String   @unique  // one row per user
+  gmailUser   String
+  appPassword String
+  fromName    String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
