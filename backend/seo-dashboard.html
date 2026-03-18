@@ -965,9 +965,8 @@
     if (!res.ok) return;
     const me = await res.json();
     const role = me.role || 'client';
-    if (role === 'client') { location.href = '/index.html'; return; }
     const roleEl = document.querySelector('.user-role');
-    if (roleEl) roleEl.textContent = 'Administrator';
+    if (roleEl) roleEl.textContent = role === 'admin' ? 'Administrator' : 'Client';
     addAdminLink();
   } catch {}
   function addAdminLink() {
