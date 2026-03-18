@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Case Study — Marcus D., Lawn Care Austin TX | 5StarFlow</title>
+  <meta name="description" content="See how Marcus grew from 11 to 47 Google reviews in 3 months using 5StarFlow's automated review request system." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/pricing.css" />
+  <style>
+    .cs-hero {
+      background: var(--color-primary);
+      padding: 5rem 0 4rem;
+      text-align: center;
+    }
+    .cs-hero h1 {
+      color: #fff;
+      font-size: var(--text-4xl);
+      max-width: 760px;
+      margin: 0 auto 1rem;
+    }
+    .cs-hero-meta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+      margin-top: 1.75rem;
+    }
+    .cs-meta-item {
+      text-align: center;
+    }
+    .cs-meta-number {
+      font-size: var(--text-4xl);
+      font-weight: 800;
+      color: var(--color-accent);
+      line-height: 1;
+    }
+    .cs-meta-label {
+      font-size: var(--text-sm);
+      color: rgba(255,255,255,0.6);
+      margin-top: 0.25rem;
+    }
+    .cs-meta-divider { width: 1px; height: 50px; background: rgba(255,255,255,0.15); }
+
+    .cs-body {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 4rem 1.5rem;
+    }
+    .cs-section-label {
+      font-size: var(--text-xs);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-accent);
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+    .cs-body h2 {
+      font-size: var(--text-2xl);
+      color: var(--color-primary);
+      margin-bottom: 1rem;
+    }
+    .cs-body p {
+      font-size: var(--text-lg);
+      color: var(--color-text-muted);
+      line-height: 1.75;
+      margin-bottom: 1.5rem;
+    }
+    .cs-pullquote {
+      background: var(--color-bg);
+      border-left: 5px solid var(--color-accent);
+      padding: 1.75rem 2rem;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 2.5rem 0;
+    }
+    .cs-pullquote p {
+      font-size: var(--text-xl);
+      font-weight: 600;
+      font-style: italic;
+      color: var(--color-primary);
+      margin: 0 0 0.75rem;
+      line-height: 1.5;
+    }
+    .cs-pullquote-name {
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+      font-style: normal;
+    }
+    .cs-results-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+      margin: 2.5rem 0;
+    }
+    .cs-result-box {
+      background: var(--color-primary);
+      border-radius: var(--radius);
+      padding: 2rem 1.25rem;
+      text-align: center;
+    }
+    .cs-result-number {
+      font-size: var(--text-4xl);
+      font-weight: 800;
+      color: var(--color-accent);
+      line-height: 1;
+      margin-bottom: 0.4rem;
+    }
+    .cs-result-label {
+      font-size: var(--text-sm);
+      color: rgba(255,255,255,0.65);
+      line-height: 1.4;
+    }
+    .cs-plan-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(212,160,23,0.12);
+      border: 1px solid rgba(212,160,23,0.3);
+      color: #92400E;
+      font-size: var(--text-sm);
+      font-weight: 600;
+      padding: 0.4rem 1rem;
+      border-radius: 999px;
+      margin-bottom: 2rem;
+    }
+    .cs-cta {
+      background: var(--color-accent);
+      border-radius: var(--radius-lg);
+      padding: 3rem 2rem;
+      text-align: center;
+      margin-top: 3rem;
+    }
+    .cs-cta h3 {
+      font-size: var(--text-2xl);
+      color: var(--color-primary-dark);
+      margin-bottom: 0.75rem;
+    }
+    .cs-cta p {
+      color: rgba(15,34,25,0.7);
+      font-size: var(--text-base);
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 768px) {
+      .cs-results-grid { grid-template-columns: 1fr; }
+      .cs-meta-divider { display: none; }
+      .cs-hero h1 { font-size: var(--text-3xl); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav id="nav">
+    <div class="container nav-inner">
+      <a href="index.html" class="nav-logo">
+        <span class="nav-logo-star">★</span> 5StarFlow
+      </a>
+      <ul class="nav-menu" id="nav-menu">
+        <li><a href="index.html#how-it-works">How It Works</a></li>
+        <li><a href="index.html#features">Features</a></li>
+        <li class="nav-dropdown-wrap">
+          <button class="nav-dropdown-toggle" aria-expanded="false" aria-haspopup="true">
+            Pricing <span class="nav-dropdown-arrow">▾</span>
+          </button>
+          <ul class="nav-dropdown">
+            <li><a href="pricing.html">All Plans</a></li>
+            <li class="nav-dropdown-divider"></li>
+            <li><a href="pricing.html#diy">DIY Setup — $99</a></li>
+            <li><a href="pricing.html#done-for-you">Done For You — $299</a></li>
+            <li><a href="pricing.html#managed">Fully Managed — $49/mo</a></li>
+          </ul>
+        </li>
+        <li><a href="index.html#faq">FAQ</a></li>
+        <li class="nav-cta-mobile"><a href="pricing.html" class="btn btn-primary">Get Started</a></li>
+        <!-- Update href to your hosted backend URL when deployed -->
+        <li class="nav-login-item"><a href="https://5starflow-backend-production.up.railway.app/login.html" class="nav-login-link">Login</a></li>
+      </ul>
+      <a href="pricing.html" class="btn btn-primary nav-cta-desktop">Get Started</a>
+      <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main>
+
+    <!-- HERO -->
+    <section class="cs-hero">
+      <div class="container">
+        <span class="badge">Client Success Story</span>
+        <h1>From 11 to 47 Google Reviews in 3 Months — Without Asking a Single Client Manually</h1>
+        <p style="color:rgba(255,255,255,0.65);font-size:1.1rem;max-width:580px;margin:1rem auto 0;line-height:1.7">Marcus D. runs a lawn care company in Austin, TX. He used to ask clients for reviews by hand — and most times he forgot entirely. Here's what changed.</p>
+        <div class="cs-hero-meta">
+          <div class="cs-meta-item">
+            <div class="cs-meta-number">11 → 47</div>
+            <div class="cs-meta-label">Google reviews in 3 months</div>
+          </div>
+          <div class="cs-meta-divider"></div>
+          <div class="cs-meta-item">
+            <div class="cs-meta-number">0</div>
+            <div class="cs-meta-label">Manual review requests sent</div>
+          </div>
+          <div class="cs-meta-divider"></div>
+          <div class="cs-meta-item">
+            <div class="cs-meta-number">4.9 ★</div>
+            <div class="cs-meta-label">Average star rating</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BODY -->
+    <div class="cs-body">
+
+      <div class="cs-plan-badge">
+        ✅ Done For You Plan — $299 one-time
+      </div>
+
+      <span class="cs-section-label">The Problem</span>
+      <h2>He Was Doing Great Work. His Google Listing Didn't Show It.</h2>
+      <p>Marcus had been running his lawn care business for four years. His clients loved him — return bookings were strong, word-of-mouth was steady. But when new customers Googled lawn care in Austin, they saw competitors with 80, 120, even 200 Google reviews. Marcus had 11.</p>
+      <p>"I knew I should be asking for reviews. I just never did it consistently. After a job I'm already driving to the next one. By the time I remembered, it felt weird to go back and ask."</p>
+
+      <div class="cs-pullquote">
+        <p>"I had clients who would've happily left a review. I just never asked at the right time. 5StarFlow does the asking for me — automatically, every single time."</p>
+        <div class="cs-pullquote-name">— Marcus D., Owner, Lawn Care Business, Austin TX</div>
+      </div>
+
+      <span class="cs-section-label">The Setup</span>
+      <h2>Done in 2 Days. He Didn't Touch a Single Setting.</h2>
+      <p>Marcus chose the Done For You plan. He filled out a short onboarding form — his business name, Google review link, and the tone he wanted his messages to have. Two days later, our team had everything connected and tested.</p>
+      <p>The automation runs inside his own Zapier account. When a Jobber invoice is marked paid, Zapier triggers the review request: first a text message, then a follow-up email a few hours later. Both are personalized with the client's first name and a direct link to Marcus's Google review page.</p>
+      <p>"I was skeptical it would actually work. Then I got my first new review the same day it went live. Someone I had done a job for three days before — they got the text, clicked the link, left a five-star review. I hadn't done anything."</p>
+
+      <span class="cs-section-label">The Results</span>
+      <h2>The Numbers After 90 Days.</h2>
+
+      <div class="cs-results-grid">
+        <div class="cs-result-box">
+          <div class="cs-result-number">+36</div>
+          <div class="cs-result-label">New Google reviews in 3 months</div>
+        </div>
+        <div class="cs-result-box">
+          <div class="cs-result-number">4.9 ★</div>
+          <div class="cs-result-label">Average review score maintained</div>
+        </div>
+        <div class="cs-result-box">
+          <div class="cs-result-number">~18%</div>
+          <div class="cs-result-label">Of clients who received a request left a review</div>
+        </div>
+      </div>
+
+      <p>By month two, Marcus told us that new inbound calls had increased noticeably. "People say they found me on Google and saw all the reviews. That wasn't happening before." By month three, he had enough reviews to rank on the first page of local search results for his core keywords.</p>
+
+      <div class="cs-pullquote">
+        <p>"Worth every dollar. I paid $299 once. That's it. My Google presence is night and day compared to what it was."</p>
+        <div class="cs-pullquote-name">— Marcus D., Austin TX</div>
+      </div>
+
+      <span class="cs-section-label">The Takeaway</span>
+      <h2>The Best Review Strategy Is One That Runs Without You.</h2>
+      <p>Marcus didn't change how he did his work. He didn't start handing out cards or awkwardly asking clients to pull up their phones. The automation just runs in the background — and every completed job becomes a potential 5-star review.</p>
+      <p>If you're doing great work and your Google listing doesn't reflect it, it's not because your clients don't want to leave reviews. It's because nobody's asking at the right moment. 5StarFlow fixes that.</p>
+
+      <div class="cs-cta">
+        <h3>Ready for Your Own Results?</h3>
+        <p>Pick a plan and we'll have your automation running in days — not weeks.</p>
+        <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
+          <a href="pricing.html#done-for-you" class="btn btn-dark">Get Done For You — $299</a>
+          <a href="pricing.html" class="btn btn-dark-outline">See All Plans</a>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer id="footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <div class="footer-logo"><span class="nav-logo-star">★</span> 5StarFlow</div>
+        <p>Automated reviews, leads, and Google presence for home service businesses.</p>
+        <a href="mailto:hello@5starflow.com" class="footer-email">hello@5starflow.com</a>
+      </div>
+      <div class="footer-links">
+        <h4>Navigate</h4>
+        <ul>
+          <li><a href="index.html#how-it-works">How It Works</a></li>
+          <li><a href="index.html#features">Features</a></li>
+          <li><a href="pricing.html">Pricing</a></li>
+          <li><a href="index.html#faq">FAQ</a></li>
+        </ul>
+      </div>
+      <div class="footer-links">
+        <h4>Plans</h4>
+        <ul>
+          <li><a href="pricing.html#diy">DIY Setup — $99</a></li>
+          <li><a href="pricing.html#done-for-you">Done For You — $299</a></li>
+          <li><a href="pricing.html#managed">Fully Managed — $49/mo</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="container footer-bottom-inner">
+        <span>© 2026 5StarFlow. All rights reserved.</span>
+        <span>
+          <a href="privacy.html">Privacy Policy</a>
+          <span class="footer-sep">|</span>
+          <a href="terms.html">Terms of Service</a>
+        </span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+.DS_Store
+Thumbs.db
+
+# Backend — secrets and generated files (never commit these)
+backend/.env
+backend/node_modules/
+backend/prisma/dev.db
+backend/prisma/*.db-journal

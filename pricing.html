@@ -1,0 +1,951 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pricing — 5StarFlow</title>
+    <meta
+      name="description"
+      content="Choose the 5StarFlow plan that fits your business. DIY, Done For You, or Fully Managed automation for Jobber users."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css" />
+    <link rel="stylesheet" href="css/pricing.css" />
+    <script src="https://www.paypal.com/sdk/js?client-id=BAA2756tw5gYHSCdchuMPwmOn1BcujHYiQo7zxI_3oZvx6-v1yBxHp6qdWiyfP9fF4yf_ryabN4jWlS76U&components=hosted-buttons&disable-funding=venmo&currency=USD"></script>
+  </head>
+  <body>
+    <!-- NAV -->
+    <nav id="nav">
+      <div class="container nav-inner">
+        <a href="index.html" class="nav-logo">
+          <span class="nav-logo-star">★</span> 5StarFlow
+        </a>
+        <ul class="nav-menu" id="nav-menu">
+          <li><a href="index.html#how-it-works">How It Works</a></li>
+          <li><a href="index.html#features">Features</a></li>
+          <li class="nav-dropdown-wrap">
+            <button
+              class="nav-dropdown-toggle"
+              aria-expanded="false"
+              aria-haspopup="true"
+            >
+              Pricing <span class="nav-dropdown-arrow">▾</span>
+            </button>
+            <ul class="nav-dropdown">
+              <li><a href="pricing.html">All Plans</a></li>
+              <li class="nav-dropdown-divider"></li>
+              <li><a href="pricing.html#diy">DIY Setup — $99</a></li>
+              <li>
+                <a href="pricing.html#done-for-you">Done For You — $299</a>
+              </li>
+              <li><a href="pricing.html#managed">Fully Managed — $49/mo</a></li>
+            </ul>
+          </li>
+          <li><a href="index.html#faq">FAQ</a></li>
+          <li class="nav-cta-mobile">
+            <a href="pricing.html" class="btn btn-primary">Get Started</a>
+          </li>
+          <!-- Update href to your hosted backend URL when deployed -->
+          <li class="nav-login-item"><a href="https://5starflow-backend-production.up.railway.app/login.html" class="nav-login-link">Login</a></li>
+        </ul>
+        <a
+          href="mailto:hello@5starflow.com"
+          class="btn btn-primary nav-cta-desktop"
+          >Contact Us</a
+        >
+        <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </nav>
+
+    <main>
+      <!-- PAGE HERO -->
+      <section class="pricing-hero">
+        <div class="container pricing-hero-inner">
+          <span class="badge">Plans &amp; Pricing</span>
+          <h1>Pick Your Plan. We Handle the Rest.</h1>
+          <p>
+            Three plans for home service businesses. Works with Jobber,
+            QuickBooks, Stripe, and any platform with an invoice paid trigger.
+            No tech knowledge required. All plans include our satisfaction
+            guarantee.
+          </p>
+          <div
+            style="
+              display: flex;
+              gap: 1.25rem;
+              justify-content: center;
+              flex-wrap: wrap;
+              margin-top: 1.75rem;
+            "
+          >
+            <span style="color: rgba(255, 255, 255, 0.65); font-size: 0.9rem"
+              >⭐ Review Requester</span
+            >
+            <span style="color: rgba(255, 255, 255, 0.4)">|</span>
+            <span style="color: rgba(255, 255, 255, 0.65); font-size: 0.9rem"
+              >📩 Inquiry Emailer</span
+            >
+            <span style="color: rgba(255, 255, 255, 0.4)">|</span>
+            <span style="color: rgba(255, 255, 255, 0.65); font-size: 0.9rem"
+              >📍 Google Business Posting</span
+            >
+          </div>
+        </div>
+      </section>
+
+
+      <!-- PLAN CARDS (overview) -->
+      <section class="plans-overview">
+        <div class="container">
+          <div class="overview-cards">
+            <a href="#diy" class="overview-card">
+              <div class="overview-icon">🛠</div>
+              <div class="overview-price">$99 <span>one-time</span></div>
+              <div class="overview-name">DIY Setup</div>
+              <div class="overview-desc">
+                You set it up with our template &amp; guide
+              </div>
+              <div class="overview-services">
+                <span class="overview-service-tag tag-included">📩 Inquiry Emailer</span>
+                <span class="overview-service-tag tag-included">⭐ Review Requester</span>
+                <span class="overview-service-tag tag-excluded">📍 Google</span>
+              </div>
+            </a>
+            <a
+              href="#done-for-you"
+              class="overview-card overview-card-featured"
+            >
+              <div class="overview-badge">Most Popular</div>
+              <div class="overview-icon">✅</div>
+              <div class="overview-price">$299 <span>one-time</span></div>
+              <div class="overview-name">Done For You</div>
+              <div class="overview-desc">
+                We build and connect all 3 services for you
+              </div>
+              <div class="overview-services">
+                <span class="overview-service-tag tag-included">📩 Inquiry Emailer</span>
+                <span class="overview-service-tag tag-included">⭐ Review Requester</span>
+                <span class="overview-service-tag tag-included">📍 Google</span>
+              </div>
+            </a>
+            <a href="#managed" class="overview-card">
+              <div class="overview-icon">🚀</div>
+              <div class="overview-price">$49 <span>/month</span></div>
+              <div class="overview-name">Fully Managed</div>
+              <div class="overview-desc">
+                We run it all — nothing to set up or manage
+              </div>
+              <div class="overview-services">
+                <span class="overview-service-tag tag-included">📩 Inquiry Emailer</span>
+                <span class="overview-service-tag tag-included">⭐ Review Requester</span>
+                <span class="overview-service-tag tag-included">📍 Google</span>
+              </div>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================
+         PLAN 1: DIY SETUP
+    ========================= -->
+      <section id="diy" class="plan-section plan-section-light">
+        <div class="container plan-inner">
+          <div class="plan-info">
+            <span class="plan-tag">Plan 1 of 3</span>
+            <h2>🛠 DIY Setup</h2>
+            <div class="plan-price-row">
+              <span class="plan-price">$99</span>
+              <span class="plan-price-period">one-time payment</span>
+            </div>
+            <p class="plan-tagline">
+              Best for business owners who are comfortable following
+              step-by-step instructions and want to get set up without paying
+              monthly fees.
+            </p>
+
+            <!-- Services included -->
+            <div class="plan-services-summary">
+              <span class="plan-service-chip chip-included"
+                >✓ 📩 Inquiry Emailer</span
+              >
+              <span class="plan-service-chip chip-included"
+                >✓ ⭐ Review Requester</span
+              >
+              <span class="plan-service-chip chip-excluded"
+                >✕ 📍 Google Posting</span
+              >
+            </div>
+
+            <div class="plan-how-section">
+              <h3>What You Get</h3>
+              <p>
+                Once your payment is confirmed, we'll email you everything you
+                need. Most people have both automations running within 30 minutes
+                — no coding, no tech background required:
+              </p>
+
+              <!-- YouTube guide -->
+              <div class="plan-video-guide">
+                <h4>🎬 30-Minute Setup Walkthrough Video</h4>
+                <p>
+                  Follow along with our screen-recorded video guide and have
+                  everything running before you finish your coffee. We show
+                  every step — exactly what to click and where.
+                </p>
+                <div class="video-after-purchase">
+                  <div class="video-yt-badge">▶ YouTube</div>
+                  <div class="video-after-text">
+                    <strong>Link sent to your inbox after purchase</strong>
+                    <span
+                      >Watch anytime — pause, rewind, and follow along at your
+                      own pace.</span
+                    >
+                  </div>
+                </div>
+              </div>
+
+              <ul class="plan-checklist">
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>📩 Inquiry Emailer — ready to install</strong>
+                    <p>
+                      When a potential client submits a form on your website, they get an instant, professional reply automatically — even at midnight. We give you the pre-built automation and the message. You just follow the guide to connect it to your form. Takes about 5 minutes.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>⭐ Review Requester — ready to install</strong>
+                    <p>
+                      Every time an invoice is marked paid in Jobber, QuickBooks, Stripe, or your other platform, your client automatically gets an email asking them to leave a review. Set it up once and it runs forever in the background.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>Plain-English setup guide (PDF + screenshots)</strong>
+                    <p>
+                      Every step has a screenshot. We wrote it so that even if
+                      you've never done anything like this before, you can follow
+                      along without getting confused.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>Done-for-you message templates</strong>
+                    <p>
+                      Professional email templates for both automations — already written. Just swap in your business name and you're done.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>One-time setup support</strong>
+                    <p>
+                      If you get stuck at any step, email us and we'll walk you
+                      through it. We want this working for you.
+                    </p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <div class="plan-limit-box">
+              <div class="plan-limit-icon">⚡</div>
+              <div>
+                <strong>One Thing to Know Before You Buy</strong>
+                <ul class="limit-list">
+                  <li>
+                    <strong>The Inquiry Emailer runs free</strong> — no extra costs to keep it going.
+                  </li>
+                  <li>
+                    <strong>The Review Requester requires a small automation subscription (~$20/mo)</strong> to run reliably. Our guide walks you through setting it up in under 5 minutes.
+                  </li>
+                  <li>
+                    <strong>Don't want to manage any of that?</strong> The
+                    <a href="#managed" style="color: #92400e; font-weight: 600"
+                      >Fully Managed plan</a
+                    >
+                    covers everything on our end — no accounts for you to maintain.
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="plan-who">
+              <h3>This Plan Is Right For You If...</h3>
+              <ul class="plan-who-list">
+                <li>
+                  You're comfortable following step-by-step instructions (like
+                  setting up a TV or phone)
+                </li>
+                <li>You want both automations running without paying monthly fees to us</li>
+                <li>
+                  You use Jobber, QuickBooks, Stripe, or any other popular invoicing platform
+                </li>
+                <li>
+                  You don't need Google Business Profile posting — just the two core automations for now
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="plan-sidebar">
+            <div class="plan-cta-card">
+              <div class="plan-cta-price">$99 <span>one-time</span></div>
+              <p>Everything you need delivered to your inbox.</p>
+              <div id="paypal-container-RZBV6D6LUNMZQ"></div>
+              <script>
+                paypal
+                  .HostedButtons({
+                    hostedButtonId: "RZBV6D6LUNMZQ",
+                  })
+                  .render("#paypal-container-RZBV6D6LUNMZQ");
+              </script>
+              <p class="plan-cta-micro">
+                Instant delivery after payment confirmation.
+              </p>
+              <div class="plan-includes-mini">
+                <p class="includes-label">Includes:</p>
+                <ul>
+                  <li>✓ Inquiry Emailer automation</li>
+                  <li>✓ Review Requester automation</li>
+                  <li>✓ Setup guide (PDF + video)</li>
+                  <li>✓ Message templates (written for you)</li>
+                  <li>✓ Setup support</li>
+                </ul>
+              </div>
+            </div>
+            <div class="plan-upsell">
+              <p>Want us to handle everything?</p>
+              <a href="#done-for-you" class="plan-upsell-link"
+                >See Done For You →</a
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================
+         PLAN 2: DONE FOR YOU
+    ========================= -->
+      <section id="done-for-you" class="plan-section plan-section-featured">
+        <div class="plan-featured-banner">
+          Most Popular Plan — All 3 Services Included
+        </div>
+        <div class="container plan-inner">
+          <div class="plan-info">
+            <span class="plan-tag plan-tag-gold">Plan 2 of 3</span>
+            <h2>✅ Done For You</h2>
+            <div class="plan-price-row">
+              <span class="plan-price">$299</span>
+              <span class="plan-price-period">one-time payment</span>
+            </div>
+            <p class="plan-tagline">
+              Best for business owners who want everything set up properly the
+              first time — all 3 services running, with zero guesswork on your
+              end.
+            </p>
+
+            <!-- Services included -->
+            <div class="plan-services-summary">
+              <span class="plan-service-chip chip-included"
+                >✓ 📩 Inquiry Emailer</span
+              >
+              <span class="plan-service-chip chip-included"
+                >✓ ⭐ Review Requester</span
+              >
+              <span class="plan-service-chip chip-included"
+                >✓ 📍 Google Posting</span
+              >
+            </div>
+
+            <div class="plan-how-section">
+              <h3>What We Build For You</h3>
+              <p>
+                After payment, we reach out within 24 hours. We handle every
+                technical step — you just grant us access to your accounts and
+                we take it from there. Here's exactly what we set up:
+              </p>
+              <ul class="plan-checklist">
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>⭐ Review Requester — fully configured</strong>
+                    <p>
+                      We connect your invoice system to your email and SMS so
+                      that every time an invoice is paid, your client gets a
+                      personal review request. Works with Jobber, QuickBooks,
+                      Stripe, Housecall Pro, and more. No button to press — it
+                      just happens.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>📩 Inquiry Emailer — fully configured</strong>
+                    <p>
+                      When someone fills out your website contact form, they get
+                      a friendly, professional reply within seconds — even at
+                      midnight. We connect your Jotform, WPForms, or Squarespace
+                      form to this system.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong
+                      >📍 Google Business Profile Posting — fully
+                      configured</strong
+                    >
+                    <p>
+                      We set up automatic posts to your Google Business Profile
+                      on a regular schedule. Your listing stays active, which
+                      helps you rank higher in local Google searches.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>Custom messages written to sound like you</strong>
+                    <p>
+                      We don't use generic templates. We write your review
+                      request emails, texts, and lead replies using your
+                      business name, your tone, and your service area.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>Live test run before handoff</strong>
+                    <p>
+                      We trigger a real test to make sure everything fires
+                      correctly. You'll see it work before we call it done.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>30-day support after setup</strong>
+                    <p>
+                      If anything needs tweaking in the first 30 days — message
+                      templates, timing, connections — just email us and we'll
+                      fix it.
+                    </p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <div class="plan-limit-box">
+              <div class="plan-limit-icon">⚡</div>
+              <div>
+                <strong>One Small Requirement to Be Aware Of</strong>
+                <p>
+                  Because this plan runs all 3 automations simultaneously, you'll need a low-cost automation account (~$20/month) to power everything reliably. We handle the setup and configuration — you just need the account active. If you'd rather not manage anything yourself, the
+                  <strong>Fully Managed plan</strong> covers it all on our end with no accounts for you to maintain.
+                </p>
+              </div>
+            </div>
+
+            <div class="plan-who">
+              <h3>This Plan Is Right For You If...</h3>
+              <ul class="plan-who-list">
+                <li>
+                  You want all 3 services set up and running — without touching
+                  any settings yourself
+                </li>
+                <li>
+                  You want messages that sound like <em>you</em>, not a generic
+                  template
+                </li>
+                <li>
+                  You use Jobber, QuickBooks, Stripe, or any other popular invoicing platform
+                </li>
+                <li>
+                  You're okay with a small monthly automation account (~$20/month) to power everything
+                </li>
+                <li>
+                  You'd rather pay once up front than commit to a monthly
+                  subscription
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="plan-sidebar">
+            <div class="plan-cta-card plan-cta-card-featured">
+              <div class="plan-cta-price">$299 <span>one-time</span></div>
+              <p>
+                All 3 services built and connected. Done in 2–3 business days.
+              </p>
+              <a
+                href="mailto:hello@5starflow.com?subject=Done%20For%20You%20Plan%20-%20%24299"
+                class="btn btn-accent plan-btn"
+                >Get Done For You</a
+              >
+              <p class="plan-cta-micro">
+                We'll reach out within 24 hours after payment.
+              </p>
+              <div class="plan-includes-mini">
+                <p class="includes-label">All 3 services included:</p>
+                <ul>
+                  <li>✓ 📩 Inquiry Emailer</li>
+                  <li>✓ ⭐ Review Requester</li>
+                  <li>✓ 📍 Google Business posting</li>
+                  <li>✓ Custom messages written for you</li>
+                  <li>✓ Live test + 30-day support</li>
+                </ul>
+              </div>
+            </div>
+            <div class="plan-upsell">
+              <p>Want us to manage it ongoing?</p>
+              <a href="#managed" class="plan-upsell-link"
+                >See Fully Managed →</a
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================
+         PLAN 3: FULLY MANAGED
+    ========================= -->
+      <section id="managed" class="plan-section plan-section-light">
+        <div class="container plan-inner">
+          <div class="plan-info">
+            <span class="plan-tag">Plan 3 of 3</span>
+            <h2>🚀 Fully Managed</h2>
+            <div class="plan-price-row">
+              <span class="plan-price">$49</span>
+              <span class="plan-price-period"
+                >/month &nbsp;·&nbsp; no contracts</span
+              >
+            </div>
+            <p class="plan-tagline">
+              Best for business owners who want all 3 services running on
+              autopilot — no accounts to manage, no maintenance, nothing to touch.
+            </p>
+
+            <!-- Services included -->
+            <div class="plan-services-summary">
+              <span class="plan-service-chip chip-included"
+                >✓ 📩 Inquiry Emailer</span
+              >
+              <span class="plan-service-chip chip-included"
+                >✓ ⭐ Review Requester</span
+              >
+              <span class="plan-service-chip chip-included"
+                >✓ 📍 Google Posting</span
+              >
+            </div>
+
+            <div class="plan-how-section">
+              <h3>What's Included Every Month</h3>
+              <p>
+                On the Fully Managed plan, we host and operate the entire
+                automation ourselves — you don't need any accounts or tools.
+                Here's what you get:
+              </p>
+              <ul class="plan-checklist">
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>Everything in Done For You — included</strong>
+                    <p>
+                      Full setup, custom templates, integrations, and testing
+                      are all included in the first month.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>Fully hosted automation — nothing on your end</strong>
+                    <p>
+                      We run the entire system on our own infrastructure. You
+                      don't need to sign up for anything, pay for any tools, or
+                      maintain anything yourself.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>Ongoing monitoring + updates</strong>
+                    <p>
+                      If Jobber or any connected app updates and breaks
+                      something, we fix it. You'll never even notice.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>Up to 50 review requests/month by default</strong>
+                    <p>
+                      The standard plan covers up to 50 automated review
+                      requests per month — enough for most service businesses.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>Google Business Profile posting</strong>
+                    <p>
+                      We keep your GBP listing active with regular posts on your
+                      behalf — boosting your local SEO automatically.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="check">✓</span>
+                  <div>
+                    <strong>Priority support</strong>
+                    <p>
+                      Managed clients get faster response times and direct email
+                      access to our team.
+                    </p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <!-- MANAGED-SPECIFIC: REQUEST MORE / SEASONAL -->
+            <div class="plan-managed-extras">
+              <h3>Need More Than 50 Per Month?</h3>
+              <div class="managed-extra-cards">
+                <div class="managed-extra-card">
+                  <div class="managed-extra-icon">📈</div>
+                  <h4>Request a Permanent Increase</h4>
+                  <p>
+                    If your business regularly handles more than 50 jobs per
+                    month, just reach out. We'll assess your volume and adjust
+                    your cap — pricing for higher tiers is discussed case by
+                    case.
+                  </p>
+                  <a
+                    href="mailto:hello@5starflow.com?subject=Managed%20Plan%20-%20Increase%20Request"
+                    class="plan-extra-link"
+                    >Request an increase →</a
+                  >
+                </div>
+                <div class="managed-extra-card">
+                  <div class="managed-extra-icon">📅</div>
+                  <h4>Seasonal Add-On (Month by Month)</h4>
+                  <p>
+                    Have a busy season — spring cleanup, summer detailing,
+                    holiday pressure washing? You can add extra capacity for
+                    specific months only, then drop back down. No long-term
+                    commitment.
+                  </p>
+                  <a
+                    href="mailto:hello@5starflow.com?subject=Managed%20Plan%20-%20Seasonal%20Add-On"
+                    class="plan-extra-link"
+                    >Ask about seasonal add-ons →</a
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div class="plan-who">
+              <h3>This Plan Is Right For You If...</h3>
+              <ul class="plan-who-list">
+                <li>
+                  You want automation that's completely hands-off and maintained
+                  for you
+                </li>
+                <li>You don't want to deal with any third-party tools or accounts</li>
+                <li>You want Google Business Profile posting included</li>
+                <li>
+                  Your volume varies and you want the flexibility to scale up
+                  for busy months
+                </li>
+                <li>
+                  You want someone watching the system so it never silently
+                  breaks
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="plan-sidebar">
+            <div class="plan-cta-card">
+              <div class="plan-cta-price">$49 <span>/month</span></div>
+              <p>Full setup included. Cancel anytime.</p>
+              <a
+                href="mailto:hello@5starflow.com?subject=Fully%20Managed%20Plan%20-%20%2449%2Fmo"
+                class="btn btn-outline plan-btn"
+                >Start Managed Plan</a
+              >
+              <p class="plan-cta-micro">No setup fee. No contracts.</p>
+              <div class="plan-includes-mini">
+                <p class="includes-label">Includes:</p>
+                <ul>
+                  <li>✓ Full setup (done for you)</li>
+                  <li>✓ Hosted automation</li>
+                  <li>✓ Monitoring + updates</li>
+                  <li>✓ 50 requests/mo (expandable)</li>
+                  <li>✓ GBP posting</li>
+                  <li>✓ Priority support</li>
+                </ul>
+              </div>
+            </div>
+            <div class="plan-volume-note">
+              <p>
+                📅 <strong>Need more in a specific month?</strong> Just email us
+                — we can add seasonal capacity without changing your regular
+                plan.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPARISON TABLE -->
+      <section class="comparison-section">
+        <div class="container">
+          <span class="section-label reveal">Compare Plans</span>
+          <h2 class="reveal">Side-by-Side Comparison</h2>
+          <div class="comparison-table-wrap reveal">
+            <table class="comparison-table">
+              <thead>
+                <tr>
+                  <th>Feature</th>
+                  <th>DIY Setup<br /><span class="th-price">$99</span></th>
+                  <th class="th-featured">
+                    Done For You<br /><span class="th-price">$299</span>
+                  </th>
+                  <th>
+                    Fully Managed<br /><span class="th-price">$49/mo</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>⭐ Review Requester</td>
+                  <td class="yes">✓</td>
+                  <td class="yes th-featured">✓</td>
+                  <td class="yes">✓</td>
+                </tr>
+                <tr>
+                  <td>Setup done by our team</td>
+                  <td class="no">✕</td>
+                  <td class="yes th-featured">✓</td>
+                  <td class="yes">✓</td>
+                </tr>
+                <tr>
+                  <td>Custom email template (written for you)</td>
+                  <td class="no">✕</td>
+                  <td class="yes th-featured">✓</td>
+                  <td class="yes">✓</td>
+                </tr>
+                <tr>
+                  <td>Custom SMS template (written for you)</td>
+                  <td class="no">✕</td>
+                  <td class="yes th-featured">✓</td>
+                  <td class="yes">✓</td>
+                </tr>
+                <tr>
+                  <td>📩 Inquiry Emailer (form auto-reply)</td>
+                  <td class="yes">✓</td>
+                  <td class="yes th-featured">✓</td>
+                  <td class="yes">✓</td>
+                </tr>
+                <tr>
+                  <td>📍 Google Business Profile posting</td>
+                  <td class="no">✕</td>
+                  <td class="yes th-featured">✓</td>
+                  <td class="yes">✓</td>
+                </tr>
+                <tr>
+                  <td>Review requests per month</td>
+                  <td>Up to 50</td>
+                  <td class="th-featured">Unlimited</td>
+                  <td>50 default (expandable)</td>
+                </tr>
+                <tr>
+                  <td>Scale up for busy seasons</td>
+                  <td class="no">✕</td>
+                  <td class="no th-featured">✕</td>
+                  <td class="yes">✓</td>
+                </tr>
+                <tr>
+                  <td>Ongoing monitoring + we fix issues</td>
+                  <td class="no">✕</td>
+                  <td class="no th-featured">✕</td>
+                  <td class="yes">✓</td>
+                </tr>
+                <tr>
+                  <td>Post-setup support</td>
+                  <td>Email (once)</td>
+                  <td class="th-featured">30 days</td>
+                  <td>Priority (ongoing)</td>
+                </tr>
+                <tr>
+                  <td>Payment type</td>
+                  <td>One-time</td>
+                  <td class="th-featured">One-time</td>
+                  <td>Monthly (cancel anytime)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section class="pricing-faq">
+        <div class="container faq-container">
+          <span class="section-label reveal">Common Questions</span>
+          <h2 class="reveal">Still Have Questions?</h2>
+          <div class="faq-list">
+            <div class="faq-item reveal">
+              <button class="faq-question">
+                How does the automation actually work?
+                <span class="faq-icon">+</span>
+              </button>
+              <div class="faq-answer">
+                <p>
+                  We build two automations for your business. The <strong>Inquiry Emailer</strong> watches your website contact form — the moment a potential client submits it, they get a professional reply instantly. The <strong>Review Requester</strong> watches your invoicing system (Jobber, QuickBooks, Stripe, and more) — the moment an invoice is marked paid, your client automatically gets an email asking for a review. Both run completely in the background. You never have to press a button.
+                </p>
+              </div>
+            </div>
+            <div class="faq-item reveal">
+              <button class="faq-question">
+                Does the Review Requester cost anything extra to run?
+                <span class="faq-icon">+</span>
+              </button>
+              <div class="faq-answer">
+                <p>
+                  The Review Requester requires a small automation subscription (~$20/mo) to run. On the DIY plan, our guide walks you through setting this up in under 5 minutes. If you'd rather not manage anything yourself, the Fully Managed plan covers it all on our end with nothing for you to maintain.
+                </p>
+              </div>
+            </div>
+            <div class="faq-item reveal">
+              <button class="faq-question">
+                How do seasonal add-ons work on the Managed plan?
+                <span class="faq-icon">+</span>
+              </button>
+              <div class="faq-answer">
+                <p>
+                  If you know a certain month will be busier than usual — say
+                  April through June for lawn care, or November for cleaning
+                  companies — just email us before that month starts. We'll
+                  increase your review request cap for those specific months and
+                  your regular plan continues at the standard rate for the rest
+                  of the year. No contracts, no automatic price changes.
+                </p>
+              </div>
+            </div>
+            <div class="faq-item reveal">
+              <button class="faq-question">
+                Can I upgrade from DIY to Done For You or Managed later?
+                <span class="faq-icon">+</span>
+              </button>
+              <div class="faq-answer">
+                <p>
+                  Yes. If you start on the DIY plan and later want us to take
+                  over, just email us. We'll credit your original $99 toward the
+                  Done For You or Managed plan setup, so you're never paying
+                  twice for the same work.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="pricing-faq-contact">
+            <p>Have a question not answered here?</p>
+            <a href="mailto:hello@5starflow.com" class="btn btn-outline"
+              >Email Us Directly</a
+            >
+          </div>
+        </div>
+      </section>
+
+      <!-- FINAL CTA -->
+      <section id="cta-final">
+        <div class="container cta-final-inner">
+          <h2>Ready to Start Getting More Reviews?</h2>
+          <p>Pick a plan and we'll take it from there.</p>
+          <div class="cta-final-actions">
+            <a
+              href="mailto:hello@5starflow.com?subject=DIY%20Setup%20Plan"
+              class="btn btn-dark"
+              >Get Started — $99</a
+            >
+            <a href="mailto:hello@5starflow.com" class="btn btn-dark-outline"
+              >Ask a Question First</a
+            >
+          </div>
+          <p class="cta-micro">Most setups are done in under 48 hours.</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer id="footer">
+      <div class="container footer-inner">
+        <div class="footer-brand">
+          <div class="footer-logo">
+            <span class="nav-logo-star">★</span> 5StarFlow
+          </div>
+          <p>
+            Automated reviews, leads, and Google presence for home service
+            businesses.
+          </p>
+          <a href="mailto:hello@5starflow.com" class="footer-email"
+            >hello@5starflow.com</a
+          >
+        </div>
+        <div class="footer-links">
+          <h4>Navigate</h4>
+          <ul>
+            <li><a href="index.html#how-it-works">How It Works</a></li>
+            <li><a href="index.html#features">Features</a></li>
+            <li><a href="pricing.html">Pricing</a></li>
+            <li><a href="index.html#faq">FAQ</a></li>
+          </ul>
+        </div>
+        <div class="footer-links">
+          <h4>Plans</h4>
+          <ul>
+            <li><a href="pricing.html#diy">DIY Setup — $99</a></li>
+            <li><a href="pricing.html#done-for-you">Done For You — $299</a></li>
+            <li><a href="pricing.html#managed">Fully Managed — $49/mo</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div class="container footer-bottom-inner">
+          <span>© 2026 5StarFlow. All rights reserved.</span>
+          <span>
+            <a href="privacy.html">Privacy Policy</a>
+            <span class="footer-sep">|</span>
+            <a href="terms.html">Terms of Service</a>
+          </span>
+        </div>
+      </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+  </body>
+</html>
