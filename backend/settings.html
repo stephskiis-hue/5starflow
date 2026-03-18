@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>5StarFlow — Settings</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #09090f;
+      --surface:   rgba(18, 20, 32, 0.9);
+      --border:    rgba(255, 255, 255, 0.07);
+      --gold:      #d4a017;
+      --gold-dim:  rgba(212, 160, 23, 0.12);
+      --text-1:    #f0f2f8;
+      --text-2:    #8b95a8;
+      --text-3:    #4a5568;
+      --green:     #34d399;
+      --green-dim: rgba(52, 211, 153, 0.12);
+      --red:       #f87171;
+      --red-dim:   rgba(248, 113, 113, 0.12);
+      --yellow:    #fbbf24;
+      --yellow-dim:rgba(251, 191, 36, 0.12);
+      --blue:      #38bdf8;
+      --blue-dim:  rgba(56, 189, 248, 0.1);
+      --sidebar-w: 260px;
+      --radius:    16px;
+      --radius-sm: 10px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text-1);
+      font-family: -apple-system, 'SF Pro Display', BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app { display: flex; min-height: 100vh; }
+
+    /* ── Sidebar ───────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-w);
+      min-height: 100vh;
+      background: rgba(10, 11, 18, 0.97);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      z-index: 100;
+    }
+
+    .sidebar-logo { padding: 1.75rem 1.5rem 1.25rem; border-bottom: 1px solid var(--border); }
+    .sidebar-logo h1 { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.04em; }
+    .sidebar-logo h1 .star { color: var(--gold); }
+    .sidebar-logo p { font-size: 0.7rem; color: var(--text-3); margin-top: 0.2rem; }
+
+    .sidebar-nav { flex: 1; padding: 1rem 0.75rem; display: flex; flex-direction: column; gap: 0.2rem; }
+
+    .nav-section-label {
+      font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--text-3);
+      padding: 0.9rem 0.75rem 0.4rem;
+    }
+
+    .nav-link {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.6rem 0.85rem; border-radius: var(--radius-sm);
+      font-size: 0.875rem; font-weight: 500; color: var(--text-2);
+      text-decoration: none; transition: all 0.15s; cursor: pointer;
+      border: none; background: none; width: 100%; text-align: left;
+    }
+    .nav-link:hover { background: rgba(255,255,255,0.05); color: var(--text-1); }
+    .nav-link.active { background: var(--blue-dim); color: var(--blue); border-left: 2px solid var(--blue); padding-left: calc(0.85rem - 2px); }
+    .nav-link .nav-icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
+
+    .sidebar-footer { padding: 1rem 1.25rem 1.5rem; border-top: 1px solid var(--border); }
+    .sidebar-user { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+    .user-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--gold), #b8860b); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: #0a0c12; flex-shrink: 0; }
+    .user-email { font-size: 0.75rem; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .btn-logout { width: 100%; padding: 0.55rem; background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.18); border-radius: var(--radius-sm); color: var(--red); font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .btn-logout:hover { background: rgba(248,113,113,0.15); }
+
+    /* ── Main ──────────────────────────────────── */
+    .main { margin-left: var(--sidebar-w); flex: 1; padding: 2.5rem 2.5rem 3rem; }
+
+    /* ── Topbar ────────────────────────────────── */
+    .topbar { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+    .page-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin-bottom: 0.35rem; }
+    .page-title { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.04em; background: linear-gradient(140deg, #f0f2f8, #8b95a8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .page-sub { font-size: 0.82rem; color: var(--text-3); margin-top: 0.4rem; }
+
+    /* ── Cards ─────────────────────────────────── */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.5rem;
+      backdrop-filter: blur(20px); margin-bottom: 1.25rem;
+    }
+    .card-title {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-3); margin-bottom: 1.25rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    /* ── Buttons ───────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.6rem 1.25rem; border-radius: var(--radius-sm);
+      font-size: 0.85rem; font-weight: 600; cursor: pointer;
+      border: none; transition: opacity 0.15s; text-decoration: none;
+    }
+    .btn:hover:not(:disabled) { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: var(--blue); color: #0a0c12; }
+    .btn-danger  { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
+    .btn-ghost   { background: rgba(148,163,184,0.1); color: var(--text-2); border: 1px solid var(--border); }
+    .btn-small   { padding: 0.4rem 0.85rem; font-size: 0.78rem; }
+
+    /* ── Form ──────────────────────────────────── */
+    .form-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; }
+    .form-group { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 180px; }
+    .form-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+    .form-input {
+      background: rgba(10,11,18,0.8); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 0.6rem 0.85rem;
+      color: var(--text-1); font-size: 0.875rem; outline: none;
+      transition: border-color 0.15s; width: 100%;
+    }
+    .form-input:focus { border-color: var(--blue); }
+
+    /* ── Table ─────────────────────────────────── */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .data-table th { text-align: left; padding: 0.5rem 0.75rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--border); }
+    .data-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; color: var(--text-2); }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* ── Pill ──────────────────────────────────── */
+    .pill { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
+    .pill-green { background: var(--green-dim); color: var(--green); }
+    .pill-blue  { background: var(--blue-dim);  color: var(--blue); }
+    .pill-gray  { background: rgba(148,163,184,0.1); color: var(--text-3); }
+
+    /* ── Inline result messages ─────────────────── */
+    .result-msg { font-size: 0.82rem; margin-top: 0.75rem; padding: 0.6rem 0.85rem; border-radius: var(--radius-sm); display: none; }
+    .result-ok  { background: var(--green-dim); color: var(--green); border: 1px solid rgba(52,211,153,0.2); }
+    .result-err { background: var(--red-dim);   color: var(--red);   border: 1px solid rgba(248,113,113,0.2); }
+
+    .empty-state { text-align: center; padding: 2rem 1rem; color: var(--text-3); font-size: 0.875rem; }
+
+    /* Collapsible sidebar */
+    .sidebar { transition: width 0.2s ease; overflow: visible; }
+    .sidebar.collapsed { width: 60px; overflow: visible; }
+    .sidebar.collapsed .nav-label,
+    .sidebar.collapsed .nav-section-label,
+    .sidebar.collapsed .nav-badge,
+    .sidebar.collapsed .sidebar-logo p,
+    .sidebar.collapsed .sidebar-footer { display: none; }
+    .sidebar.collapsed .nav-link { justify-content: center; padding: 0.6rem; }
+    .sidebar.collapsed .sidebar-logo { padding: 1.25rem 0; text-align: center; }
+    .sidebar.collapsed .sidebar-toggle { transform: scaleX(-1); }
+    .main { transition: margin-left 0.2s ease; }
+    body.sidebar-collapsed .main { margin-left: 60px; }
+    .sidebar-toggle {
+      display: block; width: 100%; padding: 0.75rem 0;
+      background: none; border: none; border-top: 1px solid var(--border);
+      color: var(--text-3); font-size: 1.5rem; cursor: pointer;
+      text-align: center; transition: color 0.15s, transform 0.2s;
+      line-height: 1;
+    }
+    .sidebar-toggle:hover { color: var(--text-1); }
+    .sidebar.collapsed .nav-link { position: relative; }
+    .sidebar.collapsed .nav-link::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      left: 68px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(15, 15, 22, 0.97);
+      color: var(--text-1);
+      font-size: 0.78rem;
+      font-weight: 500;
+      padding: 0.35rem 0.7rem;
+      border-radius: 7px;
+      white-space: nowrap;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.12s;
+      z-index: 9999;
+    }
+    .sidebar.collapsed .nav-link:hover::after { opacity: 1; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <h1>5<span class="star">&#9733;</span>Flow</h1>
+      <p>Business Automation OS</p>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a class="nav-link" data-tooltip="Home" href="/index.html"><span class="nav-icon">&#9632;</span> <span class="nav-label">Home</span></a>
+      <a class="nav-link" data-tooltip="Review Requests" href="/review-dashboard.html"><span class="nav-icon">&#9733;</span> <span class="nav-label">Review Requests</span></a>
+      <a class="nav-link" data-tooltip="Rain Alerts" href="/weather-dashboard.html"><span class="nav-icon">&#9928;</span> <span class="nav-label">Rain Alerts</span></a>
+      <div class="nav-section-label">Tools</div>
+      <a class="nav-link" data-tooltip="SEO Audit" href="/seo-dashboard.html"><span class="nav-icon">&#128202;</span> <span class="nav-label">SEO Audit</span></a>
+      <div class="nav-section-label">System</div>
+      <a class="nav-link" data-tooltip="App Connections" href="/connections.html"><span class="nav-icon">&#128279;</span> <span class="nav-label">App Connections</span></a>
+      <a class="nav-link active" data-tooltip="Settings" href="/settings.html"><span class="nav-icon">&#9881;</span> <span class="nav-label">Settings</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <div class="user-info"><div class="user-email" id="user-email">Loading...</div></div>
+      </div>
+      <button class="btn-logout" onclick="logout()">Log Out</button>
+    </div>
+    <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">&#8249;</button>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div>
+        <div class="page-label">System</div>
+        <h2 class="page-title">Settings</h2>
+        <p class="page-sub">Manage portal users and system preferences.</p>
+      </div>
+    </div>
+
+    <!-- User Management Card -->
+    <div class="card">
+      <div class="card-title">
+        Portal Users
+        <span class="pill pill-gray" id="user-count">Loading...</span>
+      </div>
+
+      <div id="users-table-container">
+        <div class="empty-state">Loading users...</div>
+      </div>
+    </div>
+
+    <!-- Add User Card -->
+    <div class="card">
+      <div class="card-title">Add New User</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" class="form-input" id="new-email" placeholder="user@example.com" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" class="form-input" id="new-password" placeholder="Min. 8 characters" autocomplete="new-password" />
+        </div>
+        <div class="form-group" style="flex:0;min-width:auto;align-self:flex-end;">
+          <button class="btn btn-primary" id="add-user-btn" onclick="addUser()">Add User</button>
+        </div>
+      </div>
+
+      <div class="result-msg" id="add-result"></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // ── Sidebar toggle ──────────────────────────────────────────────
+  function toggleSidebar() {
+    const sidebar   = document.querySelector('.sidebar');
+    const collapsed = sidebar.classList.toggle('collapsed');
+    document.body.classList.toggle('sidebar-collapsed', collapsed);
+    localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
+  }
+  document.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', () => {
+      if (document.querySelector('.sidebar').classList.contains('collapsed')) {
+        document.querySelector('.sidebar').classList.remove('collapsed');
+        document.body.classList.remove('sidebar-collapsed');
+        localStorage.setItem('sidebarCollapsed', '0');
+      }
+    });
+  });
+  (function() {
+    if (localStorage.getItem('sidebarCollapsed') === '1') {
+      document.querySelector('.sidebar')?.classList.add('collapsed');
+      document.body.classList.add('sidebar-collapsed');
+    }
+  })();
+
+  const API = '';
+  let currentUserId = null;
+
+  function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  async function logout() {
+    try {
+      const res  = await fetch('/auth/logout', { method: 'POST' });
+      const data = await res.json();
+      window.location.href = data.redirect || '/login.html';
+    } catch { window.location.href = '/login.html'; }
+  }
+
+  async function loadCurrentUser() {
+    try {
+      const res  = await fetch(`${API}/api/status`);
+      const data = await res.json();
+      const email = data.userEmail || 'admin';
+      document.getElementById('user-email').textContent = email;
+      document.getElementById('user-avatar').textContent = email.charAt(0).toUpperCase();
+      currentUserId = data.userId ?? null;
+    } catch (err) {
+      console.error('Could not load user info:', err);
+    }
+  }
+
+  async function loadUsers() {
+    try {
+      const res  = await fetch(`${API}/api/settings/users`);
+      const data = await res.json();
+      const users = data.users || [];
+
+      document.getElementById('user-count').textContent = users.length + ' user' + (users.length !== 1 ? 's' : '');
+
+      if (!users.length) {
+        document.getElementById('users-table-container').innerHTML =
+          '<div class="empty-state">No users found.</div>';
+        return;
+      }
+
+      const rows = users.map(u => {
+        const isSelf = u.id === currentUserId;
+        const created = new Date(u.createdAt).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+        const deleteBtn = isSelf
+          ? `<span class="pill pill-gray" style="font-size:0.68rem;">You</span>`
+          : `<button class="btn btn-danger btn-small" onclick="deleteUser(${u.id}, '${escHtml(u.email).replace(/'/g,"\\'")}')">Remove</button>`;
+
+        return `<tr>
+          <td style="color:var(--text-1);font-weight:500;">${escHtml(u.email)}</td>
+          <td style="color:var(--text-3);font-size:0.78rem;">${created}</td>
+          <td style="text-align:right;">${deleteBtn}</td>
+        </tr>`;
+      }).join('');
+
+      document.getElementById('users-table-container').innerHTML = `
+        <table class="data-table">
+          <thead><tr><th>Email</th><th>Created</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    } catch (err) {
+      document.getElementById('users-table-container').innerHTML =
+        '<div class="empty-state">Could not load users.</div>';
+    }
+  }
+
+  async function addUser() {
+    const email    = document.getElementById('new-email').value.trim();
+    const password = document.getElementById('new-password').value;
+    const btn      = document.getElementById('add-user-btn');
+    const result   = document.getElementById('add-result');
+
+    result.style.display = 'none';
+
+    if (!email || !password) {
+      showResult('add-result', 'Email and password are required.', false);
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    try {
+      const res  = await fetch(`${API}/api/settings/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        showResult('add-result', `&#10003; User "${data.user.email}" created successfully.`, true);
+        document.getElementById('new-email').value    = '';
+        document.getElementById('new-password').value = '';
+        await loadUsers();
+      } else {
+        showResult('add-result', '&#10007; ' + (data.error || 'Failed to create user'), false);
+      }
+    } catch (err) {
+      showResult('add-result', '&#10007; Network error: ' + err.message, false);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Add User';
+    }
+  }
+
+  async function deleteUser(id, email) {
+    if (!confirm(`Remove user "${email}"?\n\nThey will no longer be able to log in.`)) return;
+
+    try {
+      const res  = await fetch(`${API}/api/settings/users/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        await loadUsers();
+      } else {
+        alert('Could not remove user: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Network error: ' + err.message);
+    }
+  }
+
+  function showResult(id, msg, ok) {
+    const el = document.getElementById(id);
+    el.innerHTML = msg;
+    el.className = 'result-msg ' + (ok ? 'result-ok' : 'result-err');
+    el.style.display = 'block';
+    if (ok) setTimeout(() => { el.style.display = 'none'; }, 4000);
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  async function init() {
+    await loadCurrentUser();
+    await loadUsers();
+  }
+
+  init();
+</script>
+</body>
+</html>

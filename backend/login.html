@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>5StarFlow — Login</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .login-card {
+      background: #1a1f2e;
+      border: 1px solid #2d3748;
+      border-radius: 16px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .logo h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #f8fafc;
+    }
+
+    .logo h1 span { color: #d4a017; }
+
+    .logo p {
+      font-size: 0.82rem;
+      color: #64748b;
+      margin-top: 0.4rem;
+    }
+
+    .form-group {
+      margin-bottom: 1.2rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: 0.4rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    input {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 0.7rem 0.9rem;
+      color: #f8fafc;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input:focus { border-color: #d4a017; }
+
+    .btn-login {
+      width: 100%;
+      background: #d4a017;
+      color: #0f1117;
+      border: none;
+      border-radius: 8px;
+      padding: 0.75rem;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 0.5rem;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    .btn-login:hover:not(:disabled) { background: #e6b420; }
+    .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .error-box {
+      display: none;
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      color: #f87171;
+      font-size: 0.85rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .error-box.visible { display: block; }
+
+    .footer-note {
+      text-align: center;
+      font-size: 0.75rem;
+      color: #475569;
+      margin-top: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="logo">
+      <h1>5<span>Star</span>Flow</h1>
+      <p>Automated Google Review Requests</p>
+    </div>
+
+    <div class="error-box" id="errorBox"></div>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          placeholder="you@example.com"
+          autocomplete="email"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          placeholder="••••••••"
+          autocomplete="current-password"
+          required
+        />
+      </div>
+
+      <button type="submit" class="btn-login" id="loginBtn">Sign In</button>
+    </form>
+
+    <p class="footer-note">Access is restricted to licensed users.<br>Contact support if you need access.</p>
+  </div>
+
+  <script>
+    const form     = document.getElementById('loginForm');
+    const errorBox = document.getElementById('errorBox');
+    const loginBtn = document.getElementById('loginBtn');
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.classList.add('visible');
+    }
+
+    function hideError() {
+      errorBox.classList.remove('visible');
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideError();
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Signing in…';
+
+      const email    = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      try {
+        const res  = await fetch('/auth/login', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+
+        if (data.success && data.redirect) {
+          window.location.href = data.redirect;
+        } else {
+          showError(data.error || 'Login failed. Please try again.');
+          loginBtn.disabled = false;
+          loginBtn.textContent = 'Sign In';
+        }
+      } catch (err) {
+        showError('Network error — is the server running?');
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Sign In';
+      }
+    });
+  </script>
+</body>
+</html>

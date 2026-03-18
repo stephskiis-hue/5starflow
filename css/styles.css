@@ -230,6 +230,7 @@ h2 {
 
 .nav-cta-desktop { margin-left: 1rem; }
 .nav-cta-mobile { display: none; }
+.nav-login-item { margin-left: 0.5rem; opacity: 0.7; }
 
 .nav-toggle {
   display: none;
@@ -1474,6 +1475,7 @@ h2 {
   /* Nav */
   .nav-cta-desktop { display: none; }
   .nav-cta-mobile { display: block; margin-top: 1rem; }
+  .nav-login-item { display: none; }
   .nav-toggle { display: flex; }
 
   .nav-menu {
