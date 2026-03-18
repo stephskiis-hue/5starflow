@@ -787,11 +787,7 @@
     const role = me.role || 'client';
     const roleEl = document.querySelector('.user-role');
     if (roleEl) roleEl.textContent = role === 'admin' ? 'Administrator' : 'Client';
-    if (role === 'client') {
-      hideSection('Tools'); hideSection('System');
-    } else {
-      addAdminLink();
-    }
+    if (role === 'admin') addAdminLink();
   } catch {}
   function hideSection(label) {
     document.querySelectorAll('.nav-section-label').forEach(el => {
