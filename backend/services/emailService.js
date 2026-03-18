@@ -1,24 +1,25 @@
 const nodemailer = require('nodemailer');
+const prisma = require('../lib/prismaClient');
 
-const REVIEW_LINK   = process.env.REVIEW_LINK    || 'https://g.page/r/CSu2cqDYFOxDEAE/review';
-const FROM_NAME     = process.env.EMAIL_FROM_NAME || 'No-Bs Yardwork';
-const FROM_EMAIL    = process.env.GMAIL_USER      || 'nobsyardwork@gmail.com';
+const REVIEW_LINK = process.env.REVIEW_LINK || 'https://g.page/r/CSu2cqDYFOxDEAE/review';
 
-let _transporter = null;
-
-function getTransporter() {
-  if (!_transporter) {
-    const user = process.env.GMAIL_USER;
-    const pass = process.env.GMAIL_APP_PASSWORD;
-    if (!user || !pass) {
-      throw new Error('GMAIL_USER and GMAIL_APP_PASSWORD must be set in .env');
+/**
+ * Load Gmail credentials for a user from DB.
+ * Falls back to env vars if no DB credential found (local dev).
+ */
+async function getGmailCreds(userId) {
+  if (userId) {
+    const cred = await prisma.gmailCredential.findUnique({ where: { userId } });
+    if (cred) {
+      return { user: cred.gmailUser, pass: cred.appPassword, fromName: cred.fromName || 'No-Bs Yardwork' };
     }
-    _transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user, pass },
-    });
   }
-  return _transporter;
+  // Fallback to env vars
+  return {
+    user:     process.env.GMAIL_USER,
+    pass:     process.env.GMAIL_APP_PASSWORD,
+    fromName: process.env.EMAIL_FROM_NAME || 'No-Bs Yardwork',
+  };
 }
 
 /**
@@ -143,18 +144,27 @@ function buildHtmlEmail(firstName) {
  *
  * @param {string} to        - recipient email address
  * @param {string} firstName - client's first name for personalization
+ * @param {string} userId    - portal user whose Gmail creds to use
  * @returns {Promise<string>} nodemailer messageId
  */
-async function sendReviewEmail(to, firstName) {
+async function sendReviewEmail(to, firstName, userId) {
   if (process.env.DRY_RUN === 'true') {
     console.log(`[emailService] DRY RUN — would send email to ${to} for ${firstName}`);
     return 'dry-run';
   }
 
-  const transporter = getTransporter();
+  const creds = await getGmailCreds(userId);
+  if (!creds.user || !creds.pass) {
+    throw new Error('Gmail credentials not configured for this account');
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: creds.user, pass: creds.pass },
+  });
 
   const info = await transporter.sendMail({
-    from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+    from: `"${creds.fromName}" <${creds.user}>`,
     to,
     subject: 'Could you do us a small favor?',
     html: buildHtmlEmail(firstName),
@@ -164,4 +174,4 @@ async function sendReviewEmail(to, firstName) {
   return info.messageId;
 }
 
-module.exports = { sendReviewEmail };
+module.exports = { sendReviewEmail, getGmailCreds };

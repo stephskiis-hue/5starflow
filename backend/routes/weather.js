@@ -20,7 +20,7 @@ const {
  */
 router.get('/forecast', async (req, res) => {
   try {
-    const settings = await getSettings();
+    const settings = await getSettings(req.user.userId);
     const city     = settings.city || process.env.WEATHER_CITY || 'Winnipeg';
     const list     = await getForecast(city);
     const days     = buildDaySummaries(list);
@@ -38,12 +38,12 @@ router.get('/forecast', async (req, res) => {
  */
 router.get('/today', async (req, res) => {
   try {
-    const settings = await getSettings();
+    const settings = await getSettings(req.user.userId);
     const todayStr = toDateString();
 
     if (req.query.force !== 'true') {
       const cached = await prisma.weatherCheck.findFirst({
-        where: { date: todayStr },
+        where: { date: todayStr, userId: req.user.userId },
         orderBy: { checkedAt: 'desc' },
       });
       if (cached) {
@@ -67,6 +67,7 @@ router.get('/today', async (req, res) => {
         rainExpected:    result.rainExpected,
         maxPrecipProb:   result.maxPop,
         forecastSummary: result.summary,
+        userId:          req.user.userId,
       },
     });
 
@@ -94,7 +95,7 @@ router.get('/today', async (req, res) => {
 router.get('/affected-clients', async (req, res) => {
   try {
     const dayTag = (req.query.day || getDayTag()).toLowerCase();
-    const clients = await getClientsByTag(dayTag);
+    const clients = await getClientsByTag(dayTag, req.user.userId);
     res.json({ dayTag, count: clients.length, clients });
   } catch (err) {
     console.error('[weather] /affected-clients error:', err.message);
@@ -108,7 +109,7 @@ router.get('/affected-clients', async (req, res) => {
  */
 router.get('/open-days', async (req, res) => {
   try {
-    const days = await getOpenDays(14);
+    const days = await getOpenDays(14, req.user.userId);
     res.json({ days });
   } catch (err) {
     console.error('[weather] /open-days error:', err.message);
@@ -135,7 +136,7 @@ router.post('/notify', async (req, res) => {
 
   try {
     const dayTag  = getDayTag();
-    let clients   = await getClientsByTag(dayTag);
+    let clients   = await getClientsByTag(dayTag, req.user.userId);
 
     // Filter to requested subset if clientIds provided
     if (Array.isArray(clientIds) && clientIds.length > 0) {
@@ -151,6 +152,7 @@ router.post('/notify', async (req, res) => {
       newDate,
       newDateLabel,
       customMessage: customMessage || null,
+      userId: req.user.userId,
     });
 
     const message = customMessage ||
@@ -166,11 +168,12 @@ router.post('/notify', async (req, res) => {
         smsCount,
         emailCount,
         message,
+        userId:       req.user.userId,
       },
     });
 
     // Save preferred reschedule day to settings for next time
-    const settings = await getSettings();
+    const settings = await getSettings(req.user.userId);
     await prisma.weatherSettings.update({
       where: { id: settings.id },
       data:  { preferredRescheduleDay: newDate },
@@ -190,7 +193,7 @@ router.post('/notify', async (req, res) => {
  */
 router.get('/settings', async (req, res) => {
   try {
-    const settings = await getSettings();
+    const settings = await getSettings(req.user.userId);
     res.json(settings);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -204,7 +207,7 @@ router.get('/settings', async (req, res) => {
 router.post('/settings', async (req, res) => {
   try {
     const { city, rainThreshold, businessStartHour, businessEndHour, preferredRescheduleDay, checkEnabled } = req.body || {};
-    const settings = await getSettings();
+    const settings = await getSettings(req.user.userId);
 
     const updated = await prisma.weatherSettings.update({
       where: { id: settings.id },
@@ -227,11 +230,12 @@ router.post('/settings', async (req, res) => {
 
 /**
  * GET /api/weather/history
- * Returns last 20 rain reschedule events.
+ * Returns last 20 rain reschedule events for this user.
  */
 router.get('/history', async (req, res) => {
   try {
     const records = await prisma.rainReschedule.findMany({
+      where:   { userId: req.user.userId },
       orderBy: { notifiedAt: 'desc' },
       take: 20,
     });
@@ -247,9 +251,23 @@ router.get('/history', async (req, res) => {
  */
 router.post('/run-check', async (req, res) => {
   try {
-    await runMorningCheck();
+    const settings = await getSettings(req.user.userId);
+    if (!settings.checkEnabled) {
+      return res.json({ success: false, message: 'Weather check is disabled in settings' });
+    }
+    const result = await checkRainToday(settings);
+    const todayStr = toDateString();
+    await prisma.weatherCheck.create({
+      data: {
+        date:            todayStr,
+        rainExpected:    result.rainExpected,
+        maxPrecipProb:   result.maxPop,
+        forecastSummary: result.summary,
+        userId:          req.user.userId,
+      },
+    });
     const today = await prisma.weatherCheck.findFirst({
-      where: { date: toDateString() },
+      where:   { date: todayStr, userId: req.user.userId },
       orderBy: { checkedAt: 'desc' },
     });
     res.json({ success: true, result: today });

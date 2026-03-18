@@ -1,19 +1,25 @@
 const twilio = require('twilio');
+const prisma = require('../lib/prismaClient');
 
 const REVIEW_LINK = process.env.REVIEW_LINK || 'https://g.page/r/CSu2cqDYFOxDEAE/review';
 
-let _client = null;
-
-function getTwilioClient() {
-  if (!_client) {
-    const sid = process.env.TWILIO_ACCOUNT_SID;
-    const token = process.env.TWILIO_AUTH_TOKEN;
-    if (!sid || !token) {
-      throw new Error('TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN must be set in .env');
+/**
+ * Load Twilio credentials for a user from DB.
+ * Falls back to env vars if no DB credential found (local dev).
+ */
+async function getTwilioCreds(userId) {
+  if (userId) {
+    const cred = await prisma.twilioCredential.findUnique({ where: { userId } });
+    if (cred) {
+      return { accountSid: cred.accountSid, authToken: cred.authToken, fromNumber: cred.fromNumber };
     }
-    _client = twilio(sid, token);
   }
-  return _client;
+  // Fallback to env vars
+  return {
+    accountSid: process.env.TWILIO_ACCOUNT_SID,
+    authToken:  process.env.TWILIO_AUTH_TOKEN,
+    fromNumber: process.env.TWILIO_FROM_NUMBER || '+14314509814',
+  };
 }
 
 /**
@@ -39,9 +45,10 @@ function toE164(raw, countryCode = '1') {
  *
  * @param {string} rawPhone  - phone number from Jobber (any format)
  * @param {string} firstName - client's first name
+ * @param {string} userId    - portal user whose Twilio creds to use
  * @returns {Promise<string>} Twilio message SID
  */
-async function sendReviewSMS(rawPhone, firstName) {
+async function sendReviewSMS(rawPhone, firstName, userId) {
   const to = toE164(rawPhone);
 
   const body =
@@ -54,9 +61,15 @@ async function sendReviewSMS(rawPhone, firstName) {
     return 'dry-run';
   }
 
-  const message = await getTwilioClient().messages.create({
+  const creds = await getTwilioCreds(userId);
+  if (!creds.accountSid || !creds.authToken) {
+    throw new Error('Twilio credentials not configured for this account');
+  }
+
+  const client = twilio(creds.accountSid, creds.authToken);
+  const message = await client.messages.create({
     body,
-    from: process.env.TWILIO_FROM_NUMBER || '+14314509814',
+    from: creds.fromNumber,
     to,
   });
 
@@ -64,4 +77,4 @@ async function sendReviewSMS(rawPhone, firstName) {
   return message.sid;
 }
 
-module.exports = { sendReviewSMS };
+module.exports = { sendReviewSMS, getTwilioCreds };

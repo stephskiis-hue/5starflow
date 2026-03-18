@@ -13,13 +13,13 @@ const {
 
 // ---------------------------------------------------------------------------
 // GET /api/seo/status
-// Latest audit + pending proposal count
+// Latest audit + pending proposal count — scoped to current user
 // ---------------------------------------------------------------------------
 router.get('/status', async (req, res) => {
   try {
     const [latestAudit, pendingCount] = await Promise.all([
-      prisma.seoAudit.findFirst({ orderBy: { runAt: 'desc' } }),
-      prisma.seoProposal.count({ where: { status: 'pending' } }),
+      prisma.seoAudit.findFirst({ where: { userId: req.user.userId }, orderBy: { runAt: 'desc' } }),
+      prisma.seoProposal.count({ where: { status: 'pending', userId: req.user.userId } }),
     ]);
 
     res.json({
@@ -33,11 +33,12 @@ router.get('/status', async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // GET /api/seo/audits
-// Last 10 audit runs
+// Last 10 audit runs — scoped to current user
 // ---------------------------------------------------------------------------
 router.get('/audits', async (req, res) => {
   try {
     const audits = await prisma.seoAudit.findMany({
+      where:   { userId: req.user.userId },
       orderBy: { runAt: 'desc' },
       take: 10,
     });
@@ -45,7 +46,7 @@ router.get('/audits', async (req, res) => {
     // Attach proposal status to each audit
     const auditIds = audits.map(a => a.id);
     const proposals = await prisma.seoProposal.findMany({
-      where: { auditId: { in: auditIds } },
+      where: { auditId: { in: auditIds }, userId: req.user.userId },
       select: { auditId: true, status: true, id: true },
     });
     const proposalMap = Object.fromEntries(proposals.map(p => [p.auditId, p]));
@@ -67,8 +68,8 @@ router.get('/audits', async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post('/run-audit', async (req, res) => {
   try {
-    // Fire and forget — audit is async
-    runWeeklyAudit().catch(err => console.error('[seo] run-audit error:', err.message));
+    // Fire and forget — audit is async; pass userId so it's scoped to this user
+    runWeeklyAudit(req.user.userId).catch(err => console.error('[seo] run-audit error:', err.message));
     res.json({ success: true, message: 'Audit started — check /api/seo/status for progress' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -88,17 +89,19 @@ router.post('/trigger', async (req, res) => {
   if (req.query.token !== secret) {
     return res.status(401).json({ error: 'Invalid trigger token' });
   }
+  // External trigger runs for all users
   runWeeklyAudit().catch(err => console.error('[seo] external trigger error:', err.message));
   res.json({ success: true, message: 'Audit triggered' });
 });
 
 // ---------------------------------------------------------------------------
 // GET /api/seo/proposals
-// List proposals, pending first
+// List proposals, pending first — scoped to current user
 // ---------------------------------------------------------------------------
 router.get('/proposals', async (req, res) => {
   try {
     const proposals = await prisma.seoProposal.findMany({
+      where: { userId: req.user.userId },
       orderBy: [
         { status: 'asc' },   // "pending" sorts before "approved"/"declined" alphabetically
         { createdAt: 'desc' },
@@ -109,7 +112,7 @@ router.get('/proposals', async (req, res) => {
     // Attach changes to each proposal
     const ids = proposals.map(p => p.id);
     const changes = await prisma.seoChange.findMany({
-      where: { proposalId: { in: ids } },
+      where: { proposalId: { in: ids }, userId: req.user.userId },
     });
     const changeMap = {};
     for (const c of changes) {
@@ -142,7 +145,7 @@ router.post('/proposals/:id/respond', async (req, res) => {
   }
 
   try {
-    const proposal = await prisma.seoProposal.findUnique({ where: { id } });
+    const proposal = await prisma.seoProposal.findFirst({ where: { id, userId: req.user.userId } });
     if (!proposal) return res.status(404).json({ error: 'Proposal not found' });
     if (proposal.status !== 'pending') {
       return res.status(400).json({ error: `Proposal already ${proposal.status}` });
@@ -154,8 +157,8 @@ router.post('/proposals/:id/respond', async (req, res) => {
     });
 
     if (decision === 'approved') {
-      const settings = await getSettings();
-      let allChanges = await prisma.seoChange.findMany({ where: { proposalId: id } });
+      const settings = await getSettings(req.user.userId);
+      let allChanges = await prisma.seoChange.findMany({ where: { proposalId: id, userId: req.user.userId } });
 
       let changesToApply = allChanges;
       let skipped = 0;
@@ -192,7 +195,7 @@ router.post('/proposals/:id/respond', async (req, res) => {
 // ---------------------------------------------------------------------------
 router.get('/settings', async (req, res) => {
   try {
-    const settings = await getSettings();
+    const settings = await getSettings(req.user.userId);
     // Mask sensitive fields
     res.json({
       ...settings,
@@ -210,7 +213,7 @@ router.get('/settings', async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post('/settings', async (req, res) => {
   try {
-    const settings = await getSettings();
+    const settings = await getSettings(req.user.userId);
     const {
       siteUrl, competitorUrls, deployType,
       deployHost, deployPort, deployUser, deployPass, deployPath, deployBranch,
@@ -263,6 +266,8 @@ router.get('/google/auth', (req, res) => {
   url.searchParams.set('scope',         scopes);
   url.searchParams.set('access_type',   'offline');
   url.searchParams.set('prompt',        'consent');
+  // Pass userId in state so callback can scope the save
+  url.searchParams.set('state', req.user.userId);
 
   res.redirect(url.toString());
 });
@@ -272,9 +277,12 @@ router.get('/google/auth', (req, res) => {
 // Exchange code for tokens, save to SeoSettings
 // ---------------------------------------------------------------------------
 router.get('/google/callback', async (req, res) => {
-  const { code, error } = req.query;
+  const { code, error, state } = req.query;
   if (error) return res.redirect('/connections.html?google_error=' + encodeURIComponent(error));
   if (!code)  return res.redirect('/connections.html?google_error=no_code');
+
+  // state = userId passed from /google/auth
+  const userId = state || null;
 
   try {
     const resp = await axios.post('https://oauth2.googleapis.com/token', {
@@ -288,7 +296,7 @@ router.get('/google/callback', async (req, res) => {
     const { access_token, refresh_token, expires_in } = resp.data;
     const expiresAt = new Date(Date.now() + (expires_in || 3600) * 1000);
 
-    const settings = await getSettings();
+    const settings = await getSettings(userId);
     await prisma.seoSettings.update({
       where: { id: settings.id },
       data: {

@@ -61,12 +61,12 @@ async function processPendingReviews() {
 }
 
 async function processOneReview(row) {
-  const { id, invoiceId, clientId, clientName, firstName, phone, smsAllowed, email } = row;
+  const { id, invoiceId, clientId, clientName, firstName, phone, smsAllowed, email, userId } = row;
   const tag = `[deliveryQueue][${clientName}]`;
 
   // --- Re-check Jobber tag (client may have been manually tagged during the 1hr wait) ---
   try {
-    const result = await jobberGraphQL(GET_CLIENT_TAGS, { clientId });
+    const result = await jobberGraphQL(GET_CLIENT_TAGS, { clientId }, userId);
     const tags = result?.client?.tags?.nodes?.map((t) => t.label.toLowerCase()) ?? [];
     if (tags.includes(REVIEW_SENT_TAG)) {
       console.log(`${tag} SKIP: Client now has "${REVIEW_SENT_TAG}" tag — marking processed`);
@@ -92,7 +92,7 @@ async function processOneReview(row) {
   // --- Path A: SMS (only if phone exists and SMS is allowed) ---
   if (phone && smsAllowed) {
     try {
-      await sendReviewSMS(phone, firstName);
+      await sendReviewSMS(phone, firstName, userId);
       smsSent = true;
     } catch (err) {
       console.error(`${tag} SMS failed (${phone}):`, err.message);
@@ -105,7 +105,7 @@ async function processOneReview(row) {
   // --- Path B: Email (always runs if email address available) ---
   if (email) {
     try {
-      await sendReviewEmail(email, firstName);
+      await sendReviewEmail(email, firstName, userId);
       emailSent = true;
     } catch (err) {
       console.error(`${tag} Email failed (${email}):`, err.message);
@@ -121,7 +121,7 @@ async function processOneReview(row) {
 
   // --- Add "review-sent" tag in Jobber ---
   try {
-    const tagResult = await jobberGraphQL(ADD_CLIENT_TAG, { clientId, label: REVIEW_SENT_TAG });
+    const tagResult = await jobberGraphQL(ADD_CLIENT_TAG, { clientId, label: REVIEW_SENT_TAG }, userId);
     const errors = tagResult?.clientTagCreate?.errors;
     if (errors?.length) {
       console.error(`${tag} Jobber tag errors:`, errors.map((e) => e.message).join('; '));
