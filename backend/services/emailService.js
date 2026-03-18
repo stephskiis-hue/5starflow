@@ -1,25 +1,73 @@
 const nodemailer = require('nodemailer');
+const axios  = require('axios');
 const prisma = require('../lib/prismaClient');
 
 const REVIEW_LINK = process.env.REVIEW_LINK || 'https://g.page/r/CSu2cqDYFOxDEAE/review';
 
 /**
- * Load Gmail credentials for a user from DB.
- * Falls back to env vars if no DB credential found (local dev).
+ * Load Gmail OAuth2 credentials for a user from DB.
+ * Returns null if not configured (no env var fallback — OAuth only).
+ *
+ * @param {string|null} userId
+ * @returns {{ user, fromName, accessToken, refreshToken, tokenExpiry } | null}
  */
 async function getGmailCreds(userId) {
   if (userId) {
     const cred = await prisma.gmailCredential.findUnique({ where: { userId } });
-    if (cred) {
-      return { user: cred.gmailUser, pass: cred.appPassword, fromName: cred.fromName || 'No-Bs Yardwork' };
+    if (cred && cred.accessToken) {
+      return {
+        user:         cred.gmailUser,
+        fromName:     cred.fromName || 'No-Bs Yardwork',
+        accessToken:  cred.accessToken,
+        refreshToken: cred.refreshToken || null,
+        tokenExpiry:  cred.tokenExpiry || null,
+      };
     }
   }
-  // Fallback to env vars
-  return {
-    user:     process.env.GMAIL_USER,
-    pass:     process.env.GMAIL_APP_PASSWORD,
-    fromName: process.env.EMAIL_FROM_NAME || 'No-Bs Yardwork',
-  };
+  return null;
+}
+
+/**
+ * Ensure the access token is fresh. If it's expiring within 5 minutes,
+ * uses the refresh token to get a new one and persists it.
+ *
+ * @param {string} userId
+ * @param {object} creds - result of getGmailCreds()
+ * @returns {string} fresh access token
+ */
+async function ensureFreshToken(userId, creds) {
+  const fiveMinutes = 5 * 60 * 1000;
+  const isExpiring  = creds.tokenExpiry && (new Date(creds.tokenExpiry) - Date.now()) < fiveMinutes;
+
+  if (!isExpiring) return creds.accessToken;
+
+  if (!creds.refreshToken) {
+    console.warn(`[emailService] Gmail token expiring but no refresh token for userId=${userId} — using existing`);
+    return creds.accessToken;
+  }
+
+  try {
+    const resp = await axios.post('https://oauth2.googleapis.com/token', {
+      client_id:     process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      refresh_token: creds.refreshToken,
+      grant_type:    'refresh_token',
+    });
+
+    const { access_token, expires_in } = resp.data;
+    const tokenExpiry = new Date(Date.now() + (expires_in || 3600) * 1000);
+
+    await prisma.gmailCredential.update({
+      where: { userId },
+      data:  { accessToken: access_token, tokenExpiry },
+    });
+
+    console.log(`[emailService] Gmail token refreshed for userId=${userId}`);
+    return access_token;
+  } catch (err) {
+    console.error(`[emailService] Gmail token refresh failed for userId=${userId}:`, err.response?.data || err.message);
+    return creds.accessToken; // use the old one and hope it still works
+  }
 }
 
 /**
@@ -154,20 +202,29 @@ async function sendReviewEmail(to, firstName, userId) {
   }
 
   const creds = await getGmailCreds(userId);
-  if (!creds.user || !creds.pass) {
-    throw new Error('Gmail credentials not configured for this account');
+  if (!creds) {
+    throw new Error('Gmail not connected for this account — connect via Settings → Gmail');
   }
+
+  const accessToken = await ensureFreshToken(userId, creds);
 
   const transporter = nodemailer.createTransport({
     service: 'gmail',
-    auth: { user: creds.user, pass: creds.pass },
+    auth: {
+      type:         'OAuth2',
+      user:         creds.user,
+      clientId:     process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      refreshToken: creds.refreshToken,
+      accessToken,
+    },
   });
 
   const info = await transporter.sendMail({
-    from: `"${creds.fromName}" <${creds.user}>`,
+    from:    `"${creds.fromName}" <${creds.user}>`,
     to,
     subject: 'Could you do us a small favor?',
-    html: buildHtmlEmail(firstName),
+    html:    buildHtmlEmail(firstName),
   });
 
   console.log(`[emailService] Email sent to ${to} | messageId: ${info.messageId}`);

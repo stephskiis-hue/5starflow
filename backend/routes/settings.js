@@ -84,11 +84,12 @@ router.get('/credentials', async (req, res) => {
         fromNumber:  twilio.fromNumber,
         updatedAt:   twilio.updatedAt,
       } : { configured: false },
-      gmail: gmail ? {
-        configured:  true,
-        gmailUser:   gmail.gmailUser,
-        fromName:    gmail.fromName,
-        updatedAt:   gmail.updatedAt,
+      gmail: gmail && gmail.accessToken ? {
+        configured:   true,
+        gmailUser:    gmail.gmailUser,
+        fromName:     gmail.fromName,
+        tokenExpiry:  gmail.tokenExpiry,
+        updatedAt:    gmail.updatedAt,
       } : { configured: false },
     });
   } catch (err) {
@@ -127,33 +128,31 @@ router.post('/twilio', async (req, res) => {
   }
 });
 
-// POST /api/settings/gmail — upsert Gmail credentials for current user
-router.post('/gmail', async (req, res) => {
-  const { gmailUser, appPassword, fromName } = req.body || {};
-
-  if (!gmailUser || !appPassword) {
-    return res.status(400).json({ error: 'gmailUser and appPassword are required' });
-  }
-
+// POST /api/settings/gmail/name — update display name only (after OAuth connect)
+router.post('/gmail/name', async (req, res) => {
+  const { fromName } = req.body || {};
   try {
-    const cred = await prisma.gmailCredential.upsert({
-      where:  { userId: req.user.userId },
-      update: { gmailUser, appPassword, fromName: fromName || '' },
-      create: { userId: req.user.userId, gmailUser, appPassword, fromName: fromName || '' },
+    const cred = await prisma.gmailCredential.update({
+      where: { userId: req.user.userId },
+      data:  { fromName: fromName || '' },
     });
-
-    res.json({
-      success: true,
-      gmail: {
-        configured:  true,
-        gmailUser:   cred.gmailUser,
-        fromName:    cred.fromName,
-        updatedAt:   cred.updatedAt,
-      },
-    });
+    res.json({ success: true, fromName: cred.fromName });
   } catch (err) {
-    console.error('[settings] /gmail save error:', err.message);
-    res.status(500).json({ error: 'Failed to save Gmail credentials' });
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Gmail not connected' });
+    console.error('[settings] /gmail/name error:', err.message);
+    res.status(500).json({ error: 'Failed to update display name' });
+  }
+});
+
+// DELETE /api/settings/gmail — disconnect Gmail (delete credential)
+router.delete('/gmail', async (req, res) => {
+  try {
+    await prisma.gmailCredential.delete({ where: { userId: req.user.userId } });
+    res.json({ success: true });
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Gmail not connected' });
+    console.error('[settings] DELETE /gmail error:', err.message);
+    res.status(500).json({ error: 'Failed to disconnect Gmail' });
   }
 });
 

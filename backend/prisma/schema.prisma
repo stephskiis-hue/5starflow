@@ -245,13 +245,15 @@ model TwilioCredential {
   updatedAt   DateTime @updatedAt
 }
 
-// Per-user Gmail credentials for outbound email.
+// Per-user Gmail credentials for outbound email (Google OAuth2).
 model GmailCredential {
-  id          String   @id @default(cuid())
-  userId      String   @unique  // one row per user
-  gmailUser   String
-  appPassword String
-  fromName    String   @default("")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String    @id @default(cuid())
+  userId       String    @unique  // one row per user
+  gmailUser    String              // connected Gmail address
+  fromName     String    @default("")
+  accessToken  String    @default("")
+  refreshToken String?
+  tokenExpiry  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }

@@ -1,4 +1,5 @@
 const cron = require('node-cron');
+const axios = require('axios');
 const prisma = require('../lib/prismaClient');
 const { refreshAccessToken } = require('./jobberClient');
 
@@ -78,6 +79,51 @@ async function sendRefreshFailureAlert(account, err) {
   // await axios.post(process.env.SLACK_WEBHOOK_URL, { text: lines.join('\n') });
 }
 
+// ---------------------------------------------------------------------------
+// Gmail OAuth2 token refresh
+// ---------------------------------------------------------------------------
+
+/**
+ * Refresh Gmail access tokens that are expiring within 10 minutes.
+ */
+async function refreshExpiringGmailTokens() {
+  const tenMinutesFromNow = new Date(Date.now() + 10 * 60 * 1000);
+
+  const creds = await prisma.gmailCredential.findMany({
+    where: {
+      refreshToken: { not: null },
+      tokenExpiry:  { lte: tenMinutesFromNow },
+    },
+  });
+
+  if (creds.length === 0) return;
+
+  console.log(`[tokenManager] Refreshing ${creds.length} Gmail token(s)...`);
+
+  for (const cred of creds) {
+    try {
+      const resp = await axios.post('https://oauth2.googleapis.com/token', {
+        client_id:     process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        refresh_token: cred.refreshToken,
+        grant_type:    'refresh_token',
+      });
+
+      const { access_token, expires_in } = resp.data;
+      const tokenExpiry = new Date(Date.now() + (expires_in || 3600) * 1000);
+
+      await prisma.gmailCredential.update({
+        where: { id: cred.id },
+        data:  { accessToken: access_token, tokenExpiry },
+      });
+
+      console.log(`[tokenManager] Gmail token refreshed for userId=${cred.userId} (${cred.gmailUser})`);
+    } catch (err) {
+      console.error(`[tokenManager] Gmail token refresh failed for userId=${cred.userId}:`, err.response?.data || err.message);
+    }
+  }
+}
+
 /**
  * Start the proactive token refresh scheduler.
  * Called once on server startup from server.js.
@@ -92,12 +138,18 @@ function startTokenRefreshScheduler() {
     await refreshExpiringTokens().catch((err) => {
       console.error('[tokenManager] Unexpected scheduler error:', err.message);
     });
+    await refreshExpiringGmailTokens().catch((err) => {
+      console.error('[tokenManager] Gmail refresh error:', err.message);
+    });
   });
 
   // Run immediately on startup — catches any tokens that expired while server was down
   console.log('[tokenManager] Running initial refresh check on startup...');
   refreshExpiringTokens().catch((err) => {
     console.error('[tokenManager] Initial refresh check error:', err.message);
+  });
+  refreshExpiringGmailTokens().catch((err) => {
+    console.error('[tokenManager] Initial Gmail refresh error:', err.message);
   });
 }
 

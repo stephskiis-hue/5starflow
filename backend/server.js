@@ -12,6 +12,7 @@ const portalRouter      = require('./routes/portal');
 const weatherRouter     = require('./routes/weather');
 const connectionsRouter = require('./routes/connections');
 const seoRouter         = require('./routes/seo');
+const gmailRouter       = require('./routes/gmail');
 const settingsRouter    = require('./routes/settings');
 const analyticsRouter   = require('./routes/analytics');
 const auditRouter       = require('./routes/websiteAudit');
@@ -78,6 +79,10 @@ app.use('/auth', authRouter);
 //   /api/seo/trigger?token=... (external cron trigger) work without a session.
 // The /trigger endpoint enforces its own SEO_TRIGGER_SECRET check.
 app.use('/api/seo', seoRouter);
+
+// Gmail OAuth routes — callback must be public (Google redirects here without a session).
+// The /auth endpoint enforces its own requireAuth internally.
+app.use('/api/gmail', gmailRouter);
 
 // Portal login/logout/setup-user
 app.use('/auth', portalRouter);

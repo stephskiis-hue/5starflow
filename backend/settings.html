@@ -303,25 +303,38 @@
     <div class="card">
       <div class="card-title">
         Gmail
-        <span class="pill pill-gray" id="gmail-status">Not configured</span>
+        <span class="pill pill-gray" id="gmail-status">Not connected</span>
+      </div>
+      <p style="color:var(--text-2);font-size:0.85rem;margin-bottom:1.25rem;line-height:1.6;">
+        Connect your Gmail account to send review request emails. Works with passkeys, 2FA, and regular logins — no app password needed.
+      </p>
+
+      <!-- Connected state (hidden until loaded) -->
+      <div id="gmail-connected-info" style="display:none;margin-bottom:1.25rem;">
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;padding:0.85rem 1rem;background:var(--green-dim);border:1px solid rgba(52,211,153,0.2);border-radius:var(--radius-sm);">
+          <span style="color:var(--green);font-size:1rem;">&#10003;</span>
+          <span style="color:var(--green);font-size:0.875rem;font-weight:600;" id="gmail-address-display"></span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Display Name (shown in email "From" field)</label>
+            <input type="text" class="form-input" id="gmail-display-name" placeholder="Your Business Name" autocomplete="off" />
+          </div>
+          <div class="form-group" style="flex:0;min-width:auto;align-self:flex-end;">
+            <button class="btn btn-primary" id="gmail-name-save-btn" onclick="saveGmailName()">Update Name</button>
+          </div>
+        </div>
+        <div class="result-msg" id="gmail-name-result"></div>
+        <button onclick="disconnectGmail()" style="margin-top:0.75rem;background:none;border:1px solid var(--border);color:var(--text-2);padding:0.5rem 1rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.8rem;">
+          Disconnect Gmail
+        </button>
       </div>
 
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Gmail Address</label>
-          <input type="email" class="form-input" id="gmail-user" placeholder="you@gmail.com" autocomplete="off" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">App Password</label>
-          <input type="password" class="form-input" id="gmail-app-password" placeholder="Your app password" autocomplete="off" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Display Name</label>
-          <input type="text" class="form-input" id="gmail-display-name" placeholder="Your Business Name" autocomplete="off" />
-        </div>
-        <div class="form-group" style="flex:0;min-width:auto;align-self:flex-end;">
-          <button class="btn btn-primary" id="gmail-save-btn" onclick="saveGmail()">Save</button>
-        </div>
+      <!-- Connect button (hidden when connected) -->
+      <div id="gmail-connect-section">
+        <a href="/api/gmail/auth" class="btn btn-primary" style="text-decoration:none;display:inline-flex;align-items:center;gap:0.5rem;">
+          Connect Gmail &rarr;
+        </a>
       </div>
 
       <div class="result-msg" id="gmail-result"></div>
@@ -503,15 +516,20 @@
       }
 
       // Load Gmail status
-      if (data.gmail && data.gmail.gmailUser) {
-        document.getElementById('gmail-status').innerHTML =
-          '<span class="pill-green" style="background:var(--green-dim);color:var(--green);">Configured</span>';
+      if (data.gmail && data.gmail.configured) {
+        document.getElementById('gmail-status').textContent = 'Connected';
         document.getElementById('gmail-status').className = 'pill pill-green';
-        document.getElementById('gmail-user').value = data.gmail.gmailUser || '';
+        document.getElementById('gmail-status').style.cssText = 'background:var(--green-dim);color:var(--green);';
+        document.getElementById('gmail-address-display').textContent = data.gmail.gmailUser || '';
         document.getElementById('gmail-display-name').value = data.gmail.fromName || '';
+        document.getElementById('gmail-connected-info').style.display = 'block';
+        document.getElementById('gmail-connect-section').style.display = 'none';
       } else {
-        document.getElementById('gmail-status').innerHTML = 'Not configured';
+        document.getElementById('gmail-status').textContent = 'Not connected';
         document.getElementById('gmail-status').className = 'pill pill-gray';
+        document.getElementById('gmail-status').style.cssText = '';
+        document.getElementById('gmail-connected-info').style.display = 'none';
+        document.getElementById('gmail-connect-section').style.display = 'block';
       }
     } catch (err) {
       console.error('Could not load credentials:', err);
@@ -559,43 +577,47 @@
     }
   }
 
-  async function saveGmail() {
-    const gmailUser    = document.getElementById('gmail-user').value.trim();
-    const appPassword  = document.getElementById('gmail-app-password').value.trim();
-    const displayName  = document.getElementById('gmail-display-name').value.trim();
-    const btn          = document.getElementById('gmail-save-btn');
-    const result       = document.getElementById('gmail-result');
-
-    result.style.display = 'none';
-
-    if (!gmailUser || !appPassword || !displayName) {
-      showResult('gmail-result', '&#10007; All Gmail fields are required.', false);
-      return;
-    }
+  async function saveGmailName() {
+    const fromName = document.getElementById('gmail-display-name').value.trim();
+    const btn      = document.getElementById('gmail-name-save-btn');
 
     btn.disabled = true;
     btn.textContent = 'Saving...';
 
     try {
-      const res  = await fetch(`${API}/api/settings/gmail`, {
+      const res  = await fetch(`${API}/api/settings/gmail/name`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gmailUser, appPassword, fromName: displayName }),
+        body: JSON.stringify({ fromName }),
       });
       const data = await res.json();
 
       if (res.ok && data.success) {
-        showResult('gmail-result', '&#10003; Gmail credentials saved successfully.', true);
-        document.getElementById('gmail-app-password').value = '';
+        showResult('gmail-name-result', '&#10003; Display name updated.', true);
+      } else {
+        showResult('gmail-name-result', '&#10007; ' + (data.error || 'Failed to update name'), false);
+      }
+    } catch (err) {
+      showResult('gmail-name-result', '&#10007; Network error: ' + err.message, false);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Update Name';
+    }
+  }
+
+  async function disconnectGmail() {
+    if (!confirm('Disconnect Gmail? Review emails will stop sending until you reconnect.')) return;
+
+    try {
+      const res = await fetch(`${API}/api/settings/gmail`, { method: 'DELETE' });
+      if (res.ok) {
         await loadCredentials();
       } else {
-        showResult('gmail-result', '&#10007; ' + (data.error || 'Failed to save credentials'), false);
+        const data = await res.json();
+        showResult('gmail-result', '&#10007; ' + (data.error || 'Failed to disconnect'), false);
       }
     } catch (err) {
       showResult('gmail-result', '&#10007; Network error: ' + err.message, false);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Save';
     }
   }
 
@@ -604,6 +626,16 @@
     await loadCurrentUser();
     await loadUsers();
     await loadCredentials();
+
+    // Show success/error toast from OAuth redirects
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('gmail_connected') === '1') {
+      showResult('gmail-result', '&#10003; Gmail connected successfully!', true);
+      window.history.replaceState({}, '', '/settings.html');
+    } else if (params.get('gmail_error')) {
+      showResult('gmail-result', '&#10007; Gmail connection failed: ' + decodeURIComponent(params.get('gmail_error')), false);
+      window.history.replaceState({}, '', '/settings.html');
+    }
   }
 
   init();

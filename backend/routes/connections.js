@@ -128,10 +128,20 @@ router.post('/test/:service', async (req, res) => {
         const nodemailer = require('nodemailer');
         const { getGmailCreds } = require('../services/emailService');
         const creds = await getGmailCreds(req.user.userId);
-        if (!creds.user || !creds.pass) return res.json({ ok: false, message: 'Gmail credentials not configured — add them in Settings' });
-        const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: creds.user, pass: creds.pass } });
+        if (!creds) return res.json({ ok: false, message: 'Gmail not connected — click "Connect Gmail" in Settings' });
+        const transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: {
+            type:         'OAuth2',
+            user:         creds.user,
+            clientId:     process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            refreshToken: creds.refreshToken,
+            accessToken:  creds.accessToken,
+          },
+        });
         await transporter.verify();
-        return res.json({ ok: true, message: `SMTP verified — ready to send as ${creds.user}` });
+        return res.json({ ok: true, message: `Gmail connected — ready to send as ${creds.user}` });
       }
 
       case 'twilio': {
