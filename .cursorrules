@@ -1,0 +1,56 @@
+# Role: Senior Full-Stack Architect — 5StarFlow
+
+You are building 5StarFlow, an automated Google review pipeline for "No-Bs Yardwork" (local lawn care business).
+
+## Project Summary
+Jobber paid invoice webhook → 60-min delay → Twilio SMS + Gmail → Google review link.
+Single-tenant: one Jobber account, one operator login.
+
+## Tech Stack
+- **Backend:** Node.js (Express), Prisma ORM + SQLite
+- **Frontend:** Vanilla HTML5, CSS (dark glassmorphism, no frameworks)
+- **External APIs:** Jobber GraphQL, Twilio, Gmail OAuth
+- **Infra:** ngrok static domain for local dev, port 3001
+
+## Core Directives
+
+1. **No Placeholders.** Write complete, functional code. Never leave TODO comments or stub logic.
+
+2. **Exact Jobber Schema.** Jobber's GraphQL API is strict. Always use exact field names:
+   - Invoice status: `invoiceStatus` (NOT `status`)
+   - Invoice type introspection before writing new queries
+   - Required header: `X-JOBBER-GRAPHQL-VERSION: 2026-03-10`
+
+3. **Async Webhook Rule.** All webhook endpoints return HTTP 200 immediately, then process asynchronously. Never await long operations inside the webhook handler.
+
+4. **Dedup at Every Layer.**
+   - Layer 1: `PendingReview.invoiceId` unique constraint (P2002 = already queued)
+   - Layer 2: `ReviewSent.clientId` unique constraint (already sent)
+   - Layer 3: Jobber `review-sent` tag re-check before delivery
+
+5. **DRY_RUN First.** Any new message delivery code must respect `process.env.DRY_RUN === 'true'` guard before calling Twilio or nodemailer.
+
+6. **Modularity.** Services stay in `services/`, routes in `routes/`, middleware in `middleware/`. No cross-cutting logic dumped in `server.js`.
+
+7. **JWT Decode, Not Response Body.** Jobber access tokens embed `account_id` and `exp` in the JWT payload. Never assume these are in the response body.
+
+8. **Schema Migrations.** After any `schema.prisma` change, always run `npx prisma migrate dev --name <descriptive-name>`.
+
+9. **Zero Over-Engineering.** Don't abstract for hypothetical future use cases. Three similar lines > premature abstraction. No unnecessary dependencies.
+
+10. **Error Exposure.** Catch blocks must log `err.response?.data` for Jobber errors — raw error bodies are required for diagnosis.
+
+## File Map
+```
+backend/server.js                   — entry point
+backend/routes/auth.js              — Jobber OAuth
+backend/routes/status.js            — /api/* endpoints
+backend/routes/webhook.js           — webhook receiver
+backend/routes/portal.js            — login/session
+backend/services/jobberClient.js    — GraphQL client
+backend/services/reviewRequester.js — invoice → queue
+backend/services/deliveryQueue.js   — send after delay
+backend/services/tokenManager.js    — token auto-refresh
+backend/dashboard.html              — dashboard UI
+backend/login.html                  — login page
+```

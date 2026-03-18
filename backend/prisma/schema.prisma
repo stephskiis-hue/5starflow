@@ -1,0 +1,205 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Stores the connected Jobber account's OAuth tokens.
+// Multi-tenant: one row per Jobber org, linked to the portal User who connected it.
+model JobberAccount {
+  id           String   @id @default(cuid())
+  accountId    String   @unique  // Jobber account/org ID from token response
+  userId       String?           // portal User.id — links this Jobber org to a portal user
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime           // UTC: when the access token expires
+  webhookId    String?            // Jobber webhook endpoint ID once registered
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// Audit log for every token refresh attempt (success or failure).
+// Powers the /api/token-logs endpoint and dashboard health monitor.
+model TokenRefreshLog {
+  id        String   @id @default(cuid())
+  accountId String                   // Jobber account ID (for reference)
+  success   Boolean                  // true = refreshed OK, false = failed
+  message   String                   // e.g. "Token refreshed" or error text
+  trigger   String   @default("scheduler") // "scheduler" | "on-demand"
+  createdAt DateTime @default(now())
+}
+
+// Tracks which clients have already received a review request.
+// Secondary deduplication layer in case Jobber tag API is temporarily down.
+model ReviewSent {
+  id        String   @id @default(cuid())
+  clientId  String   @unique  // Jobber EncodedId of the client
+  invoiceId String             // Invoice that triggered the send
+  sentAt    DateTime @default(now())
+}
+
+// Portal users — email must match the license email used to purchase.
+// Create the first user via POST /auth/setup-user with the SETUP_TOKEN.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+// Delay queue: invoices queued for review request, sent after REVIEW_DELAY_MINUTES.
+// invoiceId is unique so webhook retries and poller duplicates are silently ignored.
+model PendingReview {
+  id          String   @id @default(cuid())
+  invoiceId   String   @unique  // Jobber invoice ID — idempotency key
+  clientId    String
+  clientName  String
+  firstName   String
+  phone       String?           // null if client has no primary phone
+  smsAllowed  Boolean  @default(false)
+  email       String?           // null if client has no primary email
+  scheduledAt DateTime          // when to send = enqueued time + REVIEW_DELAY_MINUTES
+  processed   Boolean  @default(false)
+  cancelled   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+// Daily weather check log — one row per morning check run.
+model WeatherCheck {
+  id              String   @id @default(cuid())
+  date            String   // YYYY-MM-DD
+  rainExpected    Boolean
+  maxPrecipProb   Float    // 0.0–1.0 (highest pop in business hours)
+  forecastSummary String   // e.g. "Rain likely 9am–2pm (72%)"
+  checkedAt       DateTime @default(now())
+}
+
+// Audit log for every rain reschedule batch notification sent.
+model RainReschedule {
+  id           String   @id @default(cuid())
+  originalDay  String   // "monday"
+  originalDate String   // YYYY-MM-DD
+  newDate      String   // YYYY-MM-DD
+  clientCount  Int
+  smsCount     Int      @default(0)
+  emailCount   Int      @default(0)
+  message      String   // actual message text that was sent
+  notifiedAt   DateTime @default(now())
+}
+
+// Singleton settings row for the weather/rain feature.
+model WeatherSettings {
+  id                     String  @id @default(cuid())
+  city                   String  @default("Winnipeg")
+  rainThreshold          Float   @default(0.4)   // 40% pop = rain warning
+  businessStartHour      Int     @default(7)
+  businessEndHour        Int     @default(18)
+  preferredRescheduleDay String  @default("")    // saved dropdown value (YYYY-MM-DD)
+  checkEnabled           Boolean @default(true)
+}
+
+// SEO: one row per weekly audit run.
+model SeoAudit {
+  id               String   @id @default(cuid())
+  siteUrl          String
+  status           String   @default("running")  // running | complete | failed
+  performanceScore Int?
+  lcp              Float?   // Largest Contentful Paint (s)
+  cls              Float?   // Cumulative Layout Shift
+  fid              Float?   // First Input Delay (ms)
+  keywordsJson     String?  // JSON array: [{ keyword, clicks, impressions, position }]
+  competitorJson   String?  // JSON array: [{ url, title, h1s, wordCount, schema }]
+  insightJson      String?  // JSON array: generated insights
+  runAt            DateTime @default(now())
+}
+
+// SEO: one proposal per audit — operator approves or declines.
+model SeoProposal {
+  id          String    @id @default(cuid())
+  auditId     String
+  status      String    @default("pending")  // pending | approved | declined
+  title       String
+  summaryJson String    // JSON array: [{ insight, impact, fix, fileTarget }]
+  respondedAt DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+// SEO: individual file changes attached to a proposal.
+model SeoChange {
+  id          String    @id @default(cuid())
+  proposalId  String
+  filePath    String
+  oldContent  String
+  newContent  String
+  description String
+  status      String    @default("pending")  // pending | applied | failed
+  appliedAt   DateTime?
+  errorMsg    String?
+  createdAt   DateTime  @default(now())
+}
+
+// Website Audit: FTP server credentials (singleton — one config per app instance).
+model FtpConfig {
+  id                String   @id @default(cuid())
+  host              String
+  user              String
+  encryptedPassword String
+  rootPath          String   @default("/public_html")
+  port              Int      @default(21)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Website Audit: path patterns to exclude from FTP scans (e.g. "cgi-bin", "wp-admin").
+model AuditIgnore {
+  id        String   @id @default(cuid())
+  pattern   String   @unique
+  createdAt DateTime @default(now())
+}
+
+// Website Audit: one row per HTML file discovered on the FTP server.
+// Status flow: discovered → pulled → auditing → audited → edited → pushed → done
+model AuditPage {
+  id              String    @id @default(cuid())
+  path            String    @unique   // full remote path e.g. /public_html/about.html
+  filename        String
+  status          String    @default("discovered")
+  localContent    String?             // raw HTML pulled from server
+  lastPulled      DateTime?
+  lastPushed      DateTime?
+  auditScore      Int?                // composite 0-100 (SEO + perf)
+  seoScore        Int?
+  perfScore       Int?
+  auditIssuesJson String?             // JSON: [{ type, severity, message, fix }]
+  pageUrl         String?             // full public URL for PageSpeed
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// SEO: singleton settings row — site URL, competitors, deploy config, Google tokens.
+model SeoSettings {
+  id                 String   @id @default(cuid())
+  siteUrl            String   @default("")
+  competitorUrls     String   @default("[]")   // JSON array of competitor URLs
+  deployType         String   @default("none") // "git" | "ftp" | "none"
+  deployHost         String?
+  deployPort         Int?
+  deployUser         String?
+  deployPass         String?
+  deployPath         String?
+  deployBranch       String   @default("main")
+  googleAccessToken  String?
+  googleRefreshToken String?
+  googleTokenExpiry  DateTime?
+  siteProperty       String?  // Search Console property e.g. "sc-domain:nobsyardwork.com"
+  auditEnabled       Boolean  @default(true)
+  deepAnalysis       Boolean  @default(false) // true = Sonnet (~4¢), false = Haiku (~0.7¢)
+  updatedAt          DateTime @updatedAt
+  createdAt          DateTime @default(now())
+}
