@@ -51,12 +51,13 @@ const GET_INVOICE_WITH_CLIENT = `
  */
 async function handleInvoicePaid(invoiceData) {
   const invoiceId = invoiceData.id;
-  console.log(`[reviewRequester] Processing paid invoice: ${invoiceId}`);
+  const userId    = invoiceData.userId || null;
+  console.log(`[reviewRequester] Processing paid invoice: ${invoiceId} (userId: ${userId})`);
 
   // --- Fetch full invoice + client details ---
   let invoice;
   try {
-    const result = await jobberGraphQL(GET_INVOICE_WITH_CLIENT, { invoiceId });
+    const result = await jobberGraphQL(GET_INVOICE_WITH_CLIENT, { invoiceId }, userId);
     invoice = result?.invoice;
   } catch (err) {
     console.error(`[reviewRequester] GraphQL fetch failed for invoice ${invoiceId}:`, err.message);

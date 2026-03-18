@@ -10,7 +10,7 @@ const axios   = require('axios');
 router.get('/status', async (req, res) => {
   try {
     // ── Jobber ──────────────────────────────────────────────────────────────
-    const jobberAccount = await prisma.jobberAccount.findFirst();
+    const jobberAccount = await prisma.jobberAccount.findFirst({ where: { userId: req.user.userId } });
     const lastRefreshLog = jobberAccount
       ? await prisma.tokenRefreshLog.findFirst({
           where:   { accountId: jobberAccount.accountId },
@@ -113,7 +113,7 @@ router.post('/test/:service', async (req, res) => {
     switch (service) {
       case 'jobber': {
         const { getValidAccessToken } = require('../services/jobberClient');
-        const token = await getValidAccessToken();
+        const token = await getValidAccessToken(req.user.userId);
         const resp = await axios.post(
           process.env.JOBBER_GRAPHQL_URL || 'https://api.getjobber.com/api/graphql',
           { query: '{ account { id name } }' },

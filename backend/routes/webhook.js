@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyWebhookSignature } = require('../middleware/verifyWebhook');
 const { handleInvoicePaid } = require('../services/reviewRequester');
+const prisma = require('../lib/prismaClient');
 
 /**
  * POST /webhook/jobber
@@ -41,11 +42,15 @@ router.post(
     res.status(200).json({ received: true });
 
     if (topic === 'INVOICE_UPDATE' && itemId) {
-      // handleInvoicePaid fetches the invoice from Jobber GraphQL and checks
-      // whether status === 'paid' before queuing a review request
-      handleInvoicePaid({ id: itemId }).catch((err) => {
-        console.error('[webhook] handleInvoicePaid error:', err.message);
-      });
+      // Look up the userId associated with this Jobber account so review
+      // requests are scoped to the correct portal user.
+      prisma.jobberAccount.findFirst({ where: { accountId } })
+        .then((account) => {
+          handleInvoicePaid({ id: itemId, userId: account?.userId || null });
+        })
+        .catch((err) => {
+          console.error('[webhook] handleInvoicePaid error:', err.message);
+        });
     }
   }
 );

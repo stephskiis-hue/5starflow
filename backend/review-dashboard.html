@@ -194,6 +194,7 @@
       <a class="nav-link" href="/weather-dashboard.html"><span class="nav-icon">&#9928;</span> Rain Alerts</a>
       <div class="nav-section-label">Tools</div>
       <a class="nav-link" href="/seo-dashboard.html"><span class="nav-icon">&#128202;</span> SEO Audit</a>
+      <a class="nav-link" href="/website-audit.html"><span class="nav-icon">&#128394;</span> Website Audit</a>
       <div class="nav-section-label">System</div>
       <a class="nav-link" href="/connections.html"><span class="nav-icon">&#128279;</span> App Connections</a>
       <a class="nav-link" href="/settings.html"><span class="nav-icon">&#9881;</span> Settings</a>
@@ -221,6 +222,16 @@
         <span id="last-refresh">Loading...</span>
         <button class="btn btn-ghost btn-small" onclick="fetchAll()">&#8635; Refresh</button>
       </div>
+    </div>
+
+    <!-- Jobber not-connected banner (hidden by default, shown via JS) -->
+    <div id="jobber-not-connected-banner" style="display:none;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.5rem;align-items:center;gap:1rem;flex-wrap:wrap;">
+      <span style="font-size:1.25rem;">⚠️</span>
+      <div style="flex:1;min-width:200px;">
+        <strong style="color:#f87171;">Jobber not connected</strong>
+        <p style="margin:0.2rem 0 0;font-size:0.85rem;color:var(--color-text-muted);">Connect your Jobber account to enable review requests.</p>
+      </div>
+      <a href="connections.html" style="background:#d4a017;color:#000;padding:0.45rem 1rem;border-radius:6px;font-size:0.85rem;font-weight:600;text-decoration:none;white-space:nowrap;">Go to App Connections →</a>
     </div>
 
     <!-- Summary Stat Boxes -->
@@ -354,6 +365,9 @@
       const testClientsBtn   = document.getElementById('test-clients-btn');
       const testInvoiceBtn   = document.getElementById('test-invoice-btn');
       const registerWebhookBtn = document.getElementById('register-webhook-btn');
+
+      const banner = document.getElementById('jobber-not-connected-banner');
+      if (banner) banner.style.display = data.connected ? 'none' : 'flex';
 
       if (!data.connected) {
         connEl.textContent = 'Not Connected';

@@ -297,6 +297,10 @@
         <span class="nav-icon">&#128202;</span>
         <span class="nav-label">SEO Audit</span>
       </a>
+      <a class="nav-link" data-tooltip="Website Audit" href="/website-audit.html">
+        <span class="nav-icon">&#128394;</span>
+        <span class="nav-label">Website Audit</span>
+      </a>
 
       <div class="nav-section-label">System</div>
 
@@ -329,12 +333,20 @@
 
     <div class="topbar">
       <div>
-        <div class="page-label">System</div>
+        <div class="page-label">Setup</div>
         <h2 class="page-heading">App Connections</h2>
-        <p class="page-sub">Manage integrations, test connections, and view token status.</p>
+        <p class="page-sub">Connect your tools to unlock each feature. Start here when setting up a new account.</p>
       </div>
       <div class="topbar-meta">
         <button class="refresh-btn" onclick="loadStatus()">&#8635; Refresh</button>
+      </div>
+    </div>
+
+    <!-- Setup Checklist -->
+    <div id="setup-checklist" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem 1.5rem;margin-bottom:1.5rem;">
+      <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-2);margin-bottom:1rem;">Your Setup Checklist</div>
+      <div id="checklist-items" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0.6rem;">
+        <!-- Populated by JS -->
       </div>
     </div>
 
@@ -345,6 +357,54 @@
 
     <div class="conn-grid" id="conn-grid">
       <!-- Cards rendered by JS -->
+    </div>
+
+    <!-- How-To Guides -->
+    <div style="margin-top:2rem;">
+      <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-2);margin-bottom:1rem;">Setup Guides</div>
+      <div style="display:flex;gap:1rem;overflow-x:auto;padding-bottom:0.5rem;">
+
+        <div style="flex:0 0 200px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+          <div style="height:110px;background:linear-gradient(135deg,#6366f1,#4338ca);display:flex;align-items:center;justify-content:center;font-size:2.5rem;">🔗</div>
+          <div style="padding:0.85rem;">
+            <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.3rem;">How to connect Jobber</div>
+            <a href="#" target="_blank" style="font-size:0.72rem;color:var(--gold);text-decoration:none;font-weight:600;">Watch Guide →</a>
+          </div>
+        </div>
+
+        <div style="flex:0 0 200px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+          <div style="height:110px;background:linear-gradient(135deg,#f22f46,#be123c);display:flex;align-items:center;justify-content:center;font-size:2.5rem;">📱</div>
+          <div style="padding:0.85rem;">
+            <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.3rem;">How to get Twilio credentials</div>
+            <a href="#" target="_blank" style="font-size:0.72rem;color:var(--gold);text-decoration:none;font-weight:600;">Watch Guide →</a>
+          </div>
+        </div>
+
+        <div style="flex:0 0 200px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+          <div style="height:110px;background:linear-gradient(135deg,#ea4335,#b91c1c);display:flex;align-items:center;justify-content:center;font-size:2.5rem;">✉️</div>
+          <div style="padding:0.85rem;">
+            <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.3rem;">How to set up Gmail App Password</div>
+            <a href="#" target="_blank" style="font-size:0.72rem;color:var(--gold);text-decoration:none;font-weight:600;">Watch Guide →</a>
+          </div>
+        </div>
+
+        <div style="flex:0 0 200px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+          <div style="height:110px;background:linear-gradient(135deg,#38bdf8,#0369a1);display:flex;align-items:center;justify-content:center;font-size:2.5rem;">🌤️</div>
+          <div style="padding:0.85rem;">
+            <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.3rem;">How to get an OpenWeather API key</div>
+            <a href="#" target="_blank" style="font-size:0.72rem;color:var(--gold);text-decoration:none;font-weight:600;">Watch Guide →</a>
+          </div>
+        </div>
+
+        <div style="flex:0 0 200px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+          <div style="height:110px;background:linear-gradient(135deg,#4285f4,#1d4ed8);display:flex;align-items:center;justify-content:center;font-size:2.5rem;">📊</div>
+          <div style="padding:0.85rem;">
+            <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.3rem;">How to set up Google Search Console</div>
+            <a href="#" target="_blank" style="font-size:0.72rem;color:var(--gold);text-decoration:none;font-weight:600;">Watch Guide →</a>
+          </div>
+        </div>
+
+      </div>
     </div>
 
   </main>
@@ -450,8 +510,26 @@
     }
   }
 
+  // ── Checklist ─────────────────────────────────────────────────────
+  function renderChecklist(data) {
+    const items = [
+      { label: 'Jobber',        ok: data.jobber?.connected,              href: '#jobber' },
+      { label: 'Twilio SMS',    ok: data.twilio?.configured,             href: '#twilio' },
+      { label: 'Gmail',         ok: data.gmail?.configured,              href: '#gmail' },
+      { label: 'OpenWeather',   ok: data.openweather?.configured,        href: '#openweather' },
+      { label: 'Google Search', ok: data.google?.connected,              href: '#google' },
+    ];
+    document.getElementById('checklist-items').innerHTML = items.map(item => `
+      <a href="${item.href}" style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid ${item.ok ? 'rgba(52,211,153,0.25)' : 'rgba(248,113,113,0.2)'};background:${item.ok ? 'rgba(52,211,153,0.07)' : 'rgba(248,113,113,0.07)'};text-decoration:none;color:var(--text-1);">
+        <span style="font-size:1rem;">${item.ok ? '✅' : '❌'}</span>
+        <span style="font-size:0.8rem;font-weight:500;">${item.label}</span>
+        ${!item.ok ? '<span style="margin-left:auto;font-size:0.7rem;color:var(--gold);">Set up →</span>' : ''}
+      </a>`).join('');
+  }
+
   // ── Render cards ──────────────────────────────────────────────────
   function renderCards(data) {
+    renderChecklist(data);
     const grid = document.getElementById('conn-grid');
     grid.innerHTML = [
       renderJobberCard(data.jobber),
@@ -488,6 +566,7 @@
       </div>
       <div class="conn-name">Jobber</div>
       <div class="conn-desc">Field service platform — invoices, clients, tags</div>
+      <div style="margin:0.4rem 0 0.6rem;font-size:0.68rem;color:var(--text-3);"><span style="color:var(--gold);font-weight:600;">Required for:</span> Review Requests · Rain Alerts · Invoice Webhooks</div>
       <div class="conn-info">
         ${connected ? `
         <div class="conn-info-row">
@@ -506,13 +585,12 @@
       ${logs ? `<div class="conn-divider"></div><div style="margin-bottom:0.5rem;font-size:0.65rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);">Recent refreshes</div>${logs}` : ''}
       <div class="conn-divider"></div>
       <div id="test-result-jobber" class="test-result"></div>
-      <div id="browser-login-status" class="test-result" style="display:none;"></div>
       <div class="conn-actions">
         ${connected
           ? `<button id="test-btn-jobber" class="btn-sm" onclick="testService('jobber')">Test</button>
-             ${!j.hasRefreshToken ? `<button class="btn-sm btn-gold" onclick="browserLogin()" title="Token cannot auto-refresh — log in again">&#128260; Re-authorize</button>` : `<button class="btn-sm" onclick="forceRefresh()">Force Refresh</button>`}
+             ${!j.hasRefreshToken ? `<button class="btn-sm" onclick="forceRefresh()">Force Refresh</button>` : `<button class="btn-sm" onclick="forceRefresh()">Force Refresh</button>`}
              <button class="btn-sm btn-danger" onclick="disconnectJobber()">Disconnect</button>`
-          : `<button class="btn-sm btn-gold" onclick="browserLogin()">&#128275; Login via Browser</button>`
+          : `<a class="btn-sm btn-gold" href="/auth/connect">&#128275; Connect Jobber</a>`
         }
       </div>
       ${connected && !j.hasRefreshToken ? `<div style="font-size:0.68rem;color:var(--yellow);margin-top:0.5rem;padding:0.35rem 0.5rem;background:rgba(251,191,36,0.08);border-radius:6px;border:1px solid rgba(251,191,36,0.15);">&#9888; Browser login — no auto-refresh. Re-authorize when token expires.</div>` : ''}
@@ -533,6 +611,7 @@
       </div>
       <div class="conn-name">Gmail</div>
       <div class="conn-desc">Email delivery via SMTP app password</div>
+      <div style="margin:0.4rem 0 0.6rem;font-size:0.68rem;color:var(--text-3);"><span style="color:var(--gold);font-weight:600;">Required for:</span> Email review requests · Rain alert emails</div>
       <div class="conn-info">
         <div class="conn-info-row">
           <span class="conn-info-label">Send from</span>
@@ -570,6 +649,7 @@
       </div>
       <div class="conn-name">Twilio</div>
       <div class="conn-desc">SMS delivery for review requests &amp; rain alerts</div>
+      <div style="margin:0.4rem 0 0.6rem;font-size:0.68rem;color:var(--text-3);"><span style="color:var(--gold);font-weight:600;">Required for:</span> SMS review requests · Rain alert texts</div>
       <div class="conn-info">
         <div class="conn-info-row">
           <span class="conn-info-label">From number</span>
@@ -603,6 +683,7 @@
       </div>
       <div class="conn-name">OpenWeatherMap</div>
       <div class="conn-desc">5-day rain forecast for schedule alerts</div>
+      <div style="margin:0.4rem 0 0.6rem;font-size:0.68rem;color:var(--text-3);"><span style="color:var(--gold);font-weight:600;">Required for:</span> Rain Alerts feature</div>
       <div class="conn-info">
         <div class="conn-info-row">
           <span class="conn-info-label">City</span>
@@ -640,6 +721,7 @@
       </div>
       <div class="conn-name">Google</div>
       <div class="conn-desc">Search Console &amp; Analytics for SEO audits</div>
+      <div style="margin:0.4rem 0 0.6rem;font-size:0.68rem;color:var(--text-3);"><span style="color:var(--gold);font-weight:600;">Required for:</span> SEO keyword tracking · Website traffic</div>
       <div class="conn-info">
         <div class="conn-info-row">
           <span class="conn-info-label">Site property</span>
@@ -687,46 +769,6 @@
     </div>`;
   }
 
-  // ── Browser login ─────────────────────────────────────────────────
-  let _browserLoginInterval = null;
-
-  async function browserLogin() {
-    const statusEl = document.getElementById('browser-login-status');
-    if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'test-result ok'; statusEl.textContent = 'Opening browser... Log in to Jobber, then return here.'; }
-
-    try {
-      const res  = await fetch('/auth/browser-login', { method: 'POST' });
-      const data = await res.json();
-      if (!data.success) {
-        if (statusEl) { statusEl.className = 'test-result err'; statusEl.textContent = 'Error: ' + (data.error || 'Unknown'); }
-        return;
-      }
-      if (statusEl) statusEl.textContent = 'Browser opened — log in to Jobber, then wait here...';
-
-      // Clear any existing poll
-      if (_browserLoginInterval) clearInterval(_browserLoginInterval);
-      let polls = 0;
-      _browserLoginInterval = setInterval(async () => {
-        polls++;
-        try {
-          const s = await fetch('/api/status').then(r => r.json());
-          if (s.connected && !s.tokenExpired) {
-            clearInterval(_browserLoginInterval);
-            _browserLoginInterval = null;
-            if (statusEl) statusEl.textContent = '✓ Connected to Jobber!';
-            setTimeout(() => loadStatus(), 1500);
-          } else if (polls > 72) { // 6 minutes
-            clearInterval(_browserLoginInterval);
-            _browserLoginInterval = null;
-            if (statusEl) { statusEl.className = 'test-result err'; statusEl.textContent = 'Timed out — browser may have closed. Try again.'; }
-          }
-        } catch { /* network error — keep polling */ }
-      }, 5000);
-    } catch (err) {
-      if (statusEl) { statusEl.className = 'test-result err'; statusEl.textContent = 'Error: ' + err.message; }
-    }
-  }
-
   // ── Jobber action helpers ─────────────────────────────────────────
   async function forceRefresh() {
     const btn = event.target;
@@ -771,6 +813,28 @@
       console.error('Connections load error:', err);
     }
   }
+
+  // ── Init: handle query params ──────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', function() {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get('connected');
+
+    if (connected === 'true') {
+      const msg = document.createElement('div');
+      msg.style.cssText = 'position:fixed;top:20px;right:20px;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.3);color:var(--green);padding:0.75rem 1rem;border-radius:10px;font-size:0.85rem;font-weight:500;z-index:9999;';
+      msg.textContent = '✓ Jobber connected successfully';
+      document.body.appendChild(msg);
+      setTimeout(() => msg.remove(), 4000);
+      history.replaceState({}, '', '/connections.html');
+    } else if (connected === 'false') {
+      const msg = document.createElement('div');
+      msg.style.cssText = 'position:fixed;top:20px;right:20px;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.3);color:var(--red);padding:0.75rem 1rem;border-radius:10px;font-size:0.85rem;font-weight:500;z-index:9999;';
+      msg.textContent = '✕ Jobber connection failed — try again';
+      document.body.appendChild(msg);
+      setTimeout(() => msg.remove(), 4000);
+      history.replaceState({}, '', '/connections.html');
+    }
+  });
 
   loadStatus();
   loadSidebarBadge();

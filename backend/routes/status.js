@@ -13,7 +13,7 @@ const prisma = require('../lib/prismaClient');
  */
 router.get('/status', async (req, res) => {
   try {
-    const account = await prisma.jobberAccount.findFirst();
+    const account = await prisma.jobberAccount.findFirst({ where: { userId: req.user.userId } });
 
     if (!account) {
       return res.json({ connected: false });
@@ -386,7 +386,7 @@ router.get('/setup-status', async (req, res) => {
   let jobberConnected    = false;
   let webhookRegistered  = false;
   try {
-    const account = await prisma.jobberAccount.findFirst();
+    const account = await prisma.jobberAccount.findFirst({ where: { userId: req.user.userId } });
     jobberConnected = !!account;
 
     // Check locally first; fall back to querying Jobber if webhookId not yet stored
@@ -522,7 +522,7 @@ router.get('/inspect-invoice-type', async (req, res) => {
  */
 router.post('/force-refresh', async (req, res) => {
   try {
-    const account = await prisma.jobberAccount.findFirst();
+    const account = await prisma.jobberAccount.findFirst({ where: { userId: req.user.userId } });
     if (!account) {
       return res.status(404).json({ error: 'No Jobber account connected' });
     }
