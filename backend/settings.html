@@ -315,6 +315,9 @@
           <span style="color:var(--green);font-size:1rem;">&#10003;</span>
           <span style="color:var(--green);font-size:0.875rem;font-weight:600;" id="gmail-address-display"></span>
         </div>
+        <div id="gmail-expiry-row" style="font-size:0.8rem;color:var(--text-2);margin-bottom:0.75rem;display:none;">
+          Token expires: <span id="gmail-expiry-display" style="color:var(--text-1);"></span>
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Display Name (shown in email "From" field)</label>
@@ -522,6 +525,11 @@
         document.getElementById('gmail-status').style.cssText = 'background:var(--green-dim);color:var(--green);';
         document.getElementById('gmail-address-display').textContent = data.gmail.gmailUser || '';
         document.getElementById('gmail-display-name').value = data.gmail.fromName || '';
+        if (data.gmail.tokenExpiry) {
+          const exp = new Date(data.gmail.tokenExpiry);
+          document.getElementById('gmail-expiry-display').textContent = exp.toLocaleString();
+          document.getElementById('gmail-expiry-row').style.display = 'block';
+        }
         document.getElementById('gmail-connected-info').style.display = 'block';
         document.getElementById('gmail-connect-section').style.display = 'none';
       } else {
