@@ -22,8 +22,15 @@ function requireAuth(req, res, next) {
     return res.redirect('/login.html');
   }
 
-  req.user = { userId: payload.userId, email: payload.email };
+  req.user = { userId: payload.userId, email: payload.email, role: payload.role || 'client' };
   next();
 }
 
-module.exports = { requireAuth };
+function requireAdmin(req, res, next) {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+}
+
+module.exports = { requireAuth, requireAdmin };

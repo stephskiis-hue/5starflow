@@ -1055,5 +1055,29 @@
   refreshAll();
   setInterval(refreshAll, 15000);
 </script>
+
+<script>
+(async function() {
+  try {
+    const res = await fetch('/api/admin/me', { credentials: 'include' });
+    if (!res.ok) return;
+    const me = await res.json();
+    const role = me.role || 'client';
+    if (role === 'client') { location.href = '/index.html'; return; }
+    const roleEl = document.querySelector('.user-role');
+    if (roleEl) roleEl.textContent = 'Administrator';
+    addAdminLink();
+  } catch {}
+  function addAdminLink() {
+    const nav = document.querySelector('.sidebar-nav');
+    if (!nav || nav.querySelector('a[href="/admin.html"]')) return;
+    const a = document.createElement('a');
+    a.className = 'nav-link'; a.href = '/admin.html';
+    a.setAttribute('data-tooltip', 'User Management');
+    a.innerHTML = '<span class="nav-icon">&#128100;</span><span class="nav-label">User Management</span>';
+    nav.appendChild(a);
+  }
+})();
+</script>
 </body>
 </html>

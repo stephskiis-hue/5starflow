@@ -40,7 +40,7 @@ app.use(
       if (allowedOrigins.includes(origin)) return callback(null, true);
       callback(new Error(`CORS: origin "${origin}" not allowed`));
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   })
@@ -105,6 +105,7 @@ app.use(requireAuth);
 app.use(express.static(__dirname));
 
 // Protected API routes
+app.use('/api', portalRouter);  // /api/admin/me, /api/admin/users, etc.
 app.use('/api', statusRouter);
 app.use('/api/weather', weatherRouter);
 app.use('/api/connections', connectionsRouter);
@@ -137,6 +138,7 @@ app.listen(PORT, () => {
   console.log(`  Connections : http://localhost:${PORT}/connections.html`);
   console.log(`  Settings    : http://localhost:${PORT}/settings.html`);
   console.log(`  Web Audit   : http://localhost:${PORT}/website-audit.html`);
+  console.log(`  Users       : http://localhost:${PORT}/admin.html`);
   console.log(`  Health      : http://localhost:${PORT}/health`);
   console.log('==============================================');
   console.log('');

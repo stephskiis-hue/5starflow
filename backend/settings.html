@@ -271,6 +271,62 @@
       <div class="result-msg" id="add-result"></div>
     </div>
 
+    <!-- Twilio SMS Card -->
+    <div class="card">
+      <div class="card-title">
+        Twilio SMS
+        <span class="pill pill-gray" id="twilio-status">Not configured</span>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Account SID</label>
+          <input type="text" class="form-input" id="twilio-account-sid" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Auth Token</label>
+          <input type="password" class="form-input" id="twilio-auth-token" placeholder="Your auth token" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">From Phone Number</label>
+          <input type="text" class="form-input" id="twilio-from-number" placeholder="+1xxxxxxxxxx" autocomplete="off" />
+        </div>
+        <div class="form-group" style="flex:0;min-width:auto;align-self:flex-end;">
+          <button class="btn btn-primary" id="twilio-save-btn" onclick="saveTwilio()">Save</button>
+        </div>
+      </div>
+
+      <div class="result-msg" id="twilio-result"></div>
+    </div>
+
+    <!-- Gmail Card -->
+    <div class="card">
+      <div class="card-title">
+        Gmail
+        <span class="pill pill-gray" id="gmail-status">Not configured</span>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Gmail Address</label>
+          <input type="email" class="form-input" id="gmail-user" placeholder="you@gmail.com" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">App Password</label>
+          <input type="password" class="form-input" id="gmail-app-password" placeholder="Your app password" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Display Name</label>
+          <input type="text" class="form-input" id="gmail-display-name" placeholder="Your Business Name" autocomplete="off" />
+        </div>
+        <div class="form-group" style="flex:0;min-width:auto;align-self:flex-end;">
+          <button class="btn btn-primary" id="gmail-save-btn" onclick="saveGmail()">Save</button>
+        </div>
+      </div>
+
+      <div class="result-msg" id="gmail-result"></div>
+    </div>
+
   </main>
 </div>
 
@@ -430,13 +486,151 @@
     if (ok) setTimeout(() => { el.style.display = 'none'; }, 4000);
   }
 
+  async function loadCredentials() {
+    try {
+      const res  = await fetch(`${API}/api/settings/credentials`);
+      const data = await res.json();
+
+      // Load Twilio status
+      if (data.twilio && data.twilio.accountSid) {
+        document.getElementById('twilio-status').innerHTML =
+          '<span class="pill-green" style="background:var(--green-dim);color:var(--green);">Configured</span>';
+        document.getElementById('twilio-status').className = 'pill pill-green';
+        document.getElementById('twilio-from-number').value = data.twilio.fromNumber || '';
+      } else {
+        document.getElementById('twilio-status').innerHTML = 'Not configured';
+        document.getElementById('twilio-status').className = 'pill pill-gray';
+      }
+
+      // Load Gmail status
+      if (data.gmail && data.gmail.gmailUser) {
+        document.getElementById('gmail-status').innerHTML =
+          '<span class="pill-green" style="background:var(--green-dim);color:var(--green);">Configured</span>';
+        document.getElementById('gmail-status').className = 'pill pill-green';
+        document.getElementById('gmail-user').value = data.gmail.gmailUser || '';
+        document.getElementById('gmail-display-name').value = data.gmail.fromName || '';
+      } else {
+        document.getElementById('gmail-status').innerHTML = 'Not configured';
+        document.getElementById('gmail-status').className = 'pill pill-gray';
+      }
+    } catch (err) {
+      console.error('Could not load credentials:', err);
+    }
+  }
+
+  async function saveTwilio() {
+    const accountSid = document.getElementById('twilio-account-sid').value.trim();
+    const authToken  = document.getElementById('twilio-auth-token').value.trim();
+    const fromNumber = document.getElementById('twilio-from-number').value.trim();
+    const btn        = document.getElementById('twilio-save-btn');
+    const result     = document.getElementById('twilio-result');
+
+    result.style.display = 'none';
+
+    if (!accountSid || !authToken || !fromNumber) {
+      showResult('twilio-result', '&#10007; All Twilio fields are required.', false);
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+      const res  = await fetch(`${API}/api/settings/twilio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountSid, authToken, fromNumber }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        showResult('twilio-result', '&#10003; Twilio credentials saved successfully.', true);
+        document.getElementById('twilio-account-sid').value = '';
+        document.getElementById('twilio-auth-token').value = '';
+        await loadCredentials();
+      } else {
+        showResult('twilio-result', '&#10007; ' + (data.error || 'Failed to save credentials'), false);
+      }
+    } catch (err) {
+      showResult('twilio-result', '&#10007; Network error: ' + err.message, false);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save';
+    }
+  }
+
+  async function saveGmail() {
+    const gmailUser    = document.getElementById('gmail-user').value.trim();
+    const appPassword  = document.getElementById('gmail-app-password').value.trim();
+    const displayName  = document.getElementById('gmail-display-name').value.trim();
+    const btn          = document.getElementById('gmail-save-btn');
+    const result       = document.getElementById('gmail-result');
+
+    result.style.display = 'none';
+
+    if (!gmailUser || !appPassword || !displayName) {
+      showResult('gmail-result', '&#10007; All Gmail fields are required.', false);
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+      const res  = await fetch(`${API}/api/settings/gmail`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gmailUser, appPassword, fromName: displayName }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        showResult('gmail-result', '&#10003; Gmail credentials saved successfully.', true);
+        document.getElementById('gmail-app-password').value = '';
+        await loadCredentials();
+      } else {
+        showResult('gmail-result', '&#10007; ' + (data.error || 'Failed to save credentials'), false);
+      }
+    } catch (err) {
+      showResult('gmail-result', '&#10007; Network error: ' + err.message, false);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save';
+    }
+  }
+
   // ── Init ──────────────────────────────────────────────────────────────────
   async function init() {
     await loadCurrentUser();
     await loadUsers();
+    await loadCredentials();
   }
 
   init();
+</script>
+
+<script>
+(async function() {
+  try {
+    const res = await fetch('/api/admin/me', { credentials: 'include' });
+    if (!res.ok) return;
+    const me = await res.json();
+    const role = me.role || 'client';
+    if (role === 'client') { location.href = '/index.html'; return; }
+    const roleEl = document.querySelector('.user-role');
+    if (roleEl) roleEl.textContent = 'Administrator';
+    addAdminLink();
+  } catch {}
+  function addAdminLink() {
+    const nav = document.querySelector('.sidebar-nav');
+    if (!nav || nav.querySelector('a[href="/admin.html"]')) return;
+    const a = document.createElement('a');
+    a.className = 'nav-link'; a.href = '/admin.html';
+    a.setAttribute('data-tooltip', 'User Management');
+    a.innerHTML = '<span class="nav-icon">&#128100;</span><span class="nav-label">User Management</span>';
+    nav.appendChild(a);
+  }
+})();
 </script>
 </body>
 </html>
