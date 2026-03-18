@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>5StarFlow — Website Audit</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #09090f;
+      --surface:   rgba(18, 20, 32, 0.9);
+      --border:    rgba(255, 255, 255, 0.07);
+      --gold:      #d4a017;
+      --gold-dim:  rgba(212, 160, 23, 0.12);
+      --text-1:    #f0f2f8;
+      --text-2:    #8b95a8;
+      --text-3:    #4a5568;
+      --green:     #34d399;
+      --green-dim: rgba(52, 211, 153, 0.12);
+      --red:       #f87171;
+      --red-dim:   rgba(248, 113, 113, 0.12);
+      --yellow:    #fbbf24;
+      --yellow-dim:rgba(251, 191, 36, 0.12);
+      --blue:      #38bdf8;
+      --blue-dim:  rgba(56, 189, 248, 0.1);
+      --purple:    #a78bfa;
+      --purple-dim:rgba(167, 139, 250, 0.12);
+      --teal:      #2dd4bf;
+      --teal-dim:  rgba(45, 212, 191, 0.12);
+      --sidebar-w: 260px;
+      --radius:    16px;
+      --radius-sm: 10px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text-1);
+      font-family: -apple-system, 'SF Pro Display', BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app { display: flex; min-height: 100vh; }
+
+    /* ── Sidebar ───────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-w);
+      min-height: 100vh;
+      background: rgba(10, 11, 18, 0.97);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      z-index: 100;
+    }
+
+    .sidebar-logo { padding: 1.75rem 1.5rem 1.25rem; border-bottom: 1px solid var(--border); }
+    .sidebar-logo h1 { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.04em; }
+    .sidebar-logo h1 .star { color: var(--gold); }
+    .sidebar-logo p { font-size: 0.7rem; color: var(--text-3); margin-top: 0.2rem; }
+
+    .sidebar-nav { flex: 1; padding: 1rem 0.75rem; display: flex; flex-direction: column; gap: 0.2rem; }
+
+    .nav-section-label {
+      font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--text-3);
+      padding: 0.9rem 0.75rem 0.4rem;
+    }
+
+    .nav-link {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.6rem 0.85rem; border-radius: var(--radius-sm);
+      font-size: 0.875rem; font-weight: 500; color: var(--text-2);
+      text-decoration: none; transition: all 0.15s; cursor: pointer;
+      border: none; background: none; width: 100%; text-align: left;
+    }
+    .nav-link:hover { background: rgba(255,255,255,0.05); color: var(--text-1); }
+    .nav-link.active { background: var(--gold-dim); color: var(--gold); border-left: 2px solid var(--gold); padding-left: calc(0.85rem - 2px); }
+    .nav-link .nav-icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
+    .nav-link .nav-badge { margin-left: auto; font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 999px; background: var(--gold-dim); color: var(--gold); }
+
+    .sidebar-footer { padding: 1rem 1.25rem 1.5rem; border-top: 1px solid var(--border); }
+    .sidebar-user { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+    .user-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--gold), #b8860b); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: #0a0c12; flex-shrink: 0; }
+    .user-email { font-size: 0.75rem; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .btn-logout { width: 100%; padding: 0.55rem; background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.18); border-radius: var(--radius-sm); color: var(--red); font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .btn-logout:hover { background: rgba(248,113,113,0.15); }
+
+    /* ── Main ──────────────────────────────────── */
+    .main { margin-left: var(--sidebar-w); flex: 1; padding: 2.5rem 2.5rem 3rem; }
+
+    /* ── Topbar ────────────────────────────────── */
+    .topbar { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+    .page-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin-bottom: 0.35rem; }
+    .page-title { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.04em; background: linear-gradient(140deg, #f0f2f8, #8b95a8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .page-sub { font-size: 0.82rem; color: var(--text-3); margin-top: 0.4rem; }
+    .topbar-actions { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+
+    /* ── Stat Boxes ────────────────────────────── */
+    .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
+    .stat-box { background: rgba(10,11,18,0.5); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; }
+    .stat-box-label { font-size: 0.7rem; color: var(--text-3); margin-bottom: 0.4rem; }
+    .stat-box-val { font-size: 1.15rem; font-weight: 700; color: var(--text-1); }
+
+    /* ── Cards ─────────────────────────────────── */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.5rem;
+      backdrop-filter: blur(20px); margin-bottom: 1.25rem;
+    }
+    .card-title {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-3); margin-bottom: 1.25rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    /* ── Buttons ───────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.6rem 1.25rem; border-radius: var(--radius-sm);
+      font-size: 0.85rem; font-weight: 600; cursor: pointer;
+      border: none; transition: opacity 0.15s; text-decoration: none;
+    }
+    .btn:hover:not(:disabled) { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: var(--gold); color: #0a0c12; }
+    .btn-secondary { background: rgba(148,163,184,0.1); color: var(--text-2); border: 1px solid var(--border); }
+    .btn-danger  { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
+    .btn-ghost   { background: rgba(148,163,184,0.1); color: var(--text-2); border: 1px solid var(--border); }
+    .btn-small   { padding: 0.4rem 0.85rem; font-size: 0.78rem; }
+    .btn-row     { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.25rem; }
+
+    /* ── Pill ──────────────────────────────────── */
+    .pill { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
+    .pill.green  { background: var(--green-dim); color: var(--green); }
+    .pill.red    { background: var(--red-dim);   color: var(--red); }
+    .pill.yellow { background: var(--yellow-dim);color: var(--yellow); }
+    .pill.blue   { background: var(--blue-dim);  color: var(--blue); }
+    .pill.purple { background: var(--purple-dim); color: var(--purple); }
+    .pill.teal   { background: var(--teal-dim);  color: var(--teal); }
+    .pill.gray   { background: rgba(148,163,184,0.1); color: var(--text-3); }
+
+    /* ── Tables ────────────────────────────────── */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .data-table th { text-align: left; padding: 0.5rem 0.75rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--border); }
+    .data-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; color: var(--text-2); }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* ── Toast messages ────────────────────────── */
+    .toast {
+      display: none; margin-top: 0.75rem; padding: 0.75rem 1rem;
+      border-radius: var(--radius-sm); font-size: 0.82rem; line-height: 1.5;
+    }
+    .toast.green { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.25); color: var(--green); }
+    .toast.red   { background: var(--red-dim); border: 1px solid rgba(248,113,113,0.25); color: var(--red); }
+
+    /* ── Tabs ──────────────────────────────────── */
+    .tabs-header { display: flex; gap: 0.5rem; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; }
+    .tab-btn {
+      padding: 0.75rem 1.25rem; background: none; border: none;
+      color: var(--text-3); font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; transition: all 0.15s; position: relative;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+    }
+    .tab-btn:hover { color: var(--text-1); }
+    .tab-btn.active { color: var(--gold); border-bottom-color: var(--gold); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ── Form inputs ───────────────────────────── */
+    .form-group { margin-bottom: 1rem; }
+    .form-label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-2); margin-bottom: 0.4rem; }
+    .form-input, .form-textarea {
+      width: 100%; padding: 0.6rem 0.85rem; background: rgba(10,11,18,0.5);
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      color: var(--text-1); font-size: 0.85rem; font-family: inherit;
+      transition: border 0.15s;
+    }
+    .form-input:focus, .form-textarea:focus { outline: none; border-color: var(--gold); }
+    .form-textarea { min-height: 400px; font-family: 'Menlo', 'Monaco', monospace; }
+
+    /* ── Info box ──────────────────────────────── */
+    .info-box {
+      background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.2);
+      border-radius: var(--radius-sm); padding: 0.85rem 1rem;
+      font-size: 0.8rem; color: var(--blue); margin: 1rem 0;
+    }
+
+    /* ── Status badges ────────────────────────── */
+    .status-line { margin-top: 0.75rem; font-size: 0.8rem; color: var(--text-2); }
+
+    /* ── File tree ────────────────────────────── */
+    .file-tree { margin-top: 1rem; font-family: 'Menlo', 'Monaco', monospace; font-size: 0.8rem; }
+    .file-tree-node { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; cursor: pointer; }
+    .file-tree-node:hover { color: var(--text-1); }
+    .file-tree-toggle { width: 20px; text-align: center; color: var(--text-3); }
+    .file-tree-children { margin-left: 1.5rem; }
+    .file-tree-children { display: none; }
+    .file-tree-children.open { display: block; }
+    .file-html { color: var(--gold); font-weight: 600; }
+    .file-other { color: var(--text-3); }
+
+    /* ── Editor panel ──────────────────────────– */
+    .editor-panel {
+      background: rgba(10,11,18,0.5); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 1.25rem;
+      margin-top: 1.5rem; display: none;
+    }
+    .editor-panel.open { display: block; }
+    .editor-header {
+      display: flex; align-items: center; gap: 0.75rem;
+      margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border);
+    }
+    .editor-filename { font-family: 'Menlo', 'Monaco', monospace; font-size: 0.9rem; font-weight: 600; }
+    .editor-badge { padding: 0.2rem 0.6rem; background: var(--yellow-dim); color: var(--yellow); border-radius: 4px; font-size: 0.65rem; font-weight: 600; }
+
+    /* ── Audit results panel ───────────────────– */
+    .audit-results {
+      background: rgba(10,11,18,0.5); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 1.25rem;
+      margin-top: 1.5rem; display: none;
+    }
+    .audit-results.open { display: block; }
+    .audit-score-row {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1rem; margin-bottom: 1.5rem;
+    }
+    .audit-score-box {
+      background: rgba(10,11,18,0.5); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 1rem; text-align: center;
+    }
+    .audit-score-label { font-size: 0.75rem; color: var(--text-3); margin-bottom: 0.4rem; }
+    .audit-score-num {
+      font-size: 2rem; font-weight: 800; color: var(--text-1);
+      margin-bottom: 0.2rem;
+    }
+    .audit-issues {
+      border-top: 1px solid var(--border); padding-top: 1rem;
+    }
+    .audit-issue {
+      margin-bottom: 0.75rem; padding: 0.85rem; background: rgba(10,11,18,0.3);
+      border-radius: var(--radius-sm); border-left: 3px solid var(--border);
+    }
+    .audit-issue.critical { border-left-color: var(--red); }
+    .audit-issue.warning { border-left-color: var(--yellow); }
+    .audit-issue.info { border-left-color: var(--blue); }
+    .audit-issue.suggestion { border-left-color: var(--purple); }
+    .issue-header {
+      display: flex; align-items: center; gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .issue-message { font-size: 0.85rem; font-weight: 500; }
+    .issue-fix { font-size: 0.78rem; color: var(--text-3); margin-top: 0.3rem; }
+
+    /* ── Loading spinner ───────────────────────– */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin 1s linear infinite; }
+
+    /* ── Misc ──────────────────────────────────– */
+    .empty-state { text-align: center; padding: 2.5rem 1rem; color: var(--text-3); font-size: 0.875rem; }
+    #last-refresh { font-size: 0.72rem; color: var(--text-3); }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    .pulsing { animation: pulse 1.5s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <h1>5<span class="star">&#9733;</span>Flow</h1>
+      <p>Business Automation OS</p>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a class="nav-link" href="/index.html"><span class="nav-icon">&#9632;</span> Home</a>
+      <a class="nav-link" href="/review-dashboard.html">
+        <span class="nav-icon">&#9733;</span> Review Requests
+        <span class="nav-badge" id="sidebar-pending">—</span>
+      </a>
+      <a class="nav-link" href="/weather-dashboard.html"><span class="nav-icon">&#9928;</span> Rain Alerts</a>
+      <div class="nav-section-label">Tools</div>
+      <a class="nav-link" href="/seo-dashboard.html"><span class="nav-icon">&#128202;</span> SEO Audit</a>
+      <a class="nav-link active" href="/website-audit.html"><span class="nav-icon">&#128394;</span> Website Audit</a>
+      <div class="nav-section-label">System</div>
+      <a class="nav-link" href="/connections.html"><span class="nav-icon">&#128279;</span> App Connections</a>
+      <a class="nav-link" href="/settings.html"><span class="nav-icon">&#9881;</span> Settings</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <div class="user-info"><div class="user-email" id="user-email">Loading...</div></div>
+      </div>
+      <button class="btn-logout" onclick="logout()">Log Out</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div>
+        <div class="page-label">Tools</div>
+        <h2 class="page-title">Website Audit</h2>
+        <p class="page-sub">Connect your FTP server and audit your website HTML pages.</p>
+      </div>
+      <div class="topbar-actions">
+        <span id="last-refresh">Loading...</span>
+        <button class="btn btn-secondary btn-small" onclick="refreshAll()">&#8635; Refresh</button>
+      </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Tab Navigation -->
+    <div class="card">
+      <div class="tabs-header">
+        <button class="tab-btn active" onclick="switchTab('setup')">Setup</button>
+        <button class="tab-btn" onclick="switchTab('preview')">Preview (Browse Files)</button>
+        <button class="tab-btn" onclick="switchTab('ignore')">Ignore Rules</button>
+        <button class="tab-btn" onclick="switchTab('pages')">Pages</button>
+      </div>
+
+      <!-- Tab 1: Setup -->
+      <div id="tab-setup" class="tab-content active">
+        <div>
+          <h3 style="font-size:0.95rem;font-weight:700;margin-bottom:1.25rem;">FTP Connection</h3>
+          <div class="form-group">
+            <label class="form-label">Host</label>
+            <input type="text" id="ftp-host" class="form-input" placeholder="yourdomain.com or IP" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Username</label>
+            <input type="text" id="ftp-username" class="form-input" placeholder="your-ftp-username" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <input type="password" id="ftp-password" class="form-input" placeholder="your-ftp-password" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Port</label>
+            <input type="number" id="ftp-port" class="form-input" value="21" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Root Path</label>
+            <input type="text" id="ftp-root-path" class="form-input" value="/public_html" />
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-secondary" id="test-conn-btn" onclick="testConnection()" style="width:auto;">Test Connection</button>
+            <button class="btn btn-primary" id="save-creds-btn" onclick="saveCredentials()" style="width:auto;">Save Credentials</button>
+          </div>
+          <div class="status-line" id="ftp-status">Ready to connect</div>
+          <div class="info-box">
+            Your credentials are stored locally in the app's database. They are never sent to any third-party service.
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Preview (Browse Files) -->
+      <div id="tab-preview" class="tab-content">
+        <div>
+          <p style="font-size:0.85rem;color:var(--text-2);margin-bottom:1.25rem;">Browse your server files read-only before making any changes.</p>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="browse-btn" onclick="browseServer()" style="width:auto;">Browse Server</button>
+          </div>
+          <div id="file-tree-container" class="file-tree" style="display:none;margin-top:1rem;"></div>
+          <div id="browse-empty" class="empty-state">Click "Browse Server" to view files from your FTP connection.</div>
+        </div>
+      </div>
+
+      <!-- Tab 3: Ignore Rules -->
+      <div id="tab-ignore" class="tab-content">
+        <div>
+          <p style="font-size:0.85rem;color:var(--text-2);margin-bottom:1.25rem;">Add path patterns to exclude from scans. Matching files will be skipped.</p>
+          <div id="ignore-table-container" style="margin-bottom:1.5rem;"></div>
+          <div style="border-top:1px solid var(--border);padding-top:1.25rem;">
+            <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+              <input type="text" id="ignore-input" class="form-input" placeholder="e.g. cgi-bin or wp-admin" style="flex:1;min-width:200px;" />
+              <button class="btn btn-primary" id="add-ignore-btn" onclick="addIgnorePattern()" style="width:auto;">Add Pattern</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 4: Pages -->
+      <div id="tab-pages" class="tab-content">
+        <div>
+          <div class="btn-row" style="margin-bottom:1.5rem;">
+            <button class="btn btn-primary" id="scan-btn" onclick="scanServer()" style="width:auto;">Scan Server</button>
+          </div>
+          <div class="stat-row" style="margin-bottom:1.5rem;">
+            <div class="stat-box">
+              <div class="stat-box-label">Total</div>
+              <div class="stat-box-val" id="stat-total">—</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-box-label">Audited</div>
+              <div class="stat-box-val" id="stat-audited">—</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-box-label">Done</div>
+              <div class="stat-box-val" id="stat-done">—</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-box-label">Avg Score</div>
+              <div class="stat-box-val" id="stat-avg-score">—</div>
+            </div>
+          </div>
+          <div id="pages-table-container"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Editor Panel -->
+    <div id="editor-panel" class="editor-panel">
+      <div class="editor-header">
+        <div class="editor-filename" id="editor-filename">file.html</div>
+        <span class="editor-badge">Editing</span>
+        <button class="btn btn-ghost btn-small" onclick="closeEditor()" style="margin-left:auto;">Close</button>
+      </div>
+      <textarea id="editor-content" class="form-textarea" placeholder="HTML content will load here..."></textarea>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="save-local-btn" onclick="saveLocal()" style="width:auto;">Save Local</button>
+        <button class="btn btn-danger" id="push-btn" onclick="pushToServer()" style="width:auto;">Push to Server</button>
+      </div>
+    </div>
+
+    <!-- Audit Results Panel -->
+    <div id="audit-results" class="audit-results">
+      <div class="audit-score-row">
+        <div class="audit-score-box">
+          <div class="audit-score-label">SEO Score</div>
+          <div class="audit-score-num" id="result-seo-score">—</div>
+        </div>
+        <div class="audit-score-box">
+          <div class="audit-score-label">Performance Score</div>
+          <div class="audit-score-num" id="result-perf-score">—</div>
+        </div>
+        <div class="audit-score-box">
+          <div class="audit-score-label">Audit Score</div>
+          <div class="audit-score-num" id="result-audit-score" style="font-weight:800;">—</div>
+        </div>
+      </div>
+      <div class="audit-issues" id="audit-issues-container"></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  const API = window.location.origin;
+  let currentPageId = null;
+
+  // ── Utilities ─────────────────────────────────────────────────────────────
+  function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function showToast(message, type = 'info') {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = `toast ${type}`;
+    toast.style.display = 'block';
+    setTimeout(() => { toast.style.display = 'none'; }, 5000);
+  }
+
+  async function logout() {
+    try {
+      const res  = await fetch('/auth/logout', { method: 'POST' });
+      const data = await res.json();
+      window.location.href = data.redirect || '/login.html';
+    } catch { window.location.href = '/login.html'; }
+  }
+
+  // ── Tab switching ──────────────────────────────────────────────────────────
+  function switchTab(tabName) {
+    const tabs = document.querySelectorAll('.tab-content');
+    const btns = document.querySelectorAll('.tab-btn');
+    tabs.forEach(t => t.classList.remove('active'));
+    btns.forEach(b => b.classList.remove('active'));
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+    event.target.classList.add('active');
+  }
+
+  // ── Setup Tab ──────────────────────────────────────────────────────────────
+  async function loadFtpConfig() {
+    try {
+      const res = await fetch(`${API}/api/audit/ftp-config`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.configured) {
+          document.getElementById('ftp-host').value = data.host || '';
+          document.getElementById('ftp-username').value = data.user || '';
+          // password is never returned by the server — leave blank
+          document.getElementById('ftp-port').value = data.port || 21;
+          document.getElementById('ftp-root-path').value = data.rootPath || '/public_html';
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load FTP config:', err);
+    }
+  }
+
+  async function testConnection() {
+    const btn = document.getElementById('test-conn-btn');
+    const statusLine = document.getElementById('ftp-status');
+    btn.disabled = true;
+    btn.textContent = 'Testing...';
+    statusLine.textContent = 'Testing connection...';
+    try {
+      const res = await fetch(`${API}/api/audit/ftp-test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host:     document.getElementById('ftp-host').value,
+          user:     document.getElementById('ftp-username').value,
+          password: document.getElementById('ftp-password').value,
+          port:     parseInt(document.getElementById('ftp-port').value),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        statusLine.textContent = `✓ ${data.message}`;
+        statusLine.style.color = 'var(--green)';
+        showToast('Connection successful!', 'green');
+      } else {
+        const msg = data.message || data.error || 'Connection failed';
+        statusLine.textContent = `✗ ${msg}`;
+        statusLine.style.color = 'var(--red)';
+        showToast(msg, 'red');
+      }
+    } catch (err) {
+      statusLine.textContent = `✗ Error: ${err.message}`;
+      statusLine.style.color = 'var(--red)';
+      showToast(err.message, 'red');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Test Connection';
+    }
+  }
+
+  async function saveCredentials() {
+    const btn = document.getElementById('save-creds-btn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    try {
+      const res = await fetch(`${API}/api/audit/ftp-save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host:     document.getElementById('ftp-host').value,
+          user:     document.getElementById('ftp-username').value,
+          password: document.getElementById('ftp-password').value,
+          port:     parseInt(document.getElementById('ftp-port').value),
+          rootPath: document.getElementById('ftp-root-path').value,
+        }),
+      });
+      if (res.ok) {
+        showToast('Credentials saved!', 'green');
+      } else {
+        const data = await res.json();
+        showToast(data.error || 'Failed to save', 'red');
+      }
+    } catch (err) {
+      showToast(err.message, 'red');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Credentials';
+    }
+  }
+
+  // ── Preview Tab ────────────────────────────────────────────────────────────
+  async function browseServer() {
+    const btn = document.getElementById('browse-btn');
+    const container = document.getElementById('file-tree-container');
+    const empty = document.getElementById('browse-empty');
+    btn.disabled = true;
+    btn.textContent = 'Browsing...';
+    container.style.display = 'none';
+    empty.style.display = 'block';
+    try {
+      const res = await fetch(`${API}/api/audit/preview`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok && data.tree && data.tree.length) {
+        container.innerHTML = renderFileTree(data.tree);
+        container.style.display = 'block';
+        empty.style.display = 'none';
+        showToast('Files loaded!', 'green');
+      } else {
+        empty.textContent = 'No files found. Check your FTP config or ignore patterns.';
+        empty.style.display = 'block';
+      }
+    } catch (err) {
+      empty.textContent = `Error: ${err.message}`;
+      showToast(err.message, 'red');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Browse Server';
+    }
+  }
+
+  function renderFileTree(tree) {
+    if (!tree || !tree.length) return '';
+    return tree.map(node => {
+      const isDir = node.type === 'dir';
+      const isHtml = !isDir && /\.html?$/i.test(node.name);
+      return `
+        <div class="file-tree-node" onclick="toggleNode(this)">
+          <span class="file-tree-toggle">${isDir ? '▶' : '\u00a0\u00a0'}</span>
+          <span class="${isHtml ? 'file-html' : 'file-other'}">
+            ${isDir ? '📁 ' : '📄 '}${escHtml(node.name)}
+            ${node.size ? `<span style="color:var(--text-3);font-size:0.7rem;margin-left:0.5rem;">${(node.size/1024).toFixed(1)}kb</span>` : ''}
+          </span>
+        </div>
+        ${isDir && node.children ? `<div class="file-tree-children">${renderFileTree(node.children)}</div>` : ''}
+      `;
+    }).join('');
+  }
+
+  function toggleNode(el) {
+    const toggle = el.querySelector('.file-tree-toggle');
+    const children = el.nextElementSibling;
+    if (children && children.classList.contains('file-tree-children')) {
+      children.classList.toggle('open');
+      toggle.textContent = children.classList.contains('open') ? '▼' : '▶';
+    }
+  }
+
+  // ── Ignore Rules Tab ───────────────────────────────────────────────────────
+  async function loadIgnoreRules() {
+    try {
+      const res = await fetch(`${API}/api/audit/ignore`);
+      if (res.ok) {
+        const data = await res.json();
+        renderIgnoreRules(data.patterns || []);
+      }
+    } catch (err) {
+      console.error('Failed to load ignore rules:', err);
+    }
+  }
+
+  function renderIgnoreRules(rules) {
+    const container = document.getElementById('ignore-table-container');
+    if (!rules.length) {
+      container.innerHTML = '<div class="empty-state">No ignore rules yet.</div>';
+      return;
+    }
+    const rows = rules.map(rule => `
+      <tr>
+        <td>${escHtml(rule.pattern)}</td>
+        <td style="color:var(--text-3);font-size:0.75rem;">${new Date(rule.createdAt).toLocaleDateString()}</td>
+        <td style="text-align:right;">
+          <button onclick="deleteIgnoreRule('${rule.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:0.9rem;opacity:0.6;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">×</button>
+        </td>
+      </tr>
+    `).join('');
+    container.innerHTML = `<table class="data-table"><thead><tr><th>Pattern</th><th>Added</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  async function addIgnorePattern() {
+    const input = document.getElementById('ignore-input');
+    const pattern = input.value.trim();
+    if (!pattern) return;
+    const btn = document.getElementById('add-ignore-btn');
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+    try {
+      const res = await fetch(`${API}/api/audit/ignore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pattern }),
+      });
+      if (res.ok) {
+        input.value = '';
+        await loadIgnoreRules();
+        showToast('Pattern added!', 'green');
+      } else {
+        const data = await res.json();
+        showToast(data.error || 'Failed to add', 'red');
+      }
+    } catch (err) {
+      showToast(err.message, 'red');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Add Pattern';
+    }
+  }
+
+  async function deleteIgnoreRule(id) {
+    if (!confirm('Delete this pattern?')) return;
+    try {
+      const res = await fetch(`${API}/api/audit/ignore/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        await loadIgnoreRules();
+        showToast('Pattern deleted!', 'green');
+      } else {
+        showToast('Failed to delete', 'red');
+      }
+    } catch (err) {
+      showToast(err.message, 'red');
+    }
+  }
+
+  // ── Pages Tab ──────────────────────────────────────────────────────────────
+  async function scanServer() {
+    const btn = document.getElementById('scan-btn');
+    btn.disabled = true;
+    btn.textContent = 'Scanning...';
+    try {
+      const res = await fetch(`${API}/api/audit/scan`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        await loadPages();
+        showToast(`Scan complete — found ${data.found} HTML file(s)`, 'green');
+      } else {
+        showToast(data.error || 'Scan failed', 'red');
+      }
+    } catch (err) {
+      showToast(err.message, 'red');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Scan Server';
+    }
+  }
+
+  async function loadPages() {
+    try {
+      const res = await fetch(`${API}/api/audit/pages`);
+      if (res.ok) {
+        const data = await res.json();
+        renderPages(data.pages || []);
+        updateStats(data.pages || []);
+      }
+    } catch (err) {
+      console.error('Failed to load pages:', err);
+    }
+  }
+
+  function renderPages(pages) {
+    const container = document.getElementById('pages-table-container');
+    if (!pages.length) {
+      container.innerHTML = '<div class="empty-state">No pages found. Run a scan to discover files.</div>';
+      return;
+    }
+    const rows = pages.map(page => `
+      <tr>
+        <td>
+          <div style="color:var(--text-1);font-weight:500;">${escHtml(page.filename)}</div>
+          <div style="font-size:0.75rem;color:var(--text-3);">${escHtml(page.path)}</div>
+        </td>
+        <td>${renderStatusBadge(page.status)}</td>
+        <td style="text-align:center;">${page.seoScore !== null ? page.seoScore : '—'}</td>
+        <td style="text-align:center;">${page.perfScore !== null ? page.perfScore : '—'}</td>
+        <td style="text-align:center;font-weight:700;">${page.auditScore !== null ? page.auditScore : '—'}</td>
+        <td style="text-align:right;">
+          ${renderActionButtons(page.id, page.status)}
+        </td>
+      </tr>
+    `).join('');
+    container.innerHTML = `<table class="data-table"><thead><tr><th>File</th><th>Status</th><th>SEO</th><th>Perf</th><th>Audit</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function renderStatusBadge(status) {
+    const badges = {
+      discovered: '<span class="pill gray">Discovered</span>',
+      pulled: '<span class="pill blue">Pulled</span>',
+      auditing: '<span class="pill yellow">Auditing</span>',
+      audited: '<span class="pill purple">Audited</span>',
+      edited: '<span class="pill" style="background:rgba(249,115,22,0.12);color:#f97316;">Edited</span>',
+      pushed: '<span class="pill teal">Pushed</span>',
+      done: '<span class="pill green">Done</span>',
+    };
+    return badges[status] || badges.discovered;
+  }
+
+  // btn helper to reduce repetition
+  function _btn(onclick, title, color, icon) {
+    return `<button onclick="${onclick}" title="${title}" style="background:none;border:none;color:${color};cursor:pointer;font-size:1rem;padding:0 4px;opacity:0.65;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.65'">${icon}</button>`;
+  }
+
+  function renderActionButtons(pageId, status) {
+    const buttons = [];
+    // Pull: show unless actively auditing (allow re-pull from any state)
+    if (status !== 'auditing') {
+      buttons.push(_btn(`pullPage('${pageId}')`, 'Pull from server', 'var(--blue)', '↓'));
+    }
+    // Audit: available once pulled or after editing; also re-audit after done
+    if (['pulled', 'audited', 'edited', 'pushed', 'done'].includes(status)) {
+      buttons.push(_btn(`runAudit('${pageId}')`, 'Run audit', 'var(--yellow)', '⚡'));
+    }
+    // View results: show when issues are stored
+    if (['audited', 'edited', 'pushed', 'done'].includes(status)) {
+      buttons.push(_btn(`viewResults('${pageId}')`, 'View audit results', 'var(--purple)', '📊'));
+    }
+    // Edit: available once pulled
+    if (['pulled', 'audited', 'edited', 'pushed'].includes(status)) {
+      buttons.push(_btn(`editPage('${pageId}')`, 'Edit HTML', 'var(--gold)', '✏'));
+    }
+    // Mark done
+    if (['audited', 'edited', 'pushed'].includes(status)) {
+      buttons.push(_btn(`markDone('${pageId}')`, 'Mark done', 'var(--green)', '✓'));
+    }
+    // Delete tracking record
+    buttons.push(_btn(`deletePage('${pageId}')`, 'Remove from tracking', 'var(--red)', '🗑'));
+    return buttons.join('');
+  }
+
+  async function pullPage(pageId) {
+    try {
+      const res = await fetch(`${API}/api/audit/pages/${pageId}/pull`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        await loadPages();
+        showToast(`File pulled (${(data.size / 1024).toFixed(1)}kb)`, 'green');
+      } else {
+        showToast(data.error || 'Pull failed', 'red');
+      }
+    } catch (err) {
+      showToast(err.message, 'red');
+    }
+  }
+
+  // Push directly from the pages table row (uses last saved localContent)
+  async function pushPage(pageId) {
+    if (!confirm('Push saved local content to FTP server?')) return;
+    try {
+      const res = await fetch(`${API}/api/audit/pages/${pageId}/push`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        await loadPages();
+        showToast('Changes pushed to server!', 'green');
+      } else {
+        showToast(data.error || 'Push failed', 'red');
+      }
+    } catch (err) {
+      showToast(err.message, 'red');
+    }
+  }
+
+  async function runAudit(pageId) {
+    showToast('Running audit — this may take 15–30 seconds...', 'green');
+    try {
+      const res = await fetch(`${API}/api/audit/pages/${pageId}/audit`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        await loadPages();
+        showAuditResults(data);
+        showToast(`Audit complete — score ${data.auditScore}`, 'green');
+      } else {
+        showToast(data.error || 'Audit failed', 'red');
+      }
+    } catch (err) {
+      showToast(err.message, 'red');
+    }
+  }
+
+  // View stored audit results for an already-audited page
+  async function viewResults(pageId) {
+    try {
+      const res = await fetch(`${API}/api/audit/pages`);
+      const data = await res.json();
+      const page = (data.pages || []).find(p => p.id === pageId);
+      if (page && page.auditIssuesJson) {
+        showAuditResults({
+          seoScore:   page.seoScore,
+          perfScore:  page.perfScore,
+          auditScore: page.auditScore,
+          issues:     JSON.parse(page.auditIssuesJson),
+        });
+      }
+    } catch (err) {
+      showToast(err.message, 'red');
+    }
+  }
+
+  function showAuditResults(data) {
+    const panel = document.getElementById('audit-results');
+    document.getElementById('result-seo-score').textContent   = data.seoScore  !== null ? data.seoScore  : '—';
+    document.getElementById('result-perf-score').textContent  = data.perfScore !== null ? data.perfScore : 'N/A';
+    document.getElementById('result-audit-score').textContent = data.auditScore !== null ? data.auditScore : '—';
+
+    // Color-code scores
+    const scoreEl = document.getElementById('result-audit-score');
+    const s = data.auditScore || 0;
+    scoreEl.style.color = s >= 80 ? 'var(--green)' : s >= 50 ? 'var(--yellow)' : 'var(--red)';
+
+    const issues = data.issues || [];
+    const container = document.getElementById('audit-issues-container');
+    if (!issues.length) {
+      container.innerHTML = '<div class="empty-state">✓ No issues found — great job!</div>';
+    } else {
+      const severityOrder = { critical: 0, warning: 1, info: 2, suggestion: 3 };
+      const sorted = [...issues].sort((a, b) => (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9));
+      container.innerHTML = sorted.map(issue => `
+        <div class="audit-issue ${escHtml(issue.severity)}">
+          <div class="issue-header">
+            <span class="pill ${issue.severity === 'critical' ? 'red' : issue.severity === 'warning' ? 'yellow' : issue.severity === 'suggestion' ? 'purple' : 'blue'}">
+              ${issue.severity === 'suggestion' ? '🤖 AI' : escHtml(issue.severity)}
+            </span>
+            <span class="issue-message">${escHtml(issue.message)}</span>
+          </div>
+          ${issue.fix ? `<div class="issue-fix">💡 ${escHtml(issue.fix)}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    panel.classList.add('open');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  async function editPage(pageId) {
+    currentPageId = pageId;
+    try {
+      const res = await fetch(`${API}/api/audit/pages/${pageId}/content`);
+      if (res.ok) {
+        const data = await res.json();
+        document.getElementById('editor-filename').textContent = data.filename;
+        document.getElementById('editor-content').value = data.localContent || '';
+        document.getElementById('editor-panel').classList.add('open');
+        document.getElementById('audit-results').classList.remove('open');
+        showToast('Editor opened', 'green');
+      } else {
+        showToast('Failed to load content', 'red');
+      }
+    } catch (err) {
+      showToast(err.message, 'red');
+    }
+  }
+
+  async function saveLocal() {
+    if (!currentPageId) return;
+    const btn = document.getElementById('save-local-btn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    try {
+      const res = await fetch(`${API}/api/audit/pages/${currentPageId}/content`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: document.getElementById('editor-content').value }),
+      });
+      if (res.ok) {
+        await loadPages();
+        showToast('Content saved locally!', 'green');
+      } else {
+        showToast('Save failed', 'red');
+      }
+    } catch (err) {
+      showToast(err.message, 'red');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Local';
+    }
+  }
+
+  async function pushToServer() {
+    if (!currentPageId) return;
+    if (!confirm('Push changes to FTP server?')) return;
+    const btn = document.getElementById('push-btn');
+    btn.disabled = true;
+    btn.textContent = 'Pushing...';
+    try {
+      const res = await fetch(`${API}/api/audit/pages/${currentPageId}/push`, { method: 'POST' });
+      if (res.ok) {
+        await loadPages();
+        closeEditor();
+        showToast('Changes pushed to server!', 'green');
+      } else {
+        showToast('Push failed', 'red');
+      }
+    } catch (err) {
+      showToast(err.message, 'red');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Push to Server';
+    }
+  }
+
+  function closeEditor() {
+    document.getElementById('editor-panel').classList.remove('open');
+    currentPageId = null;
+  }
+
+  async function markDone(pageId) {
+    try {
+      const res = await fetch(`${API}/api/audit/pages/${pageId}/mark-done`, { method: 'POST' });
+      if (res.ok) {
+        await loadPages();
+        showToast('Marked as done!', 'green');
+      } else {
+        showToast('Failed to mark done', 'red');
+      }
+    } catch (err) {
+      showToast(err.message, 'red');
+    }
+  }
+
+  async function deletePage(pageId) {
+    if (!confirm('Delete this page from tracking?')) return;
+    try {
+      const res = await fetch(`${API}/api/audit/pages/${pageId}`, { method: 'DELETE' });
+      if (res.ok) {
+        await loadPages();
+        showToast('Page deleted!', 'green');
+      } else {
+        showToast('Delete failed', 'red');
+      }
+    } catch (err) {
+      showToast(err.message, 'red');
+    }
+  }
+
+  function updateStats(pages) {
+    const total = pages.length;
+    const audited = pages.filter(p => p.auditScore !== null).length;
+    const done = pages.filter(p => p.status === 'done').length;
+    const avgScore = audited > 0
+      ? Math.round(pages.reduce((sum, p) => sum + (p.auditScore || 0), 0) / audited)
+      : 0;
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-audited').textContent = audited;
+    document.getElementById('stat-done').textContent = done;
+    document.getElementById('stat-avg-score').textContent = audited > 0 ? avgScore : '—';
+  }
+
+  // ── Fetch user info ────────────────────────────────────────────────────────
+  async function fetchUserInfo() {
+    try {
+      const res = await fetch(`${API}/api/status`);
+      if (res.ok) {
+        const data = await res.json();
+        const email = data.userEmail || 'admin';
+        document.getElementById('user-email').textContent = email;
+        document.getElementById('user-avatar').textContent = email.charAt(0).toUpperCase();
+      }
+    } catch (err) {
+      console.error('Failed to fetch user info:', err);
+    }
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  async function refreshAll() {
+    await Promise.all([loadFtpConfig(), loadIgnoreRules(), loadPages(), fetchUserInfo()]);
+    document.getElementById('last-refresh').textContent =
+      'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  refreshAll();
+  setInterval(refreshAll, 15000);
+</script>
+</body>
+</html>

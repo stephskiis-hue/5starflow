@@ -14,6 +14,7 @@ const connectionsRouter = require('./routes/connections');
 const seoRouter         = require('./routes/seo');
 const settingsRouter    = require('./routes/settings');
 const analyticsRouter   = require('./routes/analytics');
+const auditRouter       = require('./routes/websiteAudit');
 const { requireAuth } = require('./middleware/requireAuth');
 const { startTokenRefreshScheduler } = require('./services/tokenManager');
 const { startDeliveryQueue }         = require('./services/deliveryQueue');
@@ -39,7 +40,7 @@ app.use(
       if (allowedOrigins.includes(origin)) return callback(null, true);
       callback(new Error(`CORS: origin "${origin}" not allowed`));
     },
-    methods: ['GET', 'POST', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   })
@@ -109,6 +110,7 @@ app.use('/api/weather', weatherRouter);
 app.use('/api/connections', connectionsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/audit', auditRouter);
 
 // ---------------------------------------------------------------------------
 // Error handler
@@ -134,6 +136,7 @@ app.listen(PORT, () => {
   console.log(`  SEO Audit   : http://localhost:${PORT}/seo-dashboard.html`);
   console.log(`  Connections : http://localhost:${PORT}/connections.html`);
   console.log(`  Settings    : http://localhost:${PORT}/settings.html`);
+  console.log(`  Web Audit   : http://localhost:${PORT}/website-audit.html`);
   console.log(`  Health      : http://localhost:${PORT}/health`);
   console.log('==============================================');
   console.log('');
