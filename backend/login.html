@@ -1,123 +1,89 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="dark" lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>5StarFlow — Login</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>5StarFlow — Sign In</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#aac7ff",
+            "secondary": "#47e266",
+            "tertiary": "#e9b3ff",
+            "on-surface-variant": "#8b91a0",
+          },
+          borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+          fontFamily: { sans: ["Inter", "sans-serif"] },
+        },
+      },
+    }
+  </script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #0f1117;
-      color: #e2e8f0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 1rem;
-    }
-
-    .login-card {
-      background: #1a1f2e;
-      border: 1px solid #2d3748;
-      border-radius: 16px;
-      padding: 2.5rem 2rem;
-      width: 100%;
-      max-width: 400px;
-    }
-
-    .logo {
-      text-align: center;
-      margin-bottom: 2rem;
-    }
-
-    .logo h1 {
-      font-size: 1.8rem;
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      color: #f8fafc;
-    }
-
-    .logo h1 span { color: #d4a017; }
-
-    .logo p {
-      font-size: 0.82rem;
-      color: #64748b;
-      margin-top: 0.4rem;
-    }
-
-    .error-box {
-      display: none;
-      background: rgba(239,68,68,0.12);
-      border: 1px solid rgba(239,68,68,0.3);
-      border-radius: 8px;
-      padding: 0.75rem 1rem;
-      color: #f87171;
-      font-size: 0.85rem;
-      margin-bottom: 1.2rem;
-    }
-
-    .error-box.visible { display: block; }
-
-    .btn-google {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.75rem;
-      width: 100%;
-      background: #ffffff;
-      color: #1a1a1a;
-      border: none;
-      border-radius: 8px;
-      padding: 0.75rem 1rem;
-      font-size: 0.95rem;
-      font-weight: 600;
-      cursor: pointer;
-      text-decoration: none;
-      transition: background 0.15s;
-    }
-
-    .btn-google:hover { background: #f1f3f4; }
-
-    .btn-google svg {
-      flex-shrink: 0;
-    }
-
-    .footer-note {
-      text-align: center;
-      font-size: 0.75rem;
-      color: #475569;
-      margin-top: 1.5rem;
-    }
+    body { font-family: 'Inter', sans-serif; background-color: #000000; }
+    .glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
   </style>
 </head>
-<body>
-  <div class="login-card">
-    <div class="logo">
-      <h1>5<span>Star</span>Flow</h1>
-      <p>Automated Google Review Requests</p>
+<body class="bg-black min-h-screen flex items-center justify-center p-4">
+
+  <!-- Background glow -->
+  <div class="fixed inset-0 overflow-hidden pointer-events-none">
+    <div class="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-primary/5 rounded-full blur-3xl"></div>
+    <div class="absolute bottom-1/4 left-1/3 w-64 h-64 bg-secondary/5 rounded-full blur-3xl"></div>
+  </div>
+
+  <div class="w-full max-w-sm relative">
+
+    <!-- Card -->
+    <div class="glass-card rounded-[2rem] p-10">
+
+      <!-- Logo -->
+      <div class="text-center mb-8">
+        <div class="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-5">
+          <span class="material-symbols-outlined text-primary text-2xl" style="font-variation-settings:'FILL' 1,'wght' 700,'GRAD' 0,'opsz' 24;">star</span>
+        </div>
+        <h1 class="text-2xl font-black text-zinc-100 tracking-tight">5StarFlow</h1>
+        <p class="text-xs text-on-surface-variant mt-1.5 font-medium">Command Center for No-Bs Yardwork</p>
+      </div>
+
+      <!-- Error box -->
+      <div class="hidden bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 mb-6" id="errorBox">
+        <div class="flex items-start gap-2">
+          <span class="material-symbols-outlined text-red-400 text-[18px] flex-shrink-0 mt-0.5">error</span>
+          <p class="text-sm text-red-400" id="errorText"></p>
+        </div>
+      </div>
+
+      <!-- Sign-in button -->
+      <a href="/auth/google" class="flex items-center justify-center gap-3 w-full bg-white text-zinc-900 rounded-xl py-3 px-4 text-sm font-semibold hover:bg-zinc-100 active:bg-zinc-200 transition-colors duration-150">
+        <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        Sign in with Google
+      </a>
+
+      <!-- Footer -->
+      <p class="text-center text-xs text-on-surface-variant mt-6 leading-relaxed">
+        Access restricted to licensed users.<br/>Contact support if you need access.
+      </p>
+
     </div>
 
-    <div class="error-box" id="errorBox"></div>
-
-    <a href="/auth/google" class="btn-google">
-      <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-        <path fill="none" d="M0 0h48v48H0z"/>
-      </svg>
-      Sign in with Google
-    </a>
-
-    <p class="footer-note">Access is restricted to licensed users.<br>Contact support if you need access.</p>
   </div>
 
   <script>
     const params   = new URLSearchParams(window.location.search);
     const errorBox = document.getElementById('errorBox');
+    const errorText = document.getElementById('errorText');
     const err      = params.get('error');
     if (err) {
       const messages = {
@@ -125,9 +91,10 @@
         no_email: 'Google did not return an email address. Please try again.',
         access_denied: 'Google sign-in was cancelled.',
       };
-      errorBox.textContent = messages[err] || 'Sign-in failed — please try again.';
-      errorBox.classList.add('visible');
+      errorText.textContent = messages[err] || 'Sign-in failed — please try again.';
+      errorBox.classList.remove('hidden');
     }
   </script>
+
 </body>
 </html>

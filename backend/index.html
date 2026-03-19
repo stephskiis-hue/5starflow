@@ -1,831 +1,324 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="dark" lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>5StarFlow</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>5StarFlow — Command Center</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#aac7ff",
+            "on-surface": "#e5e2e1",
+            "on-background": "#e5e2e1",
+            "inverse-primary": "#005db8",
+            "error": "#ffb4ab",
+            "surface-variant": "#353534",
+            "on-primary": "#003064",
+            "surface": "#131313",
+            "surface-dim": "#131313",
+            "surface-bright": "#3a3939",
+            "inverse-on-surface": "#313030",
+            "on-surface-variant": "#8b91a0",
+            "background": "#131313",
+            "secondary-container": "#09bf49",
+            "surface-container-high": "#2a2a2a",
+            "surface-container-lowest": "#0e0e0e",
+            "surface-container-low": "#1c1b1b",
+            "inverse-surface": "#e5e2e1",
+            "surface-tint": "#aac7ff",
+            "primary-container": "#3e90ff",
+            "tertiary-container": "#c863fb",
+            "primary-fixed-dim": "#aac7ff",
+            "tertiary-fixed-dim": "#e9b3ff",
+            "on-error": "#690005",
+            "outline-variant": "#414754",
+            "surface-container": "#201f1f",
+            "error-container": "#93000a",
+            "on-error-container": "#ffdad6",
+            "secondary": "#47e266",
+            "tertiary": "#e9b3ff",
+            "outline": "#8b91a0",
+            "surface-container-highest": "#353534"
+          },
+          fontFamily: {
+            "headline": ["Inter"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          },
+          borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+        },
+      },
+    }
+  </script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg:           #09090f;
-      --surface:      rgba(18, 20, 32, 0.85);
-      --surface-alt:  rgba(24, 27, 42, 0.6);
-      --border:       rgba(255, 255, 255, 0.07);
-      --border-hover: rgba(255, 255, 255, 0.14);
-      --gold:         #d4a017;
-      --gold-dim:     rgba(212, 160, 23, 0.12);
-      --gold-glow:    rgba(212, 160, 23, 0.25);
-      --text-1:       #f0f2f8;
-      --text-2:       #8b95a8;
-      --text-3:       #4a5568;
-      --green:        #34d399;
-      --green-dim:    rgba(52, 211, 153, 0.12);
-      --red:          #f87171;
-      --red-dim:      rgba(248, 113, 113, 0.12);
-      --yellow:       #fbbf24;
-      --yellow-dim:   rgba(251, 191, 36, 0.12);
-      --sidebar-w:    260px;
-      --radius:       18px;
-      --radius-sm:    10px;
-    }
-
-    html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--text-1);
-      font-family: -apple-system, 'SF Pro Display', BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    /* ── Layout ────────────────────────────────────── */
-    .app {
-      display: flex;
-      min-height: 100vh;
-    }
-
-    /* ── Sidebar ───────────────────────────────────── */
-    .sidebar {
-      width: var(--sidebar-w);
-      min-height: 100vh;
-      background: rgba(10, 11, 18, 0.97);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      position: fixed;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      z-index: 100;
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-    }
-
-    .sidebar-logo {
-      padding: 1.75rem 1.5rem 1.25rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .sidebar-logo h1 {
-      font-size: 1.35rem;
-      font-weight: 800;
-      letter-spacing: -0.04em;
-      color: var(--text-1);
-    }
-
-    .sidebar-logo h1 .star { color: var(--gold); }
-
-    .sidebar-logo p {
-      font-size: 0.7rem;
-      color: var(--text-3);
-      margin-top: 0.2rem;
-      letter-spacing: 0.04em;
-    }
-
-    .sidebar-nav {
-      flex: 1;
-      padding: 1rem 0.75rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.2rem;
-    }
-
-    .nav-section-label {
-      font-size: 0.62rem;
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--text-3);
-      padding: 0.9rem 0.75rem 0.4rem;
-    }
-
-    .nav-link {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.6rem 0.85rem;
-      border-radius: var(--radius-sm);
-      font-size: 0.875rem;
-      font-weight: 500;
-      color: var(--text-2);
-      text-decoration: none;
-      transition: all 0.15s ease;
-      cursor: pointer;
-      border: none;
-      background: none;
-      width: 100%;
-      text-align: left;
-    }
-
-    .nav-link:hover {
-      background: rgba(255,255,255,0.05);
-      color: var(--text-1);
-    }
-
-    .nav-link.active {
-      background: var(--gold-dim);
-      color: var(--gold);
-      border-left: 2px solid var(--gold);
-      padding-left: calc(0.85rem - 2px);
-    }
-
-    .nav-link .nav-icon {
-      font-size: 1rem;
-      width: 20px;
-      text-align: center;
-      flex-shrink: 0;
-    }
-
-    .nav-link .nav-badge {
-      margin-left: auto;
-      font-size: 0.65rem;
-      font-weight: 700;
-      padding: 0.15rem 0.45rem;
-      border-radius: 999px;
-      background: var(--gold-dim);
-      color: var(--gold);
-    }
-
-    .sidebar-footer {
-      padding: 1rem 1.25rem 1.5rem;
-      border-top: 1px solid var(--border);
-    }
-
-    .sidebar-user {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 0.75rem;
-    }
-
-    .user-avatar {
-      width: 34px;
-      height: 34px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--gold) 0%, #b8860b 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.8rem;
-      font-weight: 700;
-      color: #0a0c12;
-      flex-shrink: 0;
-    }
-
-    .user-info { overflow: hidden; }
-    .user-email {
-      font-size: 0.75rem;
-      color: var(--text-2);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .user-role {
-      font-size: 0.65rem;
-      color: var(--text-3);
-      margin-top: 0.1rem;
-    }
-
-    .btn-logout {
-      width: 100%;
-      padding: 0.55rem;
-      background: rgba(248,113,113,0.08);
-      border: 1px solid rgba(248,113,113,0.18);
-      border-radius: var(--radius-sm);
-      color: var(--red);
-      font-size: 0.8rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
-      letter-spacing: 0.02em;
-    }
-
-    .btn-logout:hover {
-      background: rgba(248,113,113,0.15);
-    }
-
-    /* ── Main Content ──────────────────────────────── */
-    .main {
-      margin-left: var(--sidebar-w);
-      flex: 1;
-      padding: 2.5rem 2.5rem 3rem;
-      min-height: 100vh;
-    }
-
-    /* ── Top Bar ───────────────────────────────────── */
-    .topbar {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      margin-bottom: 2.5rem;
-      gap: 1rem;
-      flex-wrap: wrap;
-    }
-
-    .greeting-label {
-      font-size: 0.72rem;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--text-3);
-      margin-bottom: 0.35rem;
-    }
-
-    .greeting-heading {
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: -0.04em;
-      background: linear-gradient(140deg, #f0f2f8 0%, #8b95a8 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      line-height: 1.15;
-    }
-
-    .greeting-sub {
-      font-size: 0.82rem;
-      color: var(--text-3);
-      margin-top: 0.4rem;
-    }
-
-    .topbar-meta {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-
-    .time-badge {
-      font-size: 0.75rem;
-      color: var(--text-3);
-      padding: 0.35rem 0.75rem;
-      background: var(--surface-alt);
-      border: 1px solid var(--border);
-      border-radius: 999px;
-    }
-
-    /* ── Section Header ────────────────────────────── */
-    .section-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 1.25rem;
-    }
-
-    .section-title {
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--text-3);
-    }
-
-    .section-refresh {
-      font-size: 0.7rem;
-      color: var(--text-3);
-    }
-
-    /* ── Feature Grid ──────────────────────────────── */
-    .feature-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 1.25rem;
-    }
-
-    @media (max-width: 1200px) {
-      .feature-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-
+    body { background-color: #000000; color: #e5e2e1; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+    .glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
     @media (max-width: 640px) {
-      .feature-grid { grid-template-columns: 1fr; }
-      .main { padding: 1.5rem 1rem 2rem; }
-      .sidebar { transform: translateX(-100%); }
-      .main { margin-left: 0; }
+      aside { display: none !important; }
+      main { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
     }
-
-    /* ── Feature Card ──────────────────────────────── */
-    .feature-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.5rem;
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      text-decoration: none;
-      color: inherit;
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-      position: relative;
-      overflow: hidden;
-      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-      cursor: pointer;
-    }
-
-    .feature-card::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      border-radius: var(--radius);
-      background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, transparent 60%);
-      pointer-events: none;
-    }
-
-    .feature-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 16px 48px rgba(0,0,0,0.5);
-      border-color: var(--border-hover);
-    }
-
-    .feature-card.locked {
-      opacity: 0.45;
-      cursor: default;
-      pointer-events: none;
-    }
-
-    /* Card accent top line */
-    .feature-card .accent-bar {
-      position: absolute;
-      top: 0;
-      left: 1.5rem;
-      right: 1.5rem;
-      height: 1px;
-      border-radius: 999px;
-      opacity: 0.6;
-    }
-
-    .card-icon-wrap {
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.3rem;
-      margin-bottom: 1rem;
-      flex-shrink: 0;
-    }
-
-    .card-header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      margin-bottom: 0.75rem;
-    }
-
-    .card-title {
-      font-size: 0.8rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--text-2);
-    }
-
-    .card-badge {
-      font-size: 0.62rem;
-      font-weight: 700;
-      padding: 0.2rem 0.55rem;
-      border-radius: 999px;
-      letter-spacing: 0.04em;
-    }
-
-    .badge-green  { background: var(--green-dim);  color: var(--green); }
-    .badge-red    { background: var(--red-dim);    color: var(--red); }
-    .badge-yellow { background: var(--yellow-dim); color: var(--yellow); }
-    .badge-gray   { background: rgba(148,163,184,0.1); color: var(--text-3); }
-    .badge-gold   { background: var(--gold-dim);   color: var(--gold); }
-
-    .card-stat {
-      font-size: 2.25rem;
-      font-weight: 800;
-      letter-spacing: -0.05em;
-      line-height: 1;
-      margin-bottom: 0.3rem;
-      color: var(--text-1);
-    }
-
-    .card-stat-label {
-      font-size: 0.75rem;
-      color: var(--text-3);
-      margin-bottom: 1rem;
-    }
-
-    .card-divider {
-      height: 1px;
-      background: var(--border);
-      margin: 0.85rem 0;
-    }
-
-    .card-meta {
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-      flex: 1;
-    }
-
-    .card-meta-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 0.76rem;
-    }
-
-    .card-meta-label { color: var(--text-3); }
-    .card-meta-val   { color: var(--text-2); font-weight: 500; }
-    .card-meta-val.green  { color: var(--green); }
-    .card-meta-val.red    { color: var(--red); }
-    .card-meta-val.yellow { color: var(--yellow); }
-
-    .card-cta {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-top: auto;
-      padding-top: 1rem;
-      font-size: 0.78rem;
-      font-weight: 600;
-      color: var(--text-3);
-      transition: color 0.15s;
-    }
-
-    .feature-card:hover .card-cta { color: var(--text-1); }
-
-    .cta-arrow {
-      font-size: 0.85rem;
-      transition: transform 0.15s;
-    }
-
-    .feature-card:hover .cta-arrow { transform: translateX(3px); }
-
-    /* Skeleton shimmer */
-    .skeleton {
-      background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
-      background-size: 400% 100%;
-      animation: shimmer 1.5s ease-in-out infinite;
-      border-radius: 6px;
-      display: inline-block;
-    }
-
-    @keyframes shimmer {
-      0%   { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
-
-    /* ── Status Strip ──────────────────────────────── */
-    .status-strip {
-      display: flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-      margin-top: 2rem;
-    }
-
-    .status-chip {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.45rem 0.85rem;
-      background: var(--surface-alt);
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      font-size: 0.75rem;
-      color: var(--text-2);
-    }
-
-    .dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: currentColor;
-    }
-
-    .dot.green  { color: var(--green); }
-    .dot.red    { color: var(--red); }
-    .dot.yellow { color: var(--yellow); }
-    .dot.gray   { color: var(--text-3); }
-
-    /* Collapsible sidebar */
-    .sidebar { transition: width 0.2s ease; overflow: visible; }
-    .sidebar.collapsed { width: 60px; overflow: visible; }
-    .sidebar.collapsed .nav-label,
-    .sidebar.collapsed .nav-section-label,
-    .sidebar.collapsed .nav-badge,
-    .sidebar.collapsed .sidebar-logo p,
-    .sidebar.collapsed .sidebar-footer { display: none; }
-    .sidebar.collapsed .nav-link { justify-content: center; padding: 0.6rem; }
-    .sidebar.collapsed .sidebar-logo { padding: 1.25rem 0; text-align: center; }
-    .sidebar.collapsed .sidebar-toggle { transform: scaleX(-1); }
-    .main { transition: margin-left 0.2s ease; }
-    body.sidebar-collapsed .main { margin-left: 60px; }
-    .sidebar-toggle {
-      display: block; width: 100%; padding: 0.75rem 0;
-      background: none; border: none; border-top: 1px solid var(--border);
-      color: var(--text-3); font-size: 1.5rem; cursor: pointer;
-      text-align: center; transition: color 0.15s, transform 0.2s;
-      line-height: 1;
-    }
-    .sidebar-toggle:hover { color: var(--text-1); }
-    .sidebar.collapsed .nav-link { position: relative; }
-    .sidebar.collapsed .nav-link::after {
-      content: attr(data-tooltip);
-      position: absolute;
-      left: 68px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: rgba(15, 15, 22, 0.97);
-      color: var(--text-1);
-      font-size: 0.78rem;
-      font-weight: 500;
-      padding: 0.35rem 0.7rem;
-      border-radius: 7px;
-      white-space: nowrap;
-      border: 1px solid var(--border);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.12s;
-      z-index: 9999;
-    }
-    .sidebar.collapsed .nav-link:hover::after { opacity: 1; }
   </style>
 </head>
-<body>
-<div class="app">
+<body class="bg-black min-h-screen">
 
-  <!-- ── Sidebar ─────────────────────────────────── -->
-  <aside class="sidebar">
-    <div class="sidebar-logo">
-      <h1>5<span class="star">&#9733;</span>Flow</h1>
-      <p>Business Automation OS</p>
+  <!-- Sidebar -->
+  <aside class="fixed left-6 top-6 bottom-6 w-64 rounded-[3rem] border-t border-white/10 bg-zinc-900/60 backdrop-blur-2xl flex flex-col h-[calc(100vh-3rem)] p-4 shadow-[0_40px_40px_-5px_rgba(0,0,0,0.6)] z-50">
+    <div class="mb-8 px-4 pt-4">
+      <h1 class="text-xl font-bold text-zinc-100 tracking-tighter">Command Center</h1>
+      <p class="text-xs text-zinc-500 font-medium mt-1">5StarFlow</p>
     </div>
 
-    <nav class="sidebar-nav">
-      <div class="nav-section-label">Main</div>
-
-      <a class="nav-link active" data-tooltip="Home" href="/index.html">
-        <span class="nav-icon">&#9632;</span>
-        <span class="nav-label">Home</span>
+    <nav class="flex-1 space-y-0.5 overflow-y-auto" id="main-nav">
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-100 rounded-xl relative before:absolute before:left-0 before:w-1 before:h-6 before:bg-secondary before:rounded-full hover:bg-white/5 transition-all duration-200" href="/index.html">
+        <span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">home</span>
+        <span class="text-sm font-medium tracking-tight">Home</span>
       </a>
-
-      <a class="nav-link" data-tooltip="Review Requests" href="/review-dashboard.html">
-        <span class="nav-icon">&#9733;</span>
-        <span class="nav-label">Review Requests</span>
-        <span class="nav-badge" id="sidebar-pending">—</span>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/review-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">rate_review</span>
+        <span class="text-sm font-medium tracking-tight">Review Requests</span>
+        <span class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary/10 text-secondary hidden" id="sidebar-pending"></span>
       </a>
-
-      <a class="nav-link" data-tooltip="Rain Alerts" href="/weather-dashboard.html">
-        <span class="nav-icon">&#9928;</span>
-        <span class="nav-label">Rain Alerts</span>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/weather-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">thunderstorm</span>
+        <span class="text-sm font-medium tracking-tight">Rain Alerts</span>
       </a>
-
-      <div class="nav-section-label">Tools</div>
-
-      <a class="nav-link" data-tooltip="SEO Audit" href="/seo-dashboard.html">
-        <span class="nav-icon">&#128202;</span>
-        <span class="nav-label">SEO Audit</span>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/seo-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">search_check</span>
+        <span class="text-sm font-medium tracking-tight">SEO Audit</span>
       </a>
-
-      <a class="nav-link" data-tooltip="Website Audit" href="/website-audit.html">
-        <span class="nav-icon">&#128394;</span>
-        <span class="nav-label">Website Audit</span>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/website-audit.html">
+        <span class="material-symbols-outlined text-[20px]">speed</span>
+        <span class="text-sm font-medium tracking-tight">Website Audit</span>
       </a>
-
-      <div class="nav-section-label">System</div>
-
-      <a class="nav-link" data-tooltip="App Connections" href="/connections.html">
-        <span class="nav-icon">&#128279;</span>
-        <span class="nav-label">App Connections</span>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/connections.html">
+        <span class="material-symbols-outlined text-[20px]">hub</span>
+        <span class="text-sm font-medium tracking-tight">App Connections</span>
       </a>
-
-      <a class="nav-link" data-tooltip="Settings" href="/settings.html">
-        <span class="nav-icon">&#9881;</span>
-        <span class="nav-label">Settings</span>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/settings.html">
+        <span class="material-symbols-outlined text-[20px]">settings</span>
+        <span class="text-sm font-medium tracking-tight">Settings</span>
       </a>
     </nav>
 
-    <div class="sidebar-footer">
-      <div class="sidebar-user">
-        <div class="user-avatar" id="user-avatar">?</div>
-        <div class="user-info">
-          <div class="user-email" id="user-email">Loading...</div>
-          <div class="user-role">Administrator</div>
+    <div class="mt-auto px-2 pt-4 border-t border-white/5">
+      <div class="flex items-center gap-3 p-2">
+        <div class="w-9 h-9 rounded-full bg-surface-container-highest flex items-center justify-center text-sm font-bold text-zinc-100 flex-shrink-0" id="user-avatar">?</div>
+        <div class="flex-1 overflow-hidden">
+          <p class="text-sm font-semibold text-zinc-100 truncate" id="user-email">Loading...</p>
+          <p class="text-xs text-zinc-500 truncate" id="user-role">Administrator</p>
         </div>
+        <button onclick="logout()" class="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex-shrink-0" title="Log out">
+          <span class="material-symbols-outlined text-[18px]">logout</span>
+        </button>
       </div>
-      <button class="btn-logout" onclick="logout()">Log Out</button>
     </div>
-    <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">&#8249;</button>
   </aside>
 
-  <!-- ── Main ────────────────────────────────────── -->
-  <main class="main">
+  <!-- Main Canvas -->
+  <main class="pl-80 pr-12 min-h-screen">
 
     <!-- Top Bar -->
-    <div class="topbar">
-      <div>
-        <div class="greeting-label">Dashboard</div>
-        <h2 class="greeting-heading" id="greeting">Good morning</h2>
-        <p class="greeting-sub" id="greeting-sub">Here&rsquo;s what&rsquo;s happening with your business today.</p>
+    <header class="flex justify-between items-center w-full py-8">
+      <div class="flex flex-col">
+        <h2 class="text-2xl font-black text-zinc-100 tracking-tight">Command Center</h2>
+        <div class="flex items-center gap-2 mt-1">
+          <span class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_rgba(71,226,102,0.6)]" id="system-status-dot"></span>
+          <span class="text-[0.6875rem] uppercase tracking-[0.05em] text-on-surface-variant font-medium" id="system-status-label">Loading...</span>
+        </div>
       </div>
-      <div class="topbar-meta">
-        <div class="time-badge" id="time-badge">—</div>
+      <div class="flex items-center gap-3">
+        <div class="text-xs text-zinc-500 px-3 py-1.5 bg-white/5 rounded-full border border-white/5" id="time-badge">—</div>
       </div>
-    </div>
+    </header>
 
-    <!-- Feature Cards -->
-    <div class="section-header">
-      <div class="section-title">Features</div>
-      <div class="section-refresh" id="last-refresh">Updating...</div>
-    </div>
+    <!-- Bento Grid -->
+    <div class="grid grid-cols-12 gap-6 pb-10">
 
-    <div class="feature-grid">
+      <!-- Review Requests (Large) -->
+      <section class="col-span-12 lg:col-span-8 glass-card rounded-xl p-10 group hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 cursor-pointer" onclick="window.location='/review-dashboard.html'">
+        <div class="flex justify-between items-start mb-10">
+          <div>
+            <span class="text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-on-surface-variant mb-2 block">Customer Engagement</span>
+            <h3 class="text-2xl font-bold text-zinc-100">Review Requests</h3>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border" id="reviews-badge">Loading</span>
+            <span class="text-primary text-sm font-semibold flex items-center gap-1">
+              View <span class="material-symbols-outlined text-sm">arrow_forward</span>
+            </span>
+          </div>
+        </div>
+        <div class="flex items-end gap-10 mb-10">
+          <div class="flex flex-col">
+            <span class="text-7xl font-black text-white tracking-tighter" id="reviews-pending-count">—</span>
+            <span class="text-sm text-on-surface-variant mt-2" id="reviews-stat-label">pending requests</span>
+          </div>
+          <div class="flex-1 h-20 flex items-end gap-1 pb-2" id="reviews-bar-chart">
+            <div class="flex-1 bg-primary/10 rounded-t h-[40%]"></div>
+            <div class="flex-1 bg-primary/10 rounded-t h-[60%]"></div>
+            <div class="flex-1 bg-primary/10 rounded-t h-[45%]"></div>
+            <div class="flex-1 bg-primary/15 rounded-t h-[75%]"></div>
+            <div class="flex-1 bg-primary/20 rounded-t h-[55%]"></div>
+            <div class="flex-1 bg-primary/30 rounded-t h-[85%]"></div>
+            <div class="flex-1 bg-primary rounded-t h-[100%] shadow-[0_0_12px_rgba(170,199,255,0.35)]"></div>
+          </div>
+        </div>
+        <div class="pt-6 border-t border-white/5">
+          <h4 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">Recent Activity</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="reviews-recent-activity">
+            <div class="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+              <div class="flex items-center gap-3">
+                <div class="w-2 h-2 rounded-full bg-zinc-600"></div>
+                <span class="text-sm font-medium text-on-surface-variant">No recent activity</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-      <!-- Card 1: Review Requests -->
-      <a class="feature-card" href="/review-dashboard.html" id="card-reviews">
-        <div class="accent-bar" style="background: linear-gradient(90deg, var(--gold), transparent);"></div>
-        <div class="card-header">
-          <div class="card-icon-wrap" style="background:var(--gold-dim);">&#9733;</div>
-          <span class="card-badge badge-gray" id="reviews-badge">Loading</span>
+      <!-- SEO Score -->
+      <section class="col-span-12 lg:col-span-4 glass-card rounded-xl p-10 group hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 flex flex-col justify-between cursor-pointer" onclick="window.location='/seo-dashboard.html'">
+        <div>
+          <span class="text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-on-surface-variant mb-2 block">Performance Audit</span>
+          <h3 class="text-2xl font-bold text-zinc-100">SEO Score</h3>
         </div>
-        <div class="card-title">Review Requests</div>
-        <div class="card-stat" id="reviews-pending-count"><span class="skeleton" style="width:48px;height:36px;">&nbsp;</span></div>
-        <div class="card-stat-label" id="reviews-stat-label">pending requests</div>
-        <div class="card-divider"></div>
-        <div class="card-meta">
-          <div class="card-meta-row">
-            <span class="card-meta-label">Total sent</span>
-            <span class="card-meta-val" id="reviews-total-sent">—</span>
-          </div>
-          <div class="card-meta-row">
-            <span class="card-meta-label">Jobber</span>
-            <span class="card-meta-val" id="reviews-jobber-status">—</span>
+        <div class="py-8 flex flex-col items-center">
+          <div class="relative w-44 h-44 flex items-center justify-center">
+            <svg class="w-full h-full -rotate-90" viewBox="0 0 192 192">
+              <circle class="text-white/5" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-width="8"/>
+              <circle id="seo-circle" class="text-tertiary" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-dasharray="503" stroke-dashoffset="503" stroke-width="8" style="transition:stroke-dashoffset 0.8s ease; filter:drop-shadow(0 0 8px rgba(233,179,255,0.4));"/>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+              <span class="text-4xl font-black text-white" id="seo-score">—</span>
+              <span class="text-[0.6875rem] font-bold text-on-surface-variant uppercase tracking-widest" id="seo-score-label">/ 100</span>
+            </div>
           </div>
         </div>
-        <div class="card-cta">
-          Open Dashboard
-          <span class="cta-arrow">&#8594;</span>
+        <div class="bg-tertiary-container/10 p-4 rounded-xl flex items-center gap-3">
+          <span class="material-symbols-outlined text-tertiary" id="seo-trend-icon">analytics</span>
+          <p class="text-xs text-on-surface-variant leading-relaxed" id="seo-insight-text">Run an audit to see your PageSpeed score.</p>
         </div>
-      </a>
+      </section>
 
-      <!-- Card 2: Jobber Connection -->
-      <a class="feature-card" href="/review-dashboard.html" id="card-jobber">
-        <div class="accent-bar" style="background: linear-gradient(90deg, #6366f1, transparent);"></div>
-        <div class="card-header">
-          <div class="card-icon-wrap" style="background:rgba(99,102,241,0.12);">&#128279;</div>
-          <span class="card-badge" id="jobber-badge">Loading</span>
-        </div>
-        <div class="card-title">Jobber</div>
-        <div class="card-stat" style="font-size:1.6rem;" id="jobber-status-text"><span class="skeleton" style="width:100px;height:28px;">&nbsp;</span></div>
-        <div class="card-stat-label" id="jobber-stat-label">field service platform</div>
-        <div class="card-divider"></div>
-        <div class="card-meta">
-          <div class="card-meta-row">
-            <span class="card-meta-label">Token expires</span>
-            <span class="card-meta-val" id="jobber-token-expiry">—</span>
-          </div>
-          <div class="card-meta-row">
-            <span class="card-meta-label">Auto-refresh</span>
-            <span class="card-meta-val green">Every 5 min</span>
+      <!-- Jobber Integration -->
+      <section class="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-xl p-8 group hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 cursor-pointer" onclick="window.location='/connections.html'">
+        <div class="flex justify-between items-start mb-8">
+          <h3 class="text-xl font-bold text-zinc-100">Jobber</h3>
+          <div class="px-3 py-1 rounded-full flex items-center gap-2 border" id="jobber-status-badge">
+            <span class="w-2 h-2 rounded-full" id="jobber-status-dot"></span>
+            <span class="text-[10px] font-bold uppercase tracking-tighter" id="jobber-badge">Loading</span>
           </div>
         </div>
-        <div class="card-cta">
-          Manage Connection
-          <span class="cta-arrow">&#8594;</span>
+        <div class="space-y-6">
+          <div class="flex items-center gap-4">
+            <div class="w-11 h-11 rounded-xl bg-surface-container-highest flex items-center justify-center flex-shrink-0">
+              <span class="material-symbols-outlined text-primary text-2xl">sync</span>
+            </div>
+            <div>
+              <p class="text-sm font-bold text-zinc-100" id="jobber-status-text">Checking...</p>
+              <p class="text-xs text-on-surface-variant">Token expires in <span id="jobber-token-expiry">—</span></p>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="p-4 bg-white/5 rounded-xl text-center">
+              <span class="block text-lg font-bold text-white" id="jobber-metric-1">—</span>
+              <span class="text-[10px] uppercase tracking-widest text-on-surface-variant">Auto-Refresh</span>
+            </div>
+            <div class="p-4 bg-white/5 rounded-xl text-center">
+              <span class="block text-lg font-bold text-white" id="jobber-metric-2">—</span>
+              <span class="text-[10px] uppercase tracking-widest text-on-surface-variant">Queue</span>
+            </div>
+          </div>
         </div>
-      </a>
+      </section>
 
-      <!-- Card 3: Rain Alerts -->
-      <a class="feature-card" href="/weather-dashboard.html" id="card-weather">
-        <div class="accent-bar" style="background: linear-gradient(90deg, #38bdf8, transparent);"></div>
-        <div class="card-header">
-          <div class="card-icon-wrap" style="background:rgba(56,189,248,0.1);">&#9928;</div>
-          <span class="card-badge badge-gray" id="weather-badge">Loading</span>
+      <!-- Website Traffic -->
+      <section class="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-xl p-8 group hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 cursor-pointer" onclick="window.open('https://analytics.google.com','_blank')">
+        <div class="flex justify-between items-start mb-5">
+          <h3 class="text-xl font-bold text-zinc-100">Website Traffic</h3>
+          <span class="text-xs font-bold flex items-center gap-1" id="analytics-badge">—</span>
         </div>
-        <div class="card-title">Rain Alerts</div>
-        <div class="card-stat" id="weather-stat"><span class="skeleton" style="width:60px;height:36px;">&nbsp;</span></div>
-        <div class="card-stat-label" id="weather-stat-label">precipitation probability</div>
-        <div class="card-divider"></div>
-        <div class="card-meta">
-          <div class="card-meta-row">
-            <span class="card-meta-label">Today</span>
-            <span class="card-meta-val" id="weather-today-label">—</span>
+        <div class="mb-6">
+          <span class="text-5xl font-black text-white tracking-tighter" id="analytics-visitors">—</span>
+          <span class="text-xs text-on-surface-variant block mt-1" id="analytics-stat-label">visitors last 7 days</span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mb-5">
+          <div class="p-3 bg-white/5 rounded-xl">
+            <span class="text-xs text-on-surface-variant block mb-1">Sessions (7d)</span>
+            <span class="text-sm font-bold text-zinc-100" id="analytics-sessions">—</span>
           </div>
-          <div class="card-meta-row">
-            <span class="card-meta-label">Last checked</span>
-            <span class="card-meta-val" id="weather-checked">—</span>
+          <div class="p-3 bg-white/5 rounded-xl">
+            <span class="text-xs text-on-surface-variant block mb-1">Top Source</span>
+            <span class="text-sm font-bold text-zinc-100 truncate block" id="analytics-top-source">—</span>
           </div>
         </div>
-        <div class="card-cta">
-          Open Rain Alerts
-          <span class="cta-arrow">&#8594;</span>
+        <div class="relative h-14 w-full overflow-hidden rounded-xl">
+          <svg class="w-full h-full" viewBox="0 0 400 56" preserveAspectRatio="none">
+            <path d="M0,45 Q50,40 100,48 T200,22 T300,30 T400,10" fill="none" stroke="#aac7ff" stroke-linecap="round" stroke-width="2.5"/>
+            <path d="M0,45 Q50,40 100,48 T200,22 T300,30 T400,10 L400,56 L0,56 Z" fill="url(#tGrad)"/>
+            <defs>
+              <linearGradient id="tGrad" x1="0%" x2="0%" y1="0%" y2="100%">
+                <stop offset="0%" style="stop-color:rgba(170,199,255,0.18)"/>
+                <stop offset="100%" style="stop-color:rgba(170,199,255,0)"/>
+              </linearGradient>
+            </defs>
+          </svg>
         </div>
-      </a>
+      </section>
 
-      <!-- Card 4: SEO Audit -->
-      <a class="feature-card" href="/seo-dashboard.html" id="card-seo">
-        <div class="accent-bar" style="background: linear-gradient(90deg, #60a5fa, transparent);"></div>
-        <div class="card-header">
-          <div class="card-icon-wrap" style="background:rgba(96,165,250,0.1);">&#128202;</div>
-          <span class="card-badge badge-gray" id="seo-badge">Loading</span>
-        </div>
-        <div class="card-title">SEO Audit</div>
-        <div class="card-stat" id="seo-score" style="font-size:2rem;"><span class="skeleton" style="width:60px;height:36px;">&nbsp;</span></div>
-        <div class="card-stat-label" id="seo-score-label">PageSpeed score</div>
-        <div class="card-divider"></div>
-        <div class="card-meta">
-          <div class="card-meta-row">
-            <span class="card-meta-label">Proposals pending</span>
-            <span class="card-meta-val" id="seo-proposals">—</span>
-          </div>
-          <div class="card-meta-row">
-            <span class="card-meta-label">Last audit</span>
-            <span class="card-meta-val" id="seo-last-audit">—</span>
+      <!-- Rain Alerts -->
+      <section class="col-span-12 lg:col-span-4 glass-card rounded-xl p-8 group hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 flex flex-col justify-between cursor-pointer" onclick="window.location='/weather-dashboard.html'">
+        <div class="flex justify-between items-start">
+          <h3 class="text-xl font-bold text-zinc-100">Rain Alerts</h3>
+          <div class="px-3 py-1 rounded-full flex items-center gap-2 border border-primary/20 bg-primary/10">
+            <span class="material-symbols-outlined text-[14px] text-primary">cloud</span>
+            <span class="text-[10px] font-bold text-primary uppercase tracking-tighter">Real-time</span>
           </div>
         </div>
-        <div class="card-cta">
-          Open SEO Audit
-          <span class="cta-arrow">&#8594;</span>
-        </div>
-      </a>
-
-      <!-- Card 5: Website Traffic (GA4) -->
-      <a class="feature-card" href="https://analytics.google.com" target="_blank" rel="noopener" id="card-analytics">
-        <div class="accent-bar" style="background: linear-gradient(90deg, #10b981, transparent);"></div>
-        <div class="card-header">
-          <div class="card-icon-wrap" style="background:rgba(16,185,129,0.1);">&#128200;</div>
-          <span class="card-badge badge-gray" id="analytics-badge">Loading</span>
-        </div>
-        <div class="card-title">Website Traffic</div>
-        <div class="card-stat" id="analytics-visitors"><span class="skeleton" style="width:60px;height:36px;">&nbsp;</span></div>
-        <div class="card-stat-label" id="analytics-stat-label">visitors last 7 days</div>
-        <div class="card-divider"></div>
-        <div class="card-meta">
-          <div class="card-meta-row">
-            <span class="card-meta-label">Sessions (7d)</span>
-            <span class="card-meta-val" id="analytics-sessions">—</span>
+        <div class="py-6">
+          <div class="flex items-center gap-4 mb-3">
+            <span class="material-symbols-outlined text-4xl text-on-surface-variant" id="weather-icon">wb_cloudy</span>
+            <div>
+              <p class="text-4xl font-black text-white tracking-tighter" id="weather-stat">—</p>
+              <p class="text-xs text-on-surface-variant">precipitation chance</p>
+            </div>
           </div>
-          <div class="card-meta-row">
-            <span class="card-meta-label">Top source</span>
-            <span class="card-meta-val" id="analytics-top-source">—</span>
-          </div>
+          <p class="text-xs text-on-surface-variant leading-relaxed" id="weather-today-label">Checking weather data...</p>
         </div>
-        <div class="card-cta">
-          Open Analytics
-          <span class="cta-arrow">&#8594;</span>
+        <div class="flex items-center gap-2 pt-4 border-t border-white/5">
+          <span class="material-symbols-outlined text-[14px] text-on-surface-variant">schedule</span>
+          <span class="text-[10px] text-on-surface-variant">Updated <span id="weather-checked">—</span></span>
+          <span class="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold border" id="weather-badge">—</span>
         </div>
-      </a>
+      </section>
 
     </div>
 
     <!-- Status Strip -->
-    <div class="status-strip" id="status-strip">
-      <div class="status-chip">
-        <span class="dot gray"></span>
+    <div class="flex gap-2 flex-wrap pb-12" id="status-strip">
+      <div class="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/5 text-xs text-on-surface-variant">
+        <span class="w-1.5 h-1.5 rounded-full bg-zinc-600"></span>
         Loading system status...
       </div>
     </div>
 
   </main>
-</div>
 
 <script>
-  // ── Sidebar toggle ──────────────────────────────────────────────
-  function toggleSidebar() {
-    const sidebar   = document.querySelector('.sidebar');
-    const collapsed = sidebar.classList.toggle('collapsed');
-    document.body.classList.toggle('sidebar-collapsed', collapsed);
-    localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
-  }
-  document.querySelectorAll('.nav-link').forEach(link => {
-    link.addEventListener('click', () => {
-      if (document.querySelector('.sidebar').classList.contains('collapsed')) {
-        document.querySelector('.sidebar').classList.remove('collapsed');
-        document.body.classList.remove('sidebar-collapsed');
-        localStorage.setItem('sidebarCollapsed', '0');
-      }
-    });
-  });
-  (function() {
-    if (localStorage.getItem('sidebarCollapsed') === '1') {
-      document.querySelector('.sidebar')?.classList.add('collapsed');
-      document.body.classList.add('sidebar-collapsed');
-    }
-  })();
-
   // ── Clock ───────────────────────────────────────────────────────
   function updateClock() {
     const now  = new Date();
     const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const date = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
     document.getElementById('time-badge').textContent = `${date}  ·  ${time}`;
-
-    const hour = now.getHours();
-    const greetingEl = document.getElementById('greeting');
-    const subEl      = document.getElementById('greeting-sub');
-    greetingEl.textContent =
-      hour < 12 ? 'Good morning' :
-      hour < 17 ? 'Good afternoon' :
-                  'Good evening';
-    subEl.textContent = "Here\u2019s what\u2019s happening with your business today.";
   }
-
   updateClock();
   setInterval(updateClock, 30000);
 
@@ -840,8 +333,8 @@
     }
   }
 
-  // ── Load user info (from session via /api/status) ───────────────
-  async function loadUserInfo(status) {
+  // ── Load user info ──────────────────────────────────────────────
+  function loadUserInfo(status) {
     const emailEl  = document.getElementById('user-email');
     const avatarEl = document.getElementById('user-avatar');
     const email = status?.userEmail || 'admin';
@@ -849,7 +342,261 @@
     avatarEl.textContent = email.charAt(0).toUpperCase();
   }
 
-  // ── Fetch data ──────────────────────────────────────────────────
+  // ── Render functions ────────────────────────────────────────────
+  function renderReviewCard(queue, status) {
+    const pending    = queue.pendingCount ?? 0;
+    const sent       = (queue.queue || []).filter(r => r.status === 'sent');
+    const hasOverdue = (queue.queue || []).some(r => r.status === 'overdue');
+    const recent     = (queue.queue || []).slice(0, 4);
+
+    document.getElementById('reviews-pending-count').textContent = pending;
+    document.getElementById('reviews-stat-label').textContent =
+      pending === 1 ? 'pending request' : 'pending requests';
+
+    const badge = document.getElementById('reviews-badge');
+    if (hasOverdue) {
+      badge.textContent = 'Overdue';
+      badge.className   = 'px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-red-500/10 text-red-400 border-red-500/20';
+    } else if (pending > 0) {
+      badge.textContent = pending + ' Pending';
+      badge.className   = 'px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
+    } else {
+      badge.textContent = 'All Clear';
+      badge.className   = 'px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-secondary/10 text-secondary border-secondary/20';
+    }
+
+    // Sidebar badge
+    const sidebarBadge = document.getElementById('sidebar-pending');
+    if (pending > 0) {
+      sidebarBadge.textContent = pending;
+      sidebarBadge.classList.remove('hidden');
+    } else {
+      sidebarBadge.classList.add('hidden');
+    }
+
+    // Recent activity
+    const activityEl = document.getElementById('reviews-recent-activity');
+    if (recent.length === 0) {
+      activityEl.innerHTML = '<div class="flex items-center gap-3 p-3 bg-white/5 rounded-lg col-span-2"><div class="w-2 h-2 rounded-full bg-zinc-600"></div><span class="text-sm text-on-surface-variant">No recent activity</span></div>';
+    } else {
+      activityEl.innerHTML = recent.map(r => {
+        const dotColor = r.status === 'sent' ? 'bg-secondary' : r.status === 'overdue' ? 'bg-red-400' : 'bg-yellow-400';
+        const name = r.clientName || r.clientEmail || 'Client';
+        const time = r.scheduledAt ? new Date(r.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+        return `<div class="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+          <div class="flex items-center gap-3">
+            <div class="w-2 h-2 rounded-full ${dotColor}"></div>
+            <span class="text-sm font-medium truncate max-w-[120px]">${name}</span>
+          </div>
+          <span class="text-xs text-on-surface-variant flex-shrink-0">${time}</span>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  function renderJobberCard(status) {
+    const statusBadge = document.getElementById('jobber-status-badge');
+    const statusDot   = document.getElementById('jobber-status-dot');
+    const badgeText   = document.getElementById('jobber-badge');
+    const statusText  = document.getElementById('jobber-status-text');
+    const expiryEl    = document.getElementById('jobber-token-expiry');
+    const m1          = document.getElementById('jobber-metric-1');
+    const m2          = document.getElementById('jobber-metric-2');
+
+    if (status.connected) {
+      statusBadge.className = 'px-3 py-1 rounded-full flex items-center gap-2 border bg-secondary/10 border-secondary/20';
+      statusDot.className   = 'w-2 h-2 rounded-full bg-secondary animate-pulse';
+      badgeText.className   = 'text-[10px] font-bold uppercase tracking-tighter text-secondary';
+      badgeText.textContent = 'Connected';
+      statusText.textContent = 'Fully Synchronized';
+      statusText.style.color = '';
+
+      const mins = status.minutesUntilExpiry ?? 0;
+      expiryEl.textContent = mins >= 60
+        ? Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm'
+        : mins + 'm';
+      expiryEl.style.color = mins < 10 ? '#f87171' : mins < 30 ? '#fbbf24' : '#47e266';
+
+      m1.textContent = '5 min';
+      m1.style.color = '#47e266';
+      m2.textContent = 'Active';
+      m2.style.color = '#47e266';
+
+      const systemLabel = document.getElementById('system-status-label');
+      if (systemLabel) systemLabel.textContent = 'All Systems Operational';
+    } else {
+      statusBadge.className = 'px-3 py-1 rounded-full flex items-center gap-2 border bg-red-500/10 border-red-500/20';
+      statusDot.className   = 'w-2 h-2 rounded-full bg-red-400';
+      badgeText.className   = 'text-[10px] font-bold uppercase tracking-tighter text-red-400';
+      badgeText.textContent = 'Offline';
+      statusText.textContent = 'Not Connected';
+      statusText.style.color = '#f87171';
+      expiryEl.textContent   = '—';
+      expiryEl.style.color   = '';
+      m1.textContent = 'Off';
+      m1.style.color = '#f87171';
+      m2.textContent = 'Paused';
+      m2.style.color = '#f87171';
+
+      const systemLabel = document.getElementById('system-status-label');
+      if (systemLabel) {
+        systemLabel.textContent = 'Jobber Disconnected';
+        const dot = document.getElementById('system-status-dot');
+        if (dot) { dot.classList.remove('bg-secondary'); dot.classList.add('bg-red-400'); }
+      }
+    }
+  }
+
+  function renderWeatherCard(weather) {
+    const statEl    = document.getElementById('weather-stat');
+    const badgeEl   = document.getElementById('weather-badge');
+    const todayEl   = document.getElementById('weather-today-label');
+    const checkedEl = document.getElementById('weather-checked');
+    const iconEl    = document.getElementById('weather-icon');
+
+    if (!weather || weather.error) {
+      statEl.textContent   = '—';
+      badgeEl.textContent  = 'No API Key';
+      badgeEl.className    = 'ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold border bg-white/5 text-on-surface-variant border-white/10';
+      todayEl.textContent  = 'Add OPENWEATHER_API_KEY to .env';
+      iconEl.textContent   = 'cloud_off';
+      checkedEl.textContent = '—';
+      return;
+    }
+
+    const pct = weather.maxPopPct ?? 0;
+    statEl.textContent = pct + '%';
+    checkedEl.textContent = weather.checkedAt
+      ? new Date(weather.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '—';
+
+    if (weather.rainExpected) {
+      badgeEl.textContent = 'Rain Today';
+      badgeEl.className   = 'ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold border bg-red-500/10 text-red-400 border-red-500/20';
+      todayEl.textContent = weather.forecastSummary || 'Rain expected today';
+      iconEl.textContent  = 'thunderstorm';
+      iconEl.style.color  = '#f87171';
+      statEl.style.color  = '#f87171';
+    } else if (pct > 20) {
+      badgeEl.textContent = 'Watch';
+      badgeEl.className   = 'ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold border bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
+      todayEl.textContent = 'Low chance of rain';
+      iconEl.textContent  = 'water_drop';
+      iconEl.style.color  = '#fbbf24';
+      statEl.style.color  = '#fbbf24';
+    } else {
+      badgeEl.textContent = 'Clear';
+      badgeEl.className   = 'ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold border bg-secondary/10 text-secondary border-secondary/20';
+      todayEl.textContent = 'No rain expected — schedules clear';
+      iconEl.textContent  = 'wb_sunny';
+      iconEl.style.color  = '#47e266';
+      statEl.style.color  = '#47e266';
+    }
+  }
+
+  function renderSeoCard(seo) {
+    const scoreEl   = document.getElementById('seo-score');
+    const circleEl  = document.getElementById('seo-circle');
+    const insightEl = document.getElementById('seo-insight-text');
+    const trendIcon = document.getElementById('seo-trend-icon');
+
+    if (!seo || seo.error) {
+      scoreEl.textContent  = '—';
+      insightEl.textContent = 'Run an audit to see your PageSpeed score.';
+      return;
+    }
+
+    const audit   = seo.latestAudit;
+    const pending = seo.pendingProposals ?? 0;
+    const score   = audit?.performanceScore;
+
+    if (!audit || score === null || score === undefined) {
+      scoreEl.textContent   = audit?.status === 'running' ? '...' : '—';
+      insightEl.textContent = audit?.status === 'running' ? 'Audit in progress...' : 'No audit data yet. Run your first audit.';
+      return;
+    }
+
+    // Update score
+    scoreEl.textContent = score;
+    const circumference = 503; // 2 * π * 80
+    circleEl.style.strokeDashoffset = circumference * (1 - score / 100);
+
+    // Color the score
+    if (score >= 80) {
+      scoreEl.style.color  = '#e9b3ff';
+      circleEl.style.color = '#e9b3ff';
+    } else if (score >= 60) {
+      scoreEl.style.color  = '#fbbf24';
+      circleEl.style.color = '#fbbf24';
+    } else {
+      scoreEl.style.color  = '#f87171';
+      circleEl.style.color = '#f87171';
+    }
+
+    // Last audit time
+    const days = Math.floor((Date.now() - new Date(audit.runAt).getTime()) / 86400000);
+    const when = days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days}d ago`;
+
+    if (pending > 0) {
+      trendIcon.textContent  = 'lightbulb';
+      insightEl.textContent  = `${pending} proposal${pending > 1 ? 's' : ''} pending review from audit ${when}.`;
+    } else if (score >= 80) {
+      trendIcon.textContent  = 'trending_up';
+      insightEl.textContent  = `Score of ${score}/100 — last audited ${when}.`;
+    } else {
+      trendIcon.textContent  = 'warning';
+      insightEl.textContent  = `Score ${score}/100 needs attention — audited ${when}.`;
+    }
+  }
+
+  function renderAnalyticsCard(analytics) {
+    const visitorsEl = document.getElementById('analytics-visitors');
+    const labelEl    = document.getElementById('analytics-stat-label');
+    const badgeEl    = document.getElementById('analytics-badge');
+    const sessionsEl = document.getElementById('analytics-sessions');
+    const sourceEl   = document.getElementById('analytics-top-source');
+
+    if (!analytics || analytics.error || !analytics.configured) {
+      visitorsEl.textContent = '—';
+      badgeEl.textContent    = analytics?.configured === false ? 'Not Configured' : '—';
+      badgeEl.className      = 'text-xs font-bold flex items-center gap-1 text-on-surface-variant';
+      sessionsEl.textContent = analytics?.configured === false ? 'Add GA4 env vars' : '—';
+      sourceEl.textContent   = '—';
+      return;
+    }
+
+    visitorsEl.textContent = analytics.visitors.toLocaleString();
+    labelEl.textContent    = 'visitors last 7 days';
+    sessionsEl.textContent = analytics.sessions.toLocaleString();
+    sourceEl.textContent   = analytics.topSource || '—';
+
+    if (analytics.visitors > 0) {
+      badgeEl.innerHTML  = '<span class="material-symbols-outlined text-[14px]">trending_up</span> Live';
+      badgeEl.className  = 'text-xs font-bold flex items-center gap-1 text-secondary';
+    } else {
+      badgeEl.textContent = 'No Data';
+      badgeEl.className   = 'text-xs font-bold flex items-center gap-1 text-on-surface-variant';
+    }
+  }
+
+  function renderStatusStrip(status) {
+    const strip = document.getElementById('status-strip');
+    const chip = (dotClass, text) =>
+      `<div class="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/5 text-xs text-on-surface-variant">
+        <span class="w-1.5 h-1.5 rounded-full ${dotClass}"></span>${text}
+       </div>`;
+
+    const ok  = status.connected;
+    let html  = chip(ok ? 'bg-secondary' : 'bg-red-400', `Jobber ${ok ? 'connected' : 'disconnected'}`);
+    html     += chip(ok ? 'bg-secondary' : 'bg-red-400', `Token auto-refresh ${ok ? 'active' : 'inactive'}`);
+    html     += chip(ok ? 'bg-secondary' : 'bg-red-400', `Delivery queue ${ok ? 'running' : 'inactive'}`);
+    if (status.dryRun) {
+      html   += chip('bg-yellow-400', 'DRY RUN — no real messages sent');
+    }
+    strip.innerHTML = html;
+  }
+
+  // ── Dashboard fetch ─────────────────────────────────────────────
   async function loadDashboard() {
     try {
       const [statusRes, queueRes, weatherRes, seoRes, analyticsRes] = await Promise.all([
@@ -873,264 +620,11 @@
       renderSeoCard(seo);
       renderAnalyticsCard(analytics);
       renderStatusStrip(status);
-
-      document.getElementById('last-refresh').textContent =
-        'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
     } catch (err) {
       console.error('Dashboard load error:', err);
     }
   }
 
-  function renderReviewCard(queue, status) {
-    const pending = queue.pendingCount ?? 0;
-    const total   = (queue.queue || []).filter(r => r.status === 'sent').length;
-    const hasOverdue = (queue.queue || []).some(r => r.status === 'overdue');
-
-    document.getElementById('reviews-pending-count').textContent = pending;
-    document.getElementById('reviews-stat-label').textContent =
-      pending === 1 ? 'pending request' : 'pending requests';
-
-    document.getElementById('reviews-total-sent').textContent = total + ' reviews';
-    document.getElementById('reviews-jobber-status').textContent  = status.connected ? 'Connected' : 'Not connected';
-    document.getElementById('reviews-jobber-status').className =
-      'card-meta-val ' + (status.connected ? 'green' : 'red');
-
-    const badge = document.getElementById('reviews-badge');
-    if (hasOverdue) {
-      badge.textContent = 'Overdue';
-      badge.className   = 'card-badge badge-red';
-    } else if (pending > 0) {
-      badge.textContent = pending + ' Pending';
-      badge.className   = 'card-badge badge-yellow';
-    } else {
-      badge.textContent = 'All Clear';
-      badge.className   = 'card-badge badge-green';
-    }
-
-    // Sidebar badge
-    document.getElementById('sidebar-pending').textContent = pending > 0 ? pending : '✓';
-
-    // Card accent on overdue
-    if (hasOverdue) {
-      document.getElementById('card-reviews').style.borderColor = 'rgba(248,113,113,0.25)';
-    }
-  }
-
-  function renderJobberCard(status) {
-    const statusText  = document.getElementById('jobber-status-text');
-    const badge       = document.getElementById('jobber-badge');
-    const expiryEl    = document.getElementById('jobber-token-expiry');
-
-    if (status.connected) {
-      statusText.textContent = 'Connected';
-      statusText.style.color = 'var(--green)';
-      badge.textContent      = 'Live';
-      badge.className        = 'card-badge badge-green';
-
-      const mins = status.minutesUntilExpiry ?? 0;
-      expiryEl.textContent = mins >= 60
-        ? Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm'
-        : mins + 'm';
-      expiryEl.className = 'card-meta-val ' + (mins < 10 ? 'red' : mins < 30 ? 'yellow' : 'green');
-    } else {
-      statusText.textContent = 'Not Connected';
-      statusText.style.color = 'var(--red)';
-      badge.textContent      = 'Offline';
-      badge.className        = 'card-badge badge-red';
-      expiryEl.textContent   = '—';
-      expiryEl.className     = 'card-meta-val';
-      document.getElementById('card-jobber').style.borderColor = 'rgba(248,113,113,0.2)';
-    }
-  }
-
-  function renderWeatherCard(weather) {
-    const statEl   = document.getElementById('weather-stat');
-    const labelEl  = document.getElementById('weather-stat-label');
-    const badgeEl  = document.getElementById('weather-badge');
-    const todayEl  = document.getElementById('weather-today-label');
-    const checkedEl = document.getElementById('weather-checked');
-    const cardEl   = document.getElementById('card-weather');
-
-    if (!weather || weather.error) {
-      statEl.textContent  = '—';
-      badgeEl.textContent = 'No API Key';
-      badgeEl.className   = 'card-badge badge-gray';
-      todayEl.textContent = 'Add OPENWEATHER_API_KEY';
-      checkedEl.textContent = '—';
-      return;
-    }
-
-    const pct = weather.maxPopPct ?? 0;
-    statEl.textContent  = pct + '%';
-    labelEl.textContent = 'precipitation probability';
-    checkedEl.textContent = weather.checkedAt
-      ? new Date(weather.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      : '—';
-
-    if (weather.rainExpected) {
-      badgeEl.textContent = 'Rain Today';
-      badgeEl.className   = 'card-badge badge-red';
-      todayEl.textContent = weather.forecastSummary || 'Rain expected';
-      todayEl.style.color = 'var(--red)';
-      cardEl.style.borderColor = 'rgba(248,113,113,0.25)';
-      statEl.style.color = 'var(--red)';
-    } else if (pct > 20) {
-      badgeEl.textContent = 'Watch';
-      badgeEl.className   = 'card-badge badge-yellow';
-      todayEl.textContent = 'Low chance of rain';
-      statEl.style.color  = 'var(--yellow)';
-    } else {
-      badgeEl.textContent = 'Clear';
-      badgeEl.className   = 'card-badge badge-green';
-      todayEl.textContent = 'No rain expected';
-      statEl.style.color  = 'var(--green)';
-    }
-  }
-
-  function renderSeoCard(seo) {
-    const scoreEl     = document.getElementById('seo-score');
-    const labelEl     = document.getElementById('seo-score-label');
-    const badgeEl     = document.getElementById('seo-badge');
-    const proposalsEl = document.getElementById('seo-proposals');
-    const lastEl      = document.getElementById('seo-last-audit');
-    const cardEl      = document.getElementById('card-seo');
-
-    if (!seo || seo.error) {
-      scoreEl.textContent   = '—';
-      badgeEl.textContent   = 'No Audit';
-      badgeEl.className     = 'card-badge badge-gray';
-      proposalsEl.textContent = '—';
-      lastEl.textContent    = 'Run first audit';
-      return;
-    }
-
-    const audit    = seo.latestAudit;
-    const pending  = seo.pendingProposals ?? 0;
-    const score    = audit?.performanceScore;
-
-    proposalsEl.textContent = pending > 0 ? pending + ' pending' : 'None';
-    proposalsEl.className   = 'card-meta-val ' + (pending > 0 ? 'yellow' : 'green');
-
-    if (!audit) {
-      scoreEl.textContent = '—';
-      badgeEl.textContent = 'No Audit';
-      badgeEl.className   = 'card-badge badge-gray';
-      lastEl.textContent  = 'Run first audit';
-      return;
-    }
-
-    // Last audit time
-    const diff = Date.now() - new Date(audit.runAt).getTime();
-    const days = Math.floor(diff / 86400000);
-    lastEl.textContent = days === 0 ? 'Today' : days === 1 ? 'Yesterday' : `${days}d ago`;
-
-    if (score === null || score === undefined) {
-      scoreEl.textContent   = '—';
-      badgeEl.textContent   = audit.status === 'running' ? 'Running' : 'No Score';
-      badgeEl.className     = 'card-badge badge-gray';
-      return;
-    }
-
-    scoreEl.textContent  = score;
-    labelEl.textContent  = 'PageSpeed score';
-
-    if (score >= 80) {
-      scoreEl.style.color   = 'var(--green)';
-      badgeEl.textContent   = 'Healthy';
-      badgeEl.className     = 'card-badge badge-green';
-    } else if (score >= 60) {
-      scoreEl.style.color   = 'var(--yellow)';
-      badgeEl.textContent   = 'Issues Found';
-      badgeEl.className     = 'card-badge badge-yellow';
-      cardEl.style.borderColor = 'rgba(251,191,36,0.2)';
-    } else {
-      scoreEl.style.color   = 'var(--red)';
-      badgeEl.textContent   = 'Action Required';
-      badgeEl.className     = 'card-badge badge-red';
-      cardEl.style.borderColor = 'rgba(248,113,113,0.25)';
-    }
-
-    if (pending > 0) {
-      badgeEl.textContent = pending + ' Proposal' + (pending > 1 ? 's' : '');
-      badgeEl.className   = 'card-badge badge-yellow';
-    }
-  }
-
-  function renderAnalyticsCard(analytics) {
-    const visitorsEl  = document.getElementById('analytics-visitors');
-    const labelEl     = document.getElementById('analytics-stat-label');
-    const badgeEl     = document.getElementById('analytics-badge');
-    const sessionsEl  = document.getElementById('analytics-sessions');
-    const sourceEl    = document.getElementById('analytics-top-source');
-
-    if (!analytics || analytics.error) {
-      visitorsEl.textContent = '—';
-      badgeEl.textContent    = 'Error';
-      badgeEl.className      = 'card-badge badge-gray';
-      sessionsEl.textContent = '—';
-      sourceEl.textContent   = '—';
-      return;
-    }
-
-    if (!analytics.configured) {
-      visitorsEl.textContent = '—';
-      labelEl.textContent    = 'visitors last 7 days';
-      badgeEl.textContent    = 'Not Configured';
-      badgeEl.className      = 'card-badge badge-gray';
-      sessionsEl.textContent = 'Add GA4 env vars';
-      sourceEl.textContent   = '—';
-      return;
-    }
-
-    visitorsEl.textContent = analytics.visitors.toLocaleString();
-    labelEl.textContent    = 'visitors last 7 days';
-    sessionsEl.textContent = analytics.sessions.toLocaleString();
-    sourceEl.textContent   = analytics.topSource || '—';
-
-    badgeEl.textContent = 'Live';
-    badgeEl.className   = 'card-badge badge-green';
-
-    if (analytics.visitors === 0) {
-      badgeEl.textContent = 'No Data';
-      badgeEl.className   = 'card-badge badge-gray';
-    }
-  }
-
-  function renderStatusStrip(status) {
-    const strip = document.getElementById('status-strip');
-    const chips = [];
-
-    chips.push(`
-      <div class="status-chip">
-        <span class="dot ${status.connected ? 'green' : 'red'}"></span>
-        Jobber ${status.connected ? 'connected' : 'disconnected'}
-      </div>`);
-
-    chips.push(`
-      <div class="status-chip">
-        <span class="dot ${status.connected ? 'green' : 'red'}"></span>
-        Token auto-refresh ${status.connected ? 'active' : 'inactive'}
-      </div>`);
-
-    chips.push(`
-      <div class="status-chip">
-        <span class="dot ${status.connected ? 'green' : 'red'}"></span>
-        Delivery queue ${status.connected ? 'running' : 'inactive'}
-      </div>`);
-
-    if (status.dryRun) {
-      chips.push(`
-        <div class="status-chip">
-          <span class="dot yellow"></span>
-          DRY RUN mode &mdash; no real messages
-        </div>`);
-    }
-
-    strip.innerHTML = chips.join('');
-  }
-
-  // ── Init ────────────────────────────────────────────────────────
   loadDashboard();
   setInterval(loadDashboard, 30000);
 </script>
@@ -1141,30 +635,24 @@
   try {
     const res = await fetch('/api/admin/me', { credentials: 'include' });
     if (!res.ok) return;
-    const me = await res.json();
+    const me   = await res.json();
     const role = me.role || 'client';
-    const roleEl = document.querySelector('.user-role');
+    const roleEl = document.getElementById('user-role');
     if (roleEl) roleEl.textContent = role === 'admin' ? 'Administrator' : 'Client';
     if (role === 'admin') addAdminLink();
   } catch {}
-  function hideSection(label) {
-    document.querySelectorAll('.nav-section-label').forEach(el => {
-      if (el.textContent.trim() !== label) return;
-      el.style.display = 'none';
-      let s = el.nextElementSibling;
-      while (s && !s.classList.contains('nav-section-label')) { s.style.display = 'none'; s = s.nextElementSibling; }
-    });
-  }
+
   function addAdminLink() {
-    const nav = document.querySelector('.sidebar-nav');
+    const nav = document.getElementById('main-nav');
     if (!nav || nav.querySelector('a[href="/admin.html"]')) return;
     const a = document.createElement('a');
-    a.className = 'nav-link'; a.href = '/admin.html';
-    a.setAttribute('data-tooltip', 'User Management');
-    a.innerHTML = '<span class="nav-icon">&#128100;</span><span class="nav-label">User Management</span>';
+    a.className = 'flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200';
+    a.href = '/admin.html';
+    a.innerHTML = '<span class="material-symbols-outlined text-[20px]">manage_accounts</span><span class="text-sm font-medium tracking-tight">User Management</span>';
     nav.appendChild(a);
   }
 })();
 </script>
+
 </body>
 </html>
