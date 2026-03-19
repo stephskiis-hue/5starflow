@@ -39,7 +39,7 @@ const ADD_CLIENT_TAG = `
 
 const WEEKLY_VISITS_QUERY = `
   query WeeklyVisits($start: ISO8601DateTime!, $end: ISO8601DateTime!, $cursor: String) {
-    visits(filter: { startAt: { gte: $start, lte: $end } }, first: 100, after: $cursor) {
+    visits(filter: { startAt: { after: $start, before: $end } }, first: 100, after: $cursor) {
       nodes {
         id
         title
