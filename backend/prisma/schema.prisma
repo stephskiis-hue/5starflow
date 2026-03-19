@@ -48,7 +48,8 @@ model ReviewSent {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  passwordHash String
+  passwordHash String?
+  googleId     String?  @unique
   role         String   @default("client")  // "admin" | "client"
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())

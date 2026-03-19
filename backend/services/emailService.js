@@ -207,7 +207,6 @@ async function sendReviewEmail(to, firstName, userId) {
   }
 
   const accessToken = await ensureFreshToken(userId, creds);
-
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {

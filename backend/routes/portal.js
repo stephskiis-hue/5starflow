@@ -14,34 +14,117 @@
 
 const express  = require('express');
 const router   = express.Router();
+const axios    = require('axios');
 const prisma   = require('../lib/prismaClient');
 const { hashPassword, verifyPassword, signToken, setCookie, clearCookie } = require('../lib/auth');
 const { requireAuth, requireAdmin } = require('../middleware/requireAuth');
 
 // ---------------------------------------------------------------------------
-// POST /auth/login
+// GET /auth/google — redirect to Google OAuth consent screen
 // ---------------------------------------------------------------------------
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body || {};
+router.get('/google', (req, res) => {
+  const clientId    = process.env.GOOGLE_CLIENT_ID;
+  const redirectUri = process.env.GOOGLE_LOGIN_REDIRECT_URI;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
+  if (!clientId || !redirectUri) {
+    return res.status(500).send('GOOGLE_CLIENT_ID and GOOGLE_LOGIN_REDIRECT_URI must be set.');
+  }
+
+  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  url.searchParams.set('client_id',     clientId);
+  url.searchParams.set('redirect_uri',  redirectUri);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('scope',         'openid email profile https://www.googleapis.com/auth/gmail.send');
+  url.searchParams.set('access_type',   'offline');
+  url.searchParams.set('prompt',        'consent');
+
+  res.redirect(url.toString());
+});
+
+// ---------------------------------------------------------------------------
+// GET /auth/google/callback — exchange code, create session
+// ---------------------------------------------------------------------------
+router.get('/google/callback', async (req, res) => {
+  const { code, error } = req.query;
+
+  if (error) {
+    console.error('[portal] Google OAuth error:', error);
+    return res.redirect('/login.html?error=' + encodeURIComponent(error));
+  }
+  if (!code) {
+    return res.redirect('/login.html?error=no_code');
   }
 
   try {
-    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+    // 1. Exchange code for tokens
+    const tokenResp = await axios.post('https://oauth2.googleapis.com/token', {
+      code,
+      client_id:     process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri:  process.env.GOOGLE_LOGIN_REDIRECT_URI,
+      grant_type:    'authorization_code',
+    });
 
-    if (!user || !user.isActive || !verifyPassword(password, user.passwordHash)) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+    const { access_token, refresh_token, expires_in } = tokenResp.data;
+    const tokenExpiry = new Date(Date.now() + (expires_in || 3600) * 1000);
+
+    // 2. Fetch Google user info
+    const userResp = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+    const { id: googleId, email, name } = userResp.data;
+
+    if (!email) {
+      return res.redirect('/login.html?error=no_email');
     }
 
+    // 3. Find-or-create User by googleId, fallback to email match
+    let user = await prisma.user.findFirst({
+      where: { OR: [{ googleId }, { email: email.toLowerCase() }] },
+    });
+
+    if (user) {
+      if (!user.isActive) {
+        return res.redirect('/login.html?error=account_inactive');
+      }
+      if (!user.googleId) {
+        user = await prisma.user.update({ where: { id: user.id }, data: { googleId } });
+      }
+    } else {
+      user = await prisma.user.create({
+        data: { email: email.toLowerCase(), googleId, role: 'client' },
+      });
+    }
+
+    // 4. Upsert GmailCredential so emails send from this Google account
+    await prisma.gmailCredential.upsert({
+      where:  { userId: user.id },
+      update: {
+        gmailUser:   email,
+        accessToken: access_token,
+        ...(refresh_token && { refreshToken: refresh_token }),
+        tokenExpiry,
+      },
+      create: {
+        userId:       user.id,
+        gmailUser:    email,
+        fromName:     name || '',
+        accessToken:  access_token,
+        refreshToken: refresh_token || null,
+        tokenExpiry,
+      },
+    });
+
+    // 5. Create session cookie
     const token = signToken({ userId: user.id, email: user.email, role: user.role });
     setCookie(res, token);
 
-    return res.json({ success: true, redirect: '/index.html' });
+    console.log(`[portal] Google login: userId=${user.id} email=${user.email}`);
+    res.redirect('/index.html');
+
   } catch (err) {
-    console.error('[portal] /auth/login error:', err.message);
-    return res.status(500).json({ error: 'Login failed — server error' });
+    console.error('[portal] Google callback error:', err.response?.data || err.message);
+    res.redirect('/login.html?error=' + encodeURIComponent('Login failed — please try again'));
   }
 });
 
