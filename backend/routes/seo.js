@@ -18,8 +18,8 @@ const {
 router.get('/status', async (req, res) => {
   try {
     const [latestAudit, pendingCount] = await Promise.all([
-      prisma.seoAudit.findFirst({ where: { userId: req.user.userId }, orderBy: { runAt: 'desc' } }),
-      prisma.seoProposal.count({ where: { status: 'pending', userId: req.user.userId } }),
+      prisma.seoAudit.findFirst({ where: { userId: req.user?.userId }, orderBy: { runAt: 'desc' } }),
+      prisma.seoProposal.count({ where: { status: 'pending', userId: req.user?.userId } }),
     ]);
 
     res.json({
@@ -38,7 +38,7 @@ router.get('/status', async (req, res) => {
 router.get('/audits', async (req, res) => {
   try {
     const audits = await prisma.seoAudit.findMany({
-      where:   { userId: req.user.userId },
+      where:   { userId: req.user?.userId },
       orderBy: { runAt: 'desc' },
       take: 10,
     });
@@ -46,7 +46,7 @@ router.get('/audits', async (req, res) => {
     // Attach proposal status to each audit
     const auditIds = audits.map(a => a.id);
     const proposals = await prisma.seoProposal.findMany({
-      where: { auditId: { in: auditIds }, userId: req.user.userId },
+      where: { auditId: { in: auditIds }, userId: req.user?.userId },
       select: { auditId: true, status: true, id: true },
     });
     const proposalMap = Object.fromEntries(proposals.map(p => [p.auditId, p]));
@@ -70,7 +70,7 @@ router.get('/audits', async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post('/pagespeed', async (req, res) => {
   try {
-    const settings = await getSettings(req.user.userId);
+    const settings = await getSettings(req.user?.userId);
     const url = settings?.siteUrl;
     if (!url) return res.status(400).json({ error: 'Set your site URL in SEO Settings first.' });
 
@@ -118,7 +118,7 @@ router.post('/run-audit', async (req, res) => {
   }
   try {
     // Fire and forget — audit is async
-    runWeeklyAudit(req.user.userId, tier).catch(err => console.error('[seo] run-audit error:', err.message));
+    runWeeklyAudit(req.user?.userId, tier).catch(err => console.error('[seo] run-audit error:', err.message));
     res.json({ success: true, tier, message: 'Audit started — check /api/seo/status for progress' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -150,7 +150,7 @@ router.post('/trigger', async (req, res) => {
 router.get('/proposals', async (req, res) => {
   try {
     const proposals = await prisma.seoProposal.findMany({
-      where: { userId: req.user.userId },
+      where: { userId: req.user?.userId },
       orderBy: [
         { status: 'asc' },   // "pending" sorts before "approved"/"declined" alphabetically
         { createdAt: 'desc' },
@@ -161,7 +161,7 @@ router.get('/proposals', async (req, res) => {
     // Attach changes to each proposal
     const ids = proposals.map(p => p.id);
     const changes = await prisma.seoChange.findMany({
-      where: { proposalId: { in: ids }, userId: req.user.userId },
+      where: { proposalId: { in: ids }, userId: req.user?.userId },
     });
     const changeMap = {};
     for (const c of changes) {
@@ -194,7 +194,7 @@ router.post('/proposals/:id/respond', async (req, res) => {
   }
 
   try {
-    const proposal = await prisma.seoProposal.findFirst({ where: { id, userId: req.user.userId } });
+    const proposal = await prisma.seoProposal.findFirst({ where: { id, userId: req.user?.userId } });
     if (!proposal) return res.status(404).json({ error: 'Proposal not found' });
     if (proposal.status !== 'pending') {
       return res.status(400).json({ error: `Proposal already ${proposal.status}` });
@@ -206,8 +206,8 @@ router.post('/proposals/:id/respond', async (req, res) => {
     });
 
     if (decision === 'approved') {
-      const settings = await getSettings(req.user.userId);
-      let allChanges = await prisma.seoChange.findMany({ where: { proposalId: id, userId: req.user.userId } });
+      const settings = await getSettings(req.user?.userId);
+      let allChanges = await prisma.seoChange.findMany({ where: { proposalId: id, userId: req.user?.userId } });
 
       let changesToApply = allChanges;
       let skipped = 0;
@@ -244,7 +244,7 @@ router.post('/proposals/:id/respond', async (req, res) => {
 // ---------------------------------------------------------------------------
 router.get('/settings', async (req, res) => {
   try {
-    const settings = await getSettings(req.user.userId);
+    const settings = await getSettings(req.user?.userId);
     // Mask sensitive fields
     res.json({
       ...settings,
@@ -262,7 +262,7 @@ router.get('/settings', async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post('/settings', async (req, res) => {
   try {
-    const settings = await getSettings(req.user.userId);
+    const settings = await getSettings(req.user?.userId);
     const {
       siteUrl, competitorUrls, deployType,
       deployHost, deployPort, deployUser, deployPass, deployPath, deployBranch,

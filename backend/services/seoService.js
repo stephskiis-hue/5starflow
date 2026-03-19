@@ -49,6 +49,11 @@ async function getSettings(userId) {
  */
 async function getPageSpeed(url, strategy = 'mobile') {
   const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    console.warn('[pagespeed] GOOGLE_API_KEY not set — using unauthenticated quota (shared, easily exhausted)');
+  }
+  console.log(`[pagespeed] Requesting: url=${url} strategy=${strategy} key=${apiKey ? 'SET' : 'NOT SET'}`);
+
   const endpoint =
     `https://www.googleapis.com/pagespeedonline/v5/runPagespeed` +
     `?url=${encodeURIComponent(url)}&strategy=${strategy}` +
