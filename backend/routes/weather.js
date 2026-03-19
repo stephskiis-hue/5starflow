@@ -479,7 +479,7 @@ router.get('/debug/jobber-schema', async (req, res) => {
     const { jobberGraphQL } = require('../services/jobberClient');
     const data = await jobberGraphQL(`
       query {
-        inputType: __type(name: "VisitEditScheduleInput") {
+        inputType: __type(name: "LocalDateTimeAttributes") {
           inputFields { name type { name kind ofType { name kind } } }
         }
       }
