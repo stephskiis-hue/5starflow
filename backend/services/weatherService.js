@@ -5,7 +5,7 @@ const twilio  = require('twilio');
 const prisma  = require('../lib/prismaClient');
 const { jobberGraphQL } = require('./jobberClient');
 const { getTwilioCreds } = require('./smsService');
-const { getGmailCreds }  = require('./emailService');
+const { getGmailCreds, ensureFreshToken } = require('./emailService');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -37,6 +37,36 @@ const ADD_CLIENT_TAG = `
   }
 `;
 
+const WEEKLY_VISITS_QUERY = `
+  query WeeklyVisits($start: ISO8601DateTime!, $end: ISO8601DateTime!) {
+    visits(filter: { startAt: { gte: $start, lte: $end } }, first: 100) {
+      nodes {
+        id
+        title
+        startAt
+        endAt
+        client {
+          id
+          name
+          firstName
+          emails { address primary }
+          phones { number primary smsAllowed }
+        }
+      }
+      pageInfo { hasNextPage }
+    }
+  }
+`;
+
+const RESCHEDULE_VISIT_MUTATION = `
+  mutation RescheduleVisit($visitId: EncodedId!, $startAt: ISO8601DateTime!) {
+    visitReschedule(visitId: $visitId, startAt: $startAt) {
+      visit { id startAt }
+      userErrors { message }
+    }
+  }
+`;
+
 // Fetch all Jobber clients in one paginated pass. Internal — used by getOpenDays().
 async function fetchAllClients(userId) {
   const allClients = [];
@@ -52,6 +82,47 @@ async function fetchAllClients(userId) {
     if (hasNext) await sleep(500);
   }
   return allClients;
+}
+
+/**
+ * Fetch Jobber visits within a date range (e.g. today → +7 days).
+ * Returns visits with client contact info for SMS/email.
+ */
+async function fetchWeekVisits(userId, startDate, endDate) {
+  const start = new Date(startDate + 'T00:00:00Z').toISOString();
+  const end   = new Date(endDate   + 'T23:59:59Z').toISOString();
+
+  const data  = await jobberGraphQL(WEEKLY_VISITS_QUERY, { start, end }, userId);
+  const nodes = data?.visits?.nodes ?? [];
+
+  return nodes.map((v) => {
+    const primaryPhone = v.client?.phones?.find((p) => p.primary) ?? v.client?.phones?.[0] ?? null;
+    const primaryEmail = v.client?.emails?.find((e) => e.primary) ?? v.client?.emails?.[0] ?? null;
+    return {
+      id:         v.id,
+      title:      v.title || 'Visit',
+      startAt:    v.startAt,
+      endAt:      v.endAt || null,
+      clientId:   v.client?.id || null,
+      clientName: v.client?.name || 'Unknown',
+      firstName:  v.client?.firstName || (v.client?.name || 'there').split(' ')[0],
+      phone:      primaryPhone?.number    ?? null,
+      smsAllowed: primaryPhone?.smsAllowed ?? false,
+      email:      primaryEmail?.address   ?? null,
+    };
+  });
+}
+
+/**
+ * Move a Jobber visit to a new startAt datetime via visitReschedule mutation.
+ * Throws if the mutation returns userErrors.
+ */
+async function rescheduleJobberVisit(visitId, newStartAt, userId) {
+  const data   = await jobberGraphQL(RESCHEDULE_VISIT_MUTATION, { visitId, startAt: newStartAt }, userId);
+  const result = data?.visitReschedule;
+  if (!result) throw new Error('visitReschedule returned no data — mutation name may differ in this schema');
+  if (result.userErrors?.length) throw new Error(result.userErrors.map((e) => e.message).join('; '));
+  return result.visit;
 }
 
 // ---------------------------------------------------------------------------
@@ -320,9 +391,20 @@ async function sendRainEmail(to, firstName, newDateLabel, customMessage, userId)
   }
 
   const creds = await getGmailCreds(userId);
-  if (!creds.user || !creds.pass) throw new Error('Gmail credentials not configured');
+  if (!creds || !creds.user) throw new Error('Gmail not connected for this account — sign in via Settings');
 
-  const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: creds.user, pass: creds.pass } });
+  const accessToken = await ensureFreshToken(userId, creds);
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      type:         'OAuth2',
+      user:         creds.user,
+      clientId:     process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      refreshToken: creds.refreshToken,
+      accessToken,
+    },
+  });
 
   const html = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"></head>
@@ -335,7 +417,7 @@ async function sendRainEmail(to, firstName, newDateLabel, customMessage, userId)
 </body></html>`;
 
   const info = await transporter.sendMail({
-    from: `"${creds.fromName}" <${creds.user}>`,
+    from: `"${creds.fromName || 'No-Bs Yardwork'}" <${creds.user}>`,
     to,
     subject: 'Your lawn cut has been rescheduled',
     html,
@@ -487,7 +569,11 @@ module.exports = {
   formatDate,
   getClientsByTag,
   getOpenDays,
+  fetchWeekVisits,
+  rescheduleJobberVisit,
   batchNotify,
+  sendRainSMS,
+  sendRainEmail,
   getSettings,
   runMorningCheck,
   startWeatherScheduler,

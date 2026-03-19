@@ -7,12 +7,21 @@ const {
   checkRainToday,
   getDayTag,
   toDateString,
+  formatDate,
   getClientsByTag,
   getOpenDays,
+  fetchWeekVisits,
+  rescheduleJobberVisit,
   batchNotify,
+  sendRainSMS,
+  sendRainEmail,
   getSettings,
   runMorningCheck,
 } = require('../services/weatherService');
+
+// In-memory calendar cache — busted on reschedule, expires after 15 min
+const calendarCache = new Map(); // userId -> { data, cachedAt }
+const CALENDAR_TTL  = 15 * 60 * 1000;
 
 /**
  * GET /api/weather/forecast
@@ -40,6 +49,24 @@ router.get('/today', async (req, res) => {
   try {
     const settings = await getSettings(req.user.userId);
     const todayStr = toDateString();
+
+    // ── Debug / test mode ─────────────────────────────────────────────────
+    if (req.query.debugRain === 'true') {
+      const rawProb    = parseInt(req.query.rainProb, 10);
+      const rainProb   = Math.max(0, Math.min(100, isNaN(rawProb) ? 75 : rawProb)) / 100;
+      const threshold  = settings.rainThreshold ?? 0.4;
+      const rainExpected = rainProb >= threshold;
+      return res.json({
+        cached:          false,
+        date:            todayStr,
+        rainExpected,
+        maxPrecipProb:   rainProb,
+        maxPopPct:       Math.round(rainProb * 100),
+        forecastSummary: `[DEBUG] Simulated ${Math.round(rainProb * 100)}% rain probability`,
+        checkedAt:       new Date().toISOString(),
+        debug:           true,
+      });
+    }
 
     if (req.query.force !== 'true') {
       const cached = await prisma.weatherCheck.findFirst({
@@ -115,6 +142,160 @@ router.get('/open-days', async (req, res) => {
     console.error('[weather] /open-days error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+/**
+ * GET /api/weather/calendar
+ * Returns 7-day weather forecast merged with real Jobber visits per day.
+ * Cached in memory for 15 minutes per user.
+ */
+router.get('/calendar', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const cached = calendarCache.get(userId);
+    if (cached && (Date.now() - cached.cachedAt) < CALENDAR_TTL) {
+      return res.json({ calendar: cached.data, cached: true });
+    }
+
+    const settings = await getSettings(userId);
+    const city = settings.city || process.env.WEATHER_CITY || 'Winnipeg';
+
+    const today     = new Date();
+    const startDate = toDateString(today);
+    const endDate   = toDateString(new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000));
+
+    const [forecastList, visits] = await Promise.all([
+      getForecast(city).catch(() => []),
+      fetchWeekVisits(userId, startDate, endDate).catch((err) => {
+        console.warn('[weather] /calendar visits fetch failed:', err.message);
+        return [];
+      }),
+    ]);
+
+    const daySummaries = buildDaySummaries(forecastList);
+
+    // Seed calendar with forecast days
+    const calendar = {};
+    for (const day of daySummaries) {
+      calendar[day.date] = {
+        date:       day.date,
+        dayName:    day.dayName,
+        rainProb:   day.maxPop,
+        maxPopPct:  day.maxPopPct,
+        isRainy:    day.rainExpected,
+        condition:  day.condition,
+        visits:     [],
+      };
+    }
+
+    // Merge in visits
+    for (const visit of visits) {
+      const dateStr = (visit.startAt || '').slice(0, 10);
+      if (!dateStr) continue;
+      if (!calendar[dateStr]) {
+        calendar[dateStr] = { date: dateStr, dayName: '', rainProb: 0, maxPopPct: 0, isRainy: false, visits: [] };
+      }
+      calendar[dateStr].visits.push(visit);
+    }
+
+    calendarCache.set(userId, { data: calendar, cachedAt: Date.now() });
+    res.json({ calendar, cached: false });
+  } catch (err) {
+    console.error('[weather] /calendar error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/weather/reschedule-visits
+ * Moves real Jobber visits to a new date AND notifies each client via SMS + email.
+ *
+ * Body:
+ *   visits     {array}  — each: { id, title, startAt, clientId, clientName, firstName, phone, smsAllowed, email }
+ *   targetDate {string} — YYYY-MM-DD
+ *   message    {string} — optional custom message
+ */
+router.post('/reschedule-visits', async (req, res) => {
+  const { visits, targetDate, message: customMessage } = req.body || {};
+
+  if (!Array.isArray(visits) || visits.length === 0) {
+    return res.status(400).json({ error: 'visits array is required' });
+  }
+  if (!targetDate || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+    return res.status(400).json({ error: 'targetDate is required (YYYY-MM-DD)' });
+  }
+
+  const userId       = req.user.userId;
+  const newDateLabel = formatDate(targetDate);
+  let movedCount   = 0;
+  let smsCount     = 0;
+  let emailCount   = 0;
+  const errors     = [];
+
+  for (const visit of visits) {
+    const { id: visitId, startAt, firstName, clientName, phone, smsAllowed, email } = visit;
+
+    // Preserve same time-of-day, change only the date
+    const timeOfDay  = startAt ? startAt.slice(11) : '08:00:00Z';
+    const newStartAt = `${targetDate}T${timeOfDay}`;
+
+    // 1. Move in Jobber
+    try {
+      await rescheduleJobberVisit(visitId, newStartAt, userId);
+      movedCount++;
+    } catch (err) {
+      console.error(`[weather] Jobber reschedule failed for visitId=${visitId}:`, err.message);
+      errors.push({ visitId, clientName, step: 'jobber', error: err.message });
+      continue; // skip notification if Jobber move failed
+    }
+
+    // 2. Notify client via SMS
+    if (phone && smsAllowed) {
+      try {
+        await sendRainSMS(phone, firstName || clientName || 'there', newDateLabel, customMessage, userId);
+        smsCount++;
+      } catch (err) {
+        console.error(`[weather] SMS failed for visitId=${visitId}:`, err.message);
+        errors.push({ visitId, clientName, step: 'sms', error: err.message });
+      }
+    }
+
+    // 3. Notify client via email
+    if (email) {
+      try {
+        await sendRainEmail(email, firstName || clientName || 'there', newDateLabel, customMessage, userId);
+        emailCount++;
+      } catch (err) {
+        console.error(`[weather] Email failed for visitId=${visitId}:`, err.message);
+        errors.push({ visitId, clientName, step: 'email', error: err.message });
+      }
+    }
+  }
+
+  // Log the batch reschedule event
+  try {
+    await prisma.rainReschedule.create({
+      data: {
+        originalDay:  getDayTag(),
+        originalDate: toDateString(),
+        newDate:      targetDate,
+        clientCount:  movedCount,
+        smsCount,
+        emailCount,
+        message:      customMessage || `Rescheduled to ${newDateLabel} via calendar`,
+        userId,
+      },
+    });
+  } catch (logErr) {
+    console.warn('[weather] Failed to log reschedule event:', logErr.message);
+  }
+
+  // Bust calendar cache so it reflects the new visit dates
+  calendarCache.delete(userId);
+
+  console.log(`[weather] Reschedule complete — moved:${movedCount} SMS:${smsCount} Email:${emailCount} errors:${errors.length}`);
+  res.json({ success: true, moved: movedCount, smsCount, emailCount, errors });
 });
 
 /**

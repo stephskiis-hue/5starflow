@@ -256,6 +256,63 @@
       z-index: 9999;
     }
     .sidebar.collapsed .nav-link:hover::after { opacity: 1; }
+
+    /* ── Debug panel ────────────────────────────── */
+    .debug-bar {
+      display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+      padding: 0.75rem 1rem;
+      background: rgba(251,191,36,0.07);
+      border: 1px solid rgba(251,191,36,0.25);
+      border-radius: var(--radius-sm);
+      margin-bottom: 1rem;
+    }
+    .debug-bar label { font-size: 0.78rem; color: var(--yellow); font-weight: 700; display: flex; align-items: center; gap: 0.4rem; }
+    .debug-toggle { width: 36px; height: 20px; appearance: none; background: var(--border); border-radius: 10px; cursor: pointer; position: relative; transition: background 0.2s; }
+    .debug-toggle:checked { background: var(--yellow); }
+    .debug-toggle::after { content: ''; position: absolute; width: 14px; height: 14px; background: #fff; border-radius: 50%; top: 3px; left: 3px; transition: left 0.2s; }
+    .debug-toggle:checked::after { left: 19px; }
+    .debug-slider { width: 120px; accent-color: var(--yellow); cursor: pointer; }
+
+    /* ── Calendar ───────────────────────────────── */
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 0.5rem;
+      overflow-x: auto;
+    }
+    @media (max-width: 768px) { .calendar-grid { grid-template-columns: repeat(3, 1fr); } }
+    .cal-day {
+      background: rgba(10,11,18,0.5);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.75rem 0.5rem;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      min-width: 90px;
+    }
+    .cal-day:hover { border-color: rgba(255,255,255,0.2); }
+    .cal-day.rainy { border-color: rgba(248,113,113,0.5); background: rgba(248,113,113,0.07); }
+    .cal-day.active { border-color: var(--gold); background: var(--gold-dim); }
+    .cal-day-name { font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); margin-bottom: 0.3rem; }
+    .cal-day-date { font-size: 0.75rem; color: var(--text-2); margin-bottom: 0.4rem; }
+    .cal-pop-bar { height: 3px; background: rgba(255,255,255,0.07); border-radius: 2px; margin-bottom: 0.4rem; }
+    .cal-pop-fill { height: 100%; border-radius: 2px; }
+    .cal-visit-count { font-size: 0.68rem; font-weight: 700; }
+
+    /* Calendar visit detail panel */
+    .cal-visit-list { list-style: none; }
+    .cal-visit-item {
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.5rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 0.35rem;
+      background: rgba(10,11,18,0.4);
+    }
+    .cal-visit-item input[type=checkbox] { flex-shrink: 0; cursor: pointer; }
+    .cal-visit-meta { flex: 1; }
+    .cal-visit-name { font-size: 0.82rem; font-weight: 600; color: var(--text-1); }
+    .cal-visit-time { font-size: 0.7rem; color: var(--text-3); }
   </style>
 </head>
 <body>
@@ -302,9 +359,26 @@
       <div class="topbar-actions">
         <span id="last-refresh">Loading...</span>
         <button class="btn btn-ghost btn-small" onclick="runCheck()">&#8635; Run Check Now</button>
+        <button class="btn btn-small" onclick="toggleDebugBar()" id="debug-bar-btn" style="background:rgba(251,191,36,0.12);color:var(--yellow);border:1px solid rgba(251,191,36,0.25);">&#127381; Debug</button>
         <button class="btn btn-small" onclick="demoRain()" style="background:rgba(248,113,113,0.15);color:var(--red);border:1px solid rgba(248,113,113,0.3);">&#9928; Demo Rain</button>
         <a href="/index.html" class="btn btn-ghost btn-small">&#8592; Home</a>
       </div>
+    </div>
+
+    <!-- Debug Controls -->
+    <div class="debug-bar" id="debug-bar" style="display:none;">
+      <label>&#127381; DEBUG MODE</label>
+      <label>
+        <input type="checkbox" class="debug-toggle" id="debug-toggle" onchange="toggleDebugMode(this.checked)" />
+        Simulate Rain
+      </label>
+      <label style="color:var(--text-2);font-weight:500;">
+        Rain %:
+        <input type="range" class="debug-slider" id="debug-rain-slider" min="0" max="100" step="5" value="75"
+          oninput="document.getElementById('debug-rain-label').textContent=this.value+'%'; if(document.getElementById('debug-toggle').checked) loadWeatherToday();" />
+        <span id="debug-rain-label" style="font-size:0.78rem;color:var(--yellow);font-weight:700;min-width:36px;">75%</span>
+      </label>
+      <span style="font-size:0.72rem;color:var(--text-3);">No real API calls when active</span>
     </div>
 
     <!-- Today summary stats -->
@@ -332,6 +406,53 @@
       <div class="card-title">7-Day Forecast</div>
       <div class="forecast-strip" id="forecast-strip">
         <div class="empty-state" style="padding:1rem;">Loading forecast...</div>
+      </div>
+    </div>
+
+    <!-- 7-Day Jobber Visit Calendar -->
+    <div class="card" id="calendar-card">
+      <div class="card-title">
+        7-Day Visit Calendar
+        <span style="font-size:0.72rem;color:var(--text-3);font-weight:400;" id="calendar-status">Loading...</span>
+        <button class="btn btn-ghost btn-small" onclick="loadCalendar(true)">&#8635; Refresh</button>
+      </div>
+      <div class="calendar-grid" id="calendar-grid">
+        <div class="empty-state" style="grid-column:1/-1;padding:1.5rem;">Loading calendar...</div>
+      </div>
+
+      <!-- Expanded day panel — shown when a day is clicked -->
+      <div id="calendar-day-panel" style="display:none;margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border);">
+        <div class="card-title" style="margin-bottom:0.75rem;">
+          <span id="cal-day-title">Visits</span>
+          <div style="display:flex;gap:0.5rem;align-items:center;">
+            <button class="btn btn-ghost btn-small" onclick="selectAllCalVisits()">Select All</button>
+            <span id="cal-selected-count" class="pill pill-blue">0 selected</span>
+          </div>
+        </div>
+        <ul class="cal-visit-list" id="cal-visit-list"></ul>
+
+        <!-- Reschedule controls for calendar visits -->
+        <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Move to Date</label>
+              <select class="form-select" id="cal-reschedule-select" onchange="updateCalMessagePreview()" style="min-width:220px;">
+                <option value="">Loading open days...</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1;">
+              <label class="form-label">Message (editable)</label>
+              <textarea class="message-preview" id="cal-message-preview" rows="2"></textarea>
+            </div>
+          </div>
+          <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;margin-top:0.75rem;">
+            <button class="btn btn-primary" id="cal-reschedule-btn" onclick="rescheduleVisits()" disabled>
+              &#8634; Move &amp; Notify Clients
+            </button>
+            <span style="font-size:0.75rem;color:var(--text-3);">Moves visits in Jobber + texts &amp; emails each client</span>
+          </div>
+          <div class="notify-result" id="cal-reschedule-result" style="display:none;margin-top:0.75rem;"></div>
+        </div>
       </div>
     </div>
 
@@ -508,6 +629,7 @@
       loadSettings(),
       loadWeatherToday(),
       loadForecast(),
+      loadCalendar(),
       loadHistory(),
     ]);
     document.getElementById('last-refresh').textContent =
@@ -534,7 +656,7 @@
 
   async function loadWeatherToday() {
     try {
-      const res  = await fetch(`${API}/api/weather/today`);
+      const res  = await fetch(`${API}/api/weather/today${debugParams()}`);
       const data = await res.json();
 
       if (data.error) {
@@ -789,7 +911,8 @@
       const btn = document.querySelector('[onclick="runCheck()"]');
       btn.disabled = true;
       btn.textContent = 'Checking...';
-      await fetch(`${API}/api/weather/today?force=true`);
+      const dp = debugParams();
+      await fetch(`${API}/api/weather/today${dp ? dp + '&force=true' : '?force=true'}`);
       await loadAll();
     } finally {
       const btn = document.querySelector('[onclick="runCheck()"]');
@@ -899,6 +1022,224 @@
     showRainPanel();
     renderClientsTable();
     document.getElementById('last-refresh').textContent = 'Demo mode — no real data';
+  }
+
+  // ── Debug mode ────────────────────────────────────────────────────────
+  let debugRainActive = false;
+
+  function toggleDebugBar() {
+    const bar = document.getElementById('debug-bar');
+    const visible = bar.style.display !== 'none';
+    bar.style.display = visible ? 'none' : 'flex';
+  }
+
+  function toggleDebugMode(active) {
+    debugRainActive = active;
+    loadWeatherToday();
+  }
+
+  function debugParams() {
+    if (!debugRainActive) return '';
+    const prob = document.getElementById('debug-rain-slider').value;
+    return `?debugRain=true&rainProb=${prob}`;
+  }
+
+  // ── Calendar state ─────────────────────────────────────────────────────
+  let calendarData   = {};
+  let activeDayDate  = null;
+  let calVisits      = [];
+  let calSelectedIds = new Set();
+
+  async function loadCalendar(force = false) {
+    try {
+      const url = force ? `${API}/api/weather/calendar?force=true` : `${API}/api/weather/calendar`;
+      const res  = await fetch(url);
+      const data = await res.json();
+      if (data.error) {
+        document.getElementById('calendar-grid').innerHTML =
+          `<div class="empty-state" style="grid-column:1/-1;">${escHtml(data.error)}</div>`;
+        return;
+      }
+      calendarData = data.calendar || {};
+      document.getElementById('calendar-status').textContent = data.cached ? '(cached)' : '';
+      renderCalendar();
+    } catch (err) {
+      document.getElementById('calendar-grid').innerHTML =
+        `<div class="empty-state" style="grid-column:1/-1;">Could not load calendar — is Jobber connected?</div>`;
+    }
+  }
+
+  function renderCalendar() {
+    const grid = document.getElementById('calendar-grid');
+    const days = Object.values(calendarData).sort((a, b) => a.date.localeCompare(b.date));
+
+    if (!days.length) {
+      grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">No forecast data available</div>';
+      return;
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    grid.innerHTML = days.map((d) => {
+      const isToday  = d.date === todayStr;
+      const isActive = d.date === activeDayDate;
+      const rainyCls = d.isRainy ? ' rainy' : '';
+      const activeCls = isActive ? ' active' : '';
+      const fillColor = d.rainProb >= 0.6 ? '#f87171' : d.rainProb >= 0.35 ? '#fbbf24' : '#34d399';
+      const visitCount = d.visits?.length || 0;
+      const dayLabel = isToday ? 'Today' : (d.dayName || d.date.slice(5)).slice(0, 3).toUpperCase();
+
+      return `<div class="cal-day${rainyCls}${activeCls}" onclick="selectCalDay('${d.date}')">
+        <div class="cal-day-name">${dayLabel}</div>
+        <div class="cal-day-date">${d.date.slice(5)}</div>
+        <div class="cal-pop-bar">
+          <div class="cal-pop-fill" style="width:${d.maxPopPct}%;background:${fillColor};"></div>
+        </div>
+        <div class="cal-visit-count" style="color:${visitCount > 0 ? 'var(--text-1)' : 'var(--text-3)'};">
+          ${d.isRainy ? '&#9928; ' : ''}${visitCount} visit${visitCount !== 1 ? 's' : ''}
+        </div>
+        ${d.maxPopPct > 0 ? `<div style="font-size:0.62rem;color:${fillColor};margin-top:0.2rem;">${d.maxPopPct}% rain</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  async function selectCalDay(dateStr) {
+    activeDayDate = activeDayDate === dateStr ? null : dateStr;
+    renderCalendar();
+
+    const panel = document.getElementById('calendar-day-panel');
+    if (!activeDayDate) { panel.style.display = 'none'; return; }
+
+    const day = calendarData[dateStr];
+    calVisits = day?.visits || [];
+    calSelectedIds = new Set();
+
+    const dateLabel = (() => {
+      const d = new Date(dateStr + 'T12:00:00');
+      return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    })();
+
+    document.getElementById('cal-day-title').textContent =
+      `${dateLabel} — ${calVisits.length} visit${calVisits.length !== 1 ? 's' : ''}` +
+      (day?.isRainy ? ' &#9928; Rain expected' : '');
+    document.getElementById('calendar-day-panel').style.display = 'block';
+
+    renderCalVisits();
+
+    // Load open days into dropdown if not already done
+    if (!openDays.length) await loadOpenDays();
+    const sel = document.getElementById('cal-reschedule-select');
+    const filtered = openDays.filter((d) => d.date !== dateStr);
+    sel.innerHTML = '<option value="">Select a date to move visits to...</option>' +
+      filtered.map((d) => {
+        const busy = d.clientCount > 0;
+        return `<option value="${d.date}" data-label="${escHtml(d.label)}" ${busy ? 'style="color:#fbbf24;"' : ''}>
+          ${escHtml(d.label)}
+        </option>`;
+      }).join('');
+    updateCalMessagePreview();
+
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function renderCalVisits() {
+    const ul = document.getElementById('cal-visit-list');
+    if (!calVisits.length) {
+      ul.innerHTML = '<li class="empty-state" style="padding:1rem;">No visits scheduled this day</li>';
+      document.getElementById('cal-reschedule-btn').disabled = true;
+      return;
+    }
+    ul.innerHTML = calVisits.map((v) => {
+      const checked  = calSelectedIds.has(v.id) ? 'checked' : '';
+      const timeStr  = v.startAt ? new Date(v.startAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      const smsTag   = v.phone && v.smsAllowed ? `<span class="pill pill-green">SMS</span>` : `<span class="pill pill-gray">No SMS</span>`;
+      const emailTag = v.email ? `<span class="pill pill-blue">Email</span>` : `<span class="pill pill-gray">No Email</span>`;
+      return `<li class="cal-visit-item">
+        <input type="checkbox" ${checked} onchange="toggleCalVisit('${escHtml(v.id)}', this.checked)" />
+        <div class="cal-visit-meta">
+          <div class="cal-visit-name">${escHtml(v.clientName || v.title)}</div>
+          <div class="cal-visit-time">${escHtml(v.title)} ${timeStr ? '· ' + timeStr : ''}</div>
+        </div>
+        <div style="display:flex;gap:0.3rem;">${smsTag} ${emailTag}</div>
+      </li>`;
+    }).join('');
+    updateCalSelectedCount();
+  }
+
+  function toggleCalVisit(id, checked) {
+    if (checked) calSelectedIds.add(id);
+    else calSelectedIds.delete(id);
+    updateCalSelectedCount();
+  }
+
+  function selectAllCalVisits() {
+    if (calSelectedIds.size === calVisits.length) calSelectedIds.clear();
+    else calVisits.forEach((v) => calSelectedIds.add(v.id));
+    renderCalVisits();
+  }
+
+  function updateCalSelectedCount() {
+    const n = calSelectedIds.size;
+    document.getElementById('cal-selected-count').textContent = `${n} selected`;
+    document.getElementById('cal-reschedule-btn').disabled =
+      n === 0 || !document.getElementById('cal-reschedule-select').value;
+  }
+
+  function updateCalMessagePreview() {
+    const sel   = document.getElementById('cal-reschedule-select');
+    const opt   = sel.options[sel.selectedIndex];
+    const label = (opt?.dataset?.label || sel.value || '[date]').split(' — ')[0];
+    document.getElementById('cal-message-preview').value =
+      `Hey there! Due to rain in the forecast, your appointment has been rescheduled ` +
+      `to ${label}. We appreciate your flexibility! — No-Bs Yardwork`;
+    document.getElementById('cal-reschedule-btn').disabled =
+      !sel.value || calSelectedIds.size === 0;
+  }
+
+  async function rescheduleVisits() {
+    const sel      = document.getElementById('cal-reschedule-select');
+    const targetDate = sel.value;
+    const msg      = document.getElementById('cal-message-preview').value.trim();
+    const resultEl = document.getElementById('cal-reschedule-result');
+
+    if (!targetDate) return alert('Please select a target date.');
+    if (calSelectedIds.size === 0) return alert('Please select at least one visit.');
+
+    const selectedVisits = calVisits.filter((v) => calSelectedIds.has(v.id));
+    const btn = document.getElementById('cal-reschedule-btn');
+    btn.disabled = true;
+    btn.textContent = 'Moving visits...';
+    resultEl.style.display = 'none';
+
+    try {
+      const res  = await fetch(`${API}/api/weather/reschedule-visits`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visits: selectedVisits, targetDate, message: msg || undefined }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        resultEl.className = 'notify-result success';
+        resultEl.innerHTML =
+          `&#10003; Moved ${data.moved} visits in Jobber &mdash; SMS: ${data.smsCount}, Email: ${data.emailCount}` +
+          (data.errors?.length ? ` (${data.errors.length} errors)` : '');
+        resultEl.style.display = 'block';
+        calSelectedIds.clear();
+        await loadCalendar(true);
+        await loadHistory();
+      } else {
+        resultEl.className = 'notify-result error';
+        resultEl.textContent = '&#10007; ' + (data.error || 'Reschedule failed');
+        resultEl.style.display = 'block';
+      }
+    } catch (err) {
+      resultEl.className = 'notify-result error';
+      resultEl.textContent = '&#10007; Network error: ' + err.message;
+      resultEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '&#8634; Move &amp; Notify Clients';
+    }
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────
