@@ -448,23 +448,6 @@ router.post('/settings', async (req, res) => {
 });
 
 /**
- * GET /api/weather/history
- * Returns last 20 rain reschedule events for this user.
- */
-router.get('/history', async (req, res) => {
-  try {
-    const records = await prisma.rainReschedule.findMany({
-      where:   { userId: req.user.userId },
-      orderBy: { notifiedAt: 'desc' },
-      take: 20,
-    });
-    res.json({ records });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/**
  * POST /api/weather/run-check
  * Manual trigger for the morning rain check (for testing).
  */
