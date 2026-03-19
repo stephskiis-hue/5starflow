@@ -28,6 +28,48 @@
     body { font-family: 'Inter', sans-serif; background-color: #000000; }
     .glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); }
     .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+
+    /* Score circle */
+    .score-circle {
+      width: 80px; height: 80px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; font-weight: 900; flex-shrink: 0;
+    }
+    .score-circle.green  { background: rgba(71,226,102,0.12); border: 2px solid rgba(71,226,102,0.35); color: #47e266; }
+    .score-circle.orange { background: rgba(251,191,36,0.12);  border: 2px solid rgba(251,191,36,0.35);  color: #fbbf24; }
+    .score-circle.red    { background: rgba(248,113,113,0.12); border: 2px solid rgba(248,113,113,0.35); color: #f87171; }
+    .score-circle.none   { background: rgba(139,145,160,0.1);  border: 2px solid rgba(139,145,160,0.2);  color: #8b91a0; }
+
+    /* Tier cards */
+    .tier-card { position: relative; transition: border-color 0.2s; }
+    .tier-card.locked { opacity: 0.55; pointer-events: none; }
+    .tier-card .lock-overlay {
+      position: absolute; inset: 0; border-radius: inherit;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.35); backdrop-filter: blur(1px);
+      pointer-events: auto; cursor: default; border-radius: 0.75rem;
+    }
+
+    /* Advanced settings collapsible */
+    #adv-body { display: none; }
+    #adv-body.open { display: block; }
+    #adv-toggle-icon { transition: transform 0.2s; }
+    #adv-toggle-icon.open { transform: rotate(180deg); }
+
+    /* Issues list */
+    .issue-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .issue-row:last-child { border-bottom: none; }
+    .issue-score-badge {
+      font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 9999px; flex-shrink: 0; margin-top: 2px;
+    }
+
+    /* CWV table */
+    .cwv-table td { padding: 8px 12px; font-size: 0.8rem; }
+    .cwv-table tr { border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+    /* Excluded change item */
+    .excluded { opacity: 0.4; }
+    .excluded .exclude-btn { background: rgba(139,145,160,0.1); color: #8b91a0; }
   </style>
 </head>
 <body class="bg-black text-zinc-100 dark min-h-screen">
@@ -89,94 +131,209 @@
   <main class="pl-80 pr-12 py-10 min-h-screen">
 
     <!-- Page Header -->
-    <div class="mb-10">
+    <div class="mb-8">
       <h2 class="text-2xl font-black text-zinc-100 tracking-tight">SEO Audit</h2>
-      <p class="text-sm text-on-surface-variant mt-1">Search performance and optimization</p>
+      <p class="text-sm text-on-surface-variant mt-1">Check your site score, get an AI fix plan, or run a full analysis</p>
     </div>
 
-    <!-- Top Actions -->
-    <div class="flex gap-3 mb-10">
-      <button class="px-5 py-2.5 text-sm font-semibold rounded-xl border border-white/10 text-zinc-300 hover:bg-white/5 transition-colors" onclick="loadPage()">Refresh</button>
-      <button class="px-5 py-2.5 text-sm font-semibold rounded-xl bg-primary text-zinc-900 hover:bg-primary/90 transition-colors" onclick="runAudit(this)" id="run-btn">Run Audit Now</button>
+    <!-- ── Step 1: URL Input ─────────────────────────────────────── -->
+    <div class="glass-card rounded-xl p-6 mb-8">
+      <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-3">Your Website URL</label>
+      <div class="flex gap-3">
+        <input
+          type="url"
+          id="site-url-input"
+          placeholder="https://nobsyardwork.com"
+          class="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-primary/50"
+        />
+        <button
+          id="check-btn"
+          onclick="handleCheckSite()"
+          class="px-6 py-3 text-sm font-semibold rounded-lg bg-primary text-zinc-900 hover:bg-primary/90 transition-colors flex items-center gap-2"
+        >
+          <span class="material-symbols-outlined text-[18px]">search</span>
+          Check My Site
+        </button>
+      </div>
+      <p id="url-error" class="text-xs text-red-400 mt-2 hidden">Please enter a valid URL (e.g. https://example.com)</p>
     </div>
 
-    <!-- Stats Grid -->
-    <div class="grid grid-cols-4 gap-6 mb-10" id="stats-row">
-      <div class="glass-card rounded-xl p-6">
-        <div class="text-3xl font-black text-zinc-100 mb-2" id="stat-score">—</div>
-        <div class="text-sm text-on-surface-variant">PageSpeed Score</div>
-      </div>
-      <div class="glass-card rounded-xl p-6">
-        <div class="text-3xl font-black text-zinc-100 mb-2" id="stat-lcp">—</div>
-        <div class="text-sm text-on-surface-variant">LCP (s)</div>
-      </div>
-      <div class="glass-card rounded-xl p-6">
-        <div class="text-3xl font-black text-zinc-100 mb-2" id="stat-proposals">—</div>
-        <div class="text-sm text-on-surface-variant">Pending Proposals</div>
-      </div>
-      <div class="glass-card rounded-xl p-6">
-        <div class="text-2xl font-black text-zinc-100 mb-2" id="stat-last-audit">—</div>
-        <div class="text-sm text-on-surface-variant">Last Audit</div>
-      </div>
-    </div>
+    <!-- ── Step 2: Tier Selector ─────────────────────────────────── -->
+    <div class="grid grid-cols-3 gap-5 mb-8" id="tier-grid">
 
-    <!-- Bento Layout: Score + Content -->
-    <div class="grid grid-cols-12 gap-6 mb-10">
-      <!-- Score Gauge -->
-      <div class="col-span-4 glass-card rounded-xl p-8">
-        <div id="score-gauge-container">
-          <div class="flex flex-col items-center justify-center py-8">
-            <svg class="w-40 h-40 -rotate-90" viewBox="0 0 192 192">
-              <circle class="text-white/5" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-width="8"/>
-              <circle id="seo-circle" class="text-tertiary" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-dasharray="503" stroke-dashoffset="503" stroke-width="8" style="transition:stroke-dashoffset 0.8s ease; filter:drop-shadow(0 0 8px rgba(233,179,255,0.4));"/>
-            </svg>
-            <div class="absolute flex flex-col items-center">
-              <span class="text-4xl font-black text-white" id="seo-score">—</span>
-              <span class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">/ 100</span>
-            </div>
+      <!-- Card 1: Free -->
+      <div class="glass-card rounded-xl p-6 border border-white/10 tier-card flex flex-col" id="tier-free">
+        <div class="flex items-start justify-between mb-3">
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-widest text-secondary px-2 py-0.5 rounded-full bg-secondary/10 border border-secondary/20">Free</span>
+            <h3 class="text-base font-bold text-zinc-100 mt-2">Site Score</h3>
+          </div>
+          <span class="material-symbols-outlined text-[28px] text-secondary/50">speed</span>
+        </div>
+        <p class="text-xs text-on-surface-variant mb-5 flex-1">Instant Google PageSpeed score — no account needed. See Core Web Vitals and top issues.</p>
+        <button
+          id="free-scan-btn"
+          onclick="runFreeScan()"
+          class="w-full px-4 py-2.5 text-sm font-semibold rounded-lg bg-secondary/10 text-secondary border border-secondary/20 hover:bg-secondary/20 transition-colors"
+        >
+          Run Free Scan
+        </button>
+      </div>
+
+      <!-- Card 2: Pro -->
+      <div class="glass-card rounded-xl p-6 border border-white/10 tier-card flex flex-col" id="tier-pro">
+        <div class="flex items-start justify-between mb-3">
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-widest text-primary px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">Pro</span>
+            <h3 class="text-base font-bold text-zinc-100 mt-2">AI Fix Plan</h3>
+          </div>
+          <span class="material-symbols-outlined text-[28px] text-primary/50">auto_fix_high</span>
+        </div>
+        <p class="text-xs text-on-surface-variant mb-1 flex-1">AI scans your site and builds a prioritized fix plan — you pick what to apply. Powered by Claude Haiku.</p>
+        <span id="pro-key-badge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 inline-block mb-4 hidden">Requires Claude API Key</span>
+        <button
+          id="pro-audit-btn"
+          onclick="runTierAudit('pro', this)"
+          class="w-full px-4 py-2.5 text-sm font-semibold rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors"
+        >
+          Run Pro Audit
+        </button>
+        <div class="lock-overlay hidden" id="pro-lock">
+          <div class="text-center px-4">
+            <span class="material-symbols-outlined text-[32px] text-zinc-400 block mb-1">lock</span>
+            <span class="text-xs text-zinc-400">Add ANTHROPIC_API_KEY to .env</span>
           </div>
         </div>
       </div>
 
-      <!-- Main Content -->
-      <div class="col-span-8 space-y-6">
-        <!-- Proposals Section -->
-        <div id="proposals-section"></div>
+      <!-- Card 3: Pro+ -->
+      <div class="glass-card rounded-xl p-6 border border-white/10 tier-card flex flex-col" id="tier-proplus">
+        <div class="flex items-start justify-between mb-3">
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-widest text-tertiary px-2 py-0.5 rounded-full bg-tertiary/10 border border-tertiary/20">Pro+</span>
+            <h3 class="text-base font-bold text-zinc-100 mt-2">Full Analysis</h3>
+          </div>
+          <span class="material-symbols-outlined text-[28px] text-tertiary/50">manage_search</span>
+        </div>
+        <p class="text-xs text-on-surface-variant mb-1 flex-1">Everything in Pro plus competitor research and keyword gap analysis. Powered by Claude Sonnet.</p>
+        <span id="proplus-key-badge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 inline-block mb-4 hidden">Requires Claude API Key</span>
+        <button
+          id="proplus-audit-btn"
+          onclick="runTierAudit('pro-plus', this)"
+          class="w-full px-4 py-2.5 text-sm font-semibold rounded-lg bg-tertiary/10 text-tertiary border border-tertiary/20 hover:bg-tertiary/20 transition-colors"
+        >
+          Run Pro+ Audit
+        </button>
+        <div class="lock-overlay hidden" id="proplus-lock">
+          <div class="text-center px-4">
+            <span class="material-symbols-outlined text-[32px] text-zinc-400 block mb-1">lock</span>
+            <span class="text-xs text-zinc-400">Add ANTHROPIC_API_KEY to .env</span>
+          </div>
+        </div>
+      </div>
 
-        <!-- Latest Audit Results -->
-        <div class="glass-card rounded-xl p-6">
-          <h3 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-6">Latest Audit Results</h3>
-          <div id="audit-detail">
-            <div class="text-center py-8">
-              <p class="text-sm text-on-surface-variant">No audits yet. Click "Run Audit Now" to perform your first SEO audit.</p>
+    </div>
+
+    <!-- ── Results Area ──────────────────────────────────────────── -->
+
+    <!-- Free scan results -->
+    <div id="free-results" class="hidden mb-8">
+      <div class="glass-card rounded-xl p-6">
+        <h3 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-6">Free Scan Results</h3>
+
+        <!-- Score row -->
+        <div class="flex gap-8 mb-6">
+          <div class="flex flex-col items-center gap-2">
+            <div class="score-circle none" id="mobile-score-circle">—</div>
+            <span class="text-xs text-on-surface-variant">Mobile Score</span>
+          </div>
+          <div class="flex flex-col items-center gap-2">
+            <div class="score-circle none" id="desktop-score-circle">—</div>
+            <span class="text-xs text-on-surface-variant">Desktop Score</span>
+          </div>
+          <div class="flex-1">
+            <!-- Core Web Vitals table -->
+            <h4 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3">Core Web Vitals</h4>
+            <table class="cwv-table w-full">
+              <tbody id="cwv-tbody">
+                <tr><td class="text-on-surface-variant">LCP</td><td id="cwv-lcp-m" class="text-right">—</td><td id="cwv-lcp-d" class="text-right text-on-surface-variant">—</td></tr>
+                <tr><td class="text-on-surface-variant">CLS</td><td id="cwv-cls-m" class="text-right">—</td><td id="cwv-cls-d" class="text-right text-on-surface-variant">—</td></tr>
+                <tr><td class="text-on-surface-variant">FID</td><td id="cwv-fid-m" class="text-right">—</td><td id="cwv-fid-d" class="text-right text-on-surface-variant">—</td></tr>
+              </tbody>
+            </table>
+            <p class="text-[10px] text-zinc-600 mt-2">Mobile &nbsp;|&nbsp; Desktop</p>
+          </div>
+        </div>
+
+        <!-- Issues list -->
+        <div id="issues-container">
+          <h4 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3">Issues</h4>
+          <div id="issues-list" class="mb-4"></div>
+          <!-- Upgrade callout -->
+          <div class="rounded-lg border border-primary/25 bg-primary/5 p-4 text-sm text-primary flex items-start gap-3">
+            <span class="material-symbols-outlined text-[20px] flex-shrink-0 mt-0.5">auto_fix_high</span>
+            <div>
+              Want to auto-fix these issues? <strong>Upgrade to Pro</strong> — runs an AI audit and builds a prioritized fix plan.
+              <span class="text-on-surface-variant ml-1">(Requires a Claude API key in your .env)</span>
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- AI audit loading state -->
+    <div id="audit-running" class="hidden mb-8">
+      <div class="glass-card rounded-xl p-8 flex items-center gap-4">
+        <svg class="animate-spin w-6 h-6 text-primary flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <div>
+          <p class="text-sm font-semibold text-zinc-100" id="audit-running-title">Audit running...</p>
+          <p class="text-xs text-on-surface-variant mt-0.5" id="audit-running-sub">This may take 30–60 seconds. The page will update when complete.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI proposals (pro / pro+) -->
+    <div id="proposals-section" class="mb-8"></div>
+
+    <!-- Latest audit detail (from /api/seo/status) -->
+    <div id="audit-detail-wrap" class="hidden mb-8">
+      <div class="glass-card rounded-xl p-6">
+        <h3 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-6">Latest Audit Results</h3>
+        <div id="audit-detail"></div>
       </div>
     </div>
 
     <!-- Audit History -->
-    <div class="glass-card rounded-xl p-6 mb-10">
-      <h3 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-6">Audit History</h3>
+    <div class="glass-card rounded-xl p-6 mb-8">
+      <h3 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-4">Audit History</h3>
       <div id="audit-history">
-        <div class="text-center py-8"><p class="text-sm text-on-surface-variant">No history yet.</p></div>
+        <div class="text-center py-6"><p class="text-sm text-on-surface-variant">No history yet.</p></div>
       </div>
     </div>
 
-    <!-- Settings -->
-    <div class="glass-card rounded-xl p-6">
-      <h3 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-6">SEO Settings</h3>
-      <div id="settings-content">
-        <div class="bg-primary/10 border border-primary/20 rounded-lg p-4 mb-6 text-sm text-primary">
-          Configure your site URL and competitor URLs first. Then run an audit.
+    <!-- ── Advanced Settings (collapsible) ──────────────────────── -->
+    <div class="glass-card rounded-xl overflow-hidden mb-10">
+      <button
+        onclick="toggleAdvanced()"
+        class="w-full flex items-center justify-between px-6 py-4 text-sm font-semibold text-zinc-300 hover:bg-white/5 transition-colors"
+      >
+        <span class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-[18px] text-on-surface-variant">tune</span>
+          Advanced Settings
+        </span>
+        <span class="material-symbols-outlined text-[20px] text-on-surface-variant" id="adv-toggle-icon">expand_more</span>
+      </button>
+
+      <div id="adv-body" class="px-6 pb-6 border-t border-white/5">
+        <div class="bg-primary/10 border border-primary/20 rounded-lg p-4 mt-6 mb-6 text-sm text-primary">
+          Configure competitor URLs, Google Search Console, and auto-deploy here.
           For keyword data, connect Google Search Console on the <a href="/connections.html" class="underline">App Connections</a> page.
         </div>
         <form id="settings-form" onsubmit="saveSettings(event)">
           <div class="space-y-6">
-            <div class="space-y-2">
-              <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Your Website URL</label>
-              <input type="url" id="s-siteUrl" placeholder="https://nobsyardwork.com" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-primary/50" />
-            </div>
             <div class="space-y-2">
               <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Competitor URLs (one per line)</label>
               <textarea id="s-competitorUrls" placeholder="https://competitor1.com&#10;https://competitor2.com" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-primary/50 min-h-24"></textarea>
@@ -193,13 +350,6 @@
                   <option value="false">Disabled</option>
                 </select>
               </div>
-            </div>
-            <div class="space-y-2">
-              <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Analysis Depth</label>
-              <select id="s-deepAnalysis" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50">
-                <option value="false">Standard — Haiku (~$0.007/audit)</option>
-                <option value="true">Deep — Sonnet (~$0.04/audit)</option>
-              </select>
             </div>
 
             <div class="border-t border-white/10 pt-6">
@@ -251,10 +401,17 @@
   </main>
 
 <script>
+  const API = window.location.origin;
+
+  // ── HTML escape ──────────────────────────────────────────────────
+  function escHtml(str) {
+    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
   // ── Auth ─────────────────────────────────────────────────────────
   async function logout() {
     try {
-      const res  = await fetch('/auth/logout', { method: 'POST' });
+      const res  = await fetch(`${API}/auth/logout`, { method: 'POST' });
       const data = await res.json();
       window.location.href = data.redirect || '/login.html';
     } catch { window.location.href = '/login.html'; }
@@ -262,7 +419,7 @@
 
   async function loadSidebarBadge() {
     try {
-      const res  = await fetch('/api/pending-reviews');
+      const res  = await fetch(`${API}/api/pending-reviews`);
       const data = await res.json();
       const n    = data.pendingCount ?? 0;
       document.getElementById('sidebar-pending').textContent = n > 0 ? n : '✓';
@@ -271,7 +428,7 @@
 
   async function loadUserInfo() {
     try {
-      const res    = await fetch('/api/status');
+      const res    = await fetch(`${API}/api/status`);
       const status = await res.json();
       const email  = status.userEmail || 'admin';
       document.getElementById('user-email').textContent  = email;
@@ -291,49 +448,247 @@
     return `${Math.floor(h/24)}d ago`;
   }
 
-  function scoreClass(s) {
-    if (s === null || s === undefined) return 'none';
-    if (s >= 80) return 'good';
-    if (s >= 60) return 'avg';
-    return 'poor';
+  function scoreColorClass(s) {
+    if (s === null || s === undefined || s === '') return 'none';
+    const n = Number(s);
+    if (n >= 75) return 'green';
+    if (n >= 50) return 'orange';
+    return 'red';
   }
 
-  function lcpClass(v) {
-    if (!v) return 'none';
-    if (v <= 2.5) return 'good';
-    if (v <= 4.0) return 'avg';
-    return 'poor';
+  function scoreCircleHtml(score) {
+    const cls = scoreColorClass(score);
+    const label = (score !== null && score !== undefined) ? score : '—';
+    return `<div class="score-circle ${cls}">${escHtml(String(label))}</div>`;
+  }
+
+  function cwvColor(value, type) {
+    if (value === null || value === undefined) return 'text-on-surface-variant';
+    if (type === 'lcp')  return value <= 2.5 ? 'text-secondary' : value <= 4.0 ? 'text-yellow-400' : 'text-red-400';
+    if (type === 'cls')  return value <= 0.1 ? 'text-secondary' : value <= 0.25 ? 'text-yellow-400' : 'text-red-400';
+    if (type === 'fid')  return value <= 100 ? 'text-secondary' : value <= 300 ? 'text-yellow-400' : 'text-red-400';
+    return 'text-on-surface-variant';
   }
 
   function statusBadge(status) {
-    const map = { pending: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20', approved: 'bg-secondary/10 text-secondary border border-secondary/20', declined: 'bg-white/5 text-on-surface-variant border border-white/10', complete: 'bg-secondary/10 text-secondary border border-secondary/20', running: 'bg-primary/10 text-primary border border-primary/20', failed: 'bg-red-500/10 text-red-400 border border-red-500/20' };
+    const map = {
+      pending:  'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20',
+      approved: 'bg-secondary/10 text-secondary border border-secondary/20',
+      declined: 'bg-white/5 text-on-surface-variant border border-white/10',
+      complete: 'bg-secondary/10 text-secondary border border-secondary/20',
+      running:  'bg-primary/10 text-primary border border-primary/20',
+      failed:   'bg-red-500/10 text-red-400 border border-red-500/20',
+    };
     const labels = { pending: 'Pending', approved: 'Approved', declined: 'Declined', complete: 'Complete', running: 'Running', failed: 'Failed' };
-    return `<span class="rounded-full px-2.5 py-0.5 text-xs font-semibold ${map[status] || 'bg-white/5 text-on-surface-variant border border-white/10'}">${labels[status] || status}</span>`;
+    return `<span class="rounded-full px-2.5 py-0.5 text-xs font-semibold ${map[status] || 'bg-white/5 text-on-surface-variant border border-white/10'}">${escHtml(labels[status] || status)}</span>`;
   }
 
-  // ── Run audit ─────────────────────────────────────────────────────
-  async function runAudit(btn) {
-    btn.disabled    = true;
-    btn.textContent = 'Starting...';
+  function issueBadge(score) {
+    const n = Number(score);
+    if (n >= 75) return `<span class="issue-score-badge bg-secondary/10 text-secondary border border-secondary/20">${n}</span>`;
+    if (n >= 50) return `<span class="issue-score-badge bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">${n}</span>`;
+    return `<span class="issue-score-badge bg-red-500/10 text-red-400 border border-red-500/20">${n}</span>`;
+  }
+
+  // ── Advanced settings toggle ──────────────────────────────────────
+  function toggleAdvanced() {
+    const body = document.getElementById('adv-body');
+    const icon = document.getElementById('adv-toggle-icon');
+    body.classList.toggle('open');
+    icon.classList.toggle('open');
+  }
+
+  // ── Step 1: Check My Site ─────────────────────────────────────────
+  async function handleCheckSite() {
+    const input = document.getElementById('site-url-input');
+    const url   = input.value.trim();
+    const errEl = document.getElementById('url-error');
+
+    if (!url || !/^https?:\/\/.+/.test(url)) {
+      errEl.classList.remove('hidden');
+      return;
+    }
+    errEl.classList.add('hidden');
+
+    // Save URL to settings
     try {
-      const res  = await fetch('/api/seo/run-audit', { method: 'POST' });
+      await fetch(`${API}/api/seo/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ siteUrl: url }),
+      });
+    } catch {}
+
+    // Trigger free scan immediately
+    runFreeScan();
+  }
+
+  // ── Free scan ────────────────────────────────────────────────────
+  async function runFreeScan() {
+    const url = document.getElementById('site-url-input').value.trim();
+    if (!url) {
+      document.getElementById('url-error').classList.remove('hidden');
+      return;
+    }
+    document.getElementById('url-error').classList.add('hidden');
+
+    const btn = document.getElementById('free-scan-btn');
+    btn.disabled = true;
+    btn.textContent = 'Scanning...';
+
+    try {
+      const res  = await fetch(`${API}/api/seo/pagespeed`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ url }),
+      });
       const data = await res.json();
-      btn.textContent = data.success ? 'Audit Running...' : 'Error';
-      if (data.success) setTimeout(() => loadPage(), 5000);
-    } catch {
-      btn.textContent = 'Error';
+
+      if (!res.ok) {
+        showToast(data.error || 'Scan failed', 'error');
+        return;
+      }
+
+      renderFreeScanResults(data);
+
+      // Update tier lock state based on hasClaudeKey
+      setTierLockState(!data.hasClaudeKey);
+    } catch (err) {
+      showToast('Scan error: ' + err.message, 'error');
     } finally {
-      setTimeout(() => { btn.disabled = false; btn.textContent = 'Run Audit Now'; }, 8000);
+      btn.disabled = false;
+      btn.textContent = 'Run Free Scan';
     }
   }
 
-  // ── HTML escape helper ────────────────────────────────────────────
-  function escHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  function renderFreeScanResults(data) {
+    const wrap = document.getElementById('free-results');
+    wrap.classList.remove('hidden');
+
+    // Scores
+    const mScore = data.mobile?.score;
+    const dScore = data.desktop?.score;
+
+    const mCircle  = document.getElementById('mobile-score-circle');
+    const dCircle  = document.getElementById('desktop-score-circle');
+    mCircle.textContent = mScore !== undefined ? mScore : '—';
+    mCircle.className   = 'score-circle ' + scoreColorClass(mScore);
+    dCircle.textContent = dScore !== undefined ? dScore : '—';
+    dCircle.className   = 'score-circle ' + scoreColorClass(dScore);
+
+    // CWV
+    const m = data.mobile  || {};
+    const d = data.desktop || {};
+
+    function cwvCell(val, type, unit) {
+      if (val === null || val === undefined) return '<span class="text-on-surface-variant">—</span>';
+      return `<span class="${cwvColor(val, type)} font-semibold">${val}${unit}</span>`;
+    }
+
+    document.getElementById('cwv-lcp-m').innerHTML = cwvCell(m.lcp, 'lcp', 's');
+    document.getElementById('cwv-lcp-d').innerHTML = cwvCell(d.lcp, 'lcp', 's');
+    document.getElementById('cwv-cls-m').innerHTML = cwvCell(m.cls, 'cls', '');
+    document.getElementById('cwv-cls-d').innerHTML = cwvCell(d.cls, 'cls', '');
+    document.getElementById('cwv-fid-m').innerHTML = cwvCell(m.fid, 'fid', 'ms');
+    document.getElementById('cwv-fid-d').innerHTML = cwvCell(d.fid, 'fid', 'ms');
+
+    // Issues grouped by category
+    const issues   = data.issues || [];
+    const groups   = { performance: [], seo: [], accessibility: [] };
+    const catLabels = { performance: 'Performance', seo: 'SEO', accessibility: 'Accessibility' };
+
+    issues.forEach(iss => {
+      const cat = iss.category || 'performance';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(iss);
+    });
+
+    const listEl = document.getElementById('issues-list');
+    if (!issues.length) {
+      listEl.innerHTML = '<p class="text-sm text-on-surface-variant py-2">No issues detected.</p>';
+    } else {
+      listEl.innerHTML = Object.entries(groups).map(([cat, items]) => {
+        if (!items.length) return '';
+        const rows = items.map(iss => `
+          <div class="issue-row">
+            ${issueBadge(iss.score)}
+            <div class="flex-1">
+              <div class="text-sm text-zinc-100">${escHtml(iss.title)}</div>
+              ${iss.savings ? `<div class="text-xs text-on-surface-variant mt-0.5">Savings: ${escHtml(iss.savings)}</div>` : ''}
+            </div>
+          </div>`).join('');
+        return `
+          <div class="mb-4">
+            <div class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2">${escHtml(catLabels[cat] || cat)}</div>
+            ${rows}
+          </div>`;
+      }).join('');
+    }
   }
 
-  // ── Proposal state ─────────────────────────────────────────────────
-  const proposalState = {}; // { [proposalId]: { excluded: Set<string>, changeIds: string[] } }
+  // ── Tier lock state ───────────────────────────────────────────────
+  function setTierLockState(isLocked) {
+    ['pro', 'proplus'].forEach(tier => {
+      const lock  = document.getElementById(`${tier}-lock`);
+      const badge = document.getElementById(`${tier}-key-badge`);
+      if (isLocked) {
+        lock?.classList.remove('hidden');
+        badge?.classList.remove('hidden');
+      } else {
+        lock?.classList.add('hidden');
+        badge?.classList.add('hidden');
+      }
+    });
+  }
+
+  // ── Tier audits (Pro / Pro+) ──────────────────────────────────────
+  async function runTierAudit(tier, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Starting...';
+
+    const runningEl    = document.getElementById('audit-running');
+    const runningTitle = document.getElementById('audit-running-title');
+    const runningSub   = document.getElementById('audit-running-sub');
+    runningTitle.textContent = tier === 'pro-plus' ? 'Running Pro+ Audit...' : 'Running Pro Audit...';
+    runningSub.textContent   = 'This may take 30–90 seconds. The page will refresh when complete.';
+    runningEl.classList.remove('hidden');
+
+    try {
+      const res  = await fetch(`${API}/api/seo/run-audit`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ tier }),
+      });
+      const data = await res.json();
+
+      if (res.status === 402) {
+        showToast('Add ANTHROPIC_API_KEY to your .env to unlock AI audits', 'error');
+        runningEl.classList.add('hidden');
+        return;
+      }
+
+      if (!data.success) {
+        showToast(data.error || data.message || 'Audit failed', 'error');
+        runningEl.classList.add('hidden');
+        return;
+      }
+
+      showToast('Audit started! Results will appear shortly.', 'success');
+      // Poll for completion
+      setTimeout(() => { loadPage(); runningEl.classList.add('hidden'); }, 8000);
+    } catch (err) {
+      showToast('Error: ' + err.message, 'error');
+      runningEl.classList.add('hidden');
+    } finally {
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = tier === 'pro-plus' ? 'Run Pro+ Audit' : 'Run Pro Audit';
+      }, 10000);
+    }
+  }
+
+  // ── Proposal state ────────────────────────────────────────────────
+  const proposalState = {};
 
   function toggleExclude(proposalId, cid) {
     const state = proposalState[proposalId];
@@ -366,12 +721,11 @@
     if (approveBtn) approveBtn.disabled  = selected === 0;
   }
 
-  // ── Decline all (or legacy approve) ───────────────────────────────
   async function respond(id, decision) {
     const btn = document.getElementById(`respond-${decision}-${id}`);
     if (btn) { btn.disabled = true; btn.textContent = decision === 'approved' ? 'Approving...' : 'Declining...'; }
     try {
-      const res  = await fetch(`/api/seo/proposals/${id}/respond`, {
+      const res  = await fetch(`${API}/api/seo/proposals/${id}/respond`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decision }),
@@ -380,20 +734,19 @@
       if (data.success) {
         loadPage();
       } else {
-        alert('Error: ' + (data.error || 'Unknown error'));
+        showToast('Error: ' + (data.error || 'Unknown error'), 'error');
         if (btn) { btn.disabled = false; btn.textContent = decision === 'approved' ? 'Accept Plan' : 'Decline'; }
       }
     } catch (err) {
-      alert('Error: ' + err.message);
+      showToast('Error: ' + err.message, 'error');
     }
   }
 
-  // ── Approve selected changes only ─────────────────────────────────
   async function approveSelected(proposalId) {
     const state = proposalState[proposalId];
     if (!state) return;
 
-    const numericIds = state.changeIds.filter(id => !String(id).startsWith('idx-')).map(Number);
+    const numericIds  = state.changeIds.filter(id => !String(id).startsWith('idx-')).map(Number);
     const selectedIds = numericIds.filter(id => !state.excluded.has(String(id)));
     const hasRealIds  = numericIds.length > 0;
 
@@ -404,25 +757,25 @@
       const body = { decision: 'approved' };
       if (hasRealIds) body.selectedChangeIds = selectedIds;
 
-      const res  = await fetch(`/api/seo/proposals/${proposalId}/respond`, {
-        method: 'POST',
+      const res  = await fetch(`${API}/api/seo/proposals/${proposalId}/respond`, {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body:    JSON.stringify(body),
       });
       const data = await res.json();
       if (data.success) {
         const parts = [];
-        if (data.applied !== undefined) parts.push(`${data.applied} applied`);
-        if (data.failed)                parts.push(`${data.failed} failed`);
-        if (data.skipped)               parts.push(`${data.skipped} skipped`);
-        alert(`Plan approved! ${parts.join(', ') || 'Done'}.`);
+        if (data.applied  !== undefined) parts.push(`${data.applied} applied`);
+        if (data.failed)                 parts.push(`${data.failed} failed`);
+        if (data.skipped)                parts.push(`${data.skipped} skipped`);
+        showToast('Plan approved! ' + (parts.join(', ') || 'Done') + '.', 'success');
         loadPage();
       } else {
-        alert('Error: ' + (data.error || 'Unknown error'));
+        showToast('Error: ' + (data.error || 'Unknown error'), 'error');
         if (btn) { btn.disabled = false; btn.textContent = 'Approve Selected'; }
       }
     } catch (err) {
-      alert('Error: ' + err.message);
+      showToast('Error: ' + err.message, 'error');
       if (btn) { btn.disabled = false; }
     }
   }
@@ -440,7 +793,7 @@
       let insights = [];
       try { insights = JSON.parse(p.summaryJson || '[]'); } catch {}
 
-      const changes   = (p.changes || []).sort((a, b) => a.id - b.id);
+      const changes    = (p.changes || []).sort((a, b) => a.id - b.id);
       const proposalId = p.id;
 
       const items = insights.map((item, i) => {
@@ -467,7 +820,7 @@
           <div class="flex items-start justify-between mb-3">
             <div class="flex gap-2 flex-wrap">
               <span class="rounded-full px-2 py-0.5 text-xs font-semibold" style="background:${pColor}22;color:${pColor};border:1px solid ${pColor}44;">P${priority}</span>
-              <span class="rounded-full px-2 py-0.5 text-xs font-semibold" style="background:${eColor}22;color:${eColor};border:1px solid ${eColor}44;">${effort}</span>
+              <span class="rounded-full px-2 py-0.5 text-xs font-semibold" style="background:${eColor}22;color:${eColor};border:1px solid ${eColor}44;">${escHtml(effort)}</span>
               ${isGeo ? `<span class="rounded-full px-2 py-0.5 text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/30">AI/GEO</span>` : ''}
               ${item.type ? `<span class="rounded-full px-2 py-0.5 text-xs font-semibold bg-white/5 text-on-surface-variant border border-white/10">${escHtml(item.type)}</span>` : ''}
             </div>
@@ -483,14 +836,12 @@
         </div>`;
       });
 
-      const total      = items.length;
-      const changeIds  = insights.map((_, i) => (changes[i] ? String(changes[i].id) : `idx-${i}`));
-
-      // Initialize state
+      const total     = items.length;
+      const changeIds = insights.map((_, i) => (changes[i] ? String(changes[i].id) : `idx-${i}`));
       proposalState[proposalId] = { excluded: new Set(), changeIds };
 
       return `
-      <div class="glass-card rounded-xl p-6 border border-tertiary/20 mb-6" id="proposal-card-${proposalId}">
+      <div class="glass-card rounded-xl p-6 border border-tertiary/20 mb-4" id="proposal-card-${proposalId}">
         <div class="flex items-start justify-between mb-4">
           <div>
             <div class="text-lg font-bold text-tertiary mb-1">📋 ${escHtml(p.title)}</div>
@@ -501,9 +852,7 @@
         <div class="text-xs text-on-surface-variant mb-4 p-3 bg-white/5 rounded-lg inline-block">
           <span id="counter-text-${proposalId}">${total} of ${total} changes selected</span>
         </div>
-        <div class="space-y-0 mb-6">
-          ${items.join('')}
-        </div>
+        <div class="mb-6">${items.join('')}</div>
         <div class="flex gap-3 items-center">
           <button id="approve-btn-${proposalId}" class="px-4 py-2 text-sm font-semibold rounded-lg bg-secondary text-zinc-900 hover:bg-secondary/90 transition-colors" onclick="approveSelected('${proposalId}')">
             ✓ Approve Selected (<span id="approve-count-${proposalId}">${total}</span>)
@@ -517,41 +866,41 @@
     }).join('');
   }
 
-  // ── Render audit detail ───────────────────────────────────────────
+  // ── Render latest audit detail ────────────────────────────────────
   function renderAuditDetail(audit) {
-    const el = document.getElementById('audit-detail');
-    if (!audit) {
-      el.innerHTML = `<div class="text-center py-8"><p class="text-sm text-on-surface-variant">No audits yet. Click "Run Audit Now" to start.</p></div>`;
-      return;
-    }
+    const wrap = document.getElementById('audit-detail-wrap');
+    const el   = document.getElementById('audit-detail');
+    if (!audit) { wrap.classList.add('hidden'); return; }
+    wrap.classList.remove('hidden');
 
     const sc  = audit.performanceScore;
     const lcp = audit.lcp;
     const cls = audit.cls;
     const fid = audit.fid;
 
-    const cwvColor = (cls) => {
-      if (cls === 'good') return 'bg-secondary/10 text-secondary border border-secondary/20';
-      if (cls === 'avg') return 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20';
-      if (cls === 'poor') return 'bg-red-500/10 text-red-400 border border-red-500/20';
-      return 'bg-white/5 text-on-surface-variant border border-white/10';
+    const cwvBadge = (val, type, unit, good, warn) => {
+      if (val === null || val === undefined) return `<span class="rounded-full px-3 py-1 text-xs font-semibold bg-white/5 text-on-surface-variant border border-white/10">${type.toUpperCase()}: N/A</span>`;
+      const cls2 = val <= good ? 'bg-secondary/10 text-secondary border border-secondary/20'
+                 : val <= warn ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                 : 'bg-red-500/10 text-red-400 border border-red-500/20';
+      return `<span class="rounded-full px-3 py-1 text-xs font-semibold ${cls2}">${type.toUpperCase()}: ${val}${unit}</span>`;
     };
 
-    const cwv = [
-      lcp ? `<span class="rounded-full px-3 py-1 text-xs font-semibold ${cwvColor(lcpClass(lcp))}">LCP: ${lcp}s</span>` : `<span class="rounded-full px-3 py-1 text-xs font-semibold bg-white/5 text-on-surface-variant border border-white/10">LCP: N/A</span>`,
-      cls !== null && cls !== undefined ? `<span class="rounded-full px-3 py-1 text-xs font-semibold ${cwvColor(cls <= 0.1 ? 'good' : cls <= 0.25 ? 'avg' : 'poor')}">CLS: ${cls}</span>` : `<span class="rounded-full px-3 py-1 text-xs font-semibold bg-white/5 text-on-surface-variant border border-white/10">CLS: N/A</span>`,
-      fid !== null && fid !== undefined ? `<span class="rounded-full px-3 py-1 text-xs font-semibold ${cwvColor(fid <= 100 ? 'good' : fid <= 300 ? 'avg' : 'poor')}">FID: ${fid}ms</span>` : `<span class="rounded-full px-3 py-1 text-xs font-semibold bg-white/5 text-on-surface-variant border border-white/10">FID: N/A</span>`,
+    const cwvRow = [
+      cwvBadge(lcp, 'lcp', 's',  2.5, 4.0),
+      cwvBadge(cls, 'cls', '',   0.1, 0.25),
+      cwvBadge(fid, 'fid', 'ms', 100, 300),
     ].join('');
 
     let keywords = [];
     try { keywords = JSON.parse(audit.keywordsJson || '[]'); } catch {}
     const kwRows = keywords.slice(0, 8).map(k => `
       <tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
-        <td class="px-6 py-4 text-sm text-zinc-100">${k.keyword}</td>
-        <td class="px-6 py-4 text-sm text-on-surface-variant text-right">${k.clicks}</td>
-        <td class="px-6 py-4 text-sm text-on-surface-variant text-right">${k.impressions}</td>
-        <td class="px-6 py-4 text-sm text-on-surface-variant text-right">${k.position?.toFixed(1)}</td>
-        <td class="px-6 py-4 text-sm text-on-surface-variant text-right">${k.ctr}%</td>
+        <td class="px-4 py-3 text-sm text-zinc-100">${escHtml(k.keyword)}</td>
+        <td class="px-4 py-3 text-sm text-on-surface-variant text-right">${escHtml(String(k.clicks))}</td>
+        <td class="px-4 py-3 text-sm text-on-surface-variant text-right">${escHtml(String(k.impressions))}</td>
+        <td class="px-4 py-3 text-sm text-on-surface-variant text-right">${k.position?.toFixed(1) ?? '—'}</td>
+        <td class="px-4 py-3 text-sm text-on-surface-variant text-right">${escHtml(String(k.ctr))}%</td>
       </tr>`).join('');
 
     let competitors = [];
@@ -559,103 +908,124 @@
     const rankBadge = (r) => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : '';
     const compRows = competitors.map(c => `
       <tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
-        <td class="px-6 py-4 text-sm font-mono text-zinc-100 max-w-xs truncate" title="${c.url || ''}">
-          ${c.google_rank ? `<span title="Google rank #${c.google_rank} for '${c.search_query || ''}'" class="mr-1">${rankBadge(c.google_rank)}</span>` : ''}
+        <td class="px-4 py-3 text-sm font-mono text-zinc-100 max-w-xs truncate" title="${escHtml(c.url || '')}">
+          ${c.google_rank ? `<span title="Google rank #${escHtml(String(c.google_rank))}" class="mr-1">${rankBadge(c.google_rank)}</span>` : ''}
           ${c.auto_discovered ? '<span class="text-xs bg-primary/10 text-primary rounded px-1 mr-1">auto</span>' : ''}
-          ${c.url || c.error}
+          ${escHtml(c.url || c.error || '')}
         </td>
-        <td class="px-6 py-4 text-sm text-on-surface-variant">${c.title ? c.title.slice(0,40) + (c.title.length > 40 ? '…' : '') : '—'}</td>
-        <td class="px-6 py-4 text-sm text-on-surface-variant text-right">${c.wordCount ?? '—'}</td>
-        <td class="px-6 py-4 text-sm text-on-surface-variant text-right">${c.cityKeywordCount ?? '—'}</td>
-        <td class="px-6 py-4 text-sm text-on-surface-variant text-center">${c.hasLocalBusinessSchema ? '✓' : '—'}</td>
-        <td class="px-6 py-4 text-sm text-on-surface-variant text-right">${c.reviewMentions ?? '—'}</td>
-        ${(() => { const s = (c.schemaTypes || []).join(', ') || '—'; return `<td class="px-6 py-4 text-sm text-on-surface-variant truncate" title="${s}">${s.length > 35 ? s.slice(0,35)+'…' : s}</td>`; })()}
+        <td class="px-4 py-3 text-sm text-on-surface-variant">${escHtml((c.title || '').slice(0,40))}${(c.title || '').length > 40 ? '…' : ''}</td>
+        <td class="px-4 py-3 text-sm text-on-surface-variant text-right">${c.wordCount ?? '—'}</td>
+        <td class="px-4 py-3 text-sm text-on-surface-variant text-right">${c.cityKeywordCount ?? '—'}</td>
+        <td class="px-4 py-3 text-sm text-on-surface-variant text-center">${c.hasLocalBusinessSchema ? '✓' : '—'}</td>
+        <td class="px-4 py-3 text-sm text-on-surface-variant text-right">${c.reviewMentions ?? '—'}</td>
+        <td class="px-4 py-3 text-sm text-on-surface-variant truncate">${escHtml((c.schemaTypes || []).join(', ') || '—')}</td>
       </tr>`).join('');
 
     el.innerHTML = `
-      <div class="flex items-center gap-6 mb-8">
-        <div class="flex-shrink-0">
-          <svg class="w-32 h-32 -rotate-90" viewBox="0 0 192 192">
-            <circle class="text-white/5" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-width="8"/>
-            <circle class="text-tertiary" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-dasharray="503" stroke-dashoffset="${503 * (1 - (sc || 0) / 100)}" stroke-width="8" style="filter:drop-shadow(0 0 8px rgba(233,179,255,0.4));"/>
-          </svg>
-          <div class="absolute inset-0 flex flex-col items-center justify-center">
-            <span class="text-3xl font-black text-white">${sc !== null && sc !== undefined ? sc : '?'}</span>
-          </div>
+      <div class="flex items-center gap-6 mb-6 flex-wrap">
+        <div class="flex flex-col items-center gap-2 flex-shrink-0">
+          <div class="score-circle ${scoreColorClass(sc)}">${sc !== null && sc !== undefined ? sc : '—'}</div>
+          <span class="text-xs text-on-surface-variant">Mobile Score</span>
         </div>
         <div>
-          <h3 class="text-lg font-bold mb-2">${sc === null ? 'Score unavailable' : sc >= 80 ? 'Good performance' : sc >= 60 ? 'Needs improvement' : 'Poor performance'}</h3>
-          <p class="text-sm text-on-surface-variant mb-4">Mobile PageSpeed score for <strong>${audit.siteUrl}</strong></p>
-          <div class="flex gap-2 flex-wrap">${cwv}</div>
+          <h3 class="text-base font-bold mb-1">${sc === null ? 'Score unavailable' : sc >= 75 ? 'Good performance' : sc >= 50 ? 'Needs improvement' : 'Poor performance'}</h3>
+          <p class="text-sm text-on-surface-variant mb-3">PageSpeed for <strong>${escHtml(audit.siteUrl || '')}</strong></p>
+          <div class="flex gap-2 flex-wrap">${cwvRow}</div>
         </div>
       </div>
 
       ${keywords.length ? `
-      <div class="border-t border-white/10 pt-8 mb-8">
-        <h4 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-4">Top Keywords (last 28 days)</h4>
+      <div class="border-t border-white/10 pt-6 mb-6">
+        <h4 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3">Top Keywords (last 28 days)</h4>
         <div class="overflow-x-auto rounded-lg">
           <table class="w-full">
-            <thead><tr class="bg-white/5 border-b border-white/10"><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Keyword</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Clicks</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Impressions</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Position</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">CTR</th></tr></thead>
+            <thead><tr class="bg-white/5 border-b border-white/10">
+              <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Keyword</th>
+              <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Clicks</th>
+              <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Impressions</th>
+              <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Position</th>
+              <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">CTR</th>
+            </tr></thead>
             <tbody>${kwRows}</tbody>
           </table>
         </div>
-      </div>` : '<div class="text-sm text-on-surface-variant mt-4">Connect Google Search Console for keyword data.</div>'}
+      </div>` : '<p class="text-sm text-on-surface-variant mb-6">Connect Google Search Console for keyword data.</p>'}
 
       ${competitors.length ? `
-      <div class="border-t border-white/10 pt-8">
-        <h4 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-4">Competitor Snapshot</h4>
+      <div class="border-t border-white/10 pt-6">
+        <h4 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3">Competitor Snapshot</h4>
         <div class="overflow-x-auto rounded-lg">
           <table class="w-full">
-            <thead><tr class="bg-white/5 border-b border-white/10"><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">URL</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Title</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Words</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">City KWs</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">Local Schema</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Reviews</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Schema Types</th></tr></thead>
+            <thead><tr class="bg-white/5 border-b border-white/10">
+              <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">URL</th>
+              <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Title</th>
+              <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Words</th>
+              <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">City KWs</th>
+              <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">Local Schema</th>
+              <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Reviews</th>
+              <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Schema Types</th>
+            </tr></thead>
             <tbody>${compRows}</tbody>
           </table>
         </div>
       </div>` : ''}
 
-      <div class="text-xs text-on-surface-variant mt-8">Audit ran ${ago(audit.runAt)} — status: ${statusBadge(audit.status)}</div>`;
+      <div class="text-xs text-on-surface-variant mt-6">Audit ran ${ago(audit.runAt)} — status: ${statusBadge(audit.status)}</div>`;
   }
 
   // ── Render history ────────────────────────────────────────────────
   function renderHistory(audits) {
     const el = document.getElementById('audit-history');
     if (!audits.length) {
-      el.innerHTML = '<div class="text-center py-8"><p class="text-sm text-on-surface-variant">No history yet.</p></div>';
+      el.innerHTML = '<div class="text-center py-6"><p class="text-sm text-on-surface-variant">No history yet.</p></div>';
       return;
     }
-    const rows = audits.map(a => `
+    const rows = audits.slice(0, 5).map(a => `
       <tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
-        <td class="px-6 py-4 text-sm text-zinc-100">${new Date(a.runAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
-        <td class="px-6 py-4 text-sm text-on-surface-variant">${a.siteUrl}</td>
-        <td class="px-6 py-4 text-sm text-on-surface-variant text-center">${a.performanceScore !== null ? a.performanceScore : '—'}</td>
-        <td class="px-6 py-4 text-sm text-center">${statusBadge(a.status)}</td>
-        <td class="px-6 py-4 text-sm text-center">${a.proposal ? statusBadge(a.proposal.status) : '<span class="text-on-surface-variant">—</span>'}</td>
+        <td class="px-4 py-3 text-sm text-zinc-100">${new Date(a.runAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+        <td class="px-4 py-3 text-sm text-on-surface-variant">${escHtml(a.siteUrl || '')}</td>
+        <td class="px-4 py-3 text-sm text-center">
+          <span class="${scoreColorClass(a.performanceScore) === 'green' ? 'text-secondary' : scoreColorClass(a.performanceScore) === 'orange' ? 'text-yellow-400' : 'text-red-400'} font-semibold">
+            ${a.performanceScore !== null && a.performanceScore !== undefined ? a.performanceScore : '—'}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-sm text-center">${statusBadge(a.status)}</td>
+        <td class="px-4 py-3 text-sm text-center">${a.proposal ? statusBadge(a.proposal.status) : '<span class="text-on-surface-variant">—</span>'}</td>
       </tr>`).join('');
 
     el.innerHTML = `
       <div class="overflow-x-auto rounded-lg">
         <table class="w-full">
-          <thead><tr class="bg-white/5 border-b border-white/10"><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Date</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Site</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">Score</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">Audit</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">Proposal</th></tr></thead>
+          <thead><tr class="bg-white/5 border-b border-white/10">
+            <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Date</th>
+            <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Site</th>
+            <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">Score</th>
+            <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">Audit</th>
+            <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">Proposal</th>
+          </tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>`;
   }
 
-  // ── Load settings form ────────────────────────────────────────────
+  // ── Load settings ─────────────────────────────────────────────────
   async function loadSettings() {
     try {
-      const res  = await fetch('/api/seo/settings');
+      const res  = await fetch(`${API}/api/seo/settings`);
       const data = await res.json();
 
-      document.getElementById('s-siteUrl').value      = data.siteUrl || '';
+      // Populate the URL input at the top
+      if (data.siteUrl) {
+        document.getElementById('site-url-input').value = data.siteUrl;
+      }
+
       document.getElementById('s-siteProperty').value = data.siteProperty || '';
       document.getElementById('s-auditEnabled').value = data.auditEnabled ? 'true' : 'false';
-      document.getElementById('s-deepAnalysis').value = data.deepAnalysis ? 'true' : 'false';
       document.getElementById('s-deployType').value   = data.deployType || 'none';
       document.getElementById('s-deployPath').value   = data.deployBranch || data.deployPath || '';
       document.getElementById('s-deployHost').value   = data.deployHost || '';
       document.getElementById('s-deployUser').value   = data.deployUser || '';
 
-      // Competitor URLs — stored as JSON array, display as newline-separated
       try {
         const urls = JSON.parse(data.competitorUrls || '[]');
         document.getElementById('s-competitorUrls').value = urls.join('\n');
@@ -666,10 +1036,10 @@
   }
 
   function toggleDeployFields() {
-    const type   = document.getElementById('s-deployType').value;
-    const show   = type !== 'none';
-    const isFtp  = type === 'ftp';
-    document.getElementById('deploy-host-group').style.display = show ? '' : 'none';
+    const type  = document.getElementById('s-deployType').value;
+    const show  = type !== 'none';
+    const isFtp = type === 'ftp';
+    document.getElementById('deploy-host-group').style.display = show  ? '' : 'none';
     document.getElementById('deploy-user-group').style.display = isFtp ? '' : 'none';
     document.getElementById('deploy-pass-group').style.display = isFtp ? '' : 'none';
   }
@@ -679,12 +1049,14 @@
     const urlsRaw = document.getElementById('s-competitorUrls').value;
     const urls    = urlsRaw.split('\n').map(u => u.trim()).filter(Boolean);
 
+    // Also pick up the siteUrl from the prominent input at the top
+    const siteUrl = document.getElementById('site-url-input').value.trim();
+
     const body = {
-      siteUrl:        document.getElementById('s-siteUrl').value.trim(),
+      siteUrl,
       competitorUrls: urls,
       siteProperty:   document.getElementById('s-siteProperty').value.trim(),
       auditEnabled:   document.getElementById('s-auditEnabled').value === 'true',
-      deepAnalysis:   document.getElementById('s-deepAnalysis').value === 'true',
       deployType:     document.getElementById('s-deployType').value,
       deployBranch:   document.getElementById('s-deployPath').value.trim(),
       deployHost:     document.getElementById('s-deployHost').value.trim(),
@@ -693,7 +1065,7 @@
     };
 
     try {
-      const res  = await fetch('/api/seo/settings', {
+      const res  = await fetch(`${API}/api/seo/settings`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
@@ -706,35 +1078,35 @@
       }
       setTimeout(() => { msg.classList.add('hidden'); }, 3000);
     } catch (err) {
-      alert('Save failed: ' + err.message);
+      showToast('Save failed: ' + err.message, 'error');
     }
   }
 
-  // ── Stats ─────────────────────────────────────────────────────────
-  function renderStats(status, audits) {
-    const latest = audits[0];
-    const sc  = latest?.performanceScore;
-    const lcp = latest?.lcp;
+  // ── Toast ─────────────────────────────────────────────────────────
+  function showToast(message, type) {
+    const existing = document.getElementById('seo-toast');
+    if (existing) existing.remove();
 
-    const scoreEl = document.getElementById('stat-score');
-    scoreEl.textContent = sc !== null && sc !== undefined ? sc : '—';
-    scoreEl.style.color = sc === null ? '#8b91a0' : sc >= 80 ? '#47e266' : sc >= 60 ? '#fbbf24' : '#f87171';
-
-    const lcpEl = document.getElementById('stat-lcp');
-    lcpEl.textContent = lcp ? lcp + 's' : '—';
-    lcpEl.style.color = !lcp ? '#8b91a0' : lcp <= 2.5 ? '#47e266' : lcp <= 4 ? '#fbbf24' : '#f87171';
-
-    document.getElementById('stat-proposals').textContent = status.pendingProposals ?? '—';
-    document.getElementById('stat-last-audit').textContent = latest ? ago(latest.runAt) : 'Never';
+    const colors = {
+      success: 'bg-secondary/10 text-secondary border border-secondary/20',
+      error:   'bg-red-500/10 text-red-400 border border-red-500/20',
+      info:    'bg-primary/10 text-primary border border-primary/20',
+    };
+    const t = document.createElement('div');
+    t.id = 'seo-toast';
+    t.className = `fixed bottom-6 right-6 px-4 py-3 rounded-xl text-sm font-semibold shadow-lg z-[100] ${colors[type] || colors.info}`;
+    t.textContent = message;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 4000);
   }
 
   // ── Main load ─────────────────────────────────────────────────────
   async function loadPage() {
     try {
       const [statusRes, auditsRes, proposalsRes] = await Promise.all([
-        fetch('/api/seo/status'),
-        fetch('/api/seo/audits'),
-        fetch('/api/seo/proposals'),
+        fetch(`${API}/api/seo/status`),
+        fetch(`${API}/api/seo/audits`),
+        fetch(`${API}/api/seo/proposals`),
       ]);
       const status    = await statusRes.json();
       const auditsData = await auditsRes.json();
@@ -743,7 +1115,6 @@
       const audits    = auditsData.audits    || [];
       const proposals = propsData.proposals  || [];
 
-      renderStats(status, audits);
       renderProposals(proposals);
       renderAuditDetail(audits[0] || null);
       renderHistory(audits);
