@@ -69,8 +69,16 @@ const WEEKLY_VISITS_QUERY = `
 `;
 
 const EDIT_VISIT_SCHEDULE_MUTATION = `
-  mutation EditVisitSchedule($id: EncodedId!, $startAt: ISO8601DateTime!, $endAt: ISO8601DateTime) {
-    visitEditSchedule(id: $id, input: { startAt: $startAt, endAt: $endAt }) {
+  mutation EditVisitSchedule(
+    $id: EncodedId!,
+    $startDate: ISO8601Date!, $startTime: ISO8601Time,
+    $endDate: ISO8601Date,   $endTime: ISO8601Time,
+    $timezone: Timezone!
+  ) {
+    visitEditSchedule(id: $id, input: {
+      startAt: { date: $startDate, time: $startTime, timezone: $timezone }
+      endAt:   { date: $endDate,   time: $endTime,   timezone: $timezone }
+    }) {
       visit { id startAt endAt }
       userErrors { message path }
     }
@@ -139,11 +147,29 @@ async function fetchWeekVisits(userId, startDate, endDate) {
 }
 
 /**
- * Move a Jobber visit to a new startAt (and optionally endAt) using visitEditSchedule mutation.
- * Throws if the mutation returns userErrors.
+ * Move a Jobber visit to a new date, preserving the original time-of-day.
+ * Uses visitEditSchedule with LocalDateTimeAttributes { date, time, timezone }.
  */
 async function rescheduleJobberVisit(visitId, newStartAt, newEndAt, userId) {
-  const vars   = { id: visitId, startAt: newStartAt, ...(newEndAt ? { endAt: newEndAt } : {}) };
+  const toLocalParts = (isoStr) => {
+    const d = new Date(isoStr);
+    const date = d.toLocaleDateString('en-CA', { timeZone: 'America/Winnipeg' });
+    const time = d.toLocaleTimeString('en-GB', { timeZone: 'America/Winnipeg', hour12: false });
+    return { date, time };
+  };
+
+  const start = toLocalParts(newStartAt);
+  const end   = newEndAt ? toLocalParts(newEndAt) : null;
+
+  const vars = {
+    id:        visitId,
+    startDate: start.date,
+    startTime: start.time,
+    endDate:   end ? end.date  : start.date,
+    endTime:   end ? end.time  : null,
+    timezone:  'America/Winnipeg',
+  };
+
   const data   = await jobberGraphQL(EDIT_VISIT_SCHEDULE_MUTATION, vars, userId);
   const result = data?.visitEditSchedule;
   if (!result) throw new Error('visitEditSchedule returned no data');
