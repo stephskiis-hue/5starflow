@@ -2,6 +2,7 @@ const express  = require('express');
 const router   = express.Router();
 const prisma   = require('../lib/prismaClient');
 const { hashPassword } = require('../lib/auth');
+const { sendReviewEmail } = require('../services/emailService');
 
 // GET /api/settings/users — list all users
 router.get('/users', async (req, res) => {
@@ -141,6 +142,17 @@ router.post('/gmail/name', async (req, res) => {
     if (err.code === 'P2025') return res.status(404).json({ error: 'Gmail not connected' });
     console.error('[settings] /gmail/name error:', err.message);
     res.status(500).json({ error: 'Failed to update display name' });
+  }
+});
+
+// POST /api/settings/test-email — send a test review email to the logged-in user
+router.post('/test-email', async (req, res) => {
+  try {
+    const messageId = await sendReviewEmail(req.user.email, 'there', req.user.userId);
+    res.json({ success: true, messageId });
+  } catch (err) {
+    console.error('[settings] test-email error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

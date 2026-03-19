@@ -328,9 +328,14 @@
           </div>
         </div>
         <div class="result-msg" id="gmail-name-result"></div>
-        <button onclick="disconnectGmail()" style="margin-top:0.75rem;background:none;border:1px solid var(--border);color:var(--text-2);padding:0.5rem 1rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.8rem;">
-          Disconnect Gmail
-        </button>
+        <div style="display:flex;gap:0.75rem;margin-top:0.75rem;flex-wrap:wrap;">
+          <button id="test-email-btn" onclick="sendTestEmail()" style="background:none;border:1px solid var(--border);color:var(--text-2);padding:0.5rem 1rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.8rem;">
+            Send Test Email
+          </button>
+          <button onclick="disconnectGmail()" style="background:none;border:1px solid var(--border);color:var(--text-2);padding:0.5rem 1rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.8rem;">
+            Disconnect Gmail
+          </button>
+        </div>
       </div>
 
       <!-- Connect button (hidden when connected) -->
@@ -610,6 +615,26 @@
     } finally {
       btn.disabled = false;
       btn.textContent = 'Update Name';
+    }
+  }
+
+  async function sendTestEmail() {
+    const btn = document.getElementById('test-email-btn');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    try {
+      const res  = await fetch(`${API}/api/settings/test-email`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        showResult('gmail-result', '&#10003; Test email sent — check your inbox.', true);
+      } else {
+        showResult('gmail-result', '&#10007; ' + (data.error || 'Failed to send'), false);
+      }
+    } catch (err) {
+      showResult('gmail-result', '&#10007; Network error: ' + err.message, false);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Send Test Email';
     }
   }
 
