@@ -5,6 +5,30 @@ const prisma = require('../lib/prismaClient');
 // Override with JOBBER_API_VERSION env var if needed.
 const JOBBER_API_VERSION = process.env.JOBBER_API_VERSION || '2026-03-10';
 
+// ---------------------------------------------------------------------------
+// Retry helpers
+// ---------------------------------------------------------------------------
+const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
+const RETRYABLE_CODES  = new Set(['ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'ENOTFOUND']);
+const MAX_ATTEMPTS     = 3;
+const BACKOFF_MS       = [0, 2000, 4000]; // delay before attempt 1, 2, 3
+
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+function isTransient(err) {
+  const status = err.response?.status;
+  if (status && RETRYABLE_STATUS.has(status)) return true;
+  if (RETRYABLE_CODES.has(err.code)) return true;
+  return false;
+}
+
+// Strip raw HTML (e.g. Cloudflare 504 page) from error bodies so logs stay readable
+function sanitizeBody(data) {
+  if (!data) return '';
+  const s = typeof data === 'string' ? data : JSON.stringify(data);
+  return s.trimStart().startsWith('<') ? '[HTML error page — likely temporary Jobber outage]' : s;
+}
+
 
 /**
  * Exchange a refresh token for a new access token.
@@ -25,17 +49,35 @@ async function refreshAccessToken(account, trigger = 'on-demand') {
     throw new Error(msg);
   }
 
+  let oauthRes;
+  let lastOauthErr;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (attempt > 1) {
+      console.warn(`[jobberClient] Token refresh transient error (attempt ${attempt - 1}/${MAX_ATTEMPTS - 1}), retrying in ${BACKOFF_MS[attempt - 1] / 1000}s…`);
+      await sleep(BACKOFF_MS[attempt - 1]);
+    }
+    try {
+      oauthRes = await axios.post(
+        process.env.JOBBER_TOKEN_URL,
+        new URLSearchParams({
+          grant_type:    'refresh_token',
+          refresh_token: account.refreshToken,
+          client_id:     process.env.JOBBER_CLIENT_ID,
+          client_secret: process.env.JOBBER_CLIENT_SECRET,
+        }),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      );
+      lastOauthErr = null;
+      break;
+    } catch (err) {
+      lastOauthErr = err;
+      if (!isTransient(err)) break;
+    }
+  }
+
   try {
-    const res = await axios.post(
-      process.env.JOBBER_TOKEN_URL,
-      new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: account.refreshToken,
-        client_id: process.env.JOBBER_CLIENT_ID,
-        client_secret: process.env.JOBBER_CLIENT_SECRET,
-      }),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-    );
+    if (lastOauthErr) throw lastOauthErr;
+    const res = oauthRes;
 
     const { access_token, refresh_token } = res.data;
 
@@ -67,9 +109,7 @@ async function refreshAccessToken(account, trigger = 'on-demand') {
     console.log(`[jobberClient] Token refreshed (${trigger}). Expires: ${expiresAt.toISOString()}`);
     return access_token;
   } catch (err) {
-    const errorMsg = err.response?.data
-      ? JSON.stringify(err.response.data)
-      : err.message;
+    const errorMsg = sanitizeBody(err.response?.data) || err.message;
 
     // Log failure — this powers the dashboard's red status indicator
     await prisma.tokenRefreshLog.create({
@@ -126,21 +166,34 @@ async function jobberGraphQL(query, variables = {}, userId = null) {
   const accessToken = await getValidAccessToken(userId);
 
   let res;
-  try {
-    res = await axios.post(
-      process.env.JOBBER_GRAPHQL_URL,
-      { query, variables },
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'X-JOBBER-GRAPHQL-VERSION': JOBBER_API_VERSION,
-        },
-      }
-    );
-  } catch (err) {
-    const body = err.response?.data ? JSON.stringify(err.response.data) : '';
-    throw new Error(`Jobber HTTP ${err.response?.status ?? 'ERR'}: ${body || err.message}`);
+  let lastErr;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (attempt > 1) {
+      console.warn(`[jobberClient] GraphQL transient error (attempt ${attempt - 1}/${MAX_ATTEMPTS - 1}), retrying in ${BACKOFF_MS[attempt - 1] / 1000}s…`);
+      await sleep(BACKOFF_MS[attempt - 1]);
+    }
+    try {
+      res = await axios.post(
+        process.env.JOBBER_GRAPHQL_URL,
+        { query, variables },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'X-JOBBER-GRAPHQL-VERSION': JOBBER_API_VERSION,
+          },
+        }
+      );
+      lastErr = null;
+      break;
+    } catch (err) {
+      lastErr = err;
+      if (!isTransient(err)) break;
+    }
+  }
+  if (lastErr) {
+    const body = sanitizeBody(lastErr.response?.data) || lastErr.message;
+    throw new Error(`Jobber HTTP ${lastErr.response?.status ?? 'ERR'}: ${body}`);
   }
 
   if (res.data.errors?.length) {

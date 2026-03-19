@@ -50,9 +50,10 @@ async function refreshExpiringTokens() {
  * Logs a prominent console warning. Extend this to send email/Slack/SMS.
  */
 async function sendRefreshFailureAlert(account, err) {
-  const errorMsg = err.response?.data
-    ? JSON.stringify(err.response.data)
-    : err.message;
+  const raw = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+  const errorMsg = (raw || '').includes('<')
+    ? '[Jobber returned an HTML error page — likely temporary outage]'
+    : raw;
 
   const lines = [
     '============================================================',
