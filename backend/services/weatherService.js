@@ -72,7 +72,7 @@ const EDIT_VISIT_SCHEDULE_MUTATION = `
   mutation EditVisitSchedule(
     $id: EncodedId!,
     $startDate: ISO8601Date!, $startTime: ISO8601Time,
-    $endDate: ISO8601Date,   $endTime: ISO8601Time,
+    $endDate: ISO8601Date!,  $endTime: ISO8601Time,
     $timezone: Timezone!
   ) {
     visitEditSchedule(id: $id, input: {
@@ -153,9 +153,10 @@ async function fetchWeekVisits(userId, startDate, endDate) {
 async function rescheduleJobberVisit(visitId, newStartAt, newEndAt, userId) {
   const toLocalParts = (isoStr) => {
     const d = new Date(isoStr);
-    const date = d.toLocaleDateString('en-CA', { timeZone: 'America/Winnipeg' });
-    const time = d.toLocaleTimeString('en-GB', { timeZone: 'America/Winnipeg', hour12: false });
-    return { date, time };
+    return {
+      date: d.toLocaleDateString('en-CA', { timeZone: 'America/Winnipeg' }),
+      time: d.toLocaleTimeString('en-GB', { timeZone: 'America/Winnipeg', hour12: false }),
+    };
   };
 
   const start = toLocalParts(newStartAt);
@@ -165,13 +166,18 @@ async function rescheduleJobberVisit(visitId, newStartAt, newEndAt, userId) {
     id:        visitId,
     startDate: start.date,
     startTime: start.time,
-    endDate:   end ? end.date  : start.date,
-    endTime:   end ? end.time  : null,
+    endDate:   end ? end.date : start.date,
+    endTime:   end ? end.time : null,
     timezone:  'America/Winnipeg',
   };
 
+  console.log('[reschedule] vars:', JSON.stringify(vars));
+
   const data   = await jobberGraphQL(EDIT_VISIT_SCHEDULE_MUTATION, vars, userId);
   const result = data?.visitEditSchedule;
+
+  console.log('[reschedule] result:', JSON.stringify(result));
+
   if (!result) throw new Error('visitEditSchedule returned no data');
   if (result.userErrors?.length) throw new Error(result.userErrors.map((e) => e.message).join('; '));
   return result.visit;
