@@ -153,6 +153,9 @@ router.get('/calendar', async (req, res) => {
   try {
     const userId = req.user.userId;
 
+    // Honour ?force=true to bypass cache (used by the Refresh button)
+    if (req.query.force === 'true') calendarCache.delete(userId);
+
     const cached = calendarCache.get(userId);
     if (cached && (Date.now() - cached.cachedAt) < CALENDAR_TTL) {
       return res.json({ calendar: cached.data, cached: true });
@@ -161,14 +164,20 @@ router.get('/calendar', async (req, res) => {
     const settings = await getSettings(userId);
     const city = settings.city || process.env.WEATHER_CITY || 'Winnipeg';
 
-    const today     = new Date();
-    const startDate = toDateString(today);
-    const endDate   = toDateString(new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000));
+    // Use Winnipeg local date (not UTC) so the window is correct regardless of time of day
+    const now       = new Date();
+    const startDate = now.toLocaleDateString('en-CA', { timeZone: 'America/Winnipeg' });
+    const endDay    = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const endDate   = endDay.toLocaleDateString('en-CA', { timeZone: 'America/Winnipeg' });
 
+    // Fetch weather and Jobber visits in parallel
+    // visitsFetch errors are logged but don't break the whole calendar — weather still shows
+    let visitFetchError = null;
     const [forecastList, visits] = await Promise.all([
       getForecast(city).catch(() => []),
       fetchWeekVisits(userId, startDate, endDate).catch((err) => {
-        console.warn('[weather] /calendar visits fetch failed:', err.message);
+        visitFetchError = err.message;
+        console.error('[weather] /calendar visits fetch failed:', err.message);
         return [];
       }),
     ]);
@@ -200,7 +209,7 @@ router.get('/calendar', async (req, res) => {
     }
 
     calendarCache.set(userId, { data: calendar, cachedAt: Date.now() });
-    res.json({ calendar, cached: false });
+    res.json({ calendar, cached: false, ...(visitFetchError && { visitError: visitFetchError }) });
   } catch (err) {
     console.error('[weather] /calendar error:', err.message);
     res.status(500).json({ error: err.message });
@@ -234,15 +243,22 @@ router.post('/reschedule-visits', async (req, res) => {
   const errors     = [];
 
   for (const visit of visits) {
-    const { id: visitId, startAt, firstName, clientName, phone, smsAllowed, email } = visit;
+    const { id: visitId, startAt, endAt, firstName, clientName, phone, smsAllowed, email } = visit;
 
     // Preserve same time-of-day, change only the date
     const timeOfDay  = startAt ? startAt.slice(11) : '08:00:00Z';
     const newStartAt = `${targetDate}T${timeOfDay}`;
 
+    // Preserve visit duration when moving endAt
+    let newEndAt = null;
+    if (endAt && startAt) {
+      const duration = new Date(endAt).getTime() - new Date(startAt).getTime();
+      newEndAt = new Date(new Date(newStartAt).getTime() + duration).toISOString();
+    }
+
     // 1. Move in Jobber
     try {
-      await rescheduleJobberVisit(visitId, newStartAt, userId);
+      await rescheduleJobberVisit(visitId, newStartAt, newEndAt, userId);
       movedCount++;
     } catch (err) {
       console.error(`[weather] Jobber reschedule failed for visitId=${visitId}:`, err.message);

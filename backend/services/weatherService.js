@@ -38,8 +38,8 @@ const ADD_CLIENT_TAG = `
 `;
 
 const WEEKLY_VISITS_QUERY = `
-  query WeeklyVisits($start: ISO8601DateTime!, $end: ISO8601DateTime!) {
-    visits(filter: { startAt: { gte: $start, lte: $end } }, first: 100) {
+  query WeeklyVisits($start: ISO8601DateTime!, $end: ISO8601DateTime!, $cursor: String) {
+    visits(filter: { startAt: { gte: $start, lte: $end } }, first: 100, after: $cursor) {
       nodes {
         id
         title
@@ -52,17 +52,28 @@ const WEEKLY_VISITS_QUERY = `
           emails { address primary }
           phones { number primary smsAllowed }
         }
+        job {
+          property {
+            address {
+              street
+              city
+              province
+              postalCode
+            }
+          }
+        }
       }
-      pageInfo { hasNextPage }
+      pageInfo { hasNextPage endCursor }
     }
   }
 `;
 
-const RESCHEDULE_VISIT_MUTATION = `
-  mutation RescheduleVisit($visitId: EncodedId!, $startAt: ISO8601DateTime!) {
-    visitReschedule(visitId: $visitId, startAt: $startAt) {
-      visit { id startAt }
-      userErrors { message }
+// visitUpdate is the correct Jobber 2026-03-10 mutation for rescheduling visits
+const UPDATE_VISIT_MUTATION = `
+  mutation UpdateVisit($visitId: EncodedId!, $startAt: ISO8601DateTime!, $endAt: ISO8601DateTime) {
+    visitUpdate(visitId: $visitId, attributes: { startAt: $startAt, endAt: $endAt }) {
+      visit { id startAt endAt }
+      userErrors { message path }
     }
   }
 `;
@@ -89,38 +100,54 @@ async function fetchAllClients(userId) {
  * Returns visits with client contact info for SMS/email.
  */
 async function fetchWeekVisits(userId, startDate, endDate) {
-  const start = new Date(startDate + 'T00:00:00Z').toISOString();
-  const end   = new Date(endDate   + 'T23:59:59Z').toISOString();
+  // Use Winnipeg CDT (UTC-5) for boundary times so a job at 8 AM local is never missed
+  const start = new Date(startDate + 'T00:00:00-05:00').toISOString();
+  const end   = new Date(endDate   + 'T23:59:59-05:00').toISOString();
 
-  const data  = await jobberGraphQL(WEEKLY_VISITS_QUERY, { start, end }, userId);
-  const nodes = data?.visits?.nodes ?? [];
+  const allNodes = [];
+  let cursor  = null;
+  let hasNext = true;
 
-  return nodes.map((v) => {
+  while (hasNext) {
+    // Errors propagate to caller — do NOT silently swallow them here
+    const data     = await jobberGraphQL(WEEKLY_VISITS_QUERY, { start, end, cursor }, userId);
+    const nodes    = data?.visits?.nodes    ?? [];
+    const pageInfo = data?.visits?.pageInfo ?? {};
+    allNodes.push(...nodes);
+    hasNext = pageInfo.hasNextPage;
+    cursor  = pageInfo.endCursor ?? null;
+    if (hasNext) await sleep(500);
+  }
+
+  return allNodes.map((v) => {
     const primaryPhone = v.client?.phones?.find((p) => p.primary) ?? v.client?.phones?.[0] ?? null;
     const primaryEmail = v.client?.emails?.find((e) => e.primary) ?? v.client?.emails?.[0] ?? null;
+    const addr = v.job?.property?.address;
     return {
       id:         v.id,
       title:      v.title || 'Visit',
       startAt:    v.startAt,
       endAt:      v.endAt || null,
-      clientId:   v.client?.id || null,
-      clientName: v.client?.name || 'Unknown',
+      clientId:   v.client?.id    || null,
+      clientName: v.client?.name  || 'Unknown',
       firstName:  v.client?.firstName || (v.client?.name || 'there').split(' ')[0],
       phone:      primaryPhone?.number    ?? null,
       smsAllowed: primaryPhone?.smsAllowed ?? false,
       email:      primaryEmail?.address   ?? null,
+      address:    addr ? [addr.street, addr.city].filter(Boolean).join(', ') : null,
     };
   });
 }
 
 /**
- * Move a Jobber visit to a new startAt datetime via visitReschedule mutation.
+ * Move a Jobber visit to a new startAt (and optionally endAt) using visitUpdate mutation.
  * Throws if the mutation returns userErrors.
  */
-async function rescheduleJobberVisit(visitId, newStartAt, userId) {
-  const data   = await jobberGraphQL(RESCHEDULE_VISIT_MUTATION, { visitId, startAt: newStartAt }, userId);
-  const result = data?.visitReschedule;
-  if (!result) throw new Error('visitReschedule returned no data — mutation name may differ in this schema');
+async function rescheduleJobberVisit(visitId, newStartAt, newEndAt, userId) {
+  const vars   = { visitId, startAt: newStartAt, ...(newEndAt ? { endAt: newEndAt } : {}) };
+  const data   = await jobberGraphQL(UPDATE_VISIT_MUTATION, vars, userId);
+  const result = data?.visitUpdate;
+  if (!result) throw new Error('visitUpdate returned no data — check Jobber API version');
   if (result.userErrors?.length) throw new Error(result.userErrors.map((e) => e.message).join('; '));
   return result.visit;
 }

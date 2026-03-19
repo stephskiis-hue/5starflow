@@ -1061,7 +1061,14 @@
         return;
       }
       calendarData = data.calendar || {};
-      document.getElementById('calendar-status').textContent = data.cached ? '(cached)' : '';
+      const statusEl = document.getElementById('calendar-status');
+      if (data.visitError) {
+        statusEl.textContent = '⚠ Jobber visits unavailable: ' + data.visitError;
+        statusEl.style.color = 'var(--yellow)';
+      } else {
+        statusEl.textContent = data.cached ? '(cached · click Refresh for live data)' : '';
+        statusEl.style.color = 'var(--text-3)';
+      }
       renderCalendar();
     } catch (err) {
       document.getElementById('calendar-grid').innerHTML =
@@ -1078,7 +1085,8 @@
       return;
     }
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    // Use Winnipeg local date for "today" highlight (not UTC)
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Winnipeg' });
     grid.innerHTML = days.map((d) => {
       const isToday  = d.date === todayStr;
       const isActive = d.date === activeDayDate;
@@ -1125,16 +1133,18 @@
 
     renderCalVisits();
 
-    // Load open days into dropdown if not already done
-    if (!openDays.length) await loadOpenDays();
+    // Build open-day options from real calendar visit counts, sorted by fewest visits
     const sel = document.getElementById('cal-reschedule-select');
-    const filtered = openDays.filter((d) => d.date !== dateStr);
+    const candidateDays = Object.values(calendarData)
+      .filter((d) => d.date > dateStr)
+      .sort((a, b) => (a.visits?.length || 0) - (b.visits?.length || 0));
     sel.innerHTML = '<option value="">Select a date to move visits to...</option>' +
-      filtered.map((d) => {
-        const busy = d.clientCount > 0;
-        return `<option value="${d.date}" data-label="${escHtml(d.label)}" ${busy ? 'style="color:#fbbf24;"' : ''}>
-          ${escHtml(d.label)}
-        </option>`;
+      candidateDays.map((d) => {
+        const cnt   = d.visits?.length || 0;
+        const busy  = cnt > 0;
+        const dateLabel = new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        const label = `${dateLabel} — ${cnt === 0 ? 'open' : cnt + ' visit' + (cnt !== 1 ? 's' : '') + (d.isRainy ? ' ⛈' : '')}`;
+        return `<option value="${d.date}" data-label="${escHtml(label)}" ${busy ? 'style="color:#fbbf24;"' : ''}>${escHtml(label)}</option>`;
       }).join('');
     updateCalMessagePreview();
 
@@ -1148,18 +1158,24 @@
       document.getElementById('cal-reschedule-btn').disabled = true;
       return;
     }
+    const dayRainProb = (calendarData[activeDayDate] || {}).rainProb || 0;
     ul.innerHTML = calVisits.map((v) => {
       const checked  = calSelectedIds.has(v.id) ? 'checked' : '';
       const timeStr  = v.startAt ? new Date(v.startAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
       const smsTag   = v.phone && v.smsAllowed ? `<span class="pill pill-green">SMS</span>` : `<span class="pill pill-gray">No SMS</span>`;
       const emailTag = v.email ? `<span class="pill pill-blue">Email</span>` : `<span class="pill pill-gray">No Email</span>`;
+      const riskBadge = dayRainProb >= 0.6
+        ? `<span class="pill" style="background:rgba(248,113,113,0.2);color:var(--red);border:1px solid rgba(248,113,113,0.3);">&#9888; High Risk</span>`
+        : dayRainProb >= 0.35
+        ? `<span class="pill" style="background:rgba(251,191,36,0.15);color:var(--yellow);">&#9873; Watch</span>`
+        : '';
       return `<li class="cal-visit-item">
         <input type="checkbox" ${checked} onchange="toggleCalVisit('${escHtml(v.id)}', this.checked)" />
         <div class="cal-visit-meta">
-          <div class="cal-visit-name">${escHtml(v.clientName || v.title)}</div>
-          <div class="cal-visit-time">${escHtml(v.title)} ${timeStr ? '· ' + timeStr : ''}</div>
+          <div class="cal-visit-name">${escHtml(v.clientName || v.title)} ${riskBadge}</div>
+          <div class="cal-visit-time">${escHtml(v.title)}${timeStr ? ' · ' + timeStr : ''}${v.address ? ' · ' + escHtml(v.address) : ''}</div>
         </div>
-        <div style="display:flex;gap:0.3rem;">${smsTag} ${emailTag}</div>
+        <div style="display:flex;gap:0.3rem;flex-wrap:wrap;">${smsTag} ${emailTag}</div>
       </li>`;
     }).join('');
     updateCalSelectedCount();
