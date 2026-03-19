@@ -1184,7 +1184,7 @@
     // Build open-day options from real calendar visit counts, sorted by fewest visits
     const sel = document.getElementById('cal-reschedule-select');
     const candidateDays = Object.values(calendarData)
-      .filter((d) => d.date > dateStr)
+      .filter((d) => d.date !== dateStr)
       .sort((a, b) => (a.visits?.length || 0) - (b.visits?.length || 0));
     sel.innerHTML = '<option value="">Select a date to move visits to...</option>' +
       candidateDays.map((d) => {
