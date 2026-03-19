@@ -50,8 +50,8 @@ const POLL_INVOICES = `
  * Poll Jobber for recently-paid invoices and enqueue any that haven't been
  * processed yet. Lightweight reliability backstop for missed webhooks.
  *
- * Look-back window: 35 minutes (5-min overlap with the 30-min poll interval
- * ensures no gap even if a cron fires slightly late).
+ * Look-back window: poll interval + 5 minutes (e.g. 125 min for the default
+ * 120-min interval) — ensures no gap even if a cron fires slightly late.
  */
 async function pollPaidInvoices() {
   // Skip if currently in a throttle cooldown period
@@ -68,7 +68,8 @@ async function pollPaidInvoices() {
     return;
   }
 
-  const pollWindowMinutes = parseInt(process.env.POLL_WINDOW_MINUTES, 10) || 35;
+  const intervalMinutes   = parseInt(process.env.POLL_INTERVAL_MINUTES, 10) || 120;
+  const pollWindowMinutes = parseInt(process.env.POLL_WINDOW_MINUTES, 10) || (intervalMinutes + 5);
   const pageDelayMs = parseInt(process.env.PAGE_DELAY_MS, 10) || 1000;
   const windowStart = new Date(Date.now() - pollWindowMinutes * 60 * 1000);
 
