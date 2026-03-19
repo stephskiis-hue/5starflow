@@ -45,7 +45,6 @@ const WEEKLY_VISITS_QUERY = `
         title
         startAt
         endAt
-        timezone
         client {
           id
           name
@@ -156,7 +155,7 @@ async function rescheduleJobberVisit(visitId, newStartAt, newEndAt, userId) {
     id:        visitId,
     startDate: d.toLocaleDateString('en-CA', { timeZone: 'America/Winnipeg' }),
     startTime: d.toLocaleTimeString('en-GB', { timeZone: 'America/Winnipeg', hour12: false }),
-    timezone:  'America/Winnipeg',
+    timezone:  'Central Time (US & Canada)',
   };
 
   console.log('[reschedule] vars:', JSON.stringify(vars));
