@@ -473,4 +473,28 @@ router.post('/run-check', async (req, res) => {
   }
 });
 
+// Temporary: introspect Jobber schema to find visit mutation names
+router.get('/debug/jobber-mutations', async (req, res) => {
+  try {
+    const { jobberGraphQL } = require('../services/jobberClient');
+    const data = await jobberGraphQL(`
+      query {
+        __schema {
+          mutationType {
+            fields {
+              name
+              args { name type { name kind ofType { name kind } } }
+            }
+          }
+        }
+      }
+    `, {}, req.user.userId);
+    const fields = data?.__schema?.mutationType?.fields || [];
+    const visitFields = fields.filter(f => f.name.toLowerCase().includes('visit'));
+    res.json({ visitMutations: visitFields, allCount: fields.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
