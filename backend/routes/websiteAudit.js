@@ -48,8 +48,8 @@ function decryptPassword(stored) {
 // Helper: get active FTP config with decrypted password
 // ─────────────────────────────────────────────
 
-async function getActiveConfig() {
-  const row = await prisma.ftpConfig.findFirst({ orderBy: { createdAt: 'desc' } });
+async function getActiveConfig(userId) {
+  const row = await prisma.ftpConfig.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } });
   if (!row) return null;
   return { ...row, password: decryptPassword(row.encryptedPassword) };
 }
@@ -82,9 +82,11 @@ router.post('/ftp-save', async (req, res) => {
     return res.status(400).json({ error: 'host, user, and password are required' });
   }
   try {
-    await prisma.ftpConfig.deleteMany({});
+    const userId = req.user.userId;
+    await prisma.ftpConfig.deleteMany({ where: { userId } });
     const config = await prisma.ftpConfig.create({
       data: {
+        userId,
         host,
         user,
         encryptedPassword: encryptPassword(password),
@@ -103,7 +105,7 @@ router.post('/ftp-save', async (req, res) => {
 // Returns current config without password.
 router.get('/ftp-config', async (req, res) => {
   try {
-    const row = await prisma.ftpConfig.findFirst({ orderBy: { createdAt: 'desc' } });
+    const row = await prisma.ftpConfig.findFirst({ where: { userId: req.user.userId }, orderBy: { createdAt: 'desc' } });
     if (!row) return res.json({ configured: false });
     const { encryptedPassword: _, ...safe } = row;
     res.json({ configured: true, ...safe });
@@ -122,16 +124,17 @@ router.get('/ftp-config', async (req, res) => {
 router.post('/preview', async (req, res) => {
   try {
     // Allow ad-hoc credentials in body (for testing before saving)
+    const userId = req.user.userId;
     let config;
     const { host, user, password, port, rootPath: bodyRoot } = req.body || {};
     if (host && user && password) {
       config = { host, user, password, port: port || 21, rootPath: bodyRoot || '/public_html' };
     } else {
-      config = await getActiveConfig();
+      config = await getActiveConfig(userId);
       if (!config) return res.status(400).json({ error: 'No FTP config saved and no credentials provided.' });
     }
 
-    const ignoreRows = await prisma.auditIgnore.findMany();
+    const ignoreRows = await prisma.auditIgnore.findMany({ where: { userId } });
     const ignorePatterns = ignoreRows.map(r => r.pattern);
 
     const tree = await previewFiles(config, config.rootPath || '/public_html', ignorePatterns);
@@ -149,7 +152,7 @@ router.post('/preview', async (req, res) => {
 // GET /api/audit/ignore
 router.get('/ignore', async (req, res) => {
   try {
-    const patterns = await prisma.auditIgnore.findMany({ orderBy: { createdAt: 'asc' } });
+    const patterns = await prisma.auditIgnore.findMany({ where: { userId: req.user.userId }, orderBy: { createdAt: 'asc' } });
     res.json({ patterns });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -162,10 +165,11 @@ router.post('/ignore', async (req, res) => {
   const { pattern } = req.body || {};
   if (!pattern) return res.status(400).json({ error: 'pattern is required' });
   try {
+    const userId = req.user.userId;
     const row = await prisma.auditIgnore.upsert({
-      where:  { pattern },
+      where:  { userId_pattern: { userId, pattern } },
       update: {},
-      create: { pattern },
+      create: { userId, pattern },
     });
     res.json({ success: true, id: row.id, pattern: row.pattern });
   } catch (err) {
@@ -191,10 +195,11 @@ router.delete('/ignore/:id', async (req, res) => {
 // List all HTML files from FTP server, upsert AuditPage rows.
 router.post('/scan', async (req, res) => {
   try {
-    const config = await getActiveConfig();
+    const userId = req.user.userId;
+    const config = await getActiveConfig(userId);
     if (!config) return res.status(400).json({ error: 'No FTP config saved. Call /ftp-save first.' });
 
-    const ignoreRows = await prisma.auditIgnore.findMany();
+    const ignoreRows = await prisma.auditIgnore.findMany({ where: { userId } });
     const ignorePatterns = ignoreRows.map(r => r.pattern);
 
     const files = await listHtmlFiles(config, config.rootPath, ignorePatterns);
@@ -205,9 +210,9 @@ router.post('/scan', async (req, res) => {
       files.map(file => {
         const pageUrl = hostBase + file.path.replace(config.rootPath, '');
         return prisma.auditPage.upsert({
-          where:  { path: file.path },
+          where:  { userId_path: { userId, path: file.path } },
           update: { filename: file.filename, pageUrl },
-          create: { path: file.path, filename: file.filename, status: 'discovered', pageUrl },
+          create: { userId, path: file.path, filename: file.filename, status: 'discovered', pageUrl },
         });
       })
     );
@@ -224,6 +229,7 @@ router.post('/scan', async (req, res) => {
 router.get('/pages', async (req, res) => {
   try {
     const pages = await prisma.auditPage.findMany({
+      where:   { userId: req.user.userId },
       orderBy: { path: 'asc' },
       select: {
         id: true, path: true, filename: true, status: true,
@@ -407,19 +413,20 @@ router.delete('/pages/:id', async (req, res) => {
 // Aggregate stats for dashboard card.
 router.get('/summary', async (req, res) => {
   try {
+    const userId = req.user.userId;
     const [total, discovered, pulled, audited, edited, pushed, done] = await Promise.all([
-      prisma.auditPage.count(),
-      prisma.auditPage.count({ where: { status: 'discovered' } }),
-      prisma.auditPage.count({ where: { status: 'pulled' } }),
-      prisma.auditPage.count({ where: { status: 'audited' } }),
-      prisma.auditPage.count({ where: { status: 'edited' } }),
-      prisma.auditPage.count({ where: { status: 'pushed' } }),
-      prisma.auditPage.count({ where: { status: 'done' } }),
+      prisma.auditPage.count({ where: { userId } }),
+      prisma.auditPage.count({ where: { userId, status: 'discovered' } }),
+      prisma.auditPage.count({ where: { userId, status: 'pulled' } }),
+      prisma.auditPage.count({ where: { userId, status: 'audited' } }),
+      prisma.auditPage.count({ where: { userId, status: 'edited' } }),
+      prisma.auditPage.count({ where: { userId, status: 'pushed' } }),
+      prisma.auditPage.count({ where: { userId, status: 'done' } }),
     ]);
 
     const avgScore = await prisma.auditPage.aggregate({
       _avg: { auditScore: true },
-      where: { auditScore: { not: null } },
+      where: { userId, auditScore: { not: null } },
     });
 
     res.json({
