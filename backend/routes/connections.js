@@ -126,9 +126,10 @@ router.post('/test/:service', async (req, res) => {
 
       case 'gmail': {
         const nodemailer = require('nodemailer');
-        const { getGmailCreds } = require('../services/emailService');
+        const { getGmailCreds, ensureFreshToken } = require('../services/emailService');
         const creds = await getGmailCreds(req.user.userId);
-        if (!creds) return res.json({ ok: false, message: 'Gmail not connected — click "Connect Gmail" in Settings' });
+        if (!creds) return res.json({ ok: false, message: 'Gmail not connected — sign in with Google to connect' });
+        const accessToken = await ensureFreshToken(req.user.userId, creds);
         const transporter = nodemailer.createTransport({
           service: 'gmail',
           auth: {
@@ -137,10 +138,13 @@ router.post('/test/:service', async (req, res) => {
             clientId:     process.env.GOOGLE_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
             refreshToken: creds.refreshToken,
-            accessToken:  creds.accessToken,
+            accessToken,
           },
         });
-        await transporter.verify();
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Gmail verify timed out after 10s')), 10000)
+        );
+        await Promise.race([transporter.verify(), timeout]);
         return res.json({ ok: true, message: `Gmail connected — ready to send as ${creds.user}` });
       }
 

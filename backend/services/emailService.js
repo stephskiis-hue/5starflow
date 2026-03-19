@@ -230,4 +230,4 @@ async function sendReviewEmail(to, firstName, userId) {
   return info.messageId;
 }
 
-module.exports = { sendReviewEmail, getGmailCreds };
+module.exports = { sendReviewEmail, getGmailCreds, ensureFreshToken };
