@@ -248,23 +248,13 @@
       const testInvoiceBtn   = document.getElementById('test-invoice-btn');
       const registerWebhookBtn = document.getElementById('register-webhook-btn');
 
-      const banner = document.getElementById('jobber-not-connected-banner');
-      if (banner) banner.style.display = data.connected ? 'none' : 'flex';
-
       if (!data.connected) {
-        connEl.textContent = 'Not Connected';
-        connEl.style.color = '#f87171';
-        expiryEl.textContent = '—';
-        accountEl.textContent = '—';
-        connectBtn.style.display = 'inline-flex';
-        disconnectBtn.style.display = forceRefreshBtn.style.display =
-        testClientsBtn.style.display = testInvoiceBtn.style.display =
-        registerWebhookBtn.style.display = 'none';
-        barWrap.style.display = 'none';
-        document.getElementById('stat-token').textContent = 'Disconnected';
-        document.getElementById('stat-token').style.color = '#f87171';
+        window.location.href = '/connections.html?reason=jobber_not_connected';
         return;
       }
+
+      const banner = document.getElementById('jobber-not-connected-banner');
+      if (banner) banner.style.display = 'none';
 
       connEl.textContent = 'Connected';
       connEl.style.color = '#47e266';

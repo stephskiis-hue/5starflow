@@ -23,7 +23,7 @@ router.get('/status', async (req, res) => {
       ? await prisma.tokenRefreshLog.findMany({
           where:   { accountId: jobberAccount.accountId },
           orderBy: { createdAt: 'desc' },
-          take: 3,
+          take: 10,
         })
       : [];
 
@@ -92,7 +92,12 @@ router.get('/status', async (req, res) => {
       comingSoon: true,
     };
 
-    res.json({ jobber, gmail, twilio, openweather, google, skyvern });
+    const pagespeed = {
+      configured: !!process.env.GOOGLE_API_KEY,
+      hasApiKey:  !!process.env.GOOGLE_API_KEY,
+    };
+
+    res.json({ jobber, gmail, twilio, openweather, google, skyvern, pagespeed });
   } catch (err) {
     console.error('[connections] /status error:', err.message);
     res.status(500).json({ error: err.message });
@@ -162,6 +167,15 @@ router.post('/test/:service', async (req, res) => {
         const weather = resp.data?.weather?.[0]?.description || 'ok';
         const temp    = resp.data?.main?.temp;
         return res.json({ ok: true, message: `${city}: ${weather}, ${temp}°C` });
+      }
+
+      case 'pagespeed': {
+        const { getPageSpeed } = require('../services/seoService');
+        const settings = await prisma.seoSettings.findFirst({ where: { userId: req.user.userId } });
+        const url = settings?.siteUrl;
+        if (!url) return res.json({ ok: false, message: 'Set your site URL in SEO Settings first.' });
+        const result = await getPageSpeed(url, 'mobile');
+        return res.json({ ok: true, message: `PageSpeed OK — score: ${result.score ?? 'n/a'}/100 for ${url}` });
       }
 
       default:

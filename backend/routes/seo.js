@@ -69,10 +69,11 @@ router.get('/audits', async (req, res) => {
 // Body: { url }
 // ---------------------------------------------------------------------------
 router.post('/pagespeed', async (req, res) => {
-  const { url } = req.body || {};
-  if (!url) return res.status(400).json({ error: 'url is required' });
-
   try {
+    const settings = await getSettings(req.user.userId);
+    const url = settings?.siteUrl;
+    if (!url) return res.status(400).json({ error: 'Set your site URL in SEO Settings first.' });
+
     const [mobile, desktop] = await Promise.all([
       getPageSpeed(url, 'mobile'),
       getPageSpeed(url, 'desktop'),
@@ -97,7 +98,12 @@ router.post('/pagespeed', async (req, res) => {
     });
   } catch (err) {
     console.error('[seo] /pagespeed error:', err.message);
-    res.status(500).json({ error: err.message });
+    const is429 = err.message?.includes('quota') || err.message?.includes('rate limit');
+    res.status(is429 ? 429 : 500).json({
+      error: err.message,
+      rateLimited: is429,
+      needsApiKey: is429 && !process.env.GOOGLE_API_KEY,
+    });
   }
 });
 
@@ -290,6 +296,17 @@ router.post('/settings', async (req, res) => {
 // Redirect to Google OAuth consent screen
 // ---------------------------------------------------------------------------
 router.get('/google/auth', (req, res) => {
+  // Route is in the public zone — req.user is not populated. Read session cookie manually.
+  let userId = null;
+  try {
+    const { verifyToken } = require('../lib/auth');
+    const token = req.cookies?.sf_session;
+    if (token) {
+      const payload = verifyToken(token);
+      if (payload?.userId) userId = payload.userId;
+    }
+  } catch { /* no session — proceed without userId */ }
+
   const clientId    = process.env.GOOGLE_CLIENT_ID;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI;
 
@@ -310,7 +327,7 @@ router.get('/google/auth', (req, res) => {
   url.searchParams.set('access_type',   'offline');
   url.searchParams.set('prompt',        'consent');
   // Pass userId in state so callback can scope the save
-  url.searchParams.set('state', req.user.userId);
+  url.searchParams.set('state', userId || 'anon');
 
   res.redirect(url.toString());
 });

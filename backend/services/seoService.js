@@ -48,12 +48,39 @@ async function getSettings(userId) {
  * @returns {{ score, lcp, cls, fid, opportunities }}
  */
 async function getPageSpeed(url, strategy = 'mobile') {
+  const apiKey = process.env.GOOGLE_API_KEY;
   const endpoint =
     `https://www.googleapis.com/pagespeedonline/v5/runPagespeed` +
-    `?url=${encodeURIComponent(url)}&strategy=${strategy}`;
+    `?url=${encodeURIComponent(url)}&strategy=${strategy}` +
+    (apiKey ? `&key=${encodeURIComponent(apiKey)}` : '');
 
-  const resp = await axios.get(endpoint, { timeout: 30000 });
-  const cats = resp.data?.lighthouseResult?.categories;
+  const MAX_RETRIES = 2;
+  const BACKOFF_MS  = [3000, 6000];
+  let resp;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, BACKOFF_MS[attempt - 1]));
+    try {
+      resp = await axios.get(endpoint, { timeout: 30000 });
+      break;
+    } catch (err) {
+      const status  = err.response?.status;
+      const message = err.response?.data?.error?.message || err.message || '';
+      if (status === 429) {
+        if (message.toLowerCase().includes('per day')) {
+          throw new Error(
+            'Google PageSpeed daily quota exhausted — add GOOGLE_API_KEY to your .env for a dedicated quota. ' +
+            'Get one at: Google Cloud Console → APIs & Services → PageSpeed Insights API → Credentials.'
+          );
+        }
+        if (attempt === MAX_RETRIES) throw new Error('Google PageSpeed rate limited — try again shortly.');
+        continue;
+      }
+      if (attempt === MAX_RETRIES) throw err;
+    }
+  }
+
+  const cats  = resp.data?.lighthouseResult?.categories;
   const audit = resp.data?.lighthouseResult?.audits;
 
   const score = cats?.performance?.score != null
@@ -74,42 +101,23 @@ async function getPageSpeed(url, strategy = 'mobile') {
 
   const issues = [];
 
-  // Performance opportunities
   const perfKeys = [
-    'render-blocking-resources',
-    'unused-css-rules',
-    'unused-javascript',
-    'uses-optimized-images',
-    'uses-responsive-images',
-    'efficiently-encode-images',
-    'uses-text-compression',
-    'uses-long-cache-ttl',
-    'total-blocking-time',
+    'render-blocking-resources', 'unused-css-rules', 'unused-javascript',
+    'uses-optimized-images', 'uses-responsive-images', 'efficiently-encode-images',
+    'uses-text-compression', 'uses-long-cache-ttl', 'total-blocking-time',
   ];
   for (const key of perfKeys) {
     const a = audit?.[key];
     if (a && a.score !== null && a.score < 0.9) {
-      const savings = a.details?.overallSavingsMs
-        ? `${Math.round(a.details.overallSavingsMs)}ms`
-        : null;
+      const savings = a.details?.overallSavingsMs ? `${Math.round(a.details.overallSavingsMs)}ms` : null;
       issues.push({ category: 'performance', id: key, title: a.title, score: Math.round((a.score || 0) * 100), savings });
     }
   }
 
-  // SEO issues
   const seoKeys = [
-    'meta-description',
-    'document-title',
-    'link-text',
-    'crawlable-anchors',
-    'is-crawlable',
-    'robots-txt',
-    'tap-targets',
-    'hreflang',
-    'canonical',
-    'image-alt',
-    'font-size',
-    'structured-data',
+    'meta-description', 'document-title', 'link-text', 'crawlable-anchors',
+    'is-crawlable', 'robots-txt', 'tap-targets', 'hreflang', 'canonical',
+    'image-alt', 'font-size', 'structured-data',
   ];
   const seoScore = cats?.seo?.score != null ? Math.round(cats.seo.score * 100) : null;
   for (const key of seoKeys) {
@@ -119,10 +127,7 @@ async function getPageSpeed(url, strategy = 'mobile') {
     }
   }
 
-  // Accessibility issues (top ones)
-  const a11yKeys = ['image-alt', 'button-name', 'color-contrast', 'document-title'];
-  for (const key of a11yKeys) {
-    if (seoKeys.includes(key)) continue; // already captured above
+  for (const key of ['button-name', 'color-contrast']) {
     const a = audit?.[key];
     if (a && a.score !== null && a.score < 1) {
       issues.push({ category: 'accessibility', id: key, title: a.title, score: Math.round((a.score || 0) * 100), savings: null });
@@ -131,7 +136,6 @@ async function getPageSpeed(url, strategy = 'mobile') {
 
   return { score, seoScore, lcp, cls, fid, issues };
 }
-
 // ---------------------------------------------------------------------------
 // Google Search Console
 // ---------------------------------------------------------------------------

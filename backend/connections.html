@@ -269,6 +269,7 @@
       renderGmailCard(data.gmail),
       renderTwilioCard(data.twilio),
       renderOpenWeatherCard(data.openweather),
+      renderPageSpeedCard(data.pagespeed),
       renderGoogleCard(data.google),
       renderSkyvernCard(data.skyvern),
     ].join('');
@@ -319,7 +320,7 @@
         </div>
         ` : '<div class="text-xs text-on-surface-variant">Not connected to Jobber</div>'}
       </div>
-      ${logs ? `<div class="text-xs text-on-surface-variant mt-2 space-y-1 mb-4"><div class="font-semibold mb-1">Recent refreshes</div>${logs}</div>` : ''}
+      ${logs ? `<div class="text-xs text-on-surface-variant mt-2 mb-4"><div class="font-semibold mb-1">Recent refreshes</div><div style="max-height:1.35rem;overflow-y:auto;">${logs}</div></div>` : ''}
       <div id="test-result-jobber"></div>
       <div class="flex gap-2 mt-4 flex-wrap">
         ${connected
@@ -452,6 +453,35 @@
     </div>`;
   }
 
+  function renderPageSpeedCard(p) {
+    const ok = p.configured;
+    return `
+    <div class="glass-card rounded-xl p-6">
+      <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center mb-4">
+        <span class="text-lg">⚡</span>
+      </div>
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <h3 class="text-sm font-semibold text-zinc-100">Google PageSpeed</h3>
+          <p class="text-xs text-on-surface-variant mt-0.5">Website performance analysis</p>
+        </div>
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium ${ok ? 'bg-secondary/10 text-secondary border border-secondary/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'}">
+          ${ok ? 'API Key Set' : 'Free Tier'}
+        </span>
+      </div>
+      <div class="text-xs text-on-surface-variant mb-4">
+        <span class="font-semibold">Required for:</span> Performance audits
+      </div>
+      <div class="space-y-2 mb-4">
+        <div class="text-xs text-on-surface-variant">Free tier uses shared Google quota (~25k req/day). Add GOOGLE_API_KEY to .env for dedicated quota.</div>
+      </div>
+      <div id="test-result-pagespeed"></div>
+      <div class="flex gap-2 mt-4">
+        <button id="test-btn-pagespeed" class="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors text-zinc-300" onclick="testService('pagespeed')">Test PageSpeed</button>
+      </div>
+    </div>`;
+  }
+
   function renderGoogleCard(g) {
     const ok = g.connected;
     return `
@@ -567,8 +597,15 @@
   document.addEventListener('DOMContentLoaded', function() {
     const params = new URLSearchParams(window.location.search);
     const connected = params.get('connected');
+    const reason = params.get('reason');
 
-    if (connected === 'true') {
+    if (reason === 'jobber_not_connected') {
+      const msg = document.createElement('div');
+      msg.className = 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 px-4 py-3 rounded-xl text-sm font-medium mb-6';
+      msg.textContent = 'Please connect Jobber to use the review dashboard.';
+      document.querySelector('main').insertBefore(msg, document.querySelector('main').firstChild.nextSibling);
+      history.replaceState({}, '', '/connections.html');
+    } else if (connected === 'true') {
       const msg = document.createElement('div');
       msg.className = 'fixed top-6 right-6 bg-secondary/10 border border-secondary/30 text-secondary px-4 py-3 rounded-xl text-sm font-medium z-[9999]';
       msg.textContent = '✓ Jobber connected successfully';

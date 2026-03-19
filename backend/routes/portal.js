@@ -20,6 +20,33 @@ const { hashPassword, verifyPassword, signToken, setCookie, clearCookie } = requ
 const { requireAuth, requireAdmin } = require('../middleware/requireAuth');
 
 // ---------------------------------------------------------------------------
+// POST /auth/login — validate email + password, set session cookie
+// ---------------------------------------------------------------------------
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body || {};
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+
+    if (!user || !user.isActive || !verifyPassword(password, user.passwordHash)) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const token = signToken({ userId: user.id, email: user.email, role: user.role });
+    setCookie(res, token);
+
+    return res.json({ success: true, redirect: '/index.html' });
+  } catch (err) {
+    console.error('[portal] /auth/login error:', err.message);
+    return res.status(500).json({ error: 'Login failed — server error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // GET /auth/google — redirect to Google OAuth consent screen
 // ---------------------------------------------------------------------------
 router.get('/google', (req, res) => {
