@@ -125,27 +125,17 @@ router.post('/test/:service', async (req, res) => {
       }
 
       case 'gmail': {
-        const nodemailer = require('nodemailer');
         const { getGmailCreds, ensureFreshToken } = require('../services/emailService');
         const creds = await getGmailCreds(req.user.userId);
         if (!creds) return res.json({ ok: false, message: 'Gmail not connected — sign in with Google to connect' });
         const accessToken = await ensureFreshToken(req.user.userId, creds);
-        const transporter = nodemailer.createTransport({
-          service: 'gmail',
-          auth: {
-            type:         'OAuth2',
-            user:         creds.user,
-            clientId:     process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-            refreshToken: creds.refreshToken,
-            accessToken,
-          },
-        });
-        const timeout = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Gmail verify timed out after 10s')), 10000)
-        );
-        await Promise.race([transporter.verify(), timeout]);
-        return res.json({ ok: true, message: `Gmail connected — ready to send as ${creds.user}` });
+        const tokenCheck = await axios.get(
+          `https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${accessToken}`
+        ).catch(err => ({ status: err.response?.status || 400 }));
+        if (tokenCheck.status === 200) {
+          return res.json({ ok: true, message: `Gmail connected — ready to send as ${creds.user}` });
+        }
+        return res.json({ ok: false, message: 'Gmail token invalid — sign out and sign in again' });
       }
 
       case 'twilio': {
