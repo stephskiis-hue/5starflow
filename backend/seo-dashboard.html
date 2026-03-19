@@ -1,472 +1,256 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="dark" lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SEO Audit — 5StarFlow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#aac7ff",
+            "secondary": "#47e266",
+            "tertiary": "#e9b3ff",
+            "on-surface-variant": "#8b91a0",
+          },
+          borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+          fontFamily: { sans: ["Inter", "sans-serif"] },
+        },
+      },
+    }
+  </script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg:           #09090f;
-      --surface:      rgba(18, 20, 32, 0.85);
-      --surface-alt:  rgba(24, 27, 42, 0.6);
-      --border:       rgba(255, 255, 255, 0.07);
-      --border-hover: rgba(255, 255, 255, 0.14);
-      --gold:         #d4a017;
-      --gold-dim:     rgba(212, 160, 23, 0.12);
-      --text-1:       #f0f2f8;
-      --text-2:       #8b95a8;
-      --text-3:       #4a5568;
-      --green:        #34d399;
-      --green-dim:    rgba(52, 211, 153, 0.12);
-      --red:          #f87171;
-      --red-dim:      rgba(248, 113, 113, 0.12);
-      --yellow:       #fbbf24;
-      --yellow-dim:   rgba(251, 191, 36, 0.12);
-      --blue:         #60a5fa;
-      --blue-dim:     rgba(96, 165, 250, 0.12);
-      --sidebar-w:    260px;
-      --radius:       18px;
-      --radius-sm:    10px;
-    }
-
-    html, body { height: 100%; background: var(--bg); color: var(--text-1); font-family: -apple-system, 'SF Pro Display', BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
-    .app { display: flex; min-height: 100vh; }
-
-    /* ── Sidebar ──────────────────────────────────── */
-    .sidebar { width: var(--sidebar-w); min-height: 100vh; background: rgba(10,11,18,0.97); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; left: 0; top: 0; bottom: 0; z-index: 100; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
-    .sidebar-logo { padding: 1.75rem 1.5rem 1.25rem; border-bottom: 1px solid var(--border); }
-    .sidebar-logo h1 { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.04em; color: var(--text-1); }
-    .sidebar-logo h1 .star { color: var(--gold); }
-    .sidebar-logo p { font-size: 0.7rem; color: var(--text-3); margin-top: 0.2rem; letter-spacing: 0.04em; }
-    .sidebar-nav { flex: 1; padding: 1rem 0.75rem; display: flex; flex-direction: column; gap: 0.2rem; }
-    .nav-section-label { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); padding: 0.9rem 0.75rem 0.4rem; }
-    .nav-link { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.85rem; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 500; color: var(--text-2); text-decoration: none; transition: all 0.15s ease; cursor: pointer; border: none; background: none; width: 100%; text-align: left; }
-    .nav-link:hover { background: rgba(255,255,255,0.05); color: var(--text-1); }
-    .nav-link.active { background: var(--gold-dim); color: var(--gold); border-left: 2px solid var(--gold); padding-left: calc(0.85rem - 2px); }
-    .nav-link .nav-icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
-    .nav-link .nav-badge { margin-left: auto; font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 999px; background: var(--gold-dim); color: var(--gold); }
-    .sidebar-footer { padding: 1rem 1.25rem 1.5rem; border-top: 1px solid var(--border); }
-    .sidebar-user { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
-    .user-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--gold) 0%, #b8860b 100%); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: #0a0c12; flex-shrink: 0; }
-    .user-info { overflow: hidden; }
-    .user-email { font-size: 0.75rem; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .user-role { font-size: 0.65rem; color: var(--text-3); margin-top: 0.1rem; }
-    .btn-logout { width: 100%; padding: 0.55rem; background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.18); border-radius: var(--radius-sm); color: var(--red); font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.15s; letter-spacing: 0.02em; }
-    .btn-logout:hover { background: rgba(248,113,113,0.15); }
-
-    /* ── Main ─────────────────────────────────────── */
-    .main { margin-left: var(--sidebar-w); flex: 1; padding: 2.5rem 2.5rem 3rem; min-height: 100vh; }
-    @media (max-width: 640px) { .main { padding: 1.5rem 1rem 2rem; margin-left: 0; } .sidebar { transform: translateX(-100%); } }
-
-    .topbar { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 2.5rem; gap: 1rem; flex-wrap: wrap; }
-    .page-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin-bottom: 0.35rem; }
-    .page-heading { font-size: 2rem; font-weight: 800; letter-spacing: -0.04em; background: linear-gradient(140deg, #f0f2f8 0%, #8b95a8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1.15; }
-    .page-sub { font-size: 0.82rem; color: var(--text-3); margin-top: 0.4rem; }
-    .topbar-actions { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
-
-    /* ── Cards ────────────────────────────────────── */
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); margin-bottom: 1.25rem; position: relative; overflow: hidden; }
-    .card::before { content: ''; position: absolute; inset: 0; border-radius: var(--radius); background: linear-gradient(135deg, rgba(255,255,255,0.025) 0%, transparent 60%); pointer-events: none; }
-    .card-accent { position: absolute; top: 0; left: 1.5rem; right: 1.5rem; height: 1px; border-radius: 999px; opacity: 0.6; }
-    .card-title { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); margin-bottom: 1rem; }
-
-    /* Stats row */
-    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
-    @media (max-width: 900px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
-    .stat-box { background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; }
-    .stat-val { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1; margin-bottom: 0.2rem; }
-    .stat-label { font-size: 0.72rem; color: var(--text-3); }
-
-    /* Score gauge */
-    .score-gauge-wrap { display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.25rem; }
-    .score-circle { width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 900; flex-shrink: 0; border: 3px solid; }
-    .score-circle.good   { color: var(--green);  border-color: rgba(52,211,153,0.4); background: rgba(52,211,153,0.06); }
-    .score-circle.avg    { color: var(--yellow); border-color: rgba(251,191,36,0.4);  background: rgba(251,191,36,0.06); }
-    .score-circle.poor   { color: var(--red);    border-color: rgba(248,113,113,0.4); background: rgba(248,113,113,0.06); }
-    .score-circle.none   { color: var(--text-3); border-color: var(--border); background: var(--surface-alt); font-size: 0.9rem; }
-    .score-meta { flex: 1; }
-    .score-meta h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.3rem; }
-    .score-meta p  { font-size: 0.78rem; color: var(--text-3); }
-
-    /* Proposal card */
-    .proposal-card { background: rgba(212,160,23,0.04); border: 1px solid rgba(212,160,23,0.2); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.25rem; position: relative; overflow: hidden; }
-    .proposal-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--gold), transparent); }
-    .proposal-title { font-size: 1rem; font-weight: 700; color: var(--gold); margin-bottom: 0.25rem; }
-    .proposal-sub   { font-size: 0.78rem; color: var(--text-3); margin-bottom: 1.25rem; }
-
-    /* Insight table */
-    .insight-table { width: 100%; border-collapse: collapse; margin-bottom: 1.25rem; }
-    .insight-table th { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--border); text-align: left; }
-    .insight-table td { font-size: 0.78rem; color: var(--text-2); padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: top; line-height: 1.5; }
-    .insight-table tr:last-child td { border-bottom: none; }
-    .insight-table td:first-child { color: var(--text-1); font-weight: 500; }
-    .insight-table td.impact { color: var(--green); }
-    .insight-table td.fix    { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.72rem; color: var(--blue); }
-
-    .proposal-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-
-    /* Selective change review UI */
-    .proposal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 0.35rem; }
-    .proposal-counter { font-size: 0.75rem; color: var(--text-3); margin-bottom: 1rem; padding: 0.4rem 0.75rem; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid var(--border); display: inline-block; }
-    .change-list { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.25rem; }
-    .change-item { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; transition: all 0.2s ease; }
-    .change-item.excluded { opacity: 0.38; background: rgba(0,0,0,0.2); }
-    .change-item.excluded .change-body { text-decoration: line-through; color: var(--text-3); }
-    .change-item-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.65rem; }
-    .change-badges { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
-    .change-badge { font-size: 0.62rem; font-weight: 700; padding: 0.18rem 0.5rem; border-radius: 999px; letter-spacing: 0.04em; white-space: nowrap; }
-    .exclude-btn { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.2); color: var(--red); border-radius: 6px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; transition: all 0.15s; line-height: 1; }
-    .exclude-btn:hover { background: rgba(248,113,113,0.22); }
-    .change-item.excluded .exclude-btn { background: rgba(52,211,153,0.1); border-color: rgba(52,211,153,0.2); color: var(--green); }
-    .change-body { font-size: 0.78rem; color: var(--text-2); line-height: 1.6; display: flex; flex-direction: column; gap: 0.3rem; }
-    .change-body strong { color: var(--text-1); }
-    .change-insight { color: var(--text-1); }
-    .change-impact { color: var(--green); }
-    .change-fix { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.72rem; color: var(--blue); }
-    .change-file { font-size: 0.68rem; color: var(--text-3); margin-top: 0.1rem; }
-
-    /* History table */
-    .history-table { width: 100%; border-collapse: collapse; }
-    .history-table th { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); text-align: left; }
-    .history-table td { font-size: 0.78rem; color: var(--text-2); padding: 0.6rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .history-table tr:last-child td { border-bottom: none; }
-    .history-table tr:hover td { background: rgba(255,255,255,0.02); }
-
-    /* Badges */
-    .badge { font-size: 0.62rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 999px; letter-spacing: 0.04em; }
-    .badge-green  { background: var(--green-dim);  color: var(--green); }
-    .badge-red    { background: var(--red-dim);    color: var(--red); }
-    .badge-yellow { background: var(--yellow-dim); color: var(--yellow); }
-    .badge-gray   { background: rgba(148,163,184,0.1); color: var(--text-3); }
-    .badge-gold   { background: var(--gold-dim);   color: var(--gold); }
-
-    /* Core Web Vitals chips */
-    .cwv-row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.75rem; }
-    .cwv-chip { padding: 0.35rem 0.7rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; border: 1px solid; }
-    .cwv-chip.good   { color: var(--green);  border-color: rgba(52,211,153,0.3);  background: var(--green-dim); }
-    .cwv-chip.avg    { color: var(--yellow); border-color: rgba(251,191,36,0.3);   background: var(--yellow-dim); }
-    .cwv-chip.poor   { color: var(--red);    border-color: rgba(248,113,113,0.3);  background: var(--red-dim); }
-    .cwv-chip.none   { color: var(--text-3); border-color: var(--border); background: var(--surface-alt); }
-
-    /* Settings form */
-    .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    @media (max-width: 700px) { .settings-grid { grid-template-columns: 1fr; } }
-    .form-group { display: flex; flex-direction: column; gap: 0.35rem; }
-    .form-group.full { grid-column: 1 / -1; }
-    label { font-size: 0.72rem; font-weight: 600; color: var(--text-3); letter-spacing: 0.04em; text-transform: uppercase; }
-    input, select, textarea { background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-1); font-size: 0.82rem; padding: 0.55rem 0.75rem; width: 100%; transition: border-color 0.15s; font-family: inherit; }
-    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--gold); }
-    input::placeholder, textarea::placeholder { color: var(--text-3); }
-    select option { background: #1a1d2e; }
-    textarea { resize: vertical; min-height: 80px; }
-
-    /* Buttons */
-    .btn { padding: 0.55rem 1.1rem; border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 600; cursor: pointer; border: 1px solid; transition: all 0.15s; letter-spacing: 0.02em; }
-    .btn-primary { background: var(--green-dim); color: var(--green); border-color: rgba(52,211,153,0.25); }
-    .btn-primary:hover { background: rgba(52,211,153,0.2); }
-    .btn-danger  { background: var(--red-dim);   color: var(--red);   border-color: rgba(248,113,113,0.25); }
-    .btn-danger:hover  { background: rgba(248,113,113,0.2); }
-    .btn-ghost   { background: var(--surface-alt); color: var(--text-2); border-color: var(--border); }
-    .btn-ghost:hover   { background: rgba(255,255,255,0.08); color: var(--text-1); }
-    .btn-gold    { background: var(--gold-dim); color: var(--gold); border-color: rgba(212,160,23,0.25); }
-    .btn-gold:hover    { background: rgba(212,160,23,0.2); }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-    .divider { height: 1px; background: var(--border); margin: 1.25rem 0; }
-
-    .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-3); }
-    .empty-state h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-2); }
-    .empty-state p  { font-size: 0.82rem; }
-
-    .alert-banner { padding: 0.85rem 1rem; border-radius: var(--radius-sm); font-size: 0.82rem; margin-bottom: 1rem; font-weight: 500; }
-    .alert-info   { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(96,165,250,0.2); }
-    .alert-warn   { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(251,191,36,0.2); }
-
-    .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; vertical-align: middle; }
-    .dot.green  { color: var(--green); }
-    .dot.red    { color: var(--red); }
-    .dot.yellow { color: var(--yellow); }
-    .dot.gray   { color: var(--text-3); }
-
-    /* Collapsible sidebar */
-    .sidebar { transition: width 0.2s ease; overflow: visible; }
-    .sidebar.collapsed { width: 60px; overflow: visible; }
-    .sidebar.collapsed .nav-label,
-    .sidebar.collapsed .nav-section-label,
-    .sidebar.collapsed .nav-badge,
-    .sidebar.collapsed .sidebar-logo p,
-    .sidebar.collapsed .sidebar-footer { display: none; }
-    .sidebar.collapsed .nav-link { justify-content: center; padding: 0.6rem; }
-    .sidebar.collapsed .sidebar-logo { padding: 1.25rem 0; text-align: center; }
-    .sidebar.collapsed .sidebar-toggle { transform: scaleX(-1); }
-    .main { transition: margin-left 0.2s ease; }
-    body.sidebar-collapsed .main { margin-left: 60px; }
-    .sidebar-toggle {
-      display: block; width: 100%; padding: 0.75rem 0;
-      background: none; border: none; border-top: 1px solid var(--border);
-      color: var(--text-3); font-size: 1.5rem; cursor: pointer;
-      text-align: center; transition: color 0.15s, transform 0.2s;
-      line-height: 1;
-    }
-    .sidebar-toggle:hover { color: var(--text-1); }
-    .sidebar.collapsed .nav-link { position: relative; }
-    .sidebar.collapsed .nav-link::after {
-      content: attr(data-tooltip);
-      position: absolute;
-      left: 68px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: rgba(15, 15, 22, 0.97);
-      color: var(--text-1);
-      font-size: 0.78rem;
-      font-weight: 500;
-      padding: 0.35rem 0.7rem;
-      border-radius: 7px;
-      white-space: nowrap;
-      border: 1px solid var(--border);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.12s;
-      z-index: 9999;
-    }
-    .sidebar.collapsed .nav-link:hover::after { opacity: 1; }
+    body { font-family: 'Inter', sans-serif; background-color: #000000; }
+    .glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
   </style>
 </head>
-<body>
-<div class="app">
+<body class="bg-black text-zinc-100 dark min-h-screen">
 
-  <!-- ── Sidebar ──────────────────────────────────── -->
-  <aside class="sidebar">
-    <div class="sidebar-logo">
-      <h1>5<span class="star">&#9733;</span>Flow</h1>
-      <p>Business Automation OS</p>
+  <!-- Sidebar -->
+  <aside class="fixed left-6 top-6 bottom-6 w-64 rounded-[3rem] border-t border-white/10 bg-zinc-900/60 backdrop-blur-2xl flex flex-col h-[calc(100vh-3rem)] p-4 shadow-[0_40px_40px_-5px_rgba(0,0,0,0.6)] z-50">
+    <div class="mb-8 px-4 pt-4">
+      <h1 class="text-xl font-bold text-zinc-100 tracking-tighter">Command Center</h1>
+      <p class="text-xs text-zinc-500 font-medium mt-1">5StarFlow</p>
     </div>
 
-    <nav class="sidebar-nav">
-      <div class="nav-section-label">Main</div>
-
-      <a class="nav-link" data-tooltip="Home" href="/index.html">
-        <span class="nav-icon">&#9632;</span>
-        <span class="nav-label">Home</span>
+    <nav class="flex-1 space-y-0.5 overflow-y-auto" id="main-nav">
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/index.html">
+        <span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">home</span>
+        <span class="text-sm font-medium tracking-tight">Home</span>
       </a>
-
-      <a class="nav-link" data-tooltip="Review Requests" href="/review-dashboard.html">
-        <span class="nav-icon">&#9733;</span>
-        <span class="nav-label">Review Requests</span>
-        <span class="nav-badge" id="sidebar-pending">—</span>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/review-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">rate_review</span>
+        <span class="text-sm font-medium tracking-tight">Review Requests</span>
+        <span class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary/10 text-secondary hidden" id="sidebar-pending"></span>
       </a>
-
-      <a class="nav-link" data-tooltip="Rain Alerts" href="/weather-dashboard.html">
-        <span class="nav-icon">&#9928;</span>
-        <span class="nav-label">Rain Alerts</span>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/weather-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">thunderstorm</span>
+        <span class="text-sm font-medium tracking-tight">Rain Alerts</span>
       </a>
-
-      <div class="nav-section-label">Tools</div>
-
-      <a class="nav-link active" data-tooltip="SEO Audit" href="/seo-dashboard.html">
-        <span class="nav-icon">&#128202;</span>
-        <span class="nav-label">SEO Audit</span>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-100 rounded-xl relative before:absolute before:left-0 before:w-1 before:h-6 before:bg-secondary before:rounded-full hover:bg-white/5 transition-all duration-200" href="/seo-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">search_check</span>
+        <span class="text-sm font-medium tracking-tight">SEO Audit</span>
       </a>
-      <a class="nav-link" data-tooltip="Website Audit" href="/website-audit.html">
-        <span class="nav-icon">&#128394;</span>
-        <span class="nav-label">Website Audit</span>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/website-audit.html">
+        <span class="material-symbols-outlined text-[20px]">speed</span>
+        <span class="text-sm font-medium tracking-tight">Website Audit</span>
       </a>
-
-      <div class="nav-section-label">System</div>
-
-      <a class="nav-link" data-tooltip="App Connections" href="/connections.html">
-        <span class="nav-icon">&#128279;</span>
-        <span class="nav-label">App Connections</span>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/connections.html">
+        <span class="material-symbols-outlined text-[20px]">hub</span>
+        <span class="text-sm font-medium tracking-tight">App Connections</span>
       </a>
-
-      <a class="nav-link" data-tooltip="Settings" href="/settings.html">
-        <span class="nav-icon">&#9881;</span>
-        <span class="nav-label">Settings</span>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/settings.html">
+        <span class="material-symbols-outlined text-[20px]">settings</span>
+        <span class="text-sm font-medium tracking-tight">Settings</span>
       </a>
     </nav>
 
-    <div class="sidebar-footer">
-      <div class="sidebar-user">
-        <div class="user-avatar" id="user-avatar">?</div>
-        <div class="user-info">
-          <div class="user-email" id="user-email">Loading...</div>
-          <div class="user-role">Administrator</div>
+    <div class="mt-auto px-2 pt-4 border-t border-white/5">
+      <div class="flex items-center gap-3 p-2">
+        <div class="w-9 h-9 rounded-full bg-surface-container-highest flex items-center justify-center text-sm font-bold text-zinc-100 flex-shrink-0" id="user-avatar">?</div>
+        <div class="flex-1 overflow-hidden">
+          <p class="text-sm font-semibold text-zinc-100 truncate" id="user-email">Loading...</p>
+          <p class="text-xs text-zinc-500 truncate" id="user-role">Administrator</p>
         </div>
+        <button onclick="logout()" class="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex-shrink-0" title="Log out">
+          <span class="material-symbols-outlined text-[18px]">logout</span>
+        </button>
       </div>
-      <button class="btn-logout" onclick="logout()">Log Out</button>
     </div>
-    <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">&#8249;</button>
   </aside>
 
-  <!-- ── Main ─────────────────────────────────────── -->
-  <main class="main">
+  <!-- Main -->
+  <main class="pl-80 pr-12 py-10 min-h-screen">
 
-    <div class="topbar">
-      <div>
-        <div class="page-label">Tools</div>
-        <h2 class="page-heading">SEO Audit</h2>
-        <p class="page-sub">Weekly autonomous audit for No-Bs Yardwork — proposal &amp; approval loop.</p>
+    <!-- Page Header -->
+    <div class="mb-10">
+      <h2 class="text-2xl font-black text-zinc-100 tracking-tight">SEO Audit</h2>
+      <p class="text-sm text-on-surface-variant mt-1">Search performance and optimization</p>
+    </div>
+
+    <!-- Top Actions -->
+    <div class="flex gap-3 mb-10">
+      <button class="px-5 py-2.5 text-sm font-semibold rounded-xl border border-white/10 text-zinc-300 hover:bg-white/5 transition-colors" onclick="loadPage()">Refresh</button>
+      <button class="px-5 py-2.5 text-sm font-semibold rounded-xl bg-primary text-zinc-900 hover:bg-primary/90 transition-colors" onclick="runAudit(this)" id="run-btn">Run Audit Now</button>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-4 gap-6 mb-10" id="stats-row">
+      <div class="glass-card rounded-xl p-6">
+        <div class="text-3xl font-black text-zinc-100 mb-2" id="stat-score">—</div>
+        <div class="text-sm text-on-surface-variant">PageSpeed Score</div>
       </div>
-      <div class="topbar-actions">
-        <button class="btn btn-ghost" onclick="loadPage()">&#8635; Refresh</button>
-        <button class="btn btn-gold" onclick="runAudit(this)" id="run-btn">Run Audit Now</button>
+      <div class="glass-card rounded-xl p-6">
+        <div class="text-3xl font-black text-zinc-100 mb-2" id="stat-lcp">—</div>
+        <div class="text-sm text-on-surface-variant">LCP (s)</div>
+      </div>
+      <div class="glass-card rounded-xl p-6">
+        <div class="text-3xl font-black text-zinc-100 mb-2" id="stat-proposals">—</div>
+        <div class="text-sm text-on-surface-variant">Pending Proposals</div>
+      </div>
+      <div class="glass-card rounded-xl p-6">
+        <div class="text-2xl font-black text-zinc-100 mb-2" id="stat-last-audit">—</div>
+        <div class="text-sm text-on-surface-variant">Last Audit</div>
       </div>
     </div>
 
-    <!-- ── Status stats ─────────────────────────────── -->
-    <div class="stats-row" id="stats-row">
-      <div class="stat-box">
-        <div class="stat-val" id="stat-score" style="color:var(--text-3);">—</div>
-        <div class="stat-label">PageSpeed Score</div>
+    <!-- Bento Layout: Score + Content -->
+    <div class="grid grid-cols-12 gap-6 mb-10">
+      <!-- Score Gauge -->
+      <div class="col-span-4 glass-card rounded-xl p-8">
+        <div id="score-gauge-container">
+          <div class="flex flex-col items-center justify-center py-8">
+            <svg class="w-40 h-40 -rotate-90" viewBox="0 0 192 192">
+              <circle class="text-white/5" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-width="8"/>
+              <circle id="seo-circle" class="text-tertiary" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-dasharray="503" stroke-dashoffset="503" stroke-width="8" style="transition:stroke-dashoffset 0.8s ease; filter:drop-shadow(0 0 8px rgba(233,179,255,0.4));"/>
+            </svg>
+            <div class="absolute flex flex-col items-center">
+              <span class="text-4xl font-black text-white" id="seo-score">—</span>
+              <span class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">/ 100</span>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="stat-box">
-        <div class="stat-val" id="stat-lcp" style="color:var(--text-3);">—</div>
-        <div class="stat-label">LCP (s)</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-val" id="stat-proposals" style="color:var(--text-3);">—</div>
-        <div class="stat-label">Pending Proposals</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-val" id="stat-last-audit" style="color:var(--text-3);font-size:1.1rem;">—</div>
-        <div class="stat-label">Last Audit</div>
-      </div>
-    </div>
 
-    <!-- ── Pending Proposals ──────────────────────────── -->
-    <div id="proposals-section"></div>
+      <!-- Main Content -->
+      <div class="col-span-8 space-y-6">
+        <!-- Proposals Section -->
+        <div id="proposals-section"></div>
 
-    <!-- ── Latest Audit Detail ────────────────────────── -->
-    <div class="card" id="audit-card">
-      <div class="card-accent" style="background:linear-gradient(90deg,#60a5fa,transparent);"></div>
-      <div class="card-title">Latest Audit Results</div>
-      <div id="audit-detail">
-        <div class="empty-state">
-          <h3>No audits yet</h3>
-          <p>Click "Run Audit Now" to perform your first SEO audit.<br>Or it will run automatically every Sunday at 8 AM once configured.</p>
+        <!-- Latest Audit Results -->
+        <div class="glass-card rounded-xl p-6">
+          <h3 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-6">Latest Audit Results</h3>
+          <div id="audit-detail">
+            <div class="text-center py-8">
+              <p class="text-sm text-on-surface-variant">No audits yet. Click "Run Audit Now" to perform your first SEO audit.</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- ── Audit History ──────────────────────────────── -->
-    <div class="card">
-      <div class="card-accent" style="background:linear-gradient(90deg,var(--gold),transparent);"></div>
-      <div class="card-title">Audit History</div>
+    <!-- Audit History -->
+    <div class="glass-card rounded-xl p-6 mb-10">
+      <h3 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-6">Audit History</h3>
       <div id="audit-history">
-        <div class="empty-state"><p>No history yet.</p></div>
+        <div class="text-center py-8"><p class="text-sm text-on-surface-variant">No history yet.</p></div>
       </div>
     </div>
 
-    <!-- ── Settings ───────────────────────────────────── -->
-    <div class="card" id="settings-card">
-      <div class="card-accent" style="background:linear-gradient(90deg,#a78bfa,transparent);"></div>
-      <div class="card-title">SEO Settings</div>
+    <!-- Settings -->
+    <div class="glass-card rounded-xl p-6">
+      <h3 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-6">SEO Settings</h3>
       <div id="settings-content">
-        <div class="alert-banner alert-info">
+        <div class="bg-primary/10 border border-primary/20 rounded-lg p-4 mb-6 text-sm text-primary">
           Configure your site URL and competitor URLs first. Then run an audit.
-          For keyword data, connect Google Search Console on the <a href="/connections.html" style="color:var(--blue);">App Connections</a> page.
+          For keyword data, connect Google Search Console on the <a href="/connections.html" class="underline">App Connections</a> page.
         </div>
         <form id="settings-form" onsubmit="saveSettings(event)">
-          <div class="settings-grid">
-            <div class="form-group full">
-              <label>Your Website URL</label>
-              <input type="url" id="s-siteUrl" placeholder="https://nobsyardwork.com" />
+          <div class="space-y-6">
+            <div class="space-y-2">
+              <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Your Website URL</label>
+              <input type="url" id="s-siteUrl" placeholder="https://nobsyardwork.com" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-primary/50" />
             </div>
-            <div class="form-group full">
-              <label>Competitor URLs (one per line)</label>
-              <textarea id="s-competitorUrls" placeholder="https://competitor1.com&#10;https://competitor2.com"></textarea>
+            <div class="space-y-2">
+              <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Competitor URLs (one per line)</label>
+              <textarea id="s-competitorUrls" placeholder="https://competitor1.com&#10;https://competitor2.com" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-primary/50 min-h-24"></textarea>
             </div>
-            <div class="form-group">
-              <label>Google Search Console Property</label>
-              <input type="text" id="s-siteProperty" placeholder="sc-domain:nobsyardwork.com" />
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-2">
+                <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Google Search Console Property</label>
+                <input type="text" id="s-siteProperty" placeholder="sc-domain:nobsyardwork.com" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-primary/50" />
+              </div>
+              <div class="space-y-2">
+                <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Weekly Audit</label>
+                <select id="s-auditEnabled" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50">
+                  <option value="true">Enabled (every Sunday 8 AM)</option>
+                  <option value="false">Disabled</option>
+                </select>
+              </div>
             </div>
-            <div class="form-group">
-              <label>Weekly Audit</label>
-              <select id="s-auditEnabled">
-                <option value="true">Enabled (every Sunday 8 AM)</option>
-                <option value="false">Disabled</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Analysis Depth</label>
-              <select id="s-deepAnalysis">
+            <div class="space-y-2">
+              <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Analysis Depth</label>
+              <select id="s-deepAnalysis" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50">
                 <option value="false">Standard — Haiku (~$0.007/audit)</option>
                 <option value="true">Deep — Sonnet (~$0.04/audit)</option>
               </select>
             </div>
+
+            <div class="border-t border-white/10 pt-6">
+              <h4 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">Auto-Deploy (optional)</h4>
+              <div class="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 mb-6 text-sm text-yellow-200">
+                Auto-deploy pushes approved changes directly to your website. Leave as "None" to just view diffs in the dashboard.
+              </div>
+              <div class="space-y-4">
+                <div class="space-y-2">
+                  <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Deploy Method</label>
+                  <select id="s-deployType" onchange="toggleDeployFields()" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50">
+                    <option value="none">None (show diffs only)</option>
+                    <option value="git">Git Push</option>
+                    <option value="ftp">FTP Upload</option>
+                  </select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="space-y-2">
+                    <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Branch / Remote Path</label>
+                    <input type="text" id="s-deployPath" placeholder="main or /public_html" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-primary/50" />
+                  </div>
+                  <div class="space-y-2" id="deploy-host-group">
+                    <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Host / Git Repo URL</label>
+                    <input type="text" id="s-deployHost" placeholder="https://github.com/user/repo.git or ftp.host.com" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-primary/50" />
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="space-y-2" id="deploy-user-group">
+                    <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">FTP Username</label>
+                    <input type="text" id="s-deployUser" placeholder="ftpuser" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-primary/50" />
+                  </div>
+                  <div class="space-y-2" id="deploy-pass-group">
+                    <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">FTP Password</label>
+                    <input type="password" id="s-deployPass" placeholder="••••••••" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-primary/50" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="divider"></div>
-          <div class="card-title" style="margin-bottom:0.85rem;">Auto-Deploy (optional)</div>
-          <div class="alert-banner alert-warn" style="margin-bottom:0.85rem;">
-            Auto-deploy pushes approved changes directly to your website. Leave as "None" to just view diffs in the dashboard.
-          </div>
-          <div class="settings-grid">
-            <div class="form-group">
-              <label>Deploy Method</label>
-              <select id="s-deployType" onchange="toggleDeployFields()">
-                <option value="none">None (show diffs only)</option>
-                <option value="git">Git Push</option>
-                <option value="ftp">FTP Upload</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Branch / Remote Path</label>
-              <input type="text" id="s-deployPath" placeholder="main or /public_html" />
-            </div>
-            <div class="form-group" id="deploy-host-group">
-              <label>Host / Git Repo URL</label>
-              <input type="text" id="s-deployHost" placeholder="https://github.com/user/repo.git or ftp.host.com" />
-            </div>
-            <div class="form-group" id="deploy-user-group">
-              <label>FTP Username</label>
-              <input type="text" id="s-deployUser" placeholder="ftpuser" />
-            </div>
-            <div class="form-group" id="deploy-pass-group">
-              <label>FTP Password</label>
-              <input type="password" id="s-deployPass" placeholder="••••••••" />
-            </div>
-          </div>
-
-          <div class="divider"></div>
-          <div style="display:flex;gap:0.75rem;">
-            <button type="submit" class="btn btn-primary">Save Settings</button>
-            <span id="settings-msg" style="font-size:0.78rem;color:var(--green);align-self:center;display:none;">Saved!</span>
+          <div class="flex gap-3 mt-8">
+            <button type="submit" class="px-5 py-2.5 text-sm font-semibold rounded-xl bg-secondary text-zinc-900 hover:bg-secondary/90 transition-colors">Save Settings</button>
+            <span id="settings-msg" class="text-sm text-secondary self-center hidden">Saved!</span>
           </div>
         </form>
       </div>
     </div>
 
   </main>
-</div>
 
 <script>
-  // ── Sidebar toggle ──────────────────────────────────────────────
-  function toggleSidebar() {
-    const sidebar   = document.querySelector('.sidebar');
-    const collapsed = sidebar.classList.toggle('collapsed');
-    document.body.classList.toggle('sidebar-collapsed', collapsed);
-    localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
-  }
-  document.querySelectorAll('.nav-link').forEach(link => {
-    link.addEventListener('click', () => {
-      if (document.querySelector('.sidebar').classList.contains('collapsed')) {
-        document.querySelector('.sidebar').classList.remove('collapsed');
-        document.body.classList.remove('sidebar-collapsed');
-        localStorage.setItem('sidebarCollapsed', '0');
-      }
-    });
-  });
-  (function() {
-    if (localStorage.getItem('sidebarCollapsed') === '1') {
-      document.querySelector('.sidebar')?.classList.add('collapsed');
-      document.body.classList.add('sidebar-collapsed');
-    }
-  })();
-
   // ── Auth ─────────────────────────────────────────────────────────
   async function logout() {
     try {
@@ -522,9 +306,9 @@
   }
 
   function statusBadge(status) {
-    const map = { pending: 'badge-yellow', approved: 'badge-green', declined: 'badge-gray', complete: 'badge-green', running: 'badge-gold', failed: 'badge-red' };
+    const map = { pending: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20', approved: 'bg-secondary/10 text-secondary border border-secondary/20', declined: 'bg-white/5 text-on-surface-variant border border-white/10', complete: 'bg-secondary/10 text-secondary border border-secondary/20', running: 'bg-primary/10 text-primary border border-primary/20', failed: 'bg-red-500/10 text-red-400 border border-red-500/20' };
     const labels = { pending: 'Pending', approved: 'Approved', declined: 'Declined', complete: 'Complete', running: 'Running', failed: 'Failed' };
-    return `<span class="badge ${map[status] || 'badge-gray'}">${labels[status] || status}</span>`;
+    return `<span class="rounded-full px-2.5 py-0.5 text-xs font-semibold ${map[status] || 'bg-white/5 text-on-surface-variant border border-white/10'}">${labels[status] || status}</span>`;
   }
 
   // ── Run audit ─────────────────────────────────────────────────────
@@ -671,28 +455,28 @@
         const snippet  = item.code_snippet || (change?.newContent) || null;
 
         const codeBlock = snippet ? `
-          <details style="margin-top:0.4rem;">
-            <summary style="cursor:pointer;font-size:0.68rem;color:var(--text-3);user-select:none;">&#9656; Show code</summary>
-            <pre style="margin:0.5rem 0 0;padding:0.75rem;background:rgba(0,0,0,0.35);border-radius:6px;font-size:0.66rem;overflow-x:auto;white-space:pre-wrap;word-break:break-all;">${escHtml(snippet)}</pre>
+          <details class="mt-1">
+            <summary class="cursor-pointer text-xs text-on-surface-variant user-select-none">Show code</summary>
+            <pre class="mt-2 p-3 bg-black/50 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-words">${escHtml(snippet)}</pre>
           </details>` : '';
 
-        const fileTag = (item.file_target && item.file_target !== 'N/A') ? `<div class="change-file">&#128196; ${escHtml(item.file_target)}</div>` : '';
+        const fileTag = (item.file_target && item.file_target !== 'N/A') ? `<div class="text-xs text-on-surface-variant mt-1">📄 ${escHtml(item.file_target)}</div>` : '';
 
         return `
-        <div class="change-item" id="change-item-${proposalId}-${changeId}">
-          <div class="change-item-header">
-            <div class="change-badges">
-              <span class="change-badge" style="background:${pColor}22;color:${pColor};border:1px solid ${pColor}44;">P${priority}</span>
-              <span class="change-badge" style="background:${eColor}22;color:${eColor};border:1px solid ${eColor}44;">${effort}</span>
-              ${isGeo ? `<span class="change-badge" style="background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);">AI/GEO</span>` : ''}
-              ${item.type ? `<span class="change-badge" style="background:rgba(255,255,255,0.06);color:var(--text-3);border:1px solid var(--border);">${escHtml(item.type)}</span>` : ''}
+        <div class="bg-white/5 border border-white/10 rounded-lg p-4 mb-3" id="change-item-${proposalId}-${changeId}">
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex gap-2 flex-wrap">
+              <span class="rounded-full px-2 py-0.5 text-xs font-semibold" style="background:${pColor}22;color:${pColor};border:1px solid ${pColor}44;">P${priority}</span>
+              <span class="rounded-full px-2 py-0.5 text-xs font-semibold" style="background:${eColor}22;color:${eColor};border:1px solid ${eColor}44;">${effort}</span>
+              ${isGeo ? `<span class="rounded-full px-2 py-0.5 text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/30">AI/GEO</span>` : ''}
+              ${item.type ? `<span class="rounded-full px-2 py-0.5 text-xs font-semibold bg-white/5 text-on-surface-variant border border-white/10">${escHtml(item.type)}</span>` : ''}
             </div>
-            <button class="exclude-btn" onclick="toggleExclude('${proposalId}','${changeId}')" title="Remove this change">&#10005;</button>
+            <button class="exclude-btn w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-bold flex-shrink-0 transition-colors" onclick="toggleExclude('${proposalId}','${changeId}')" title="Remove this change">✕</button>
           </div>
-          <div class="change-body">
-            <div class="change-insight"><strong>Insight:</strong> ${escHtml(item.insight || '—')}</div>
-            <div class="change-impact"><strong>Impact:</strong> ${escHtml(item.impact || '—')}</div>
-            <div class="change-fix"><strong>Fix:</strong> ${escHtml(item.fix || '—')}</div>
+          <div class="space-y-2 text-sm">
+            <div><strong class="text-zinc-100">Insight:</strong> <span class="text-on-surface-variant">${escHtml(item.insight || '—')}</span></div>
+            <div><strong class="text-zinc-100">Impact:</strong> <span class="text-secondary">${escHtml(item.impact || '—')}</span></div>
+            <div><strong class="text-zinc-100">Fix:</strong> <span class="font-mono text-xs text-primary">${escHtml(item.fix || '—')}</span></div>
             ${fileTag}
             ${codeBlock}
           </div>
@@ -706,28 +490,28 @@
       proposalState[proposalId] = { excluded: new Set(), changeIds };
 
       return `
-      <div class="proposal-card" id="proposal-card-${proposalId}">
-        <div class="proposal-header">
+      <div class="glass-card rounded-xl p-6 border border-tertiary/20 mb-6" id="proposal-card-${proposalId}">
+        <div class="flex items-start justify-between mb-4">
           <div>
-            <div class="proposal-title">&#128204; ${escHtml(p.title)}</div>
-            <div class="proposal-sub">Review each proposed change. Click &#10005; to remove items you don't want, then approve what remains.</div>
+            <div class="text-lg font-bold text-tertiary mb-1">📋 ${escHtml(p.title)}</div>
+            <div class="text-sm text-on-surface-variant">Review each proposed change. Click ✕ to remove items you don't want, then approve what remains.</div>
           </div>
-          <span class="badge badge-yellow">Pending</span>
+          <span class="rounded-full px-3 py-1 text-xs font-bold bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 flex-shrink-0">Pending</span>
         </div>
-        <div class="proposal-counter">
+        <div class="text-xs text-on-surface-variant mb-4 p-3 bg-white/5 rounded-lg inline-block">
           <span id="counter-text-${proposalId}">${total} of ${total} changes selected</span>
         </div>
-        <div class="change-list">
+        <div class="space-y-0 mb-6">
           ${items.join('')}
         </div>
-        <div class="proposal-actions">
-          <button id="approve-btn-${proposalId}" class="btn btn-primary" onclick="approveSelected('${proposalId}')">
-            &#10003; Approve Selected (<span id="approve-count-${proposalId}">${total}</span>)
+        <div class="flex gap-3 items-center">
+          <button id="approve-btn-${proposalId}" class="px-4 py-2 text-sm font-semibold rounded-lg bg-secondary text-zinc-900 hover:bg-secondary/90 transition-colors" onclick="approveSelected('${proposalId}')">
+            ✓ Approve Selected (<span id="approve-count-${proposalId}">${total}</span>)
           </button>
-          <button id="respond-declined-${proposalId}" class="btn btn-danger" onclick="respond('${proposalId}', 'declined')">
-            &#10007; Decline All
+          <button id="respond-declined-${proposalId}" class="px-4 py-2 text-sm font-semibold rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors" onclick="respond('${proposalId}', 'declined')">
+            ✗ Decline All
           </button>
-          <span style="font-size:0.72rem;color:var(--text-3);align-self:center;">Proposed ${ago(p.createdAt)}</span>
+          <span class="text-xs text-on-surface-variant ml-auto">Proposed ${ago(p.createdAt)}</span>
         </div>
       </div>`;
     }).join('');
@@ -737,7 +521,7 @@
   function renderAuditDetail(audit) {
     const el = document.getElementById('audit-detail');
     if (!audit) {
-      el.innerHTML = `<div class="empty-state"><h3>No audits yet</h3><p>Click "Run Audit Now" to start.</p></div>`;
+      el.innerHTML = `<div class="text-center py-8"><p class="text-sm text-on-surface-variant">No audits yet. Click "Run Audit Now" to start.</p></div>`;
       return;
     }
 
@@ -746,94 +530,111 @@
     const cls = audit.cls;
     const fid = audit.fid;
 
+    const cwvColor = (cls) => {
+      if (cls === 'good') return 'bg-secondary/10 text-secondary border border-secondary/20';
+      if (cls === 'avg') return 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20';
+      if (cls === 'poor') return 'bg-red-500/10 text-red-400 border border-red-500/20';
+      return 'bg-white/5 text-on-surface-variant border border-white/10';
+    };
+
     const cwv = [
-      lcp ? `<span class="cwv-chip ${lcpClass(lcp)}">LCP: ${lcp}s</span>` : `<span class="cwv-chip none">LCP: N/A</span>`,
-      cls !== null && cls !== undefined ? `<span class="cwv-chip ${cls <= 0.1 ? 'good' : cls <= 0.25 ? 'avg' : 'poor'}">CLS: ${cls}</span>` : `<span class="cwv-chip none">CLS: N/A</span>`,
-      fid !== null && fid !== undefined ? `<span class="cwv-chip ${fid <= 100 ? 'good' : fid <= 300 ? 'avg' : 'poor'}">FID: ${fid}ms</span>` : `<span class="cwv-chip none">FID: N/A</span>`,
+      lcp ? `<span class="rounded-full px-3 py-1 text-xs font-semibold ${cwvColor(lcpClass(lcp))}">LCP: ${lcp}s</span>` : `<span class="rounded-full px-3 py-1 text-xs font-semibold bg-white/5 text-on-surface-variant border border-white/10">LCP: N/A</span>`,
+      cls !== null && cls !== undefined ? `<span class="rounded-full px-3 py-1 text-xs font-semibold ${cwvColor(cls <= 0.1 ? 'good' : cls <= 0.25 ? 'avg' : 'poor')}">CLS: ${cls}</span>` : `<span class="rounded-full px-3 py-1 text-xs font-semibold bg-white/5 text-on-surface-variant border border-white/10">CLS: N/A</span>`,
+      fid !== null && fid !== undefined ? `<span class="rounded-full px-3 py-1 text-xs font-semibold ${cwvColor(fid <= 100 ? 'good' : fid <= 300 ? 'avg' : 'poor')}">FID: ${fid}ms</span>` : `<span class="rounded-full px-3 py-1 text-xs font-semibold bg-white/5 text-on-surface-variant border border-white/10">FID: N/A</span>`,
     ].join('');
 
     let keywords = [];
     try { keywords = JSON.parse(audit.keywordsJson || '[]'); } catch {}
     const kwRows = keywords.slice(0, 8).map(k => `
-      <tr>
-        <td>${k.keyword}</td>
-        <td style="text-align:right;">${k.clicks}</td>
-        <td style="text-align:right;">${k.impressions}</td>
-        <td style="text-align:right;">${k.position?.toFixed(1)}</td>
-        <td style="text-align:right;">${k.ctr}%</td>
+      <tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+        <td class="px-6 py-4 text-sm text-zinc-100">${k.keyword}</td>
+        <td class="px-6 py-4 text-sm text-on-surface-variant text-right">${k.clicks}</td>
+        <td class="px-6 py-4 text-sm text-on-surface-variant text-right">${k.impressions}</td>
+        <td class="px-6 py-4 text-sm text-on-surface-variant text-right">${k.position?.toFixed(1)}</td>
+        <td class="px-6 py-4 text-sm text-on-surface-variant text-right">${k.ctr}%</td>
       </tr>`).join('');
 
     let competitors = [];
     try { competitors = JSON.parse(audit.competitorJson || '[]'); } catch {}
     const rankBadge = (r) => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : '';
     const compRows = competitors.map(c => `
-      <tr>
-        <td style="font-family:monospace;font-size:0.72rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${c.url || ''}">
-          ${c.google_rank ? `<span title="Google rank #${c.google_rank} for '${c.search_query || ''}'" style="margin-right:4px;">${rankBadge(c.google_rank)}</span>` : ''}
-          ${c.auto_discovered ? '<span style="font-size:0.65rem;background:rgba(99,102,241,0.15);color:#818cf8;border-radius:4px;padding:1px 5px;margin-right:4px;">auto</span>' : ''}
+      <tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+        <td class="px-6 py-4 text-sm font-mono text-zinc-100 max-w-xs truncate" title="${c.url || ''}">
+          ${c.google_rank ? `<span title="Google rank #${c.google_rank} for '${c.search_query || ''}'" class="mr-1">${rankBadge(c.google_rank)}</span>` : ''}
+          ${c.auto_discovered ? '<span class="text-xs bg-primary/10 text-primary rounded px-1 mr-1">auto</span>' : ''}
           ${c.url || c.error}
         </td>
-        <td>${c.title ? c.title.slice(0,40) + (c.title.length > 40 ? '…' : '') : '—'}</td>
-        <td style="text-align:right;">${c.wordCount ?? '—'}</td>
-        <td style="text-align:right;">${c.cityKeywordCount ?? '—'}</td>
-        <td style="text-align:center;">${c.hasLocalBusinessSchema ? '✓' : '—'}</td>
-        <td style="text-align:right;">${c.reviewMentions ?? '—'}</td>
-        ${(() => { const s = (c.schemaTypes || []).join(', ') || '—'; return `<td title="${s}">${s.length > 35 ? s.slice(0,35)+'…' : s}</td>`; })()}
+        <td class="px-6 py-4 text-sm text-on-surface-variant">${c.title ? c.title.slice(0,40) + (c.title.length > 40 ? '…' : '') : '—'}</td>
+        <td class="px-6 py-4 text-sm text-on-surface-variant text-right">${c.wordCount ?? '—'}</td>
+        <td class="px-6 py-4 text-sm text-on-surface-variant text-right">${c.cityKeywordCount ?? '—'}</td>
+        <td class="px-6 py-4 text-sm text-on-surface-variant text-center">${c.hasLocalBusinessSchema ? '✓' : '—'}</td>
+        <td class="px-6 py-4 text-sm text-on-surface-variant text-right">${c.reviewMentions ?? '—'}</td>
+        ${(() => { const s = (c.schemaTypes || []).join(', ') || '—'; return `<td class="px-6 py-4 text-sm text-on-surface-variant truncate" title="${s}">${s.length > 35 ? s.slice(0,35)+'…' : s}</td>`; })()}
       </tr>`).join('');
 
     el.innerHTML = `
-      <div class="score-gauge-wrap">
-        <div class="score-circle ${scoreClass(sc)}">${sc !== null && sc !== undefined ? sc : '?'}</div>
-        <div class="score-meta">
-          <h3>${sc === null ? 'Score unavailable' : sc >= 80 ? 'Good performance' : sc >= 60 ? 'Needs improvement' : 'Poor performance'}</h3>
-          <p>Mobile PageSpeed score for <strong>${audit.siteUrl}</strong></p>
-          <div class="cwv-row">${cwv}</div>
+      <div class="flex items-center gap-6 mb-8">
+        <div class="flex-shrink-0">
+          <svg class="w-32 h-32 -rotate-90" viewBox="0 0 192 192">
+            <circle class="text-white/5" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-width="8"/>
+            <circle class="text-tertiary" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-dasharray="503" stroke-dashoffset="${503 * (1 - (sc || 0) / 100)}" stroke-width="8" style="filter:drop-shadow(0 0 8px rgba(233,179,255,0.4));"/>
+          </svg>
+          <div class="absolute inset-0 flex flex-col items-center justify-center">
+            <span class="text-3xl font-black text-white">${sc !== null && sc !== undefined ? sc : '?'}</span>
+          </div>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold mb-2">${sc === null ? 'Score unavailable' : sc >= 80 ? 'Good performance' : sc >= 60 ? 'Needs improvement' : 'Poor performance'}</h3>
+          <p class="text-sm text-on-surface-variant mb-4">Mobile PageSpeed score for <strong>${audit.siteUrl}</strong></p>
+          <div class="flex gap-2 flex-wrap">${cwv}</div>
         </div>
       </div>
 
       ${keywords.length ? `
-      <div class="divider"></div>
-      <div class="card-title" style="margin-bottom:0.75rem;">Top Keywords (last 28 days)</div>
-      <div style="overflow-x:auto;">
-        <table class="history-table">
-          <thead><tr><th>Keyword</th><th style="text-align:right;">Clicks</th><th style="text-align:right;">Impressions</th><th style="text-align:right;">Position</th><th style="text-align:right;">CTR</th></tr></thead>
-          <tbody>${kwRows}</tbody>
-        </table>
-      </div>` : '<div style="font-size:0.78rem;color:var(--text-3);margin-top:0.75rem;">Connect Google Search Console for keyword data.</div>'}
+      <div class="border-t border-white/10 pt-8 mb-8">
+        <h4 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-4">Top Keywords (last 28 days)</h4>
+        <div class="overflow-x-auto rounded-lg">
+          <table class="w-full">
+            <thead><tr class="bg-white/5 border-b border-white/10"><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Keyword</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Clicks</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Impressions</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Position</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">CTR</th></tr></thead>
+            <tbody>${kwRows}</tbody>
+          </table>
+        </div>
+      </div>` : '<div class="text-sm text-on-surface-variant mt-4">Connect Google Search Console for keyword data.</div>'}
 
       ${competitors.length ? `
-      <div class="divider"></div>
-      <div class="card-title" style="margin-bottom:0.75rem;">Competitor Snapshot</div>
-      <div style="overflow-x:hidden;">
-        <table class="history-table">
-          <thead><tr><th>URL</th><th>Title</th><th style="text-align:right;">Words</th><th style="text-align:right;">City KWs</th><th style="text-align:center;">Local Schema</th><th style="text-align:right;">Reviews</th><th>Schema Types</th></tr></thead>
-          <tbody>${compRows}</tbody>
-        </table>
+      <div class="border-t border-white/10 pt-8">
+        <h4 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-4">Competitor Snapshot</h4>
+        <div class="overflow-x-auto rounded-lg">
+          <table class="w-full">
+            <thead><tr class="bg-white/5 border-b border-white/10"><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">URL</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Title</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Words</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">City KWs</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">Local Schema</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Reviews</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Schema Types</th></tr></thead>
+            <tbody>${compRows}</tbody>
+          </table>
+        </div>
       </div>` : ''}
 
-      <div style="font-size:0.72rem;color:var(--text-3);margin-top:1rem;">Audit ran ${ago(audit.runAt)} — status: ${statusBadge(audit.status)}</div>`;
+      <div class="text-xs text-on-surface-variant mt-8">Audit ran ${ago(audit.runAt)} — status: ${statusBadge(audit.status)}</div>`;
   }
 
   // ── Render history ────────────────────────────────────────────────
   function renderHistory(audits) {
     const el = document.getElementById('audit-history');
     if (!audits.length) {
-      el.innerHTML = '<div class="empty-state"><p>No history yet.</p></div>';
+      el.innerHTML = '<div class="text-center py-8"><p class="text-sm text-on-surface-variant">No history yet.</p></div>';
       return;
     }
     const rows = audits.map(a => `
-      <tr>
-        <td>${new Date(a.runAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
-        <td>${a.siteUrl}</td>
-        <td style="text-align:center;">${a.performanceScore !== null ? a.performanceScore : '—'}</td>
-        <td style="text-align:center;">${statusBadge(a.status)}</td>
-        <td style="text-align:center;">${a.proposal ? statusBadge(a.proposal.status) : '<span style="color:var(--text-3);">—</span>'}</td>
+      <tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+        <td class="px-6 py-4 text-sm text-zinc-100">${new Date(a.runAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+        <td class="px-6 py-4 text-sm text-on-surface-variant">${a.siteUrl}</td>
+        <td class="px-6 py-4 text-sm text-on-surface-variant text-center">${a.performanceScore !== null ? a.performanceScore : '—'}</td>
+        <td class="px-6 py-4 text-sm text-center">${statusBadge(a.status)}</td>
+        <td class="px-6 py-4 text-sm text-center">${a.proposal ? statusBadge(a.proposal.status) : '<span class="text-on-surface-variant">—</span>'}</td>
       </tr>`).join('');
 
     el.innerHTML = `
-      <div style="overflow-x:auto;">
-        <table class="history-table">
-          <thead><tr><th>Date</th><th>Site</th><th style="text-align:center;">Score</th><th style="text-align:center;">Audit</th><th style="text-align:center;">Proposal</th></tr></thead>
+      <div class="overflow-x-auto rounded-lg">
+        <table class="w-full">
+          <thead><tr class="bg-white/5 border-b border-white/10"><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Date</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Site</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">Score</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">Audit</th><th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">Proposal</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>`;
@@ -899,11 +700,11 @@
       const data = await res.json();
       const msg  = document.getElementById('settings-msg');
       if (data.success) {
-        msg.style.display = 'inline'; msg.textContent = 'Saved!'; msg.style.color = 'var(--green)';
+        msg.classList.remove('hidden'); msg.textContent = 'Saved!'; msg.style.color = '#47e266';
       } else {
-        msg.style.display = 'inline'; msg.textContent = data.error || 'Error'; msg.style.color = 'var(--red)';
+        msg.classList.remove('hidden'); msg.textContent = data.error || 'Error'; msg.style.color = '#f87171';
       }
-      setTimeout(() => { msg.style.display = 'none'; }, 3000);
+      setTimeout(() => { msg.classList.add('hidden'); }, 3000);
     } catch (err) {
       alert('Save failed: ' + err.message);
     }
@@ -917,11 +718,11 @@
 
     const scoreEl = document.getElementById('stat-score');
     scoreEl.textContent = sc !== null && sc !== undefined ? sc : '—';
-    scoreEl.style.color = sc === null ? 'var(--text-3)' : sc >= 80 ? 'var(--green)' : sc >= 60 ? 'var(--yellow)' : 'var(--red)';
+    scoreEl.style.color = sc === null ? '#8b91a0' : sc >= 80 ? '#47e266' : sc >= 60 ? '#fbbf24' : '#f87171';
 
     const lcpEl = document.getElementById('stat-lcp');
     lcpEl.textContent = lcp ? lcp + 's' : '—';
-    lcpEl.style.color = !lcp ? 'var(--text-3)' : lcp <= 2.5 ? 'var(--green)' : lcp <= 4 ? 'var(--yellow)' : 'var(--red)';
+    lcpEl.style.color = !lcp ? '#8b91a0' : lcp <= 2.5 ? '#47e266' : lcp <= 4 ? '#fbbf24' : '#f87171';
 
     document.getElementById('stat-proposals').textContent = status.pendingProposals ?? '—';
     document.getElementById('stat-last-audit').textContent = latest ? ago(latest.runAt) : 'Never';
@@ -965,20 +766,22 @@
     if (!res.ok) return;
     const me = await res.json();
     const role = me.role || 'client';
-    const roleEl = document.querySelector('.user-role');
+    const roleEl = document.getElementById('user-role');
     if (roleEl) roleEl.textContent = role === 'admin' ? 'Administrator' : 'Client';
-    addAdminLink();
+    if (role === 'admin') addAdminLink();
   } catch {}
+
   function addAdminLink() {
-    const nav = document.querySelector('.sidebar-nav');
+    const nav = document.getElementById('main-nav');
     if (!nav || nav.querySelector('a[href="/admin.html"]')) return;
     const a = document.createElement('a');
-    a.className = 'nav-link'; a.href = '/admin.html';
-    a.setAttribute('data-tooltip', 'User Management');
-    a.innerHTML = '<span class="nav-icon">&#128100;</span><span class="nav-label">User Management</span>';
+    a.className = 'flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200';
+    a.href = '/admin.html';
+    a.innerHTML = '<span class="material-symbols-outlined text-[20px]">manage_accounts</span><span class="text-sm font-medium tracking-tight">User Management</span>';
     nav.appendChild(a);
   }
 })();
 </script>
+
 </body>
 </html>

@@ -1,329 +1,211 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="dark" lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>5StarFlow — Review Requests</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Review Requests — 5StarFlow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#aac7ff",
+            "secondary": "#47e266",
+            "tertiary": "#e9b3ff",
+            "on-surface-variant": "#8b91a0",
+          },
+          borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+          fontFamily: { sans: ["Inter", "sans-serif"] },
+        },
+      },
+    }
+  </script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg:        #09090f;
-      --surface:   rgba(18, 20, 32, 0.9);
-      --border:    rgba(255, 255, 255, 0.07);
-      --gold:      #d4a017;
-      --gold-dim:  rgba(212, 160, 23, 0.12);
-      --text-1:    #f0f2f8;
-      --text-2:    #8b95a8;
-      --text-3:    #4a5568;
-      --green:     #34d399;
-      --green-dim: rgba(52, 211, 153, 0.12);
-      --red:       #f87171;
-      --red-dim:   rgba(248, 113, 113, 0.12);
-      --yellow:    #fbbf24;
-      --yellow-dim:rgba(251, 191, 36, 0.12);
-      --blue:      #38bdf8;
-      --blue-dim:  rgba(56, 189, 248, 0.1);
-      --sidebar-w: 260px;
-      --radius:    16px;
-      --radius-sm: 10px;
+    body { font-family: 'Inter', sans-serif; background-color: #000000; }
+    .glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    @media (max-width: 640px) {
+      aside { display: none !important; }
+      main { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
     }
-
-    html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--text-1);
-      font-family: -apple-system, 'SF Pro Display', BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .app { display: flex; min-height: 100vh; }
-
-    /* ── Sidebar ───────────────────────────────── */
-    .sidebar {
-      width: var(--sidebar-w);
-      min-height: 100vh;
-      background: rgba(10, 11, 18, 0.97);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      position: fixed;
-      left: 0; top: 0; bottom: 0;
-      z-index: 100;
-    }
-
-    .sidebar-logo { padding: 1.75rem 1.5rem 1.25rem; border-bottom: 1px solid var(--border); }
-    .sidebar-logo h1 { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.04em; }
-    .sidebar-logo h1 .star { color: var(--gold); }
-    .sidebar-logo p { font-size: 0.7rem; color: var(--text-3); margin-top: 0.2rem; }
-
-    .sidebar-nav { flex: 1; padding: 1rem 0.75rem; display: flex; flex-direction: column; gap: 0.2rem; }
-
-    .nav-section-label {
-      font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em;
-      text-transform: uppercase; color: var(--text-3);
-      padding: 0.9rem 0.75rem 0.4rem;
-    }
-
-    .nav-link {
-      display: flex; align-items: center; gap: 0.75rem;
-      padding: 0.6rem 0.85rem; border-radius: var(--radius-sm);
-      font-size: 0.875rem; font-weight: 500; color: var(--text-2);
-      text-decoration: none; transition: all 0.15s; cursor: pointer;
-      border: none; background: none; width: 100%; text-align: left;
-    }
-    .nav-link:hover { background: rgba(255,255,255,0.05); color: var(--text-1); }
-    .nav-link.active { background: var(--gold-dim); color: var(--gold); border-left: 2px solid var(--gold); padding-left: calc(0.85rem - 2px); }
-    .nav-link .nav-icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
-    .nav-link .nav-badge { margin-left: auto; font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 999px; background: var(--gold-dim); color: var(--gold); }
-
-    .sidebar-footer { padding: 1rem 1.25rem 1.5rem; border-top: 1px solid var(--border); }
-    .sidebar-user { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
-    .user-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--gold), #b8860b); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: #0a0c12; flex-shrink: 0; }
-    .user-email { font-size: 0.75rem; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .btn-logout { width: 100%; padding: 0.55rem; background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.18); border-radius: var(--radius-sm); color: var(--red); font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
-    .btn-logout:hover { background: rgba(248,113,113,0.15); }
-
-    /* ── Main ──────────────────────────────────── */
-    .main { margin-left: var(--sidebar-w); flex: 1; padding: 2.5rem 2.5rem 3rem; }
-
-    /* ── Topbar ────────────────────────────────── */
-    .topbar { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
-    .page-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin-bottom: 0.35rem; }
-    .page-title { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.04em; background: linear-gradient(140deg, #f0f2f8, #8b95a8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-    .page-sub { font-size: 0.82rem; color: var(--text-3); margin-top: 0.4rem; }
-    .topbar-actions { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
-
-    /* ── Stat Boxes ────────────────────────────── */
-    .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
-    .stat-box { background: rgba(10,11,18,0.5); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; }
-    .stat-box-label { font-size: 0.7rem; color: var(--text-3); margin-bottom: 0.4rem; }
-    .stat-box-val { font-size: 1.15rem; font-weight: 700; color: var(--text-1); }
-
-    /* ── Cards ─────────────────────────────────── */
-    .card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 1.5rem;
-      backdrop-filter: blur(20px); margin-bottom: 1.25rem;
-    }
-    .card-title {
-      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; color: var(--text-3); margin-bottom: 1.25rem;
-      display: flex; align-items: center; justify-content: space-between;
-    }
-
-    /* ── Buttons ───────────────────────────────── */
-    .btn {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      padding: 0.6rem 1.25rem; border-radius: var(--radius-sm);
-      font-size: 0.85rem; font-weight: 600; cursor: pointer;
-      border: none; transition: opacity 0.15s; text-decoration: none;
-    }
-    .btn:hover:not(:disabled) { opacity: 0.85; }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-primary { background: var(--gold); color: #0a0c12; }
-    .btn-danger  { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
-    .btn-ghost   { background: rgba(148,163,184,0.1); color: var(--text-2); border: 1px solid var(--border); }
-    .btn-dev     { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25); }
-    .btn-teal    { background: rgba(20,184,166,0.15); color: #2dd4bf; border: 1px solid rgba(20,184,166,0.25); }
-    .btn-small   { padding: 0.4rem 0.85rem; font-size: 0.78rem; }
-    .btn-row     { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.25rem; }
-
-    /* ── Pill ──────────────────────────────────── */
-    .pill { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
-    .pill-green  { background: var(--green-dim); color: var(--green); }
-    .pill-red    { background: var(--red-dim);   color: var(--red); }
-    .pill-yellow { background: var(--yellow-dim);color: var(--yellow); }
-    .pill-blue   { background: var(--blue-dim);  color: var(--blue); }
-    .pill-gray   { background: rgba(148,163,184,0.1); color: var(--text-3); }
-    .pill-purple { background: rgba(99,102,241,0.15); color: #a5b4fc; }
-
-    /* ── Tables ────────────────────────────────── */
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-    .data-table th { text-align: left; padding: 0.5rem 0.75rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--border); }
-    .data-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; color: var(--text-2); }
-    .data-table tr:last-child td { border-bottom: none; }
-    .data-table tr:hover td { background: rgba(255,255,255,0.02); }
-
-    /* ── Expiry bar ────────────────────────────── */
-    .expiry-bar-wrap { margin-top: 0.75rem; background: rgba(10,11,18,0.8); border-radius: 999px; height: 5px; overflow: hidden; }
-    .expiry-bar { height: 100%; border-radius: 999px; transition: width 1s linear, background 0.3s; }
-
-    /* ── Toast messages ────────────────────────── */
-    .toast {
-      display: none; margin-top: 0.75rem; padding: 0.75rem 1rem;
-      border-radius: var(--radius-sm); font-size: 0.82rem; line-height: 1.5;
-    }
-    .toast-green { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.25); color: var(--green); }
-    .toast-red   { background: var(--red-dim); border: 1px solid rgba(248,113,113,0.25); color: var(--red); }
-    .toast-teal  { background: rgba(20,184,166,0.08); border: 1px solid rgba(20,184,166,0.2); color: #2dd4bf; }
-
-    /* ── Setup checklist ───────────────────────── */
-    .setup-step { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0; border-bottom: 1px solid var(--border); }
-    .setup-step:last-child { border-bottom: none; }
-
-    /* ── Trigger badge ─────────────────────────── */
-    .trigger-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.04em; }
-    .trigger-scheduler { background: rgba(99,102,241,0.15); color: #a5b4fc; }
-    .trigger-on-demand  { background: var(--yellow-dim); color: var(--yellow); }
-
-    /* ── Misc ──────────────────────────────────── */
-    .empty-state { text-align: center; padding: 2.5rem 1rem; color: var(--text-3); font-size: 0.875rem; }
-    #last-refresh { font-size: 0.72rem; color: var(--text-3); }
-
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
-    .pulsing { animation: pulse 1.5s ease-in-out infinite; }
   </style>
 </head>
-<body>
-<div class="app">
+<body class="bg-black text-zinc-100 dark min-h-screen">
 
   <!-- Sidebar -->
-  <aside class="sidebar">
-    <div class="sidebar-logo">
-      <h1>5<span class="star">&#9733;</span>Flow</h1>
-      <p>Business Automation OS</p>
+  <aside class="fixed left-6 top-6 bottom-6 w-64 rounded-[3rem] border-t border-white/10 bg-zinc-900/60 backdrop-blur-2xl flex flex-col h-[calc(100vh-3rem)] p-4 shadow-[0_40px_40px_-5px_rgba(0,0,0,0.6)] z-50">
+    <div class="mb-8 px-4 pt-4">
+      <h1 class="text-xl font-bold text-zinc-100 tracking-tighter">Command Center</h1>
+      <p class="text-xs text-zinc-500 font-medium mt-1">5StarFlow</p>
     </div>
-    <nav class="sidebar-nav">
-      <div class="nav-section-label">Main</div>
-      <a class="nav-link" href="/index.html"><span class="nav-icon">&#9632;</span> Home</a>
-      <a class="nav-link active" href="/review-dashboard.html">
-        <span class="nav-icon">&#9733;</span> Review Requests
-        <span class="nav-badge" id="sidebar-pending">—</span>
+
+    <nav class="flex-1 space-y-0.5 overflow-y-auto">
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/index.html">
+        <span class="material-symbols-outlined text-[20px]">home</span>
+        <span class="text-sm font-medium tracking-tight">Home</span>
       </a>
-      <a class="nav-link" href="/weather-dashboard.html"><span class="nav-icon">&#9928;</span> Rain Alerts</a>
-      <div class="nav-section-label">Tools</div>
-      <a class="nav-link" href="/seo-dashboard.html"><span class="nav-icon">&#128202;</span> SEO Audit</a>
-      <a class="nav-link" href="/website-audit.html"><span class="nav-icon">&#128394;</span> Website Audit</a>
-      <div class="nav-section-label">System</div>
-      <a class="nav-link" href="/connections.html"><span class="nav-icon">&#128279;</span> App Connections</a>
-      <a class="nav-link" href="/settings.html"><span class="nav-icon">&#9881;</span> Settings</a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-100 rounded-xl relative before:absolute before:left-0 before:w-1 before:h-6 before:bg-secondary before:rounded-full hover:bg-white/5 transition-all duration-200" href="/review-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">rate_review</span>
+        <span class="text-sm font-medium tracking-tight">Review Requests</span>
+        <span class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary/10 text-secondary hidden" id="sidebar-pending"></span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/weather-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">thunderstorm</span>
+        <span class="text-sm font-medium tracking-tight">Rain Alerts</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/seo-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">search_check</span>
+        <span class="text-sm font-medium tracking-tight">SEO Audit</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/website-audit.html">
+        <span class="material-symbols-outlined text-[20px]">speed</span>
+        <span class="text-sm font-medium tracking-tight">Website Audit</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/connections.html">
+        <span class="material-symbols-outlined text-[20px]">hub</span>
+        <span class="text-sm font-medium tracking-tight">App Connections</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/settings.html">
+        <span class="material-symbols-outlined text-[20px]">settings</span>
+        <span class="text-sm font-medium tracking-tight">Settings</span>
+      </a>
     </nav>
-    <div class="sidebar-footer">
-      <div class="sidebar-user">
-        <div class="user-avatar" id="user-avatar">?</div>
-        <div class="user-info"><div class="user-email" id="user-email">Loading...</div></div>
+
+    <div class="mt-auto px-2 pt-4 border-t border-white/5">
+      <div class="flex items-center gap-3 p-2">
+        <div class="w-9 h-9 rounded-full bg-surface-container-highest flex items-center justify-center text-sm font-bold text-zinc-100 flex-shrink-0" id="user-avatar">?</div>
+        <div class="flex-1 overflow-hidden">
+          <p class="text-sm font-semibold text-zinc-100 truncate" id="user-email">Loading...</p>
+          <p class="text-xs text-zinc-500 truncate" id="user-role">Administrator</p>
+        </div>
+        <button onclick="logout()" class="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex-shrink-0" title="Log out">
+          <span class="material-symbols-outlined text-[18px]">logout</span>
+        </button>
       </div>
-      <button class="btn-logout" onclick="logout()">Log Out</button>
     </div>
   </aside>
 
   <!-- Main -->
-  <main class="main">
+  <main class="pl-80 pr-12 py-10 min-h-screen">
 
-    <!-- Topbar -->
-    <div class="topbar">
-      <div>
-        <div class="page-label">Jobber Integration</div>
-        <h2 class="page-title">Review Requests</h2>
-        <p class="page-sub">Automated Google review requests after paid invoices.</p>
-      </div>
-      <div class="topbar-actions">
-        <span id="last-refresh">Loading...</span>
-        <button class="btn btn-ghost btn-small" onclick="fetchAll()">&#8635; Refresh</button>
-      </div>
+    <!-- Page Header -->
+    <div class="mb-10">
+      <h2 class="text-2xl font-black text-zinc-100 tracking-tight">Review Requests</h2>
+      <p class="text-sm text-on-surface-variant mt-1">Monitor SMS and email delivery pipeline</p>
     </div>
 
     <!-- Jobber not-connected banner (hidden by default, shown via JS) -->
-    <div id="jobber-not-connected-banner" style="display:none;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.5rem;align-items:center;gap:1rem;flex-wrap:wrap;">
+    <div id="jobber-not-connected-banner" style="display:none;" class="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6 flex items-center gap-4 flex-wrap">
       <span style="font-size:1.25rem;">⚠️</span>
       <div style="flex:1;min-width:200px;">
         <strong style="color:#f87171;">Jobber not connected</strong>
-        <p style="margin:0.2rem 0 0;font-size:0.85rem;color:var(--color-text-muted);">Connect your Jobber account to enable review requests.</p>
+        <p style="margin:0.2rem 0 0;font-size:0.85rem;color:#8b91a0;">Connect your Jobber account to enable review requests.</p>
       </div>
-      <a href="connections.html" style="background:#d4a017;color:#000;padding:0.45rem 1rem;border-radius:6px;font-size:0.85rem;font-weight:600;text-decoration:none;white-space:nowrap;">Go to App Connections →</a>
+      <a href="connections.html" style="background:#aac7ff;color:#000;padding:0.45rem 1rem;border-radius:1rem;font-size:0.85rem;font-weight:600;text-decoration:none;white-space:nowrap;">Go to App Connections</a>
     </div>
 
     <!-- Summary Stat Boxes -->
-    <div class="stat-row">
-      <div class="stat-box">
-        <div class="stat-box-label">Pending</div>
-        <div class="stat-box-val" id="stat-pending">—</div>
+    <div class="grid grid-cols-4 gap-4 mb-8">
+      <div class="glass-card rounded-xl p-6">
+        <div class="text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold">Pending</div>
+        <div class="text-xl font-bold text-zinc-100 mt-2" id="stat-pending">—</div>
       </div>
-      <div class="stat-box">
-        <div class="stat-box-label">Overdue</div>
-        <div class="stat-box-val" id="stat-overdue" style="color:var(--text-1);">—</div>
+      <div class="glass-card rounded-xl p-6">
+        <div class="text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold">Overdue</div>
+        <div class="text-xl font-bold text-zinc-100 mt-2" id="stat-overdue">—</div>
       </div>
-      <div class="stat-box">
-        <div class="stat-box-label">Reviews Sent</div>
-        <div class="stat-box-val" id="stat-sent">—</div>
+      <div class="glass-card rounded-xl p-6">
+        <div class="text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold">Reviews Sent</div>
+        <div class="text-xl font-bold text-zinc-100 mt-2" id="stat-sent">—</div>
       </div>
-      <div class="stat-box">
-        <div class="stat-box-label">Token Status</div>
-        <div class="stat-box-val" id="stat-token" style="font-size:0.9rem;">—</div>
+      <div class="glass-card rounded-xl p-6">
+        <div class="text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold">Token Status</div>
+        <div class="text-lg font-bold text-zinc-100 mt-2" id="stat-token">—</div>
       </div>
     </div>
 
     <!-- Setup Checklist (hidden when complete) -->
-    <div class="card" id="setup-card" style="display:none;">
-      <div class="card-title">Setup Checklist</div>
-      <div id="setup-checklist"></div>
+    <div class="glass-card rounded-xl overflow-hidden mb-6" id="setup-card" style="display:none;">
+      <div class="px-6 py-4 border-b border-white/10">
+        <h3 class="text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold">Setup Checklist</h3>
+      </div>
+      <div id="setup-checklist" class="p-6"></div>
     </div>
 
     <!-- Connection Status Card -->
-    <div class="card">
-      <div class="card-title">Connection Status</div>
-
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;">
-        <div>
-          <div style="font-size:0.7rem;color:var(--text-3);margin-bottom:0.3rem;">Jobber Account</div>
-          <div style="font-size:1rem;font-weight:700;" id="connection-status">—</div>
-        </div>
-        <div>
-          <div style="font-size:0.7rem;color:var(--text-3);margin-bottom:0.3rem;">Token Expires In</div>
-          <div style="font-size:1rem;font-weight:700;" id="token-expiry">—</div>
-        </div>
-        <div>
-          <div style="font-size:0.7rem;color:var(--text-3);margin-bottom:0.3rem;">Account ID</div>
-          <div style="font-size:0.85rem;font-weight:600;" id="account-id">—</div>
-        </div>
+    <div class="glass-card rounded-xl overflow-hidden mb-6">
+      <div class="px-6 py-4 border-b border-white/10">
+        <h3 class="text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold">Connection Status</h3>
       </div>
+      <div class="p-6">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1.5rem;">
+          <div>
+            <div style="font-size:0.6875rem;color:#8b91a0;margin-bottom:0.3rem;text-transform:uppercase;tracking:0.05em;font-weight:600;">Jobber Account</div>
+            <div style="font-size:1rem;font-weight:700;" id="connection-status">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.6875rem;color:#8b91a0;margin-bottom:0.3rem;text-transform:uppercase;tracking:0.05em;font-weight:600;">Token Expires In</div>
+            <div style="font-size:1rem;font-weight:700;" id="token-expiry">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.6875rem;color:#8b91a0;margin-bottom:0.3rem;text-transform:uppercase;tracking:0.05em;font-weight:600;">Account ID</div>
+            <div style="font-size:0.85rem;font-weight:600;" id="account-id">—</div>
+          </div>
+        </div>
 
-      <div class="expiry-bar-wrap" id="expiry-bar-wrap" style="display:none;">
-        <div class="expiry-bar" id="expiry-bar"></div>
+        <div class="expiry-bar-wrap" id="expiry-bar-wrap" style="display:none;margin-bottom:1.5rem;">
+          <div id="expiry-bar" style="height:100%;border-radius:9999px;transition:width 1s linear, background 0.3s;"></div>
+        </div>
+
+        <div class="flex gap-3 flex-wrap">
+          <a href="/auth/connect" class="bg-primary text-zinc-900 rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors" id="connect-btn">Connect Jobber</a>
+          <button class="bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl px-3 py-1.5 text-xs font-semibold hover:bg-red-500/20 transition-colors" id="disconnect-btn" onclick="disconnect()" style="display:none;">Disconnect</button>
+          <button class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-white/10 transition-colors" id="force-refresh-btn" onclick="forceRefresh()" style="display:none;">Refresh Token</button>
+          <button class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-white/10 transition-colors" id="test-clients-btn" onclick="testClients()" style="display:none;">Test: Clients</button>
+          <button class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-white/10 transition-colors" id="test-invoice-btn" onclick="testLatestInvoice()" style="display:none;">Test: Invoice</button>
+          <button class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-white/10 transition-colors" id="register-webhook-btn" onclick="registerWebhook()" style="display:none;">Register Webhook</button>
+        </div>
+
+        <div id="refresh-toast" class="mt-4 p-4 rounded-xl font-sm" style="display:none;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);color:#34d399;"></div>
+        <div id="clients-toast" class="mt-4 p-4 rounded-xl font-sm" style="display:none;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);color:#34d399;"></div>
+        <div id="invoice-toast" class="mt-4 p-4 rounded-xl font-sm" style="display:none;background:rgba(20,184,166,0.08);border:1px solid rgba(20,184,166,0.2);color:#2dd4bf;"></div>
+        <div id="webhook-toast" class="mt-4 p-4 rounded-xl font-sm" style="display:none;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);color:#34d399;"></div>
       </div>
-
-      <div class="btn-row">
-        <a href="/auth/connect" class="btn btn-primary" id="connect-btn">Connect Jobber</a>
-        <button class="btn btn-danger btn-small" id="disconnect-btn" onclick="disconnect()" style="display:none;">Disconnect</button>
-        <button class="btn btn-ghost btn-small" id="force-refresh-btn" onclick="forceRefresh()" style="display:none;">&#8635; Force Refresh Token</button>
-        <button class="btn btn-dev btn-small" id="test-clients-btn" onclick="testClients()" style="display:none;">Test: Fetch Clients</button>
-        <button class="btn btn-teal btn-small" id="test-invoice-btn" onclick="testLatestInvoice()" style="display:none;">Test: Latest Invoice</button>
-        <button class="btn btn-teal btn-small" id="register-webhook-btn" onclick="registerWebhook()" style="display:none;">Register Webhook</button>
-      </div>
-
-      <div id="refresh-toast" class="toast toast-green"></div>
-      <div id="clients-toast" class="toast toast-green"></div>
-      <div id="invoice-toast" class="toast toast-teal"></div>
-      <div id="webhook-toast" class="toast toast-green"></div>
     </div>
 
     <!-- Token Refresh Log -->
-    <div class="card">
-      <div class="card-title">
-        Token Refresh Log
-        <span id="log-pill" class="pill pill-gray">Loading...</span>
+    <div class="glass-card rounded-xl overflow-hidden mb-6">
+      <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+        <h3 class="text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold">Token Refresh Log</h3>
+        <span id="log-pill" class="bg-white/10 text-on-surface-variant rounded-full px-2.5 py-0.5 text-xs font-semibold">Loading...</span>
       </div>
-      <div id="log-container"><div class="empty-state">Loading logs...</div></div>
+      <div id="log-container" class="p-6"><div class="text-center text-on-surface-variant text-sm py-8">Loading logs...</div></div>
     </div>
 
     <!-- Pending Review Queue -->
-    <div class="card">
-      <div class="card-title">
-        Pending Review Queue <span style="font-weight:400;color:var(--text-3);font-size:0.68rem;text-transform:none;letter-spacing:0;">(60-min delay)</span>
-        <span id="queue-pill" class="pill pill-gray">Loading...</span>
+    <div class="glass-card rounded-xl overflow-hidden mb-6">
+      <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+        <div>
+          <h3 class="text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold">Pending Review Queue <span style="font-weight:400;text-transform:none;letter-spacing:0;">(60-min delay)</span></h3>
+        </div>
+        <span id="queue-pill" class="bg-white/10 text-on-surface-variant rounded-full px-2.5 py-0.5 text-xs font-semibold">Loading...</span>
       </div>
-      <div id="queue-container"><div class="empty-state">Loading...</div></div>
+      <div id="queue-container" class="p-6"><div class="text-center text-on-surface-variant text-sm py-8">Loading...</div></div>
     </div>
 
     <!-- Review Requests Sent -->
-    <div class="card">
-      <div class="card-title">Review Requests Sent</div>
-      <div id="review-container"><div class="empty-state">Loading...</div></div>
+    <div class="glass-card rounded-xl overflow-hidden mb-6">
+      <div class="px-6 py-4 border-b border-white/10">
+        <h3 class="text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold">Review Requests Sent</h3>
+      </div>
+      <div id="review-container" class="p-6"><div class="text-center text-on-surface-variant text-sm py-8">Loading...</div></div>
     </div>
 
   </main>
-</div>
 
 <script>
   const API = '';
@@ -371,7 +253,7 @@
 
       if (!data.connected) {
         connEl.textContent = 'Not Connected';
-        connEl.style.color = 'var(--red)';
+        connEl.style.color = '#f87171';
         expiryEl.textContent = '—';
         accountEl.textContent = '—';
         connectBtn.style.display = 'inline-flex';
@@ -380,12 +262,12 @@
         registerWebhookBtn.style.display = 'none';
         barWrap.style.display = 'none';
         document.getElementById('stat-token').textContent = 'Disconnected';
-        document.getElementById('stat-token').style.color = 'var(--red)';
+        document.getElementById('stat-token').style.color = '#f87171';
         return;
       }
 
       connEl.textContent = 'Connected';
-      connEl.style.color = 'var(--green)';
+      connEl.style.color = '#47e266';
       accountEl.textContent = data.accountId || '—';
       connectBtn.style.display = 'none';
       disconnectBtn.style.display = forceRefreshBtn.style.display =
@@ -395,12 +277,12 @@
 
       if (data.tokenExpired) {
         expiryEl.textContent = 'EXPIRED';
-        expiryEl.style.color = 'var(--red)';
+        expiryEl.style.color = '#f87171';
         expiryEl.classList.add('pulsing');
         bar.style.width = '4%';
-        bar.style.background = 'var(--red)';
+        bar.style.background = '#f87171';
         document.getElementById('stat-token').textContent = 'Expired';
-        document.getElementById('stat-token').style.color = 'var(--red)';
+        document.getElementById('stat-token').style.color = '#f87171';
       } else {
         const mins = data.minutesUntilExpiry;
         expiryEl.textContent = mins >= 60
@@ -411,7 +293,7 @@
         const pct = Math.max(4, Math.min(100, (mins * 60 / TOKEN_MAX_SECONDS) * 100));
         bar.style.width = `${pct}%`;
 
-        const color = mins < 5 ? 'var(--red)' : mins < 20 ? 'var(--yellow)' : 'var(--green)';
+        const color = mins < 5 ? '#f87171' : mins < 20 ? '#fbbf24' : '#47e266';
         expiryEl.style.color = color;
         bar.style.background = color;
         document.getElementById('stat-token').textContent = expiryEl.textContent;
@@ -433,31 +315,36 @@
       const pill      = document.getElementById('log-pill');
 
       if (!logs.length) {
-        container.innerHTML = '<div class="empty-state">No refresh attempts yet.<br>The scheduler runs every 5 minutes.</div>';
+        container.innerHTML = '<div class="text-center text-on-surface-variant text-sm py-8">No refresh attempts yet.<br>The scheduler runs every 5 minutes.</div>';
         pill.textContent = '0 entries';
-        pill.className = 'pill pill-gray';
+        pill.className = 'bg-white/10 text-on-surface-variant rounded-full px-2.5 py-0.5 text-xs font-semibold';
         return;
       }
 
       const recentFail = logs[0] && !logs[0].success;
       pill.textContent = recentFail ? 'Last failed' : `${logs.length} entries`;
-      pill.className   = recentFail ? 'pill pill-red' : 'pill pill-green';
+      pill.className   = recentFail ? 'bg-red-500/10 text-red-400 rounded-full px-2.5 py-0.5 text-xs font-semibold' : 'bg-secondary/10 text-secondary rounded-full px-2.5 py-0.5 text-xs font-semibold';
 
       const rows = logs.map(log => {
         const badge = log.success
-          ? '<span class="pill pill-green" style="padding:0.1rem 0.45rem;">OK</span>'
-          : '<span class="pill pill-red" style="padding:0.1rem 0.45rem;">FAIL</span>';
-        const triggerClass = log.trigger === 'scheduler' ? 'trigger-scheduler' : 'trigger-on-demand';
-        return `<tr>
-          <td>${badge}</td>
-          <td><span class="trigger-badge ${triggerClass}">${escHtml(log.trigger)}</span></td>
-          <td style="color:var(--text-3);white-space:nowrap;font-size:0.75rem;">${new Date(log.createdAt).toLocaleString()}</td>
-          <td style="color:var(--text-2);font-size:0.78rem;max-width:320px;word-break:break-word;">${escHtml(log.message)}</td>
+          ? '<span style="background:rgba(52,211,153,0.1);color:#34d399;border:1px solid rgba(52,211,153,0.2);border-radius:9999px;padding:0.1rem 0.45rem;font-size:0.7rem;font-weight:600;">OK</span>'
+          : '<span style="background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2);border-radius:9999px;padding:0.1rem 0.45rem;font-size:0.7rem;font-weight:600;">FAIL</span>';
+        const triggerClass = log.trigger === 'scheduler' ? 'bg-indigo-500/15 text-indigo-300' : 'bg-yellow-500/15 text-yellow-300';
+        return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+          <td style="padding:1rem;text-sm;">${badge}</td>
+          <td style="padding:1rem;text-sm;"><span style="background-color:${log.trigger === 'scheduler' ? 'rgba(99,102,241,0.15)' : 'rgba(251,191,36,0.15)'};color:${log.trigger === 'scheduler' ? '#a5b4fc' : '#fbbf24'};padding:0.15rem 0.45rem;border-radius:0.25rem;font-size:0.68rem;font-weight:600;letter-spacing:0.04em;">${escHtml(log.trigger)}</span></td>
+          <td style="padding:1rem;color:#8b91a0;white-space:nowrap;font-size:0.75rem;">${new Date(log.createdAt).toLocaleString()}</td>
+          <td style="padding:1rem;color:#8b91a0;font-size:0.78rem;max-width:320px;word-break:break-word;">${escHtml(log.message)}</td>
         </tr>`;
       }).join('');
 
-      container.innerHTML = `<table class="data-table">
-        <thead><tr><th>Status</th><th>Trigger</th><th>Time</th><th>Message</th></tr></thead>
+      container.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+        <thead><tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+          <th style="text-align:left;padding:1rem;font-size:0.6875rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#8b91a0;">Status</th>
+          <th style="text-align:left;padding:1rem;font-size:0.6875rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#8b91a0;">Trigger</th>
+          <th style="text-align:left;padding:1rem;font-size:0.6875rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#8b91a0;">Time</th>
+          <th style="text-align:left;padding:1rem;font-size:0.6875rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#8b91a0;">Message</th>
+        </tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
     } catch (err) {
@@ -479,41 +366,47 @@
 
       // Update stat boxes
       document.getElementById('stat-pending').textContent = pendingCount;
-      document.getElementById('stat-pending').style.color = pendingCount > 0 ? 'var(--yellow)' : 'var(--text-1)';
+      document.getElementById('stat-pending').style.color = pendingCount > 0 ? '#fbbf24' : '#e5e2e1';
       document.getElementById('stat-overdue').textContent = overdueCount;
-      document.getElementById('stat-overdue').style.color = overdueCount > 0 ? 'var(--red)' : 'var(--text-1)';
+      document.getElementById('stat-overdue').style.color = overdueCount > 0 ? '#f87171' : '#e5e2e1';
 
       // Sidebar badge
-      document.getElementById('sidebar-pending').textContent = pendingCount > 0 ? pendingCount : '✓';
+      const sidebarBadge = document.getElementById('sidebar-pending');
+      if (pendingCount > 0) {
+        sidebarBadge.textContent = pendingCount;
+        sidebarBadge.classList.remove('hidden');
+      } else {
+        sidebarBadge.classList.add('hidden');
+      }
 
       if (!queue.length) {
-        container.innerHTML = '<div class="empty-state">No review requests yet.<br>They appear here when invoices are marked paid in Jobber.</div>';
+        container.innerHTML = '<div class="text-center text-on-surface-variant text-sm py-8">No review requests yet.<br>They appear here when invoices are marked paid in Jobber.</div>';
         pill.textContent = '0 pending';
-        pill.className = 'pill pill-gray';
+        pill.className = 'bg-white/10 text-on-surface-variant rounded-full px-2.5 py-0.5 text-xs font-semibold';
         return;
       }
 
       pill.textContent = overdueCount > 0 ? `${overdueCount} overdue!` : `${pendingCount} pending`;
-      pill.className   = overdueCount > 0 ? 'pill pill-red' : pendingCount > 0 ? 'pill pill-yellow' : 'pill pill-gray';
+      pill.className   = overdueCount > 0 ? 'bg-red-500/10 text-red-400 rounded-full px-2.5 py-0.5 text-xs font-semibold' : pendingCount > 0 ? 'bg-yellow-500/10 text-yellow-400 rounded-full px-2.5 py-0.5 text-xs font-semibold' : 'bg-white/10 text-on-surface-variant rounded-full px-2.5 py-0.5 text-xs font-semibold';
 
       const rows = queue.map(r => {
         const channels = [];
-        if (r.phone && r.smsAllowed) channels.push('<span class="pill pill-green">SMS</span>');
-        if (r.email) channels.push('<span class="pill pill-blue">Email</span>');
-        if (!channels.length) channels.push('<span class="pill pill-gray">No contact</span>');
+        if (r.phone && r.smsAllowed) channels.push('<span style="background:rgba(52,211,153,0.1);color:#34d399;border:1px solid rgba(52,211,153,0.2);border-radius:9999px;padding:0.2rem 0.6rem;font-size:0.7rem;font-weight:600;">SMS</span>');
+        if (r.email) channels.push('<span style="background:rgba(56,189,248,0.1);color:#38bdf8;border:1px solid rgba(56,189,248,0.2);border-radius:9999px;padding:0.2rem 0.6rem;font-size:0.7rem;font-weight:600;">Email</span>');
+        if (!channels.length) channels.push('<span style="background:rgba(148,163,184,0.1);color:#8b91a0;border:1px solid rgba(148,163,184,0.2);border-radius:9999px;padding:0.2rem 0.6rem;font-size:0.7rem;font-weight:600;">No contact</span>');
 
         let statusBadge, waitLabel;
         if (r.status === 'sent') {
-          statusBadge = '<span class="pill pill-green">Sent</span>';
+          statusBadge = '<span style="background:rgba(52,211,153,0.1);color:#34d399;border:1px solid rgba(52,211,153,0.2);border-radius:9999px;padding:0.2rem 0.6rem;font-size:0.7rem;font-weight:600;">Sent</span>';
           waitLabel   = new Date(r.scheduledAt).toLocaleDateString([], { month: 'short', day: 'numeric' });
         } else if (r.status === 'cancelled') {
-          statusBadge = '<span class="pill pill-gray">Cancelled</span>';
+          statusBadge = '<span style="background:rgba(148,163,184,0.1);color:#8b91a0;border:1px solid rgba(148,163,184,0.2);border-radius:9999px;padding:0.2rem 0.6rem;font-size:0.7rem;font-weight:600;">Cancelled</span>';
           waitLabel   = '—';
         } else if (r.status === 'overdue') {
-          statusBadge = '<span class="pill pill-red">Overdue</span>';
+          statusBadge = '<span style="background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2);border-radius:9999px;padding:0.2rem 0.6rem;font-size:0.7rem;font-weight:600;">Overdue</span>';
           waitLabel   = 'Sending soon...';
         } else {
-          statusBadge = '<span class="pill pill-yellow">Pending</span>';
+          statusBadge = '<span style="background:rgba(251,191,36,0.1);color:#fbbf24;border:1px solid rgba(251,191,36,0.2);border-radius:9999px;padding:0.2rem 0.6rem;font-size:0.7rem;font-weight:600;">Pending</span>';
           waitLabel   = r.minutesUntilSend >= 60
             ? `${Math.floor(r.minutesUntilSend/60)}h ${r.minutesUntilSend%60}m`
             : `${r.minutesUntilSend}m`;
@@ -522,30 +415,36 @@
         const canCancel = r.status === 'pending' || r.status === 'overdue';
         const cancelBtn = canCancel
           ? `<button onclick="cancelReview('${r.id}', '${escHtml(r.clientName).replace(/'/g, "\\'")}')"
-               style="background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem;padding:0 0.25rem;opacity:0.6;"
-               onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">&#x2715;</button>`
+               style="background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);color:#f87171;cursor:pointer;font-size:0.75rem;padding:0.375rem 0.75rem;opacity:0.6;border-radius:0.75rem;font-weight:600;transition:opacity 0.2s,background 0.2s;"
+               onmouseover="this.style.opacity='1';this.style.background='rgba(248,113,113,0.2)'" onmouseout="this.style.opacity='0.6';this.style.background='rgba(248,113,113,0.1)'">Cancel</button>`
           : '';
 
         const scheduledDate = new Date(r.scheduledAt).toLocaleDateString([], { month: 'short', day: 'numeric' });
         const scheduledTime = new Date(r.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-        return `<tr style="opacity:${r.status === 'cancelled' ? '0.5' : '1'}">
-          <td style="color:var(--text-1);font-weight:500;">${escHtml(r.clientName)}</td>
-          <td>${channels.join(' ')}</td>
-          <td>${statusBadge}</td>
-          <td style="color:var(--text-3);font-size:0.78rem;">${scheduledDate} ${scheduledTime}</td>
-          <td>${waitLabel}</td>
-          <td style="text-align:right;">${cancelBtn}</td>
+        return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);opacity:${r.status === 'cancelled' ? '0.5' : '1'};">
+          <td style="padding:1rem;color:#e5e2e1;font-weight:500;text-sm;">${escHtml(r.clientName)}</td>
+          <td style="padding:1rem;text-sm;">${channels.join(' ')}</td>
+          <td style="padding:1rem;text-sm;">${statusBadge}</td>
+          <td style="padding:1rem;color:#8b91a0;font-size:0.78rem;text-sm;">${scheduledDate} ${scheduledTime}</td>
+          <td style="padding:1rem;text-sm;">${waitLabel}</td>
+          <td style="padding:1rem;text-align:right;text-sm;">${cancelBtn}</td>
         </tr>`;
       }).join('');
 
-      container.innerHTML = `<table class="data-table">
-        <thead><tr>
-          <th>Client</th><th>Channels</th><th>Status</th>
-          <th>Scheduled</th><th>Wait</th><th></th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+      container.innerHTML = `<div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+          <thead><tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+            <th style="text-align:left;padding:1rem;font-size:0.6875rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#8b91a0;">Client</th>
+            <th style="text-align:left;padding:1rem;font-size:0.6875rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#8b91a0;">Channels</th>
+            <th style="text-align:left;padding:1rem;font-size:0.6875rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#8b91a0;">Status</th>
+            <th style="text-align:left;padding:1rem;font-size:0.6875rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#8b91a0;">Scheduled</th>
+            <th style="text-align:left;padding:1rem;font-size:0.6875rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#8b91a0;">Wait</th>
+            <th style="text-align:left;padding:1rem;font-size:0.6875rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#8b91a0;"></th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
     } catch (err) {
       console.error('Queue fetch error:', err);
     }
@@ -563,20 +462,26 @@
       const recent    = data.recent || [];
 
       if (!recent.length) {
-        container.innerHTML = '<div class="empty-state">No review requests sent yet.<br>They appear here when invoices are marked paid.</div>';
+        container.innerHTML = '<div class="text-center text-on-surface-variant text-sm py-8">No review requests sent yet.<br>They appear here when invoices are marked paid.</div>';
         return;
       }
 
-      const rows = recent.map(r => `<tr>
-        <td style="color:var(--text-1);font-family:monospace;font-size:0.78rem;">${escHtml(r.clientId)}</td>
-        <td>${escHtml(r.invoiceId)}</td>
-        <td style="color:var(--text-3);font-size:0.78rem;">${new Date(r.sentAt).toLocaleString()}</td>
+      const rows = recent.map(r => `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+        <td style="padding:1rem;color:#e5e2e1;font-family:monospace;font-size:0.78rem;text-sm;">${escHtml(r.clientId)}</td>
+        <td style="padding:1rem;text-sm;">${escHtml(r.invoiceId)}</td>
+        <td style="padding:1rem;color:#8b91a0;font-size:0.78rem;text-sm;">${new Date(r.sentAt).toLocaleString()}</td>
       </tr>`).join('');
 
-      container.innerHTML = `<table class="data-table">
-        <thead><tr><th>Client ID</th><th>Invoice ID</th><th>Sent At</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+      container.innerHTML = `<div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+          <thead><tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+            <th style="text-align:left;padding:1rem;font-size:0.6875rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#8b91a0;">Client ID</th>
+            <th style="text-align:left;padding:1rem;font-size:0.6875rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#8b91a0;">Invoice ID</th>
+            <th style="text-align:left;padding:1rem;font-size:0.6875rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#8b91a0;">Sent At</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
     } catch (err) {
       console.error('Review stats fetch error:', err);
     }
@@ -594,14 +499,14 @@
 
       function step(done, title, hint) {
         const icon = done
-          ? `<span style="color:var(--green);font-size:1rem;">&#10003;</span>`
-          : `<span style="color:var(--red);font-size:1rem;">&#10007;</span>`;
+          ? `<span style="color:#47e266;font-size:1rem;">&#10003;</span>`
+          : `<span style="color:#f87171;font-size:1rem;">&#10007;</span>`;
         const hintHtml = (!done && hint)
-          ? `<span style="color:var(--text-3);font-size:0.75rem;margin-left:0.5rem;">· ${hint}</span>`
+          ? `<span style="color:#8b91a0;font-size:0.75rem;margin-left:0.5rem;">· ${hint}</span>`
           : '';
-        return `<div class="setup-step">
+        return `<div style="display:flex;align-items:center;gap:0.6rem;padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.1);">
           ${icon}
-          <span style="font-size:0.86rem;font-weight:600;color:${done ? 'var(--green)' : 'var(--text-1)'};">${title}</span>
+          <span style="font-size:0.86rem;font-weight:600;color:${done ? '#47e266' : '#e5e2e1'};">${title}</span>
           ${hintHtml}
         </div>`;
       }
@@ -649,16 +554,20 @@
     try {
       const res  = await fetch(`${API}/api/force-refresh`, { method: 'POST' });
       const data = await res.json();
-      toast.textContent = res.ok ? '&#10003; ' + data.message : '&#10007; ' + data.error;
-      toast.className   = 'toast ' + (res.ok ? 'toast-green' : 'toast-red');
+      toast.textContent = res.ok ? '✓ ' + data.message : '✗ ' + data.error;
+      toast.style.background = res.ok ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)';
+      toast.style.borderColor = res.ok ? 'rgba(52,211,153,0.25)' : 'rgba(248,113,113,0.25)';
+      toast.style.color = res.ok ? '#34d399' : '#f87171';
       toast.style.display = 'block';
       await fetchAll();
     } catch (err) {
-      toast.textContent = '&#10007; ' + err.message;
-      toast.className   = 'toast toast-red';
+      toast.textContent = '✗ ' + err.message;
+      toast.style.background = 'rgba(248,113,113,0.1)';
+      toast.style.borderColor = 'rgba(248,113,113,0.25)';
+      toast.style.color = '#f87171';
       toast.style.display = 'block';
     } finally {
-      btn.disabled = false; btn.textContent = '↻ Force Refresh Token';
+      btn.disabled = false; btn.textContent = 'Refresh Token';
       setTimeout(() => { toast.style.display = 'none'; }, 5000);
     }
   }
@@ -674,18 +583,24 @@
       if (res.ok && data.success) {
         const sample = data.sample?.length ? ' — Sample: ' + data.sample.join(', ') : '';
         toast.textContent = `✓ ${data.totalCount} clients found${sample}`;
-        toast.className   = 'toast toast-green';
+        toast.style.background = 'rgba(52,211,153,0.1)';
+        toast.style.borderColor = 'rgba(52,211,153,0.25)';
+        toast.style.color = '#34d399';
       } else {
         toast.textContent = '✗ ' + (data.error || 'Unknown error');
-        toast.className   = 'toast toast-red';
+        toast.style.background = 'rgba(248,113,113,0.1)';
+        toast.style.borderColor = 'rgba(248,113,113,0.25)';
+        toast.style.color = '#f87171';
       }
       toast.style.display = 'block';
     } catch (err) {
       toast.textContent = '✗ ' + err.message;
-      toast.className   = 'toast toast-red';
+      toast.style.background = 'rgba(248,113,113,0.1)';
+      toast.style.borderColor = 'rgba(248,113,113,0.25)';
+      toast.style.color = '#f87171';
       toast.style.display = 'block';
     } finally {
-      btn.disabled = false; btn.textContent = 'Test: Fetch Clients';
+      btn.disabled = false; btn.textContent = 'Test: Clients';
       setTimeout(() => { toast.style.display = 'none'; }, 8000);
     }
   }
@@ -700,26 +615,34 @@
       const data = await res.json();
       if (data.success && data.invoice === null) {
         toast.innerHTML = 'No invoices found in Jobber.';
-        toast.className = 'toast toast-teal';
+        toast.style.background = 'rgba(20,184,166,0.08)';
+        toast.style.borderColor = 'rgba(20,184,166,0.2)';
+        toast.style.color = '#2dd4bf';
       } else if (data.success) {
         const c = data.client || {};
         toast.innerHTML =
-          `<b>Invoice #${escHtml(String(data.invoiceNumber))}</b> &bull; Updated: ${new Date(data.updatedAt).toLocaleString()}<br>` +
+          `<b>Invoice #${escHtml(String(data.invoiceNumber))}</b> · Updated: ${new Date(data.updatedAt).toLocaleString()}<br>` +
           `Client: <b>${escHtml(c.name || '—')}</b><br>` +
           `Phone: ${escHtml(c.phone || 'none')} ${c.smsAllowed ? '(SMS allowed)' : c.phone ? '(no SMS)' : ''}<br>` +
           `Email: ${escHtml(c.email || 'none')}`;
-        toast.className = 'toast toast-teal';
+        toast.style.background = 'rgba(20,184,166,0.08)';
+        toast.style.borderColor = 'rgba(20,184,166,0.2)';
+        toast.style.color = '#2dd4bf';
       } else {
         toast.textContent = '✗ ' + (data.error || 'Unknown error');
-        toast.className   = 'toast toast-red';
+        toast.style.background = 'rgba(248,113,113,0.1)';
+        toast.style.borderColor = 'rgba(248,113,113,0.25)';
+        toast.style.color = '#f87171';
       }
       toast.style.display = 'block';
     } catch (err) {
       toast.textContent = '✗ ' + err.message;
-      toast.className   = 'toast toast-red';
+      toast.style.background = 'rgba(248,113,113,0.1)';
+      toast.style.borderColor = 'rgba(248,113,113,0.25)';
+      toast.style.color = '#f87171';
       toast.style.display = 'block';
     } finally {
-      btn.disabled = false; btn.textContent = 'Test: Latest Invoice';
+      btn.disabled = false; btn.textContent = 'Test: Invoice';
       setTimeout(() => { toast.style.display = 'none'; }, 12000);
     }
   }
@@ -734,16 +657,22 @@
       const data = await res.json();
       if (data.success) {
         toast.textContent = `✓ Webhook registered — ID: ${data.webhookId} | Topic: ${data.topic}`;
-        toast.className   = 'toast toast-green';
+        toast.style.background = 'rgba(52,211,153,0.1)';
+        toast.style.borderColor = 'rgba(52,211,153,0.25)';
+        toast.style.color = '#34d399';
         await fetchSetupStatus();
       } else {
         toast.textContent = '✗ ' + (data.error || 'Unknown error');
-        toast.className   = 'toast toast-red';
+        toast.style.background = 'rgba(248,113,113,0.1)';
+        toast.style.borderColor = 'rgba(248,113,113,0.25)';
+        toast.style.color = '#f87171';
       }
       toast.style.display = 'block';
     } catch (err) {
       toast.textContent = '✗ ' + err.message;
-      toast.className   = 'toast toast-red';
+      toast.style.background = 'rgba(248,113,113,0.1)';
+      toast.style.borderColor = 'rgba(248,113,113,0.25)';
+      toast.style.color = '#f87171';
       toast.style.display = 'block';
     } finally {
       btn.disabled = false; btn.textContent = 'Register Webhook';
@@ -754,59 +683,60 @@
   // ── Init ──────────────────────────────────────────────────────────────────
   async function fetchAll() {
     await Promise.all([fetchStatus(), fetchLogs(), fetchPendingQueue(), fetchReviewStats(), fetchSetupStatus()]);
-    document.getElementById('last-refresh').textContent =
-      'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
 
   // Handle OAuth redirect banner
   const params = new URLSearchParams(window.location.search);
   if (params.get('connected') === 'true') {
     const b = document.createElement('div');
-    b.style.cssText = 'background:var(--green-dim);border:1px solid rgba(52,211,153,0.25);color:var(--green);padding:0.75rem 1rem;border-radius:var(--radius-sm);margin-bottom:1rem;font-size:0.85rem;';
+    b.style.cssText = 'background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);color:#34d399;padding:1rem;border-radius:1rem;margin-bottom:1.5rem;font-size:0.875rem;';
     b.textContent = 'Jobber connected successfully!';
-    document.querySelector('.main').prepend(b);
+    document.querySelector('main').prepend(b);
     window.history.replaceState({}, '', '/review-dashboard.html');
   } else if (params.get('connected') === 'false') {
     const b = document.createElement('div');
-    b.style.cssText = 'background:var(--red-dim);border:1px solid rgba(248,113,113,0.25);color:var(--red);padding:0.75rem 1rem;border-radius:var(--radius-sm);margin-bottom:1rem;font-size:0.85rem;';
+    b.style.cssText = 'background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.25);color:#f87171;padding:1rem;border-radius:1rem;margin-bottom:1.5rem;font-size:0.875rem;';
     b.textContent = `Connection failed: ${params.get('reason') || 'unknown error'}`;
-    document.querySelector('.main').prepend(b);
+    document.querySelector('main').prepend(b);
     window.history.replaceState({}, '', '/review-dashboard.html');
   }
 
   fetchAll();
   setInterval(fetchAll, 10000);
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  .pulsing { animation: pulse 1.5s ease-in-out infinite; }
 </script>
 
 <script>
+// ── Role-aware nav ────────────────────────────────────────────────
 (async function() {
   try {
     const res = await fetch('/api/admin/me', { credentials: 'include' });
     if (!res.ok) return;
-    const me = await res.json();
+    const me   = await res.json();
     const role = me.role || 'client';
-    const roleEl = document.querySelector('.user-role');
+    const roleEl = document.getElementById('user-role');
     if (roleEl) roleEl.textContent = role === 'admin' ? 'Administrator' : 'Client';
     if (role === 'admin') addAdminLink();
   } catch {}
-  function hideSection(label) {
-    document.querySelectorAll('.nav-section-label').forEach(el => {
-      if (el.textContent.trim() !== label) return;
-      el.style.display = 'none';
-      let s = el.nextElementSibling;
-      while (s && !s.classList.contains('nav-section-label')) { s.style.display = 'none'; s = s.nextElementSibling; }
-    });
-  }
+
   function addAdminLink() {
-    const nav = document.querySelector('.sidebar-nav');
+    const nav = document.querySelector('nav');
     if (!nav || nav.querySelector('a[href="/admin.html"]')) return;
     const a = document.createElement('a');
-    a.className = 'nav-link'; a.href = '/admin.html';
-    a.setAttribute('data-tooltip', 'User Management');
-    a.innerHTML = '<span class="nav-icon">&#128100;</span><span class="nav-label">User Management</span>';
+    a.className = 'flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200';
+    a.href = '/admin.html';
+    a.innerHTML = '<span class="material-symbols-outlined text-[20px]">manage_accounts</span><span class="text-sm font-medium tracking-tight">User Management</span>';
     nav.appendChild(a);
   }
 })();
 </script>
+
+<style>
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+.pulsing { animation: pulse 1.5s ease-in-out infinite; }
+</style>
+
 </body>
 </html>

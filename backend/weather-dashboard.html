@@ -1,612 +1,348 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="dark" lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>5StarFlow — Rain Alerts</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Rain Alerts — 5StarFlow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#aac7ff",
+            "on-surface": "#e5e2e1",
+            "on-background": "#e5e2e1",
+            "inverse-primary": "#005db8",
+            "error": "#ffb4ab",
+            "surface-variant": "#353534",
+            "on-primary": "#003064",
+            "surface": "#131313",
+            "surface-dim": "#131313",
+            "surface-bright": "#3a3939",
+            "inverse-on-surface": "#313030",
+            "on-surface-variant": "#8b91a0",
+            "background": "#131313",
+            "secondary-container": "#09bf49",
+            "surface-container-high": "#2a2a2a",
+            "surface-container-lowest": "#0e0e0e",
+            "surface-container-low": "#1c1b1b",
+            "inverse-surface": "#e5e2e1",
+            "surface-tint": "#aac7ff",
+            "primary-container": "#3e90ff",
+            "tertiary-container": "#c863fb",
+            "primary-fixed-dim": "#aac7ff",
+            "tertiary-fixed-dim": "#e9b3ff",
+            "on-error": "#690005",
+            "outline-variant": "#414754",
+            "surface-container": "#201f1f",
+            "error-container": "#93000a",
+            "on-error-container": "#ffdad6",
+            "secondary": "#47e266",
+            "tertiary": "#e9b3ff",
+            "outline": "#8b91a0",
+            "surface-container-highest": "#353534"
+          },
+          fontFamily: {
+            "headline": ["Inter"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          },
+          borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+        },
+      },
+    }
+  </script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg:        #09090f;
-      --surface:   rgba(18, 20, 32, 0.9);
-      --border:    rgba(255, 255, 255, 0.07);
-      --gold:      #d4a017;
-      --gold-dim:  rgba(212, 160, 23, 0.12);
-      --text-1:    #f0f2f8;
-      --text-2:    #8b95a8;
-      --text-3:    #4a5568;
-      --green:     #34d399;
-      --green-dim: rgba(52, 211, 153, 0.12);
-      --red:       #f87171;
-      --red-dim:   rgba(248, 113, 113, 0.12);
-      --yellow:    #fbbf24;
-      --yellow-dim:rgba(251, 191, 36, 0.12);
-      --blue:      #38bdf8;
-      --blue-dim:  rgba(56, 189, 248, 0.1);
-      --sidebar-w: 260px;
-      --radius:    16px;
-      --radius-sm: 10px;
+    body { background-color: #000000; color: #e5e2e1; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+    .glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    @media (max-width: 640px) {
+      aside { display: none !important; }
+      main { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
     }
-
-    html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--text-1);
-      font-family: -apple-system, 'SF Pro Display', BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .app { display: flex; min-height: 100vh; }
-
-    /* ── Sidebar ───────────────────────────────── */
-    .sidebar {
-      width: var(--sidebar-w);
-      min-height: 100vh;
-      background: rgba(10, 11, 18, 0.97);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      position: fixed;
-      left: 0; top: 0; bottom: 0;
-      z-index: 100;
-    }
-
-    .sidebar-logo { padding: 1.75rem 1.5rem 1.25rem; border-bottom: 1px solid var(--border); }
-    .sidebar-logo h1 { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.04em; }
-    .sidebar-logo h1 .star { color: var(--gold); }
-    .sidebar-logo p { font-size: 0.7rem; color: var(--text-3); margin-top: 0.2rem; }
-
-    .sidebar-nav { flex: 1; padding: 1rem 0.75rem; display: flex; flex-direction: column; gap: 0.2rem; }
-
-    .nav-section-label {
-      font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em;
-      text-transform: uppercase; color: var(--text-3);
-      padding: 0.9rem 0.75rem 0.4rem;
-    }
-
-    .nav-link {
-      display: flex; align-items: center; gap: 0.75rem;
-      padding: 0.6rem 0.85rem; border-radius: var(--radius-sm);
-      font-size: 0.875rem; font-weight: 500; color: var(--text-2);
-      text-decoration: none; transition: all 0.15s; cursor: pointer;
-      border: none; background: none; width: 100%; text-align: left;
-    }
-    .nav-link:hover { background: rgba(255,255,255,0.05); color: var(--text-1); }
-    .nav-link.active { background: var(--blue-dim); color: var(--blue); border-left: 2px solid var(--blue); padding-left: calc(0.85rem - 2px); }
-    .nav-link .nav-icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
-
-    .sidebar-footer { padding: 1rem 1.25rem 1.5rem; border-top: 1px solid var(--border); }
-    .sidebar-user { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
-    .user-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--gold), #b8860b); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: #0a0c12; flex-shrink: 0; }
-    .user-email { font-size: 0.75rem; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .btn-logout { width: 100%; padding: 0.55rem; background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.18); border-radius: var(--radius-sm); color: var(--red); font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
-    .btn-logout:hover { background: rgba(248,113,113,0.15); }
-
-    /* ── Main ──────────────────────────────────── */
-    .main { margin-left: var(--sidebar-w); flex: 1; padding: 2.5rem 2.5rem 3rem; }
-
-    /* ── Topbar ────────────────────────────────── */
-    .topbar { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
-    .page-title { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.04em; background: linear-gradient(140deg, #f0f2f8, #8b95a8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-    .page-sub { font-size: 0.82rem; color: var(--text-3); margin-top: 0.4rem; }
-    .topbar-actions { display: flex; gap: 0.75rem; align-items: center; }
-
-    /* ── Cards ─────────────────────────────────── */
-    .card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 1.5rem;
-      backdrop-filter: blur(20px); margin-bottom: 1.25rem;
-    }
-    .card-title { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; }
-
-    /* ── Forecast strip ────────────────────────── */
-    .forecast-strip { display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem; }
-    .forecast-strip::-webkit-scrollbar { height: 4px; }
-    .forecast-strip::-webkit-scrollbar-track { background: transparent; }
-    .forecast-strip::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 999px; }
-
-    .day-card {
-      flex-shrink: 0; width: 100px;
-      background: rgba(10,11,18,0.6); border: 1px solid var(--border);
-      border-radius: var(--radius-sm); padding: 1rem 0.75rem;
-      text-align: center; transition: border-color 0.15s;
-    }
-    .day-card.rain { border-color: rgba(248,113,113,0.3); background: rgba(248,113,113,0.05); }
-    .day-card.watch { border-color: rgba(251,191,36,0.25); }
-    .day-card.today { border-color: rgba(56,189,248,0.35); background: rgba(56,189,248,0.05); }
-
-    .day-name { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); margin-bottom: 0.4rem; }
-    .day-icon { font-size: 1.5rem; margin-bottom: 0.4rem; line-height: 1; }
-    .day-temp { font-size: 0.9rem; font-weight: 700; color: var(--text-1); margin-bottom: 0.4rem; }
-    .day-pop-bar { height: 4px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; margin-bottom: 0.3rem; }
-    .day-pop-fill { height: 100%; border-radius: 999px; transition: width 0.3s; }
-    .day-pop-label { font-size: 0.65rem; font-weight: 600; }
-
-    /* ── Rain alert banner ─────────────────────── */
-    .rain-banner {
-      background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25);
-      border-radius: var(--radius-sm); padding: 1rem 1.25rem;
-      display: flex; align-items: center; gap: 0.75rem;
-      margin-bottom: 1.25rem;
-    }
-    .rain-banner-icon { font-size: 1.4rem; flex-shrink: 0; }
-    .rain-banner-text { flex: 1; }
-    .rain-banner-text strong { color: var(--red); display: block; font-size: 0.9rem; margin-bottom: 0.2rem; }
-    .rain-banner-text span { color: var(--text-2); font-size: 0.8rem; }
-
-    /* ── Clients table ─────────────────────────── */
-    .clients-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-    .clients-table th { text-align: left; padding: 0.5rem 0.75rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--border); }
-    .clients-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; }
-    .clients-table tr:last-child td { border-bottom: none; }
-    .clients-table tr:hover td { background: rgba(255,255,255,0.02); }
-    .clients-table input[type=checkbox] { cursor: pointer; accent-color: var(--blue); width: 14px; height: 14px; }
-
-    /* ── Buttons ───────────────────────────────── */
-    .btn {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      padding: 0.6rem 1.25rem; border-radius: var(--radius-sm);
-      font-size: 0.85rem; font-weight: 600; cursor: pointer;
-      border: none; transition: opacity 0.15s; text-decoration: none;
-    }
-    .btn:hover:not(:disabled) { opacity: 0.85; }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-primary { background: var(--blue); color: #0a0c12; }
-    .btn-ghost { background: rgba(148,163,184,0.1); color: var(--text-2); border: 1px solid var(--border); }
-    .btn-danger { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
-    .btn-small { padding: 0.4rem 0.85rem; font-size: 0.78rem; }
-
-    /* ── Form elements ─────────────────────────── */
-    .form-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1rem; }
-    .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
-    .form-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
-    .form-input, .form-select {
-      background: rgba(10,11,18,0.8); border: 1px solid var(--border);
-      border-radius: var(--radius-sm); padding: 0.6rem 0.85rem;
-      color: var(--text-1); font-size: 0.875rem; outline: none;
-      transition: border-color 0.15s; min-width: 180px;
-    }
-    .form-input:focus, .form-select:focus { border-color: var(--blue); }
-    .form-select option { background: #1a1f2e; color: var(--text-1); }
-    .form-input[type=range] { padding: 0.4rem 0; cursor: pointer; }
-
-    .message-preview {
-      width: 100%; min-height: 80px; resize: vertical;
-      background: rgba(10,11,18,0.8); border: 1px solid var(--border);
-      border-radius: var(--radius-sm); padding: 0.75rem;
-      color: var(--text-1); font-size: 0.85rem; line-height: 1.6;
-      font-family: inherit; outline: none; transition: border-color 0.15s;
-    }
-    .message-preview:focus { border-color: var(--blue); }
-
-    /* ── Pill ──────────────────────────────────── */
-    .pill { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
-    .pill-green  { background: var(--green-dim); color: var(--green); }
-    .pill-red    { background: var(--red-dim);   color: var(--red); }
-    .pill-yellow { background: var(--yellow-dim);color: var(--yellow); }
-    .pill-blue   { background: var(--blue-dim);  color: var(--blue); }
-    .pill-gray   { background: rgba(148,163,184,0.1); color: var(--text-3); }
-
-    /* ── History table ─────────────────────────── */
-    .history-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-    .history-table th { text-align: left; padding: 0.5rem 0.75rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--border); }
-    .history-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--text-2); vertical-align: middle; }
-    .history-table tr:last-child td { border-bottom: none; }
-
-    /* ── Notification result ───────────────────── */
-    .notify-result {
-      display: none; padding: 0.85rem 1rem; border-radius: var(--radius-sm);
-      font-size: 0.85rem; margin-top: 1rem;
-    }
-    .notify-result.success { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.25); color: var(--green); }
-    .notify-result.error   { background: var(--red-dim); border: 1px solid rgba(248,113,113,0.25); color: var(--red); }
-
-    /* ── Empty state ───────────────────────────── */
-    .empty-state { text-align: center; padding: 2.5rem 1rem; color: var(--text-3); font-size: 0.875rem; }
-
-    /* ── Settings grid ─────────────────────────── */
-    .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
-    .stat-box { background: rgba(10,11,18,0.5); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; }
-    .stat-box-label { font-size: 0.7rem; color: var(--text-3); margin-bottom: 0.4rem; }
-    .stat-box-val { font-size: 1.1rem; font-weight: 700; color: var(--text-1); }
-
-    #last-refresh { font-size: 0.72rem; color: var(--text-3); }
-
-    /* Collapsible sidebar */
-    .sidebar { transition: width 0.2s ease; overflow: visible; }
-    .sidebar.collapsed { width: 60px; overflow: visible; }
-    .sidebar.collapsed .nav-label,
-    .sidebar.collapsed .nav-section-label,
-    .sidebar.collapsed .nav-badge,
-    .sidebar.collapsed .sidebar-logo p,
-    .sidebar.collapsed .sidebar-footer { display: none; }
-    .sidebar.collapsed .nav-link { justify-content: center; padding: 0.6rem; }
-    .sidebar.collapsed .sidebar-logo { padding: 1.25rem 0; text-align: center; }
-    .sidebar.collapsed .sidebar-toggle { transform: scaleX(-1); }
-    .main { transition: margin-left 0.2s ease; }
-    body.sidebar-collapsed .main { margin-left: 60px; }
-    .sidebar-toggle {
-      display: block; width: 100%; padding: 0.75rem 0;
-      background: none; border: none; border-top: 1px solid var(--border);
-      color: var(--text-3); font-size: 1.5rem; cursor: pointer;
-      text-align: center; transition: color 0.15s, transform 0.2s;
-      line-height: 1;
-    }
-    .sidebar-toggle:hover { color: var(--text-1); }
-    .sidebar.collapsed .nav-link { position: relative; }
-    .sidebar.collapsed .nav-link::after {
-      content: attr(data-tooltip);
-      position: absolute;
-      left: 68px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: rgba(15, 15, 22, 0.97);
-      color: var(--text-1);
-      font-size: 0.78rem;
-      font-weight: 500;
-      padding: 0.35rem 0.7rem;
-      border-radius: 7px;
-      white-space: nowrap;
-      border: 1px solid var(--border);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.12s;
-      z-index: 9999;
-    }
-    .sidebar.collapsed .nav-link:hover::after { opacity: 1; }
-
-    /* ── Debug panel ────────────────────────────── */
-    .debug-bar {
-      display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
-      padding: 0.75rem 1rem;
-      background: rgba(251,191,36,0.07);
-      border: 1px solid rgba(251,191,36,0.25);
-      border-radius: var(--radius-sm);
-      margin-bottom: 1rem;
-    }
-    .debug-bar label { font-size: 0.78rem; color: var(--yellow); font-weight: 700; display: flex; align-items: center; gap: 0.4rem; }
-    .debug-toggle { width: 36px; height: 20px; appearance: none; background: var(--border); border-radius: 10px; cursor: pointer; position: relative; transition: background 0.2s; }
-    .debug-toggle:checked { background: var(--yellow); }
-    .debug-toggle::after { content: ''; position: absolute; width: 14px; height: 14px; background: #fff; border-radius: 50%; top: 3px; left: 3px; transition: left 0.2s; }
-    .debug-toggle:checked::after { left: 19px; }
-    .debug-slider { width: 120px; accent-color: var(--yellow); cursor: pointer; }
-
-    /* ── Calendar ───────────────────────────────── */
-    .calendar-grid {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 0.5rem;
-      overflow-x: auto;
-    }
-    @media (max-width: 768px) { .calendar-grid { grid-template-columns: repeat(3, 1fr); } }
-    .cal-day {
-      background: rgba(10,11,18,0.5);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 0.75rem 0.5rem;
-      cursor: pointer;
-      transition: border-color 0.15s, background 0.15s;
-      min-width: 90px;
-    }
-    .cal-day:hover { border-color: rgba(255,255,255,0.2); }
-    .cal-day.rainy { border-color: rgba(248,113,113,0.5); background: rgba(248,113,113,0.07); }
-    .cal-day.active { border-color: var(--gold); background: var(--gold-dim); }
-    .cal-day-name { font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); margin-bottom: 0.3rem; }
-    .cal-day-date { font-size: 0.75rem; color: var(--text-2); margin-bottom: 0.4rem; }
-    .cal-pop-bar { height: 3px; background: rgba(255,255,255,0.07); border-radius: 2px; margin-bottom: 0.4rem; }
-    .cal-pop-fill { height: 100%; border-radius: 2px; }
-    .cal-visit-count { font-size: 0.68rem; font-weight: 700; }
-
-    /* Calendar visit detail panel */
-    .cal-visit-list { list-style: none; }
-    .cal-visit-item {
-      display: flex; align-items: center; gap: 0.6rem;
-      padding: 0.5rem 0.6rem;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      margin-bottom: 0.35rem;
-      background: rgba(10,11,18,0.4);
-    }
-    .cal-visit-item input[type=checkbox] { flex-shrink: 0; cursor: pointer; }
-    .cal-visit-meta { flex: 1; }
-    .cal-visit-name { font-size: 0.82rem; font-weight: 600; color: var(--text-1); }
-    .cal-visit-time { font-size: 0.7rem; color: var(--text-3); }
   </style>
 </head>
-<body>
-<div class="app">
+<body class="bg-black min-h-screen">
 
   <!-- Sidebar -->
-  <aside class="sidebar">
-    <div class="sidebar-logo">
-      <h1>5<span class="star">&#9733;</span>Flow</h1>
-      <p>Business Automation OS</p>
+  <aside class="fixed left-6 top-6 bottom-6 w-64 rounded-[3rem] border-t border-white/10 bg-zinc-900/60 backdrop-blur-2xl flex flex-col h-[calc(100vh-3rem)] p-4 shadow-[0_40px_40px_-5px_rgba(0,0,0,0.6)] z-50">
+    <div class="mb-8 px-4 pt-4">
+      <h1 class="text-xl font-bold text-zinc-100 tracking-tighter">Command Center</h1>
+      <p class="text-xs text-zinc-500 font-medium mt-1">5StarFlow</p>
     </div>
-    <nav class="sidebar-nav">
-      <div class="nav-section-label">Main</div>
-      <a class="nav-link" data-tooltip="Home" href="/index.html"><span class="nav-icon">&#9632;</span> <span class="nav-label">Home</span></a>
-      <a class="nav-link" data-tooltip="Review Requests" href="/review-dashboard.html"><span class="nav-icon">&#9733;</span> <span class="nav-label">Review Requests</span></a>
-      <a class="nav-link active" data-tooltip="Rain Alerts" href="/weather-dashboard.html"><span class="nav-icon">&#9928;</span> <span class="nav-label">Rain Alerts</span></a>
-      <div class="nav-section-label">Tools</div>
-      <a class="nav-link" data-tooltip="SEO Audit" href="/seo-dashboard.html"><span class="nav-icon">&#128202;</span> <span class="nav-label">SEO Audit</span></a>
-      <a class="nav-link" data-tooltip="Website Audit" href="/website-audit.html"><span class="nav-icon">&#128394;</span> <span class="nav-label">Website Audit</span></a>
-      <div class="nav-section-label">System</div>
-      <a class="nav-link" data-tooltip="App Connections" href="/connections.html"><span class="nav-icon">&#128279;</span> <span class="nav-label">App Connections</span></a>
-      <a class="nav-link" data-tooltip="Settings" href="/settings.html"><span class="nav-icon">&#9881;</span> <span class="nav-label">Settings</span></a>
+
+    <nav class="flex-1 space-y-0.5 overflow-y-auto" id="main-nav">
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/index.html">
+        <span class="material-symbols-outlined text-[20px]">home</span>
+        <span class="text-sm font-medium tracking-tight">Home</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/review-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">rate_review</span>
+        <span class="text-sm font-medium tracking-tight">Review Requests</span>
+        <span class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary/10 text-secondary hidden" id="sidebar-pending"></span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-100 rounded-xl relative before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-secondary before:rounded-full hover:bg-white/5 transition-all duration-200" href="/weather-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">thunderstorm</span>
+        <span class="text-sm font-medium tracking-tight">Rain Alerts</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/seo-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">search_check</span>
+        <span class="text-sm font-medium tracking-tight">SEO Audit</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/website-audit.html">
+        <span class="material-symbols-outlined text-[20px]">speed</span>
+        <span class="text-sm font-medium tracking-tight">Website Audit</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/connections.html">
+        <span class="material-symbols-outlined text-[20px]">hub</span>
+        <span class="text-sm font-medium tracking-tight">App Connections</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/settings.html">
+        <span class="material-symbols-outlined text-[20px]">settings</span>
+        <span class="text-sm font-medium tracking-tight">Settings</span>
+      </a>
     </nav>
-    <div class="sidebar-footer">
-      <div class="sidebar-user">
-        <div class="user-avatar" id="user-avatar">?</div>
-        <div class="user-info"><div class="user-email" id="user-email">Loading...</div></div>
+
+    <div class="mt-auto px-2 pt-4 border-t border-white/5">
+      <div class="flex items-center gap-3 p-2">
+        <div class="w-9 h-9 rounded-full bg-surface-container-highest flex items-center justify-center text-sm font-bold text-zinc-100 flex-shrink-0" id="user-avatar">?</div>
+        <div class="flex-1 overflow-hidden">
+          <p class="text-sm font-semibold text-zinc-100 truncate" id="user-email">Loading...</p>
+          <p class="text-xs text-zinc-500 truncate" id="user-role">Administrator</p>
+        </div>
+        <button onclick="logout()" class="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex-shrink-0" title="Log out">
+          <span class="material-symbols-outlined text-[18px]">logout</span>
+        </button>
       </div>
-      <button class="btn-logout" onclick="logout()">Log Out</button>
     </div>
-    <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">&#8249;</button>
   </aside>
 
-  <!-- Main -->
-  <main class="main">
+  <!-- Main Canvas -->
+  <main class="pl-80 pr-12 py-10 min-h-screen">
 
-    <!-- Topbar -->
-    <div class="topbar">
-      <div>
-        <div style="font-size:0.72rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:0.35rem;">Rain Alerts</div>
-        <h2 class="page-title">Weather &amp; Reschedule</h2>
-        <p class="page-sub" id="weather-sub">Checking forecast for <span id="weather-city">—</span>...</p>
-      </div>
-      <div class="topbar-actions">
-        <span id="last-refresh">Loading...</span>
-        <button class="btn btn-ghost btn-small" onclick="runCheck()">&#8635; Run Check Now</button>
-        <button class="btn btn-small" onclick="toggleDebugBar()" id="debug-bar-btn" style="background:rgba(251,191,36,0.12);color:var(--yellow);border:1px solid rgba(251,191,36,0.25);">&#127381; Debug</button>
-        <button class="btn btn-small" onclick="demoRain()" style="background:rgba(248,113,113,0.15);color:var(--red);border:1px solid rgba(248,113,113,0.3);">&#9928; Demo Rain</button>
-        <a href="/index.html" class="btn btn-ghost btn-small">&#8592; Home</a>
-      </div>
+    <!-- Page Header -->
+    <div class="mb-10">
+      <h2 class="text-2xl font-black text-zinc-100 tracking-tight">Rain Alerts</h2>
+      <p class="text-sm text-on-surface-variant mt-1">Weather monitoring and schedule protection</p>
     </div>
 
-    <!-- Debug Controls -->
-    <div class="debug-bar" id="debug-bar" style="display:none;">
-      <label>&#127381; DEBUG MODE</label>
-      <label>
-        <input type="checkbox" class="debug-toggle" id="debug-toggle" onchange="toggleDebugMode(this.checked)" />
-        Simulate Rain
-      </label>
-      <label style="color:var(--text-2);font-weight:500;">
-        Rain %:
-        <input type="range" class="debug-slider" id="debug-rain-slider" min="0" max="100" step="5" value="75"
-          oninput="document.getElementById('debug-rain-label').textContent=this.value+'%'; if(document.getElementById('debug-toggle').checked) loadWeatherToday();" />
-        <span id="debug-rain-label" style="font-size:0.78rem;color:var(--yellow);font-weight:700;min-width:36px;">75%</span>
-      </label>
-      <span style="font-size:0.72rem;color:var(--text-3);">No real API calls when active</span>
-    </div>
-
-    <!-- Today summary stats -->
-    <div class="settings-grid" id="today-stats" style="margin-bottom:1.25rem;">
-      <div class="stat-box">
-        <div class="stat-box-label">Today&rsquo;s Rain Probability</div>
-        <div class="stat-box-val" id="today-pop">—</div>
+    <!-- Today Stats Grid -->
+    <div class="grid grid-cols-4 gap-4 mb-8" id="today-stats">
+      <div class="glass-card rounded-xl p-6">
+        <div class="text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">Today's Rain Probability</div>
+        <div class="text-3xl font-black text-white" id="today-pop">—</div>
       </div>
-      <div class="stat-box">
-        <div class="stat-box-label">Forecast</div>
-        <div class="stat-box-val" id="today-summary" style="font-size:0.85rem;">Loading...</div>
+      <div class="glass-card rounded-xl p-6">
+        <div class="text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">Forecast</div>
+        <div class="text-sm text-zinc-100" id="today-summary">Loading...</div>
       </div>
-      <div class="stat-box">
-        <div class="stat-box-label">Today&rsquo;s Affected Clients</div>
-        <div class="stat-box-val" id="today-clients">—</div>
+      <div class="glass-card rounded-xl p-6">
+        <div class="text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">Affected Clients</div>
+        <div class="text-3xl font-black text-white" id="today-clients">—</div>
       </div>
-      <div class="stat-box">
-        <div class="stat-box-label">Last Checked</div>
-        <div class="stat-box-val" id="today-checked" style="font-size:0.85rem;">—</div>
+      <div class="glass-card rounded-xl p-6">
+        <div class="text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">Last Checked</div>
+        <div class="text-sm text-zinc-100" id="today-checked">—</div>
       </div>
     </div>
 
     <!-- 7-Day Forecast Strip -->
-    <div class="card">
-      <div class="card-title">7-Day Forecast</div>
-      <div class="forecast-strip" id="forecast-strip">
-        <div class="empty-state" style="padding:1rem;">Loading forecast...</div>
+    <div class="glass-card rounded-xl p-6 mb-8">
+      <h3 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">7-Day Forecast</h3>
+      <div class="flex gap-4 overflow-x-auto pb-2" id="forecast-strip">
+        <div class="text-sm text-on-surface-variant">Loading forecast...</div>
       </div>
     </div>
 
-    <!-- 7-Day Jobber Visit Calendar -->
-    <div class="card" id="calendar-card">
-      <div class="card-title">
-        7-Day Visit Calendar
-        <span style="font-size:0.72rem;color:var(--text-3);font-weight:400;" id="calendar-status">Loading...</span>
-        <button class="btn btn-ghost btn-small" onclick="loadCalendar(true)">&#8635; Refresh</button>
+    <!-- 7-Day Visit Calendar -->
+    <div class="glass-card rounded-xl p-6 mb-8" id="calendar-card">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">7-Day Visit Calendar</h3>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-on-surface-variant" id="calendar-status">Loading...</span>
+          <button onclick="loadCalendar(true)" class="bg-primary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors">
+            Refresh
+          </button>
+        </div>
       </div>
-      <div class="calendar-grid" id="calendar-grid">
-        <div class="empty-state" style="grid-column:1/-1;padding:1.5rem;">Loading calendar...</div>
+      <div class="grid grid-cols-7 gap-3" id="calendar-grid">
+        <div class="text-sm text-on-surface-variant col-span-7">Loading calendar...</div>
       </div>
 
-      <!-- Expanded day panel — shown when a day is clicked -->
-      <div id="calendar-day-panel" style="display:none;margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border);">
-        <div class="card-title" style="margin-bottom:0.75rem;">
-          <span id="cal-day-title">Visits</span>
-          <div style="display:flex;gap:0.5rem;align-items:center;">
-            <button class="btn btn-ghost btn-small" onclick="selectAllCalVisits()">Select All</button>
-            <span id="cal-selected-count" class="pill pill-blue">0 selected</span>
+      <!-- Expanded day panel -->
+      <div id="calendar-day-panel" style="display:none;margin-top:2rem;padding-top:2rem;border-top:1px solid rgba(255,255,255,0.1);">
+        <div class="flex justify-between items-center mb-4">
+          <h4 class="text-sm font-bold text-zinc-100" id="cal-day-title">Visits</h4>
+          <div class="flex gap-2 items-center">
+            <button onclick="selectAllCalVisits()" class="bg-white/5 text-on-surface-variant rounded-xl px-4 py-2 text-sm font-semibold hover:bg-white/10 transition-colors">Select All</button>
+            <span class="bg-primary/10 text-primary border border-primary/20 rounded-full px-2.5 py-0.5 text-xs font-semibold" id="cal-selected-count">0 selected</span>
           </div>
         </div>
-        <ul class="cal-visit-list" id="cal-visit-list"></ul>
+        <div class="space-y-2 mb-4" id="cal-visit-list"></div>
 
-        <!-- Reschedule controls for calendar visits -->
-        <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Move to Date</label>
-              <select class="form-select" id="cal-reschedule-select" onchange="updateCalMessagePreview()" style="min-width:220px;">
-                <option value="">Loading open days...</option>
+        <!-- Reschedule controls -->
+        <div class="mt-6 pt-6 border-t border-white/5">
+          <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="block text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">Move to Date</label>
+              <select class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50" id="cal-reschedule-select" onchange="updateCalMessagePreview()">
+                <option value="">Loading dates...</option>
               </select>
             </div>
-            <div class="form-group" style="flex:1;">
-              <label class="form-label">Message (editable)</label>
-              <textarea class="message-preview" id="cal-message-preview" rows="2"></textarea>
+            <div>
+              <label class="block text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">Message (editable)</label>
+              <textarea class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50" id="cal-message-preview" rows="2"></textarea>
             </div>
           </div>
-          <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;margin-top:0.75rem;">
-            <button class="btn btn-primary" id="cal-reschedule-btn" onclick="rescheduleVisits()" disabled>
-              &#8634; Move &amp; Notify Clients
+          <div class="flex gap-3 items-center">
+            <button onclick="rescheduleVisits()" id="cal-reschedule-btn" class="bg-primary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+              Move &amp; Notify Clients
             </button>
-            <span style="font-size:0.75rem;color:var(--text-3);">Moves visits in Jobber + texts &amp; emails each client</span>
+            <span class="text-xs text-on-surface-variant">Moves visits in Jobber + texts &amp; emails each client</span>
           </div>
-          <div class="notify-result" id="cal-reschedule-result" style="display:none;margin-top:0.75rem;"></div>
+          <div class="notify-result" id="cal-reschedule-result" style="display:none;margin-top:1rem;"></div>
         </div>
       </div>
     </div>
 
     <!-- Rain Alert Panel -->
-    <div id="rain-alert-panel" style="display:none;">
-
+    <div id="rain-alert-panel" style="display:none;" class="mb-8">
       <!-- Rain Banner -->
-      <div class="rain-banner">
-        <div class="rain-banner-icon">&#9928;</div>
-        <div class="rain-banner-text">
-          <strong id="rain-banner-title">Rain expected today</strong>
-          <span id="rain-banner-sub">Review the affected clients below and choose a reschedule date.</span>
+      <div class="glass-card rounded-xl p-6 border-l-4 border-red-500 mb-6" style="background: rgba(248,113,113,0.05);">
+        <div class="flex gap-3">
+          <span class="text-3xl">⛈</span>
+          <div>
+            <div class="font-bold text-red-400 mb-1" id="rain-banner-title">Rain expected today</div>
+            <div class="text-sm text-on-surface-variant" id="rain-banner-sub">Review affected clients and choose a reschedule date.</div>
+          </div>
         </div>
       </div>
 
-      <!-- Affected Clients + Send Panel -->
-      <div class="card">
-        <div class="card-title">
-          Affected Clients — <span id="affected-day-label">today</span>
-          <div style="display:flex;gap:0.5rem;align-items:center;">
-            <button class="btn btn-ghost btn-small" onclick="toggleAllClients()">Select All</button>
-            <span id="selected-count" class="pill pill-blue">0 selected</span>
+      <!-- Affected Clients -->
+      <div class="glass-card rounded-xl p-6 mb-8">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-sm font-bold text-zinc-100">Affected Clients — <span id="affected-day-label">today</span></h3>
+          <div class="flex gap-2 items-center">
+            <button onclick="toggleAllClients()" class="bg-white/5 text-on-surface-variant rounded-xl px-4 py-2 text-sm font-semibold hover:bg-white/10 transition-colors">Select All</button>
+            <span class="bg-primary/10 text-primary border border-primary/20 rounded-full px-2.5 py-0.5 text-xs font-semibold" id="selected-count">0 selected</span>
           </div>
         </div>
 
-        <div id="clients-container">
-          <div class="empty-state">Loading clients...</div>
+        <div id="clients-container" class="mb-6">
+          <div class="text-sm text-on-surface-variant">Loading clients...</div>
         </div>
 
-        <!-- Reschedule Controls -->
-        <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border);">
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Reschedule To</label>
-              <select class="form-select" id="reschedule-select" onchange="updateMessagePreview()">
+        <!-- Reschedule controls -->
+        <div class="pt-6 border-t border-white/5">
+          <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="block text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">Reschedule To</label>
+              <select class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50" id="reschedule-select" onchange="updateMessagePreview()">
                 <option value="">Loading open days...</option>
               </select>
             </div>
-            <div class="form-group" style="flex:1;">
-              <label class="form-label">Message Preview (editable)</label>
-              <textarea class="message-preview" id="message-preview" rows="3"></textarea>
+            <div>
+              <label class="block text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">Message Preview (editable)</label>
+              <textarea class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50" id="message-preview" rows="2"></textarea>
             </div>
           </div>
 
-          <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;">
-            <button class="btn btn-primary" id="send-btn" onclick="sendNotifications()" disabled>
-              &#9993; Send to Selected Clients
+          <div class="flex gap-3 items-center flex-wrap">
+            <button onclick="sendNotifications()" id="send-btn" class="bg-primary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+              Send to Selected Clients
             </button>
-            <button class="btn btn-ghost" onclick="loadAffectedClients()">&#8635; Refresh Clients</button>
-            <span style="font-size:0.75rem;color:var(--text-3);" id="dry-run-note"></span>
+            <button onclick="loadAffectedClients()" class="bg-white/5 text-on-surface-variant rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-white/10 transition-colors">Refresh Clients</button>
+            <span class="text-xs text-on-surface-variant" id="dry-run-note"></span>
           </div>
 
-          <div class="notify-result" id="notify-result"></div>
+          <div class="notify-result" id="notify-result" style="display:none;margin-top:1rem;"></div>
         </div>
       </div>
     </div>
 
-    <!-- Clear weather message (no rain) -->
-    <div id="clear-panel" style="display:none;">
-      <div class="card" style="text-align:center;padding:2.5rem;">
-        <div style="font-size:2.5rem;margin-bottom:1rem;">&#9728;</div>
-        <div style="font-size:1rem;font-weight:700;color:var(--green);margin-bottom:0.5rem;">No rain expected today</div>
-        <div style="font-size:0.82rem;color:var(--text-3);" id="clear-summary">All clear for business hours.</div>
+    <!-- Clear Weather Message -->
+    <div id="clear-panel" style="display:none;" class="mb-8">
+      <div class="glass-card rounded-xl p-12 text-center">
+        <div class="text-5xl mb-4">☀️</div>
+        <div class="text-xl font-bold text-secondary mb-2">No rain expected today</div>
+        <div class="text-sm text-on-surface-variant" id="clear-summary">All clear for business hours.</div>
       </div>
     </div>
 
-    <!-- Settings Card -->
-    <div class="card">
-      <div class="card-title">Settings</div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">City</label>
-          <input type="text" class="form-input" id="setting-city" placeholder="Winnipeg" style="min-width:140px;" />
+    <!-- Settings -->
+    <div class="glass-card rounded-xl p-8 mb-8">
+      <h3 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-6">Settings</h3>
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">City</label>
+          <input type="text" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50" id="setting-city" placeholder="Winnipeg" />
         </div>
-        <div class="form-group">
-          <label class="form-label">Rain Threshold</label>
-          <div style="display:flex;align-items:center;gap:0.75rem;">
-            <input type="range" class="form-input" id="setting-threshold" min="10" max="80" step="5" style="min-width:120px;padding:0;" oninput="document.getElementById('threshold-label').textContent=this.value+'%'" />
-            <span style="font-size:0.85rem;color:var(--text-2);font-weight:600;min-width:36px;" id="threshold-label">40%</span>
+        <div>
+          <label class="block text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">Rain Threshold</label>
+          <div class="flex gap-2 items-center">
+            <input type="range" id="setting-threshold" min="10" max="80" step="5" class="flex-1" oninput="document.getElementById('threshold-label').textContent=this.value+'%'; if(document.getElementById('debug-toggle').checked) loadWeatherToday();" />
+            <span class="text-sm text-on-surface-variant min-w-[40px]" id="threshold-label">40%</span>
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Business Hours</label>
-          <div style="display:flex;align-items:center;gap:0.5rem;">
-            <input type="number" class="form-input" id="setting-start" min="0" max="23" style="min-width:70px;" />
-            <span style="color:var(--text-3);">to</span>
-            <input type="number" class="form-input" id="setting-end" min="0" max="23" style="min-width:70px;" />
+        <div>
+          <label class="block text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">Business Hours</label>
+          <div class="flex gap-2 items-center">
+            <input type="number" class="w-16 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50" id="setting-start" min="0" max="23" />
+            <span class="text-sm text-on-surface-variant">to</span>
+            <input type="number" class="w-16 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50" id="setting-end" min="0" max="23" />
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Auto-check</label>
-          <select class="form-select" id="setting-enabled" style="min-width:110px;">
+        <div>
+          <label class="block text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">Auto-check</label>
+          <select class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50" id="setting-enabled">
             <option value="true">Enabled</option>
             <option value="false">Disabled</option>
           </select>
         </div>
-        <div class="form-group" style="align-self:flex-end;">
-          <button class="btn btn-primary btn-small" onclick="saveSettings()">Save Settings</button>
-        </div>
       </div>
-      <div id="settings-result" style="font-size:0.8rem;margin-top:0.5rem;display:none;"></div>
+      <div class="flex gap-3">
+        <button onclick="saveSettings()" class="bg-primary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors">Save Settings</button>
+        <div id="settings-result" class="text-sm" style="display:none;"></div>
+      </div>
     </div>
 
     <!-- Reschedule History -->
-    <div class="card">
-      <div class="card-title">Reschedule History</div>
-      <div id="history-container">
-        <div class="empty-state">Loading history...</div>
+    <div class="glass-card rounded-xl overflow-hidden">
+      <div class="p-6 border-b border-white/5">
+        <h3 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Reschedule History</h3>
+      </div>
+      <div id="history-container" class="p-6">
+        <div class="text-sm text-on-surface-variant">Loading history...</div>
       </div>
     </div>
 
   </main>
-</div>
 
 <script>
-  // ── Sidebar toggle ──────────────────────────────────────────────
-  function toggleSidebar() {
-    const sidebar   = document.querySelector('.sidebar');
-    const collapsed = sidebar.classList.toggle('collapsed');
-    document.body.classList.toggle('sidebar-collapsed', collapsed);
-    localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
-  }
-  document.querySelectorAll('.nav-link').forEach(link => {
-    link.addEventListener('click', () => {
-      if (document.querySelector('.sidebar').classList.contains('collapsed')) {
-        document.querySelector('.sidebar').classList.remove('collapsed');
-        document.body.classList.remove('sidebar-collapsed');
-        localStorage.setItem('sidebarCollapsed', '0');
-      }
-    });
-  });
-  (function() {
-    if (localStorage.getItem('sidebarCollapsed') === '1') {
-      document.querySelector('.sidebar')?.classList.add('collapsed');
-      document.body.classList.add('sidebar-collapsed');
-    }
-  })();
-
-  const API = '';
+  const API = window.location.origin;
 
   let affectedClients = [];
   let selectedClientIds = new Set();
   let openDays = [];
+  let debugRainActive = false;
+  let calendarData = {};
+  let activeDayDate = null;
+  let calVisits = [];
+  let calSelectedIds = new Set();
 
-  // ── Utilities ────────────────────────────────────────────────────────────
   function escHtml(str) {
     return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   function rainIcon(pop) {
-    if (pop >= 0.6) return '&#127783;'; // heavy rain
-    if (pop >= 0.35) return '&#9928;';  // cloud with rain
-    if (pop >= 0.2)  return '&#9925;';  // partly cloudy
-    return '&#9728;';                   // sun
+    if (pop >= 0.6) return '🌧️';
+    if (pop >= 0.35) return '⛈️';
+    if (pop >= 0.2) return '⛅';
+    return '☀️';
   }
 
   function popColor(pop) {
@@ -617,13 +353,14 @@
 
   async function logout() {
     try {
-      const r = await fetch('/auth/logout', { method: 'POST' });
-      const d = await r.json();
-      window.location.href = d.redirect || '/login.html';
-    } catch { window.location.href = '/login.html'; }
+      const res = await fetch('/auth/logout', { method: 'POST' });
+      const data = await res.json();
+      window.location.href = data.redirect || '/login.html';
+    } catch {
+      window.location.href = '/login.html';
+    }
   }
 
-  // ── Load everything ──────────────────────────────────────────────────────
   async function loadAll() {
     await Promise.all([
       loadSettings(),
@@ -632,56 +369,44 @@
       loadCalendar(),
       loadHistory(),
     ]);
-    document.getElementById('last-refresh').textContent =
-      'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
 
   async function loadSettings() {
     try {
       const res = await fetch(`${API}/api/weather/settings`);
-      const s   = await res.json();
-      document.getElementById('setting-city').value      = s.city || 'Winnipeg';
+      const s = await res.json();
+      document.getElementById('setting-city').value = s.city || 'Winnipeg';
       document.getElementById('setting-threshold').value = Math.round((s.rainThreshold || 0.4) * 100);
       document.getElementById('threshold-label').textContent = Math.round((s.rainThreshold || 0.4) * 100) + '%';
-      document.getElementById('setting-start').value     = s.businessStartHour ?? 7;
-      document.getElementById('setting-end').value       = s.businessEndHour   ?? 18;
-      document.getElementById('setting-enabled').value   = String(s.checkEnabled !== false);
-      document.getElementById('weather-city').textContent = s.city || 'Winnipeg';
-
-      // Show DRY_RUN note
-      const dryNote = document.getElementById('dry-run-note');
-      const dryRun = document.querySelector('meta[name=dry-run]');
+      document.getElementById('setting-start').value = s.businessStartHour ?? 7;
+      document.getElementById('setting-end').value = s.businessEndHour ?? 18;
+      document.getElementById('setting-enabled').value = String(s.checkEnabled !== false);
     } catch (err) { console.error('Settings load error:', err); }
   }
 
   async function loadWeatherToday() {
     try {
-      const res  = await fetch(`${API}/api/weather/today${debugParams()}`);
+      const res = await fetch(`${API}/api/weather/today${debugParams()}`);
       const data = await res.json();
 
       if (data.error) {
-        document.getElementById('today-pop').textContent     = 'No API key';
+        document.getElementById('today-pop').textContent = 'No API key';
         document.getElementById('today-summary').textContent = 'Add OPENWEATHER_API_KEY to .env';
-        document.getElementById('weather-sub').innerHTML     = 'Set OPENWEATHER_API_KEY to enable weather checks.';
         showClearPanel('API key not configured.');
         return;
       }
 
       const pct = data.maxPopPct ?? 0;
-      document.getElementById('today-pop').textContent     = pct + '%';
-      document.getElementById('today-pop').style.color     = popColor(data.maxPrecipProb ?? 0);
+      document.getElementById('today-pop').textContent = pct + '%';
+      document.getElementById('today-pop').style.color = popColor(data.maxPrecipProb ?? 0);
       document.getElementById('today-summary').textContent = data.forecastSummary || '—';
       document.getElementById('today-checked').textContent = data.checkedAt
         ? new Date(data.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         : '—';
-      document.getElementById('weather-sub').innerHTML =
-        `Forecast for <strong style="color:var(--text-1);">${escHtml(document.getElementById('setting-city').value || 'Winnipeg')}</strong> · ${escHtml(data.forecastSummary || '')}`;
 
       if (data.rainExpected) {
-        document.getElementById('rain-banner-title').textContent =
-          `Rain expected today — ${pct}% peak probability`;
-        document.getElementById('rain-banner-sub').textContent =
-          data.forecastSummary || '';
+        document.getElementById('rain-banner-title').textContent = `Rain expected today — ${pct}% peak probability`;
+        document.getElementById('rain-banner-sub').textContent = data.forecastSummary || '';
         showRainPanel();
         await loadAffectedClients();
         await loadOpenDays();
@@ -696,65 +421,61 @@
 
   function showRainPanel() {
     document.getElementById('rain-alert-panel').style.display = 'block';
-    document.getElementById('clear-panel').style.display      = 'none';
+    document.getElementById('clear-panel').style.display = 'none';
   }
 
   function showClearPanel(summary) {
     document.getElementById('rain-alert-panel').style.display = 'none';
-    document.getElementById('clear-panel').style.display      = 'block';
-    document.getElementById('clear-summary').textContent      = summary || '';
+    document.getElementById('clear-panel').style.display = 'block';
+    document.getElementById('clear-summary').textContent = summary || '';
   }
 
   async function loadForecast() {
     try {
-      const res  = await fetch(`${API}/api/weather/forecast`);
+      const res = await fetch(`${API}/api/weather/forecast`);
       const data = await res.json();
       const days = data.days || [];
       const strip = document.getElementById('forecast-strip');
       const todayStr = new Date().toISOString().slice(0, 10);
 
       if (!days.length) {
-        strip.innerHTML = '<div class="empty-state" style="padding:1rem;">No forecast data</div>';
+        strip.innerHTML = '<div class="text-sm text-on-surface-variant">No forecast data</div>';
         return;
       }
 
       strip.innerHTML = days.map((d) => {
         const isToday = d.date === todayStr;
-        const cls = isToday ? 'today' : d.maxPop >= 0.4 ? 'rain' : d.maxPop >= 0.2 ? 'watch' : '';
         const fillColor = d.maxPop >= 0.4 ? '#f87171' : d.maxPop >= 0.2 ? '#fbbf24' : '#34d399';
         const dayLabel = isToday ? 'Today' : d.dayName.slice(0, 3).toUpperCase();
-        return `<div class="day-card ${cls}">
-          <div class="day-name">${dayLabel}</div>
-          <div class="day-name" style="font-weight:400;letter-spacing:0;">${d.date.slice(5)}</div>
-          <div class="day-icon">${rainIcon(d.maxPop)}</div>
-          <div class="day-temp">${d.maxTemp}&deg;C</div>
-          <div class="day-pop-bar">
-            <div class="day-pop-fill" style="width:${d.maxPopPct}%;background:${fillColor};"></div>
+        return `<div class="glass-card rounded-xl p-5 flex-1 text-center min-w-[100px]">
+          <div class="text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">${dayLabel}</div>
+          <div class="text-xs text-on-surface-variant mb-2">${d.date.slice(5)}</div>
+          <div class="text-2xl mb-2">${rainIcon(d.maxPop)}</div>
+          <div class="text-lg font-bold text-white mb-2">${d.maxTemp}°C</div>
+          <div class="w-full h-1 bg-white/10 rounded-full overflow-hidden mb-2">
+            <div style="width:${d.maxPopPct}%;height:100%;background:${fillColor};border-radius:999px;"></div>
           </div>
-          <div class="day-pop-label" style="color:${fillColor};">${d.maxPopPct}%</div>
+          <div class="text-xs font-bold" style="color:${fillColor};">${d.maxPopPct}%</div>
         </div>`;
       }).join('');
     } catch (err) {
-      document.getElementById('forecast-strip').innerHTML =
-        '<div class="empty-state" style="padding:1rem;">Could not load forecast</div>';
+      document.getElementById('forecast-strip').innerHTML = '<div class="text-sm text-on-surface-variant">Could not load forecast</div>';
     }
   }
 
   async function loadAffectedClients() {
     try {
-      const res  = await fetch(`${API}/api/weather/affected-clients`);
+      const res = await fetch(`${API}/api/weather/affected-clients`);
       const data = await res.json();
       affectedClients = data.clients || [];
 
       const dayTag = data.dayTag || 'today';
-      document.getElementById('affected-day-label').textContent =
-        `${dayTag.charAt(0).toUpperCase() + dayTag.slice(1)} (${affectedClients.length} clients)`;
+      document.getElementById('affected-day-label').textContent = `${dayTag.charAt(0).toUpperCase() + dayTag.slice(1)} (${affectedClients.length} clients)`;
       document.getElementById('today-clients').textContent = affectedClients.length;
 
       renderClientsTable();
     } catch (err) {
-      document.getElementById('clients-container').innerHTML =
-        '<div class="empty-state">Could not load clients — is Jobber connected?</div>';
+      document.getElementById('clients-container').innerHTML = '<div class="text-sm text-on-surface-variant">Could not load clients — is Jobber connected?</div>';
     }
   }
 
@@ -762,33 +483,31 @@
     const container = document.getElementById('clients-container');
 
     if (!affectedClients.length) {
-      container.innerHTML = `<div class="empty-state">No clients tagged with today&rsquo;s day tag.<br>
-        Tag clients in Jobber with the day name (e.g., "monday") to enable rain rescheduling.</div>`;
+      container.innerHTML = `<div class="text-sm text-on-surface-variant">No clients tagged with today's day tag.<br>Tag clients in Jobber with the day name (e.g., "monday") to enable rain rescheduling.</div>`;
       document.getElementById('send-btn').disabled = true;
       return;
     }
 
     const rows = affectedClients.map((c) => {
       const checked = selectedClientIds.has(c.id) ? 'checked' : '';
-      const smsTag  = c.phone && c.smsAllowed
-        ? `<span class="pill pill-green">SMS</span>`
-        : `<span class="pill pill-gray">No SMS</span>`;
-      const emailTag = c.email
-        ? `<span class="pill pill-blue">Email</span>`
-        : `<span class="pill pill-gray">No Email</span>`;
-      return `<tr>
-        <td><input type="checkbox" ${checked} onchange="toggleClient('${escHtml(c.id)}', this.checked)" /></td>
-        <td style="color:var(--text-1);font-weight:500;">${escHtml(c.name)}</td>
-        <td style="color:var(--text-2);">${escHtml(c.phone || '—')}</td>
-        <td style="color:var(--text-2);">${escHtml(c.email || '—')}</td>
-        <td>${smsTag} ${emailTag}</td>
+      const smsTag = c.phone && c.smsAllowed ? `<span class="bg-secondary/10 text-secondary border border-secondary/20 rounded-full px-2.5 py-0.5 text-xs">SMS</span>` : `<span class="bg-gray-500/10 text-zinc-400 border border-zinc-500/20 rounded-full px-2.5 py-0.5 text-xs">No SMS</span>`;
+      const emailTag = c.email ? `<span class="bg-primary/10 text-primary border border-primary/20 rounded-full px-2.5 py-0.5 text-xs">Email</span>` : `<span class="bg-gray-500/10 text-zinc-400 border border-zinc-500/20 rounded-full px-2.5 py-0.5 text-xs">No Email</span>`;
+      return `<tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+        <td class="px-4 py-3"><input type="checkbox" ${checked} onchange="toggleClient('${escHtml(c.id)}', this.checked)" /></td>
+        <td class="px-4 py-3 text-zinc-100 font-semibold">${escHtml(c.name)}</td>
+        <td class="px-4 py-3 text-on-surface-variant">${escHtml(c.phone || '—')}</td>
+        <td class="px-4 py-3 text-on-surface-variant">${escHtml(c.email || '—')}</td>
+        <td class="px-4 py-3 flex gap-2">${smsTag} ${emailTag}</td>
       </tr>`;
     }).join('');
 
-    container.innerHTML = `<table class="clients-table">
-      <thead><tr>
-        <th style="width:36px;"></th>
-        <th>Client</th><th>Phone</th><th>Email</th><th>Channels</th>
+    container.innerHTML = `<table class="w-full text-sm">
+      <thead><tr class="border-b border-white/5">
+        <th class="px-4 py-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left w-8"></th>
+        <th class="px-4 py-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Client</th>
+        <th class="px-4 py-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Phone</th>
+        <th class="px-4 py-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Email</th>
+        <th class="px-4 py-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Channels</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
@@ -820,45 +539,40 @@
 
   async function loadOpenDays() {
     try {
-      const res  = await fetch(`${API}/api/weather/open-days`);
+      const res = await fetch(`${API}/api/weather/open-days`);
       const data = await res.json();
-      openDays   = data.days || [];
+      openDays = data.days || [];
 
       const sel = document.getElementById('reschedule-select');
       sel.innerHTML = '<option value="">Select a reschedule date...</option>' +
         openDays.map((d) => {
           const busy = d.clientCount > 0;
-          return `<option value="${d.date}" data-label="${escHtml(d.label)}" ${busy ? 'style="color:#fbbf24;"' : ''}>
-            ${escHtml(d.label)}
-          </option>`;
+          return `<option value="${d.date}" data-label="${escHtml(d.label)}">${escHtml(d.label)}</option>`;
         }).join('');
 
       updateMessagePreview();
     } catch (err) {
-      document.getElementById('reschedule-select').innerHTML =
-        '<option value="">Could not load open days</option>';
+      document.getElementById('reschedule-select').innerHTML = '<option value="">Could not load open days</option>';
     }
   }
 
   function updateMessagePreview() {
-    const sel   = document.getElementById('reschedule-select');
-    const opt   = sel.options[sel.selectedIndex];
+    const sel = document.getElementById('reschedule-select');
+    const opt = sel.options[sel.selectedIndex];
     const label = opt?.dataset?.label || sel.value || '[date]';
 
-    document.getElementById('send-btn').disabled =
-      !sel.value || selectedClientIds.size === 0;
+    document.getElementById('send-btn').disabled = !sel.value || selectedClientIds.size === 0;
 
     document.getElementById('message-preview').value =
-      `Hey there! Due to rain in the forecast, your lawn cut has been rescheduled ` +
-      `to ${label.split(' — ')[0]}. We appreciate your flexibility! — No-Bs Yardwork`;
+      `Hey there! Due to rain in the forecast, your lawn cut has been rescheduled to ${label.split(' — ')[0]}. We appreciate your flexibility! — No-Bs Yardwork`;
   }
 
   async function sendNotifications() {
-    const sel    = document.getElementById('reschedule-select');
+    const sel = document.getElementById('reschedule-select');
     const newDate = sel.value;
-    const opt    = sel.options[sel.selectedIndex];
-    const label  = (opt?.dataset?.label || '').split(' — ')[0].trim() || newDate;
-    const msg    = document.getElementById('message-preview').value.trim();
+    const opt = sel.options[sel.selectedIndex];
+    const label = (opt?.dataset?.label || '').split(' — ')[0].trim() || newDate;
+    const msg = document.getElementById('message-preview').value.trim();
 
     if (!newDate) return alert('Please select a reschedule date.');
     if (selectedClientIds.size === 0) return alert('Please select at least one client.');
@@ -868,13 +582,13 @@
     btn.textContent = 'Sending...';
 
     try {
-      const res  = await fetch(`${API}/api/weather/notify`, {
+      const res = await fetch(`${API}/api/weather/notify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           newDate,
           newDateLabel: label,
-          clientIds:    Array.from(selectedClientIds),
+          clientIds: Array.from(selectedClientIds),
           customMessage: msg || undefined,
         }),
       });
@@ -882,71 +596,56 @@
 
       const resultEl = document.getElementById('notify-result');
       if (data.success) {
-        resultEl.className = 'notify-result success';
-        resultEl.textContent =
-          `&#10003; Sent to ${data.clientCount} clients — SMS: ${data.smsCount}, Email: ${data.emailCount}` +
+        resultEl.className = 'bg-secondary/10 text-secondary border border-secondary/20 rounded-xl p-4 text-sm';
+        resultEl.textContent = `Sent to ${data.clientCount} clients — SMS: ${data.smsCount}, Email: ${data.emailCount}` +
           (data.errors?.length ? ` (${data.errors.length} errors)` : '');
         resultEl.style.display = 'block';
         selectedClientIds.clear();
         renderClientsTable();
         await loadHistory();
       } else {
-        resultEl.className = 'notify-result error';
-        resultEl.textContent = '&#10007; ' + (data.error || 'Send failed');
+        resultEl.className = 'bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl p-4 text-sm';
+        resultEl.textContent = (data.error || 'Send failed');
         resultEl.style.display = 'block';
       }
     } catch (err) {
       const resultEl = document.getElementById('notify-result');
-      resultEl.className = 'notify-result error';
-      resultEl.textContent = '&#10007; Network error: ' + err.message;
+      resultEl.className = 'bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl p-4 text-sm';
+      resultEl.textContent = 'Network error: ' + err.message;
       resultEl.style.display = 'block';
     } finally {
       btn.disabled = false;
-      btn.innerHTML = '&#9993; Send to Selected Clients';
-    }
-  }
-
-  async function runCheck() {
-    try {
-      const btn = document.querySelector('[onclick="runCheck()"]');
-      btn.disabled = true;
-      btn.textContent = 'Checking...';
-      const dp = debugParams();
-      await fetch(`${API}/api/weather/today${dp ? dp + '&force=true' : '?force=true'}`);
-      await loadAll();
-    } finally {
-      const btn = document.querySelector('[onclick="runCheck()"]');
-      if (btn) { btn.disabled = false; btn.innerHTML = '&#8635; Run Check Now'; }
+      btn.textContent = 'Send to Selected Clients';
     }
   }
 
   async function saveSettings() {
-    const city      = document.getElementById('setting-city').value.trim();
+    const city = document.getElementById('setting-city').value.trim();
     const threshold = parseInt(document.getElementById('setting-threshold').value, 10) / 100;
-    const startH    = parseInt(document.getElementById('setting-start').value, 10);
-    const endH      = parseInt(document.getElementById('setting-end').value, 10);
-    const enabled   = document.getElementById('setting-enabled').value === 'true';
+    const startH = parseInt(document.getElementById('setting-start').value, 10);
+    const endH = parseInt(document.getElementById('setting-end').value, 10);
+    const enabled = document.getElementById('setting-enabled').value === 'true';
 
     try {
-      const res  = await fetch(`${API}/api/weather/settings`, {
+      const res = await fetch(`${API}/api/weather/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ city, rainThreshold: threshold, businessStartHour: startH, businessEndHour: endH, checkEnabled: enabled }),
       });
       const data = await res.json();
-      const el   = document.getElementById('settings-result');
+      const el = document.getElementById('settings-result');
       if (data.success) {
-        el.textContent = '&#10003; Settings saved';
+        el.textContent = 'Settings saved';
         el.style.color = 'var(--green)';
       } else {
-        el.textContent = '&#10007; ' + (data.error || 'Save failed');
+        el.textContent = (data.error || 'Save failed');
         el.style.color = 'var(--red)';
       }
       el.style.display = 'block';
       setTimeout(() => { el.style.display = 'none'; }, 3000);
     } catch (err) {
       const el = document.getElementById('settings-result');
-      el.textContent = '&#10007; ' + err.message;
+      el.textContent = err.message;
       el.style.color = 'var(--red)';
       el.style.display = 'block';
     }
@@ -954,64 +653,65 @@
 
   async function loadHistory() {
     try {
-      const res  = await fetch(`${API}/api/weather/history`);
+      const res = await fetch(`${API}/api/weather/history`);
       const data = await res.json();
       const records = data.history || [];
       const el = document.getElementById('history-container');
 
       if (!records.length) {
-        el.innerHTML = '<div class="empty-state">No reschedule history yet.</div>';
+        el.innerHTML = '<div class="text-sm text-on-surface-variant">No reschedule history yet.</div>';
         return;
       }
 
       const rows = records.map((r) => {
         const from = new Date(r.originalDate + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
-        const to   = new Date(r.newDate       + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
+        const to = new Date(r.newDate + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
         const when = new Date(r.notifiedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-        return `
-        <tr class="history-row" onclick="toggleHistoryDetail('${escHtml(r.id)}')" style="cursor:pointer;">
-          <td style="color:var(--text-1);">${escHtml(r.originalDay.charAt(0).toUpperCase() + r.originalDay.slice(1))}</td>
-          <td>${escHtml(from)} &#8594; ${escHtml(to)}</td>
-          <td><span class="pill pill-blue">${r.clientCount} clients</span></td>
-          <td><span class="pill pill-green">SMS: ${r.smsCount}</span> <span class="pill pill-blue">Email: ${r.emailCount}</span></td>
-          <td style="color:var(--text-3);font-size:0.75rem;">${when}</td>
-          <td style="color:var(--text-3);font-size:0.75rem;">&#9660;</td>
+        return `<tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors cursor-pointer" onclick="toggleHistoryDetail('${escHtml(r.id)}')">
+          <td class="px-6 py-4 text-zinc-100">${escHtml(r.originalDay.charAt(0).toUpperCase() + r.originalDay.slice(1))}</td>
+          <td class="px-6 py-4 text-on-surface-variant">${escHtml(from)} → ${escHtml(to)}</td>
+          <td class="px-6 py-4"><span class="bg-primary/10 text-primary border border-primary/20 rounded-full px-2.5 py-0.5 text-xs">${r.clientCount} clients</span></td>
+          <td class="px-6 py-4 flex gap-2"><span class="bg-secondary/10 text-secondary border border-secondary/20 rounded-full px-2.5 py-0.5 text-xs">SMS: ${r.smsCount}</span> <span class="bg-primary/10 text-primary border border-primary/20 rounded-full px-2.5 py-0.5 text-xs">Email: ${r.emailCount}</span></td>
+          <td class="px-6 py-4 text-on-surface-variant text-xs">${when}</td>
+          <td class="px-6 py-4 text-on-surface-variant text-xs">▼</td>
         </tr>
         <tr id="detail-${escHtml(r.id)}" style="display:none;">
-          <td colspan="6" style="padding:0;">
-            <div id="detail-inner-${escHtml(r.id)}" style="padding:0.75rem 1rem;background:var(--bg-2);font-size:0.8rem;">
-              Loading...
-            </div>
+          <td colspan="6" class="px-6 py-4 bg-white/[0.02]">
+            <div id="detail-inner-${escHtml(r.id)}" class="text-sm">Loading...</div>
           </td>
         </tr>`;
       }).join('');
 
-      el.innerHTML = `<table class="history-table">
-        <thead><tr>
-          <th>Day</th><th>Dates</th><th>Clients</th><th>Sent</th><th>When</th><th></th>
+      el.innerHTML = `<table class="w-full text-sm">
+        <thead><tr class="border-b border-white/5">
+          <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Day</th>
+          <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Dates</th>
+          <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Clients</th>
+          <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Sent</th>
+          <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">When</th>
+          <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left"></th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
     } catch (err) {
-      document.getElementById('history-container').innerHTML =
-        '<div class="empty-state">Could not load history</div>';
+      document.getElementById('history-container').innerHTML = '<div class="text-sm text-on-surface-variant">Could not load history</div>';
     }
   }
 
   async function toggleHistoryDetail(id) {
-    const row   = document.getElementById(`detail-${id}`);
+    const row = document.getElementById(`detail-${id}`);
     const inner = document.getElementById(`detail-inner-${id}`);
     if (!row) return;
     const open = row.style.display !== 'none';
     row.style.display = open ? 'none' : 'table-row';
     if (!open) {
       try {
-        const res  = await fetch(`${API}/api/weather/history/${id}`);
+        const res = await fetch(`${API}/api/weather/history/${id}`);
         const data = await res.json();
         const msgs = data.messages || [];
         if (!msgs.length) { inner.innerHTML = '<em>No message records for this batch.</em>'; return; }
 
-        const statusColor = s => s === 'delivered' ? 'var(--green)' : s === 'failed' || s === 'undelivered' ? 'var(--red)' : 'var(--text-2)';
+        const statusColor = s => s === 'delivered' ? '#47e266' : s === 'failed' || s === 'undelivered' ? '#f87171' : '#8b91a0';
         const grouped = {};
         msgs.forEach(m => {
           if (!grouped[m.clientName]) grouped[m.clientName] = [];
@@ -1021,13 +721,13 @@
         inner.innerHTML = Object.entries(grouped).map(([name, entries]) => {
           const cols = entries.map(e =>
             `<span style="margin-right:0.75rem;color:${statusColor(e.status)};">
-              ${e.channel === 'sms' ? '&#128241;' : '&#9993;'} ${escHtml(e.channel.toUpperCase())}: ${escHtml(e.status)}
-              ${e.messageSid ? `<span style="color:var(--text-3);font-size:0.7rem;">(${escHtml(e.messageSid.slice(0,12))}...)</span>` : ''}
-              ${e.error ? `<span style="color:var(--red);"> — ${escHtml(e.error)}</span>` : ''}
+              ${e.channel === 'sms' ? '📱' : '📧'} ${escHtml(e.channel.toUpperCase())}: ${escHtml(e.status)}
+              ${e.messageSid ? `<span style="color:#8b91a0;font-size:0.7rem;">(${escHtml(e.messageSid.slice(0,12))}...)</span>` : ''}
+              ${e.error ? `<span style="color:#f87171;"> — ${escHtml(e.error)}</span>` : ''}
             </span>`
           ).join('');
-          return `<div style="padding:0.3rem 0;border-bottom:1px solid var(--border);display:flex;gap:0.5rem;align-items:center;">
-            <span style="width:160px;font-weight:600;color:var(--text-1);">${escHtml(name)}</span>
+          return `<div style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;gap:0.5rem;align-items:center;">
+            <span style="width:160px;font-weight:600;color:#e5e2e1;">${escHtml(name)}</span>
             <span>${cols}</span>
           </div>`;
         }).join('');
@@ -1037,90 +737,25 @@
     }
   }
 
-  // ── Demo Rain ─────────────────────────────────────────────────────────────
-  function demoRain() {
-    // Populate stats
-    document.getElementById('today-pop').textContent = '78%';
-    document.getElementById('today-pop').style.color = 'var(--red)';
-    document.getElementById('today-summary').textContent = 'Heavy rain during business hours';
-    document.getElementById('today-clients').textContent = '3';
-    document.getElementById('today-checked').textContent = 'Now (demo)';
-    document.getElementById('rain-banner-title').textContent = 'Rain expected today — 78% peak probability';
-    document.getElementById('rain-banner-sub').textContent = 'Heavy rain during business hours';
-    document.getElementById('affected-day-label').textContent = 'Today (3 clients)';
-
-    // Mock clients
-    affectedClients = [
-      { id: 'demo-1', name: 'John Smith',   firstName: 'John',   phone: '+12045550001', smsAllowed: true,  email: 'john@example.com' },
-      { id: 'demo-2', name: 'Sarah Johnson', firstName: 'Sarah',  phone: '+12045550002', smsAllowed: true,  email: '' },
-      { id: 'demo-3', name: 'Mike Williams', firstName: 'Mike',   phone: '',             smsAllowed: false, email: 'mike@example.com' },
-    ];
-
-    // Mock open days dropdown
-    const sel = document.getElementById('reschedule-select');
-    const days = [
-      { value: '2026-03-19', label: 'Thursday, March 19 — open' },
-      { value: '2026-03-20', label: 'Friday, March 20 — open' },
-      { value: '2026-03-23', label: 'Monday, March 23 — 2 clients (busy)' },
-      { value: '2026-03-24', label: 'Tuesday, March 24 — open' },
-    ];
-    sel.innerHTML = '<option value="">Select a reschedule date...</option>' +
-      days.map(d => `<option value="${d.value}" data-label="${escHtml(d.label)}">${escHtml(d.label)}</option>`).join('');
-
-    showRainPanel();
-    renderClientsTable();
-    document.getElementById('last-refresh').textContent = 'Demo mode — no real data';
-  }
-
-  // ── Debug mode ────────────────────────────────────────────────────────
-  let debugRainActive = false;
-
-  function toggleDebugBar() {
-    const bar = document.getElementById('debug-bar');
-    const visible = bar.style.display !== 'none';
-    bar.style.display = visible ? 'none' : 'flex';
-  }
-
-  function toggleDebugMode(active) {
-    debugRainActive = active;
-    loadWeatherToday();
-  }
-
-  function debugParams() {
-    if (!debugRainActive) return '';
-    const prob = document.getElementById('debug-rain-slider').value;
-    return `?debugRain=true&rainProb=${prob}`;
-  }
-
-  // ── Calendar state ─────────────────────────────────────────────────────
-  let calendarData   = {};
-  let activeDayDate  = null;
-  let calVisits      = [];
-  let calSelectedIds = new Set();
-
   async function loadCalendar(force = false) {
     try {
       const url = force ? `${API}/api/weather/calendar?force=true` : `${API}/api/weather/calendar`;
-      const res  = await fetch(url);
+      const res = await fetch(url);
       const data = await res.json();
       if (data.error) {
-        document.getElementById('calendar-grid').innerHTML =
-          `<div class="empty-state" style="grid-column:1/-1;">${escHtml(data.error)}</div>`;
+        document.getElementById('calendar-grid').innerHTML = `<div class="col-span-7 text-sm text-on-surface-variant">${escHtml(data.error)}</div>`;
         return;
       }
       calendarData = data.calendar || {};
       const statusEl = document.getElementById('calendar-status');
       if (data.visitError) {
         statusEl.textContent = '⚠ Jobber visits unavailable: ' + data.visitError;
-        statusEl.style.color = 'var(--yellow)';
       } else {
         statusEl.textContent = data.cached ? '(cached · click Refresh for live data)' : '';
-        statusEl.style.color = 'var(--text-3)';
       }
       renderCalendar();
     } catch (err) {
-      document.getElementById('calendar-grid').innerHTML =
-        `<div class="empty-state" style="grid-column:1/-1;">Could not load calendar — is Jobber connected?</div>`;
+      document.getElementById('calendar-grid').innerHTML = `<div class="col-span-7 text-sm text-on-surface-variant">Could not load calendar — is Jobber connected?</div>`;
     }
   }
 
@@ -1129,31 +764,30 @@
     const days = Object.values(calendarData).sort((a, b) => a.date.localeCompare(b.date));
 
     if (!days.length) {
-      grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">No forecast data available</div>';
+      grid.innerHTML = '<div class="col-span-7 text-sm text-on-surface-variant">No forecast data available</div>';
       return;
     }
 
-    // Use Winnipeg local date for "today" highlight (not UTC)
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Winnipeg' });
     grid.innerHTML = days.map((d) => {
-      const isToday  = d.date === todayStr;
+      const isToday = d.date === todayStr;
       const isActive = d.date === activeDayDate;
-      const rainyCls = d.isRainy ? ' rainy' : '';
-      const activeCls = isActive ? ' active' : '';
+      const rainyCls = d.isRainy ? ' border-red-500/50 bg-red-500/5' : '';
+      const activeCls = isActive ? ' border-primary bg-primary/10' : '';
       const fillColor = d.rainProb >= 0.6 ? '#f87171' : d.rainProb >= 0.35 ? '#fbbf24' : '#34d399';
       const visitCount = d.visits?.length || 0;
       const dayLabel = isToday ? 'Today' : (d.dayName || d.date.slice(5)).slice(0, 3).toUpperCase();
 
-      return `<div class="cal-day${rainyCls}${activeCls}" onclick="selectCalDay('${d.date}')">
-        <div class="cal-day-name">${dayLabel}</div>
-        <div class="cal-day-date">${d.date.slice(5)}</div>
-        <div class="cal-pop-bar">
-          <div class="cal-pop-fill" style="width:${d.maxPopPct}%;background:${fillColor};"></div>
+      return `<div class="glass-card rounded-xl p-4 text-center cursor-pointer border border-white/10 hover:border-white/20 transition-all${rainyCls}${activeCls}" onclick="selectCalDay('${d.date}')">
+        <div class="text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-1">${dayLabel}</div>
+        <div class="text-xs text-on-surface-variant mb-2">${d.date.slice(5)}</div>
+        <div class="w-full h-1 bg-white/10 rounded-full overflow-hidden mb-2">
+          <div style="width:${d.maxPopPct}%;height:100%;background:${fillColor};border-radius:999px;"></div>
         </div>
-        <div class="cal-visit-count" style="color:${visitCount > 0 ? 'var(--text-1)' : 'var(--text-3)'};">
-          ${d.isRainy ? '&#9928; ' : ''}${visitCount} visit${visitCount !== 1 ? 's' : ''}
+        <div class="text-xs font-bold text-zinc-100">
+          ${d.isRainy ? '⛈ ' : ''}${visitCount} visit${visitCount !== 1 ? 's' : ''}
         </div>
-        ${d.maxPopPct > 0 ? `<div style="font-size:0.62rem;color:${fillColor};margin-top:0.2rem;">${d.maxPopPct}% rain</div>` : ''}
+        ${d.maxPopPct > 0 ? `<div style="font-size:0.65rem;color:${fillColor};margin-top:0.25rem;">${d.maxPopPct}% rain</div>` : ''}
       </div>`;
     }).join('');
   }
@@ -1176,23 +810,21 @@
 
     document.getElementById('cal-day-title').textContent =
       `${dateLabel} — ${calVisits.length} visit${calVisits.length !== 1 ? 's' : ''}` +
-      (day?.isRainy ? ' &#9928; Rain expected' : '');
+      (day?.isRainy ? ' ⛈ Rain expected' : '');
     document.getElementById('calendar-day-panel').style.display = 'block';
 
     renderCalVisits();
 
-    // Build open-day options from real calendar visit counts, sorted by fewest visits
     const sel = document.getElementById('cal-reschedule-select');
     const candidateDays = Object.values(calendarData)
       .filter((d) => d.date !== dateStr)
       .sort((a, b) => (a.visits?.length || 0) - (b.visits?.length || 0));
     sel.innerHTML = '<option value="">Select a date to move visits to...</option>' +
       candidateDays.map((d) => {
-        const cnt   = d.visits?.length || 0;
-        const busy  = cnt > 0;
+        const cnt = d.visits?.length || 0;
         const dateLabel = new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
         const label = `${dateLabel} — ${cnt === 0 ? 'open' : cnt + ' visit' + (cnt !== 1 ? 's' : '') + (d.isRainy ? ' ⛈' : '')}`;
-        return `<option value="${d.date}" data-label="${escHtml(label)}" ${busy ? 'style="color:#fbbf24;"' : ''}>${escHtml(label)}</option>`;
+        return `<option value="${d.date}" data-label="${escHtml(label)}">${escHtml(label)}</option>`;
       }).join('');
     updateCalMessagePreview();
 
@@ -1202,28 +834,24 @@
   function renderCalVisits() {
     const ul = document.getElementById('cal-visit-list');
     if (!calVisits.length) {
-      ul.innerHTML = '<li class="empty-state" style="padding:1rem;">No visits scheduled this day</li>';
+      ul.innerHTML = '<li class="text-sm text-on-surface-variant">No visits scheduled this day</li>';
       document.getElementById('cal-reschedule-btn').disabled = true;
       return;
     }
     const dayRainProb = (calendarData[activeDayDate] || {}).rainProb || 0;
     ul.innerHTML = calVisits.map((v) => {
-      const checked  = calSelectedIds.has(v.id) ? 'checked' : '';
-      const timeStr  = v.startAt ? new Date(v.startAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-      const smsTag   = v.phone && v.smsAllowed ? `<span class="pill pill-green">SMS</span>` : `<span class="pill pill-gray">No SMS</span>`;
-      const emailTag = v.email ? `<span class="pill pill-blue">Email</span>` : `<span class="pill pill-gray">No Email</span>`;
-      const riskBadge = dayRainProb >= 0.6
-        ? `<span class="pill" style="background:rgba(248,113,113,0.2);color:var(--red);border:1px solid rgba(248,113,113,0.3);">&#9888; High Risk</span>`
-        : dayRainProb >= 0.35
-        ? `<span class="pill" style="background:rgba(251,191,36,0.15);color:var(--yellow);">&#9873; Watch</span>`
-        : '';
-      return `<li class="cal-visit-item">
+      const checked = calSelectedIds.has(v.id) ? 'checked' : '';
+      const timeStr = v.startAt ? new Date(v.startAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      const smsTag = v.phone && v.smsAllowed ? `<span class="bg-secondary/10 text-secondary border border-secondary/20 rounded-full px-2.5 py-0.5 text-xs">SMS</span>` : `<span class="bg-gray-500/10 text-zinc-400 border border-zinc-500/20 rounded-full px-2.5 py-0.5 text-xs">No SMS</span>`;
+      const emailTag = v.email ? `<span class="bg-primary/10 text-primary border border-primary/20 rounded-full px-2.5 py-0.5 text-xs">Email</span>` : `<span class="bg-gray-500/10 text-zinc-400 border border-zinc-500/20 rounded-full px-2.5 py-0.5 text-xs">No Email</span>`;
+      const riskBadge = dayRainProb >= 0.6 ? `<span class="bg-red-500/10 text-red-400 border border-red-500/20 rounded-full px-2.5 py-0.5 text-xs">⚠ High Risk</span>` : dayRainProb >= 0.35 ? `<span class="bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 rounded-full px-2.5 py-0.5 text-xs">⚡ Watch</span>` : '';
+      return `<li class="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
         <input type="checkbox" ${checked} onchange="toggleCalVisit('${escHtml(v.id)}', this.checked)" />
-        <div class="cal-visit-meta">
-          <div class="cal-visit-name">${escHtml(v.clientName || v.title)} ${riskBadge}</div>
-          <div class="cal-visit-time">${escHtml(v.title)}${timeStr ? ' · ' + timeStr : ''}${v.address ? ' · ' + escHtml(v.address) : ''}</div>
+        <div class="flex-1">
+          <div class="text-sm font-semibold text-zinc-100">${escHtml(v.clientName || v.title)} ${riskBadge}</div>
+          <div class="text-xs text-on-surface-variant">${escHtml(v.title)}${timeStr ? ' · ' + timeStr : ''}${v.address ? ' · ' + escHtml(v.address) : ''}</div>
         </div>
-        <div style="display:flex;gap:0.3rem;flex-wrap:wrap;">${smsTag} ${emailTag}</div>
+        <div class="flex gap-1">${smsTag} ${emailTag}</div>
       </li>`;
     }).join('');
     updateCalSelectedCount();
@@ -1244,25 +872,22 @@
   function updateCalSelectedCount() {
     const n = calSelectedIds.size;
     document.getElementById('cal-selected-count').textContent = `${n} selected`;
-    document.getElementById('cal-reschedule-btn').disabled =
-      n === 0 || !document.getElementById('cal-reschedule-select').value;
+    document.getElementById('cal-reschedule-btn').disabled = n === 0 || !document.getElementById('cal-reschedule-select').value;
   }
 
   function updateCalMessagePreview() {
-    const sel   = document.getElementById('cal-reschedule-select');
-    const opt   = sel.options[sel.selectedIndex];
+    const sel = document.getElementById('cal-reschedule-select');
+    const opt = sel.options[sel.selectedIndex];
     const label = (opt?.dataset?.label || sel.value || '[date]').split(' — ')[0];
     document.getElementById('cal-message-preview').value =
-      `Hey there! Due to rain in the forecast, your appointment has been rescheduled ` +
-      `to ${label}. We appreciate your flexibility! — No-Bs Yardwork`;
-    document.getElementById('cal-reschedule-btn').disabled =
-      !sel.value || calSelectedIds.size === 0;
+      `Hey there! Due to rain in the forecast, your appointment has been rescheduled to ${label}. We appreciate your flexibility! — No-Bs Yardwork`;
+    document.getElementById('cal-reschedule-btn').disabled = !sel.value || calSelectedIds.size === 0;
   }
 
   async function rescheduleVisits() {
-    const sel      = document.getElementById('cal-reschedule-select');
+    const sel = document.getElementById('cal-reschedule-select');
     const targetDate = sel.value;
-    const msg      = document.getElementById('cal-message-preview').value.trim();
+    const msg = document.getElementById('cal-message-preview').value.trim();
     const resultEl = document.getElementById('cal-reschedule-result');
 
     if (!targetDate) return alert('Please select a target date.');
@@ -1275,7 +900,7 @@
     resultEl.style.display = 'none';
 
     try {
-      const res  = await fetch(`${API}/api/weather/reschedule-visits`, {
+      const res = await fetch(`${API}/api/weather/reschedule-visits`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ visits: selectedVisits, targetDate, message: msg || undefined }),
@@ -1283,32 +908,36 @@
       const data = await res.json();
 
       if (data.success) {
-        resultEl.className = 'notify-result success';
-        resultEl.innerHTML =
-          `&#10003; Moved ${data.moved} visits in Jobber &mdash; SMS: ${data.smsCount}, Email: ${data.emailCount}` +
+        resultEl.className = 'bg-secondary/10 text-secondary border border-secondary/20 rounded-xl p-4 text-sm';
+        resultEl.innerHTML = `Moved ${data.moved} visits in Jobber — SMS: ${data.smsCount}, Email: ${data.emailCount}` +
           (data.errors?.length ? ` (${data.errors.length} errors)` : '');
         resultEl.style.display = 'block';
         calSelectedIds.clear();
         await loadCalendar(true);
         await loadHistory();
       } else {
-        resultEl.className = 'notify-result error';
-        resultEl.textContent = '&#10007; ' + (data.error || 'Reschedule failed');
+        resultEl.className = 'bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl p-4 text-sm';
+        resultEl.textContent = (data.error || 'Reschedule failed');
         resultEl.style.display = 'block';
       }
     } catch (err) {
-      resultEl.className = 'notify-result error';
-      resultEl.textContent = '&#10007; Network error: ' + err.message;
+      resultEl.className = 'bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl p-4 text-sm';
+      resultEl.textContent = 'Network error: ' + err.message;
       resultEl.style.display = 'block';
     } finally {
       btn.disabled = false;
-      btn.innerHTML = '&#8634; Move &amp; Notify Clients';
+      btn.innerHTML = 'Move &amp; Notify Clients';
     }
   }
 
-  // ── Init ──────────────────────────────────────────────────────────────────
+  function debugParams() {
+    if (!debugRainActive) return '';
+    const prob = document.getElementById('debug-rain-slider')?.value || 0;
+    return `?debugRain=true&rainProb=${prob}`;
+  }
+
   loadAll();
-  setInterval(loadAll, 60000); // refresh every minute
+  setInterval(loadAll, 60000);
 </script>
 
 <script>
@@ -1318,28 +947,21 @@
     if (!res.ok) return;
     const me = await res.json();
     const role = me.role || 'client';
-    const roleEl = document.querySelector('.user-role');
+    const roleEl = document.querySelector('user-role');
     if (roleEl) roleEl.textContent = role === 'admin' ? 'Administrator' : 'Client';
     if (role === 'admin') addAdminLink();
   } catch {}
-  function hideSection(label) {
-    document.querySelectorAll('.nav-section-label').forEach(el => {
-      if (el.textContent.trim() !== label) return;
-      el.style.display = 'none';
-      let s = el.nextElementSibling;
-      while (s && !s.classList.contains('nav-section-label')) { s.style.display = 'none'; s = s.nextElementSibling; }
-    });
-  }
   function addAdminLink() {
-    const nav = document.querySelector('.sidebar-nav');
+    const nav = document.getElementById('main-nav');
     if (!nav || nav.querySelector('a[href="/admin.html"]')) return;
     const a = document.createElement('a');
-    a.className = 'nav-link'; a.href = '/admin.html';
-    a.setAttribute('data-tooltip', 'User Management');
-    a.innerHTML = '<span class="nav-icon">&#128100;</span><span class="nav-label">User Management</span>';
+    a.className = 'flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200';
+    a.href = '/admin.html';
+    a.innerHTML = '<span class="material-symbols-outlined text-[20px]">manage_accounts</span><span class="text-sm font-medium tracking-tight">User Management</span>';
     nav.appendChild(a);
   }
 })();
 </script>
+
 </body>
 </html>

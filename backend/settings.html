@@ -1,338 +1,203 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="dark" lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>5StarFlow — Settings</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Settings — 5StarFlow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#aac7ff",
+            "on-surface": "#e5e2e1",
+            "on-background": "#e5e2e1",
+            "inverse-primary": "#005db8",
+            "error": "#ffb4ab",
+            "surface-variant": "#353534",
+            "on-primary": "#003064",
+            "surface": "#131313",
+            "surface-dim": "#131313",
+            "surface-bright": "#3a3939",
+            "inverse-on-surface": "#313030",
+            "on-surface-variant": "#8b91a0",
+            "background": "#131313",
+            "secondary-container": "#09bf49",
+            "surface-container-high": "#2a2a2a",
+            "surface-container-lowest": "#0e0e0e",
+            "surface-container-low": "#1c1b1b",
+            "inverse-surface": "#e5e2e1",
+            "surface-tint": "#aac7ff",
+            "primary-container": "#3e90ff",
+            "tertiary-container": "#c863fb",
+            "primary-fixed-dim": "#aac7ff",
+            "tertiary-fixed-dim": "#e9b3ff",
+            "on-error": "#690005",
+            "outline-variant": "#414754",
+            "surface-container": "#201f1f",
+            "error-container": "#93000a",
+            "on-error-container": "#ffdad6",
+            "secondary": "#47e266",
+            "tertiary": "#e9b3ff",
+            "outline": "#8b91a0",
+            "surface-container-highest": "#353534"
+          },
+          fontFamily: {
+            "headline": ["Inter"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          },
+          borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+        },
+      },
+    }
+  </script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg:        #09090f;
-      --surface:   rgba(18, 20, 32, 0.9);
-      --border:    rgba(255, 255, 255, 0.07);
-      --gold:      #d4a017;
-      --gold-dim:  rgba(212, 160, 23, 0.12);
-      --text-1:    #f0f2f8;
-      --text-2:    #8b95a8;
-      --text-3:    #4a5568;
-      --green:     #34d399;
-      --green-dim: rgba(52, 211, 153, 0.12);
-      --red:       #f87171;
-      --red-dim:   rgba(248, 113, 113, 0.12);
-      --yellow:    #fbbf24;
-      --yellow-dim:rgba(251, 191, 36, 0.12);
-      --blue:      #38bdf8;
-      --blue-dim:  rgba(56, 189, 248, 0.1);
-      --sidebar-w: 260px;
-      --radius:    16px;
-      --radius-sm: 10px;
+    body { background-color: #000000; color: #e5e2e1; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+    .glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    @media (max-width: 640px) {
+      aside { display: none !important; }
+      main { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
     }
-
-    html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--text-1);
-      font-family: -apple-system, 'SF Pro Display', BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .app { display: flex; min-height: 100vh; }
-
-    /* ── Sidebar ───────────────────────────────── */
-    .sidebar {
-      width: var(--sidebar-w);
-      min-height: 100vh;
-      background: rgba(10, 11, 18, 0.97);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      position: fixed;
-      left: 0; top: 0; bottom: 0;
-      z-index: 100;
-    }
-
-    .sidebar-logo { padding: 1.75rem 1.5rem 1.25rem; border-bottom: 1px solid var(--border); }
-    .sidebar-logo h1 { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.04em; }
-    .sidebar-logo h1 .star { color: var(--gold); }
-    .sidebar-logo p { font-size: 0.7rem; color: var(--text-3); margin-top: 0.2rem; }
-
-    .sidebar-nav { flex: 1; padding: 1rem 0.75rem; display: flex; flex-direction: column; gap: 0.2rem; }
-
-    .nav-section-label {
-      font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em;
-      text-transform: uppercase; color: var(--text-3);
-      padding: 0.9rem 0.75rem 0.4rem;
-    }
-
-    .nav-link {
-      display: flex; align-items: center; gap: 0.75rem;
-      padding: 0.6rem 0.85rem; border-radius: var(--radius-sm);
-      font-size: 0.875rem; font-weight: 500; color: var(--text-2);
-      text-decoration: none; transition: all 0.15s; cursor: pointer;
-      border: none; background: none; width: 100%; text-align: left;
-    }
-    .nav-link:hover { background: rgba(255,255,255,0.05); color: var(--text-1); }
-    .nav-link.active { background: var(--blue-dim); color: var(--blue); border-left: 2px solid var(--blue); padding-left: calc(0.85rem - 2px); }
-    .nav-link .nav-icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
-
-    .sidebar-footer { padding: 1rem 1.25rem 1.5rem; border-top: 1px solid var(--border); }
-    .sidebar-user { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
-    .user-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--gold), #b8860b); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: #0a0c12; flex-shrink: 0; }
-    .user-email { font-size: 0.75rem; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .btn-logout { width: 100%; padding: 0.55rem; background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.18); border-radius: var(--radius-sm); color: var(--red); font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
-    .btn-logout:hover { background: rgba(248,113,113,0.15); }
-
-    /* ── Main ──────────────────────────────────── */
-    .main { margin-left: var(--sidebar-w); flex: 1; padding: 2.5rem 2.5rem 3rem; }
-
-    /* ── Topbar ────────────────────────────────── */
-    .topbar { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
-    .page-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin-bottom: 0.35rem; }
-    .page-title { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.04em; background: linear-gradient(140deg, #f0f2f8, #8b95a8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-    .page-sub { font-size: 0.82rem; color: var(--text-3); margin-top: 0.4rem; }
-
-    /* ── Cards ─────────────────────────────────── */
-    .card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 1.5rem;
-      backdrop-filter: blur(20px); margin-bottom: 1.25rem;
-    }
-    .card-title {
-      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; color: var(--text-3); margin-bottom: 1.25rem;
-      display: flex; align-items: center; justify-content: space-between;
-    }
-
-    /* ── Buttons ───────────────────────────────── */
-    .btn {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      padding: 0.6rem 1.25rem; border-radius: var(--radius-sm);
-      font-size: 0.85rem; font-weight: 600; cursor: pointer;
-      border: none; transition: opacity 0.15s; text-decoration: none;
-    }
-    .btn:hover:not(:disabled) { opacity: 0.85; }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-primary { background: var(--blue); color: #0a0c12; }
-    .btn-danger  { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
-    .btn-ghost   { background: rgba(148,163,184,0.1); color: var(--text-2); border: 1px solid var(--border); }
-    .btn-small   { padding: 0.4rem 0.85rem; font-size: 0.78rem; }
-
-    /* ── Form ──────────────────────────────────── */
-    .form-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; }
-    .form-group { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 180px; }
-    .form-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
-    .form-input {
-      background: rgba(10,11,18,0.8); border: 1px solid var(--border);
-      border-radius: var(--radius-sm); padding: 0.6rem 0.85rem;
-      color: var(--text-1); font-size: 0.875rem; outline: none;
-      transition: border-color 0.15s; width: 100%;
-    }
-    .form-input:focus { border-color: var(--blue); }
-
-    /* ── Table ─────────────────────────────────── */
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-    .data-table th { text-align: left; padding: 0.5rem 0.75rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--border); }
-    .data-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; color: var(--text-2); }
-    .data-table tr:last-child td { border-bottom: none; }
-    .data-table tr:hover td { background: rgba(255,255,255,0.02); }
-
-    /* ── Pill ──────────────────────────────────── */
-    .pill { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
-    .pill-green { background: var(--green-dim); color: var(--green); }
-    .pill-blue  { background: var(--blue-dim);  color: var(--blue); }
-    .pill-gray  { background: rgba(148,163,184,0.1); color: var(--text-3); }
-
-    /* ── Inline result messages ─────────────────── */
-    .result-msg { font-size: 0.82rem; margin-top: 0.75rem; padding: 0.6rem 0.85rem; border-radius: var(--radius-sm); display: none; }
-    .result-ok  { background: var(--green-dim); color: var(--green); border: 1px solid rgba(52,211,153,0.2); }
-    .result-err { background: var(--red-dim);   color: var(--red);   border: 1px solid rgba(248,113,113,0.2); }
-
-    .empty-state { text-align: center; padding: 2rem 1rem; color: var(--text-3); font-size: 0.875rem; }
-
-    /* Collapsible sidebar */
-    .sidebar { transition: width 0.2s ease; overflow: visible; }
-    .sidebar.collapsed { width: 60px; overflow: visible; }
-    .sidebar.collapsed .nav-label,
-    .sidebar.collapsed .nav-section-label,
-    .sidebar.collapsed .nav-badge,
-    .sidebar.collapsed .sidebar-logo p,
-    .sidebar.collapsed .sidebar-footer { display: none; }
-    .sidebar.collapsed .nav-link { justify-content: center; padding: 0.6rem; }
-    .sidebar.collapsed .sidebar-logo { padding: 1.25rem 0; text-align: center; }
-    .sidebar.collapsed .sidebar-toggle { transform: scaleX(-1); }
-    .main { transition: margin-left 0.2s ease; }
-    body.sidebar-collapsed .main { margin-left: 60px; }
-    .sidebar-toggle {
-      display: block; width: 100%; padding: 0.75rem 0;
-      background: none; border: none; border-top: 1px solid var(--border);
-      color: var(--text-3); font-size: 1.5rem; cursor: pointer;
-      text-align: center; transition: color 0.15s, transform 0.2s;
-      line-height: 1;
-    }
-    .sidebar-toggle:hover { color: var(--text-1); }
-    .sidebar.collapsed .nav-link { position: relative; }
-    .sidebar.collapsed .nav-link::after {
-      content: attr(data-tooltip);
-      position: absolute;
-      left: 68px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: rgba(15, 15, 22, 0.97);
-      color: var(--text-1);
-      font-size: 0.78rem;
-      font-weight: 500;
-      padding: 0.35rem 0.7rem;
-      border-radius: 7px;
-      white-space: nowrap;
-      border: 1px solid var(--border);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.12s;
-      z-index: 9999;
-    }
-    .sidebar.collapsed .nav-link:hover::after { opacity: 1; }
   </style>
 </head>
-<body>
-<div class="app">
+<body class="bg-black min-h-screen">
 
   <!-- Sidebar -->
-  <aside class="sidebar">
-    <div class="sidebar-logo">
-      <h1>5<span class="star">&#9733;</span>Flow</h1>
-      <p>Business Automation OS</p>
+  <aside class="fixed left-6 top-6 bottom-6 w-64 rounded-[3rem] border-t border-white/10 bg-zinc-900/60 backdrop-blur-2xl flex flex-col h-[calc(100vh-3rem)] p-4 shadow-[0_40px_40px_-5px_rgba(0,0,0,0.6)] z-50">
+    <div class="mb-8 px-4 pt-4">
+      <h1 class="text-xl font-bold text-zinc-100 tracking-tighter">Command Center</h1>
+      <p class="text-xs text-zinc-500 font-medium mt-1">5StarFlow</p>
     </div>
-    <nav class="sidebar-nav">
-      <div class="nav-section-label">Main</div>
-      <a class="nav-link" data-tooltip="Home" href="/index.html"><span class="nav-icon">&#9632;</span> <span class="nav-label">Home</span></a>
-      <a class="nav-link" data-tooltip="Review Requests" href="/review-dashboard.html"><span class="nav-icon">&#9733;</span> <span class="nav-label">Review Requests</span></a>
-      <a class="nav-link" data-tooltip="Rain Alerts" href="/weather-dashboard.html"><span class="nav-icon">&#9928;</span> <span class="nav-label">Rain Alerts</span></a>
-      <div class="nav-section-label">Tools</div>
-      <a class="nav-link" data-tooltip="SEO Audit" href="/seo-dashboard.html"><span class="nav-icon">&#128202;</span> <span class="nav-label">SEO Audit</span></a>
-      <a class="nav-link" data-tooltip="Website Audit" href="/website-audit.html"><span class="nav-icon">&#128394;</span> <span class="nav-label">Website Audit</span></a>
-      <div class="nav-section-label">System</div>
-      <a class="nav-link" data-tooltip="App Connections" href="/connections.html"><span class="nav-icon">&#128279;</span> <span class="nav-label">App Connections</span></a>
-      <a class="nav-link active" data-tooltip="Settings" href="/settings.html"><span class="nav-icon">&#9881;</span> <span class="nav-label">Settings</span></a>
+
+    <nav class="flex-1 space-y-0.5 overflow-y-auto" id="main-nav">
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/index.html">
+        <span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;">home</span>
+        <span class="text-sm font-medium tracking-tight">Home</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/review-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">rate_review</span>
+        <span class="text-sm font-medium tracking-tight">Review Requests</span>
+        <span class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary/10 text-secondary hidden" id="sidebar-pending"></span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/weather-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">thunderstorm</span>
+        <span class="text-sm font-medium tracking-tight">Rain Alerts</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/seo-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">search_check</span>
+        <span class="text-sm font-medium tracking-tight">SEO Audit</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/website-audit.html">
+        <span class="material-symbols-outlined text-[20px]">speed</span>
+        <span class="text-sm font-medium tracking-tight">Website Audit</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/connections.html">
+        <span class="material-symbols-outlined text-[20px]">hub</span>
+        <span class="text-sm font-medium tracking-tight">App Connections</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-100 rounded-xl relative before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-secondary before:rounded-full hover:bg-white/5 transition-all duration-200" href="/settings.html">
+        <span class="material-symbols-outlined text-[20px]">settings</span>
+        <span class="text-sm font-medium tracking-tight">Settings</span>
+      </a>
     </nav>
-    <div class="sidebar-footer">
-      <div class="sidebar-user">
-        <div class="user-avatar" id="user-avatar">?</div>
-        <div class="user-info"><div class="user-email" id="user-email">Loading...</div></div>
+
+    <div class="mt-auto px-2 pt-4 border-t border-white/5">
+      <div class="flex items-center gap-3 p-2">
+        <div class="w-9 h-9 rounded-full bg-surface-container-highest flex items-center justify-center text-sm font-bold text-zinc-100 flex-shrink-0" id="user-avatar">?</div>
+        <div class="flex-1 overflow-hidden">
+          <p class="text-sm font-semibold text-zinc-100 truncate" id="user-email">Loading...</p>
+          <p class="text-xs text-zinc-500 truncate" id="user-role">Administrator</p>
+        </div>
+        <button onclick="logout()" class="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex-shrink-0" title="Log out">
+          <span class="material-symbols-outlined text-[18px]">logout</span>
+        </button>
       </div>
-      <button class="btn-logout" onclick="logout()">Log Out</button>
     </div>
-    <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">&#8249;</button>
   </aside>
 
-  <!-- Main -->
-  <main class="main">
+  <!-- Main Canvas -->
+  <main class="pl-80 pr-12 py-10 min-h-screen">
 
-    <!-- Topbar -->
-    <div class="topbar">
-      <div>
-        <div class="page-label">System</div>
-        <h2 class="page-title">Settings</h2>
-        <p class="page-sub">Manage portal users and system preferences.</p>
-      </div>
+    <!-- Page Header -->
+    <div class="mb-10">
+      <h2 class="text-2xl font-black text-zinc-100 tracking-tight">Settings</h2>
+      <p class="text-sm text-on-surface-variant mt-1">Configure integrations and credentials</p>
     </div>
 
-    <!-- User Management Card -->
-    <div class="card">
-      <div class="card-title">
-        Portal Users
-        <span class="pill pill-gray" id="user-count">Loading...</span>
-      </div>
-
-      <div id="users-table-container">
-        <div class="empty-state">Loading users...</div>
-      </div>
-    </div>
-
-    <!-- Add User Card -->
-    <div class="card">
-      <div class="card-title">Add New User</div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Email</label>
-          <input type="email" class="form-input" id="new-email" placeholder="user@example.com" autocomplete="off" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Password</label>
-          <input type="password" class="form-input" id="new-password" placeholder="Min. 8 characters" autocomplete="new-password" />
-        </div>
-        <div class="form-group" style="flex:0;min-width:auto;align-self:flex-end;">
-          <button class="btn btn-primary" id="add-user-btn" onclick="addUser()">Add User</button>
-        </div>
-      </div>
-
-      <div class="result-msg" id="add-result"></div>
-    </div>
-
-    <!-- Twilio SMS Card -->
-    <div class="card">
-      <div class="card-title">
-        Twilio SMS
+    <!-- Twilio SMS Configuration Card -->
+    <div class="glass-card rounded-xl p-8 mb-6">
+      <div class="flex justify-between items-start mb-6">
+        <h3 class="text-lg font-semibold text-zinc-100">Twilio SMS</h3>
         <span class="pill pill-gray" id="twilio-status">Not configured</span>
       </div>
 
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Account SID</label>
-          <input type="text" class="form-input" id="twilio-account-sid" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+      <div class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-medium text-on-surface-variant">Account SID</label>
+            <input type="text" id="twilio-account-sid" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-medium text-on-surface-variant">Auth Token</label>
+            <input type="password" id="twilio-auth-token" placeholder="Your auth token" autocomplete="off" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-medium text-on-surface-variant">From Phone Number</label>
+            <input type="text" id="twilio-from-number" placeholder="+1xxxxxxxxxx" autocomplete="off" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" />
+          </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Auth Token</label>
-          <input type="password" class="form-input" id="twilio-auth-token" placeholder="Your auth token" autocomplete="off" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">From Phone Number</label>
-          <input type="text" class="form-input" id="twilio-from-number" placeholder="+1xxxxxxxxxx" autocomplete="off" />
-        </div>
-        <div class="form-group" style="flex:0;min-width:auto;align-self:flex-end;">
-          <button class="btn btn-primary" id="twilio-save-btn" onclick="saveTwilio()">Save</button>
-        </div>
+
+        <button id="twilio-save-btn" onclick="saveTwilio()" class="bg-primary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors">Save</button>
       </div>
 
       <div class="result-msg" id="twilio-result"></div>
     </div>
 
-    <!-- Gmail Card -->
-    <div class="card">
-      <div class="card-title">
-        Gmail
+    <!-- Gmail OAuth Card -->
+    <div class="glass-card rounded-xl p-8">
+      <div class="flex justify-between items-start mb-4">
+        <h3 class="text-lg font-semibold text-zinc-100">Gmail OAuth</h3>
         <span class="pill pill-gray" id="gmail-status">Not connected</span>
       </div>
-      <p style="color:var(--text-2);font-size:0.85rem;margin-bottom:1.25rem;line-height:1.6;">
+
+      <p class="text-sm text-on-surface-variant mb-6 leading-relaxed">
         Connect your Gmail account to send review request emails. Works with passkeys, 2FA, and regular logins — no app password needed.
       </p>
 
       <!-- Connected state (hidden until loaded) -->
-      <div id="gmail-connected-info" style="display:none;margin-bottom:1.25rem;">
-        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;padding:0.85rem 1rem;background:var(--green-dim);border:1px solid rgba(52,211,153,0.2);border-radius:var(--radius-sm);">
-          <span style="color:var(--green);font-size:1rem;">&#10003;</span>
-          <span style="color:var(--green);font-size:0.875rem;font-weight:600;" id="gmail-address-display"></span>
+      <div id="gmail-connected-info" style="display:none;">
+        <div class="flex items-center gap-3 mb-6 p-4 rounded-xl bg-secondary/10 border border-secondary/20">
+          <span class="w-2 h-2 rounded-full bg-secondary animate-pulse inline-block"></span>
+          <span class="text-sm font-semibold text-secondary" id="gmail-address-display"></span>
         </div>
-        <div id="gmail-expiry-row" style="font-size:0.8rem;color:var(--text-2);margin-bottom:0.75rem;display:none;">
-          Token expires: <span id="gmail-expiry-display" style="color:var(--text-1);"></span>
+
+        <div id="gmail-expiry-row" style="display:none;" class="text-sm text-on-surface-variant mb-6">
+          Token expires: <span id="gmail-expiry-display" class="text-zinc-100"></span>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Display Name (shown in email "From" field)</label>
-            <input type="text" class="form-input" id="gmail-display-name" placeholder="Your Business Name" autocomplete="off" />
+
+        <div class="flex flex-col md:flex-row gap-4 mb-6">
+          <div class="flex-1">
+            <label class="text-sm font-medium text-on-surface-variant block mb-2">Display Name (shown in email "From" field)</label>
+            <input type="text" id="gmail-display-name" placeholder="Your Business Name" autocomplete="off" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" />
           </div>
-          <div class="form-group" style="flex:0;min-width:auto;align-self:flex-end;">
-            <button class="btn btn-primary" id="gmail-name-save-btn" onclick="saveGmailName()">Update Name</button>
+          <div class="flex items-flex-end">
+            <button id="gmail-name-save-btn" onclick="saveGmailName()" class="bg-primary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors">Update Name</button>
           </div>
         </div>
+
         <div class="result-msg" id="gmail-name-result"></div>
-        <div style="display:flex;gap:0.75rem;margin-top:0.75rem;flex-wrap:wrap;">
-          <button id="test-email-btn" onclick="sendTestEmail()" style="background:none;border:1px solid var(--border);color:var(--text-2);padding:0.5rem 1rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.8rem;">
+
+        <div class="flex gap-3 flex-wrap">
+          <button id="test-email-btn" onclick="sendTestEmail()" class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium text-zinc-100 hover:bg-white/10 transition-colors">
             Send Test Email
           </button>
-          <button onclick="disconnectGmail()" style="background:none;border:1px solid var(--border);color:var(--text-2);padding:0.5rem 1rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.8rem;">
+          <button onclick="disconnectGmail()" class="bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-red-500/20 transition-colors">
             Disconnect Gmail
           </button>
         </div>
@@ -340,8 +205,8 @@
 
       <!-- Connect button (hidden when connected) -->
       <div id="gmail-connect-section">
-        <a href="/api/gmail/auth" class="btn btn-primary" style="text-decoration:none;display:inline-flex;align-items:center;gap:0.5rem;">
-          Connect Gmail &rarr;
+        <a href="/api/gmail/auth" class="inline-flex items-center gap-2 bg-primary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors no-underline">
+          Connect Gmail <span class="material-symbols-outlined text-sm">arrow_forward</span>
         </a>
       </div>
 
@@ -349,32 +214,8 @@
     </div>
 
   </main>
-</div>
 
 <script>
-  // ── Sidebar toggle ──────────────────────────────────────────────
-  function toggleSidebar() {
-    const sidebar   = document.querySelector('.sidebar');
-    const collapsed = sidebar.classList.toggle('collapsed');
-    document.body.classList.toggle('sidebar-collapsed', collapsed);
-    localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
-  }
-  document.querySelectorAll('.nav-link').forEach(link => {
-    link.addEventListener('click', () => {
-      if (document.querySelector('.sidebar').classList.contains('collapsed')) {
-        document.querySelector('.sidebar').classList.remove('collapsed');
-        document.body.classList.remove('sidebar-collapsed');
-        localStorage.setItem('sidebarCollapsed', '0');
-      }
-    });
-  });
-  (function() {
-    if (localStorage.getItem('sidebarCollapsed') === '1') {
-      document.querySelector('.sidebar')?.classList.add('collapsed');
-      document.body.classList.add('sidebar-collapsed');
-    }
-  })();
-
   const API = '';
   let currentUserId = null;
 
@@ -403,106 +244,10 @@
     }
   }
 
-  async function loadUsers() {
-    try {
-      const res  = await fetch(`${API}/api/settings/users`);
-      const data = await res.json();
-      const users = data.users || [];
-
-      document.getElementById('user-count').textContent = users.length + ' user' + (users.length !== 1 ? 's' : '');
-
-      if (!users.length) {
-        document.getElementById('users-table-container').innerHTML =
-          '<div class="empty-state">No users found.</div>';
-        return;
-      }
-
-      const rows = users.map(u => {
-        const isSelf = u.id === currentUserId;
-        const created = new Date(u.createdAt).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
-        const deleteBtn = isSelf
-          ? `<span class="pill pill-gray" style="font-size:0.68rem;">You</span>`
-          : `<button class="btn btn-danger btn-small" onclick="deleteUser(${u.id}, '${escHtml(u.email).replace(/'/g,"\\'")}')">Remove</button>`;
-
-        return `<tr>
-          <td style="color:var(--text-1);font-weight:500;">${escHtml(u.email)}</td>
-          <td style="color:var(--text-3);font-size:0.78rem;">${created}</td>
-          <td style="text-align:right;">${deleteBtn}</td>
-        </tr>`;
-      }).join('');
-
-      document.getElementById('users-table-container').innerHTML = `
-        <table class="data-table">
-          <thead><tr><th>Email</th><th>Created</th><th></th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>`;
-    } catch (err) {
-      document.getElementById('users-table-container').innerHTML =
-        '<div class="empty-state">Could not load users.</div>';
-    }
-  }
-
-  async function addUser() {
-    const email    = document.getElementById('new-email').value.trim();
-    const password = document.getElementById('new-password').value;
-    const btn      = document.getElementById('add-user-btn');
-    const result   = document.getElementById('add-result');
-
-    result.style.display = 'none';
-
-    if (!email || !password) {
-      showResult('add-result', 'Email and password are required.', false);
-      return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = 'Adding...';
-
-    try {
-      const res  = await fetch(`${API}/api/settings/users`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        showResult('add-result', `&#10003; User "${data.user.email}" created successfully.`, true);
-        document.getElementById('new-email').value    = '';
-        document.getElementById('new-password').value = '';
-        await loadUsers();
-      } else {
-        showResult('add-result', '&#10007; ' + (data.error || 'Failed to create user'), false);
-      }
-    } catch (err) {
-      showResult('add-result', '&#10007; Network error: ' + err.message, false);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Add User';
-    }
-  }
-
-  async function deleteUser(id, email) {
-    if (!confirm(`Remove user "${email}"?\n\nThey will no longer be able to log in.`)) return;
-
-    try {
-      const res  = await fetch(`${API}/api/settings/users/${id}`, { method: 'DELETE' });
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        await loadUsers();
-      } else {
-        alert('Could not remove user: ' + (data.error || 'Unknown error'));
-      }
-    } catch (err) {
-      alert('Network error: ' + err.message);
-    }
-  }
-
   function showResult(id, msg, ok) {
     const el = document.getElementById(id);
     el.innerHTML = msg;
-    el.className = 'result-msg ' + (ok ? 'result-ok' : 'result-err');
+    el.className = 'result-msg text-sm mt-2 ' + (ok ? 'text-secondary' : 'text-red-400');
     el.style.display = 'block';
     if (ok) setTimeout(() => { el.style.display = 'none'; }, 4000);
   }
@@ -514,20 +259,18 @@
 
       // Load Twilio status
       if (data.twilio && data.twilio.accountSid) {
-        document.getElementById('twilio-status').innerHTML =
-          '<span class="pill-green" style="background:var(--green-dim);color:var(--green);">Configured</span>';
-        document.getElementById('twilio-status').className = 'pill pill-green';
+        document.getElementById('twilio-status').innerHTML = '<span style="color:#47e266;">Configured</span>';
+        document.getElementById('twilio-status').className = 'px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-secondary/10 text-secondary border-secondary/20';
         document.getElementById('twilio-from-number').value = data.twilio.fromNumber || '';
       } else {
         document.getElementById('twilio-status').innerHTML = 'Not configured';
-        document.getElementById('twilio-status').className = 'pill pill-gray';
+        document.getElementById('twilio-status').className = 'px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-white/5 text-on-surface-variant border-white/10';
       }
 
       // Load Gmail status
       if (data.gmail && data.gmail.configured) {
         document.getElementById('gmail-status').textContent = 'Connected';
-        document.getElementById('gmail-status').className = 'pill pill-green';
-        document.getElementById('gmail-status').style.cssText = 'background:var(--green-dim);color:var(--green);';
+        document.getElementById('gmail-status').className = 'px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-secondary/10 text-secondary border-secondary/20';
         document.getElementById('gmail-address-display').textContent = data.gmail.gmailUser || '';
         document.getElementById('gmail-display-name').value = data.gmail.fromName || '';
         if (data.gmail.tokenExpiry) {
@@ -539,8 +282,7 @@
         document.getElementById('gmail-connect-section').style.display = 'none';
       } else {
         document.getElementById('gmail-status').textContent = 'Not connected';
-        document.getElementById('gmail-status').className = 'pill pill-gray';
-        document.getElementById('gmail-status').style.cssText = '';
+        document.getElementById('gmail-status').className = 'px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-white/5 text-on-surface-variant border-white/10';
         document.getElementById('gmail-connected-info').style.display = 'none';
         document.getElementById('gmail-connect-section').style.display = 'block';
       }
@@ -657,7 +399,6 @@
   // ── Init ──────────────────────────────────────────────────────────────────
   async function init() {
     await loadCurrentUser();
-    await loadUsers();
     await loadCredentials();
 
     // Show success/error toast from OAuth redirects
@@ -675,26 +416,29 @@
 </script>
 
 <script>
+// ── Role-aware nav ────────────────────────────────────────────────
 (async function() {
   try {
     const res = await fetch('/api/admin/me', { credentials: 'include' });
     if (!res.ok) return;
-    const me = await res.json();
+    const me   = await res.json();
     const role = me.role || 'client';
-    const roleEl = document.querySelector('.user-role');
+    const roleEl = document.getElementById('user-role');
     if (roleEl) roleEl.textContent = role === 'admin' ? 'Administrator' : 'Client';
-    addAdminLink();
+    if (role === 'admin') addAdminLink();
   } catch {}
+
   function addAdminLink() {
-    const nav = document.querySelector('.sidebar-nav');
+    const nav = document.getElementById('main-nav');
     if (!nav || nav.querySelector('a[href="/admin.html"]')) return;
     const a = document.createElement('a');
-    a.className = 'nav-link'; a.href = '/admin.html';
-    a.setAttribute('data-tooltip', 'User Management');
-    a.innerHTML = '<span class="nav-icon">&#128100;</span><span class="nav-label">User Management</span>';
+    a.className = 'flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200';
+    a.href = '/admin.html';
+    a.innerHTML = '<span class="material-symbols-outlined text-[20px]">manage_accounts</span><span class="text-sm font-medium tracking-tight">User Management</span>';
     nav.appendChild(a);
   }
 })();
 </script>
+
 </body>
 </html>

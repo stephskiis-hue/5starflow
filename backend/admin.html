@@ -1,339 +1,153 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="dark" lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>User Management — 5StarFlow</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin — 5StarFlow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#aac7ff",
+            "secondary": "#47e266",
+            "tertiary": "#e9b3ff",
+            "on-surface-variant": "#8b91a0",
+          },
+          borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+          fontFamily: { sans: ["Inter", "sans-serif"] },
+        },
+      },
+    }
+  </script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg:           #09090f;
-      --surface:      rgba(18, 20, 32, 0.85);
-      --surface-alt:  rgba(24, 27, 42, 0.6);
-      --border:       rgba(255, 255, 255, 0.07);
-      --border-hover: rgba(255, 255, 255, 0.14);
-      --gold:         #d4a017;
-      --gold-dim:     rgba(212, 160, 23, 0.12);
-      --gold-glow:    rgba(212, 160, 23, 0.25);
-      --text-1:       #f0f2f8;
-      --text-2:       #8b95a8;
-      --text-3:       #4a5568;
-      --green:        #34d399;
-      --green-dim:    rgba(52, 211, 153, 0.12);
-      --red:          #f87171;
-      --red-dim:      rgba(248, 113, 113, 0.12);
-      --yellow:       #fbbf24;
-      --yellow-dim:   rgba(251, 191, 36, 0.12);
-      --blue:         #60a5fa;
-      --blue-dim:     rgba(96, 165, 250, 0.12);
-      --sidebar-w:    260px;
-      --radius:       18px;
-      --radius-sm:    10px;
-    }
-
-    html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--text-1);
-      font-family: -apple-system, 'SF Pro Display', BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .app { display: flex; min-height: 100vh; }
-
-    /* ── Sidebar ─────────────────────── */
-    .sidebar {
-      width: var(--sidebar-w);
-      min-height: 100vh;
-      background: rgba(10, 11, 18, 0.97);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      position: fixed;
-      left: 0; top: 0; bottom: 0;
-      z-index: 100;
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-    }
-    .sidebar-logo { padding: 1.75rem 1.5rem 1.25rem; border-bottom: 1px solid var(--border); }
-    .sidebar-logo h1 { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.04em; color: var(--text-1); }
-    .sidebar-logo h1 .star { color: var(--gold); }
-    .sidebar-logo p { font-size: 0.7rem; color: var(--text-3); margin-top: 0.2rem; letter-spacing: 0.04em; }
-    .sidebar-nav { flex: 1; padding: 1rem 0.75rem; display: flex; flex-direction: column; gap: 0.2rem; }
-    .nav-section-label {
-      font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em;
-      text-transform: uppercase; color: var(--text-3); padding: 0.9rem 0.75rem 0.4rem;
-    }
-    .nav-link {
-      display: flex; align-items: center; gap: 0.7rem;
-      padding: 0.6rem 0.75rem; border-radius: var(--radius-sm);
-      text-decoration: none; color: var(--text-2);
-      font-size: 0.875rem; font-weight: 500;
-      transition: background 0.15s, color 0.15s;
-    }
-    .nav-link:hover { background: rgba(255,255,255,0.05); color: var(--text-1); }
-    .nav-link.active { background: var(--gold-dim); color: var(--gold); }
-    .nav-icon { font-size: 1rem; width: 1.25rem; text-align: center; }
-    .sidebar-footer {
-      padding: 1rem 1.5rem; border-top: 1px solid var(--border);
-      display: flex; flex-direction: column; gap: 0.75rem;
-    }
-    .sidebar-user { display: flex; align-items: center; gap: 0.75rem; }
-    .user-avatar {
-      width: 32px; height: 32px; border-radius: 50%;
-      background: var(--gold-dim); border: 1px solid var(--gold-glow);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 0.875rem; font-weight: 700; color: var(--gold); flex-shrink: 0;
-    }
-    .user-info { overflow: hidden; }
-    .user-email { font-size: 0.78rem; font-weight: 500; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .user-role { font-size: 0.68rem; color: var(--text-3); }
-    .btn-logout {
-      width: 100%; padding: 0.5rem; border-radius: var(--radius-sm);
-      background: transparent; border: 1px solid var(--border);
-      color: var(--text-2); font-size: 0.8rem; cursor: pointer;
-      transition: background 0.15s, color 0.15s;
-    }
-    .btn-logout:hover { background: var(--red-dim); color: var(--red); border-color: var(--red); }
-
-    /* ── Main ────────────────────────── */
-    .main {
-      margin-left: var(--sidebar-w);
-      flex: 1;
-      padding: 2rem 2.5rem;
-      max-width: calc(100vw - var(--sidebar-w));
-    }
-
-    .topbar { margin-bottom: 2rem; }
-    .topbar-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); margin-bottom: 0.4rem; }
-    .topbar h2 { font-size: 1.75rem; font-weight: 800; letter-spacing: -0.03em; }
-    .topbar p { font-size: 0.875rem; color: var(--text-2); margin-top: 0.4rem; }
-
-    /* ── Card ────────────────────────── */
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.5rem;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-    }
-
-    .card-header {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 1.25rem;
-    }
-    .card-title { font-size: 1rem; font-weight: 700; }
-
-    /* ── New User Form ───────────────── */
-    .form-row {
-      display: grid; grid-template-columns: 1fr 1fr 1fr auto;
-      gap: 0.75rem; align-items: end;
-      padding: 1.25rem;
-      background: rgba(255,255,255,0.02);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      margin-bottom: 1.5rem;
-    }
-    .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
-    .form-label { font-size: 0.72rem; font-weight: 600; color: var(--text-2); letter-spacing: 0.04em; }
-    .form-input, .form-select {
-      padding: 0.55rem 0.75rem;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      color: var(--text-1);
-      font-size: 0.875rem;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-    .form-input:focus, .form-select:focus { border-color: var(--gold); }
-    .form-select option { background: #1a1c2a; }
-
-    .btn-primary {
-      padding: 0.55rem 1.25rem;
-      background: var(--gold);
-      border: none;
-      border-radius: var(--radius-sm);
-      color: #09090f;
-      font-size: 0.875rem;
-      font-weight: 700;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: opacity 0.15s;
-    }
-    .btn-primary:hover { opacity: 0.85; }
-    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
-
-    /* ── User Table ──────────────────── */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.875rem;
-    }
-    thead th {
-      text-align: left;
-      font-size: 0.68rem;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--text-3);
-      padding: 0.5rem 0.75rem;
-      border-bottom: 1px solid var(--border);
-    }
-    tbody tr { transition: background 0.1s; }
-    tbody tr:hover { background: rgba(255,255,255,0.02); }
-    tbody td {
-      padding: 0.85rem 0.75rem;
-      border-bottom: 1px solid rgba(255,255,255,0.03);
-      color: var(--text-1);
-      vertical-align: middle;
-    }
-    .badge {
-      display: inline-flex; align-items: center;
-      padding: 0.2rem 0.6rem;
-      border-radius: 100px;
-      font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em;
-    }
-    .badge-admin { background: var(--gold-dim); color: var(--gold); }
-    .badge-client { background: var(--blue-dim); color: var(--blue); }
-    .badge-active { background: var(--green-dim); color: var(--green); }
-    .badge-inactive { background: var(--red-dim); color: var(--red); }
-
-    .action-group { display: flex; gap: 0.5rem; align-items: center; }
-    .btn-sm {
-      padding: 0.3rem 0.65rem;
-      border-radius: 6px;
-      font-size: 0.75rem; font-weight: 600;
-      cursor: pointer; border: 1px solid transparent;
-      transition: background 0.15s, color 0.15s;
-    }
-    .btn-danger { background: var(--red-dim); color: var(--red); border-color: rgba(248,113,113,0.2); }
-    .btn-danger:hover { background: rgba(248,113,113,0.25); }
-    .btn-restore { background: var(--green-dim); color: var(--green); border-color: rgba(52,211,153,0.2); }
-    .btn-restore:hover { background: rgba(52,211,153,0.25); }
-    .btn-role { background: rgba(255,255,255,0.05); color: var(--text-2); border-color: var(--border); }
-    .btn-role:hover { background: rgba(255,255,255,0.1); color: var(--text-1); }
-
-    .empty-state { text-align: center; color: var(--text-3); padding: 3rem 1rem; font-size: 0.875rem; }
-
-    .toast {
-      position: fixed; bottom: 1.5rem; right: 1.5rem;
-      padding: 0.75rem 1.25rem;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      font-size: 0.875rem;
-      z-index: 999;
-      opacity: 0;
-      transform: translateY(8px);
-      transition: opacity 0.2s, transform 0.2s;
-      pointer-events: none;
-    }
-    .toast.show { opacity: 1; transform: translateY(0); }
-    .toast.success { border-color: var(--green); color: var(--green); }
-    .toast.error { border-color: var(--red); color: var(--red); }
-
-    @media (max-width: 768px) {
-      .main { margin-left: 0; padding: 1rem; max-width: 100vw; }
-      .sidebar { transform: translateX(-100%); }
-      .form-row { grid-template-columns: 1fr; }
+    body { font-family: 'Inter', sans-serif; background-color: #000000; }
+    .glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    @media (max-width: 640px) {
+      aside { display: none !important; }
+      main { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
     }
   </style>
 </head>
-<body>
-<div class="app">
+<body class="bg-black text-zinc-100 dark min-h-screen">
 
   <!-- Sidebar -->
-  <aside class="sidebar">
-    <div class="sidebar-logo">
-      <h1>5<span class="star">&#9733;</span>Flow</h1>
-      <p>Business Automation OS</p>
+  <aside class="fixed left-6 top-6 bottom-6 w-64 rounded-[3rem] border-t border-white/10 bg-zinc-900/60 backdrop-blur-2xl flex flex-col h-[calc(100vh-3rem)] p-4 shadow-[0_40px_40px_-5px_rgba(0,0,0,0.6)] z-50">
+    <div class="mb-8 px-4 pt-4">
+      <h1 class="text-xl font-bold text-zinc-100 tracking-tighter">Command Center</h1>
+      <p class="text-xs text-zinc-500 font-medium mt-1">5StarFlow</p>
     </div>
-    <nav class="sidebar-nav">
-      <div class="nav-section-label">Main</div>
-      <a class="nav-link" href="/index.html"><span class="nav-icon">&#9632;</span><span class="nav-label">Home</span></a>
-      <a class="nav-link" href="/review-dashboard.html"><span class="nav-icon">&#9733;</span><span class="nav-label">Review Requests</span></a>
-      <a class="nav-link" href="/weather-dashboard.html"><span class="nav-icon">&#9928;</span><span class="nav-label">Rain Alerts</span></a>
-      <div class="nav-section-label">Tools</div>
-      <a class="nav-link" href="/seo-dashboard.html"><span class="nav-icon">&#128202;</span><span class="nav-label">SEO Audit</span></a>
-      <a class="nav-link" href="/website-audit.html"><span class="nav-icon">&#128394;</span><span class="nav-label">Website Audit</span></a>
-      <div class="nav-section-label">System</div>
-      <a class="nav-link" href="/connections.html"><span class="nav-icon">&#128279;</span><span class="nav-label">App Connections</span></a>
-      <a class="nav-link" href="/settings.html"><span class="nav-icon">&#9881;</span><span class="nav-label">Settings</span></a>
-      <a class="nav-link active" href="/admin.html"><span class="nav-icon">&#128100;</span><span class="nav-label">User Management</span></a>
+
+    <nav class="flex-1 space-y-0.5 overflow-y-auto" id="main-nav">
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/index.html">
+        <span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;">home</span>
+        <span class="text-sm font-medium tracking-tight">Home</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/review-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">rate_review</span>
+        <span class="text-sm font-medium tracking-tight">Review Requests</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/weather-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">thunderstorm</span>
+        <span class="text-sm font-medium tracking-tight">Rain Alerts</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/seo-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">search_check</span>
+        <span class="text-sm font-medium tracking-tight">SEO Audit</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/website-audit.html">
+        <span class="material-symbols-outlined text-[20px]">speed</span>
+        <span class="text-sm font-medium tracking-tight">Website Audit</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/connections.html">
+        <span class="material-symbols-outlined text-[20px]">hub</span>
+        <span class="text-sm font-medium tracking-tight">App Connections</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/settings.html">
+        <span class="material-symbols-outlined text-[20px]">settings</span>
+        <span class="text-sm font-medium tracking-tight">Settings</span>
+      </a>
     </nav>
-    <div class="sidebar-footer">
-      <div class="sidebar-user">
-        <div class="user-avatar" id="user-avatar">?</div>
-        <div class="user-info">
-          <div class="user-email" id="user-email">Loading...</div>
-          <div class="user-role" id="user-role-label">Administrator</div>
+
+    <div class="mt-auto px-2 pt-4 border-t border-white/5">
+      <div class="flex items-center gap-3 p-2">
+        <div class="w-9 h-9 rounded-full bg-surface-container-highest flex items-center justify-center text-sm font-bold text-zinc-100 flex-shrink-0" id="user-avatar">?</div>
+        <div class="flex-1 overflow-hidden">
+          <p class="text-sm font-semibold text-zinc-100 truncate" id="user-email">Loading...</p>
+          <p class="text-xs text-zinc-500 truncate" id="user-role">Administrator</p>
         </div>
+        <button onclick="logout()" class="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex-shrink-0" title="Log out">
+          <span class="material-symbols-outlined text-[18px]">logout</span>
+        </button>
       </div>
-      <button class="btn-logout" onclick="logout()">Log Out</button>
     </div>
   </aside>
 
   <!-- Main -->
-  <main class="main">
-    <div class="topbar">
-      <div class="topbar-label">Admin</div>
-      <h2>User Management</h2>
-      <p>Create and manage portal accounts for your clients.</p>
+  <main class="pl-80 pr-12 py-10 min-h-screen">
+    <div class="mb-10">
+      <h2 class="text-2xl font-black text-zinc-100 tracking-tight">User Management</h2>
+      <p class="text-sm text-on-surface-variant mt-1">Manage user access and roles</p>
     </div>
 
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">Portal Users</div>
-      </div>
-
+    <!-- Users Card -->
+    <div class="glass-card rounded-xl p-8">
       <!-- New User Form -->
-      <div class="form-row" id="new-user-form">
-        <div class="form-group">
-          <label class="form-label" for="new-email">Email</label>
-          <input class="form-input" id="new-email" type="email" placeholder="client@example.com" />
+      <div class="mb-8 pb-8 border-b border-white/5">
+        <h3 class="text-sm font-semibold text-zinc-100 mb-4">Add New User</h3>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+          <div>
+            <label class="text-[0.6875rem] uppercase tracking-widest font-semibold text-on-surface-variant mb-2 block">Email</label>
+            <input class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" id="new-email" type="email" placeholder="client@example.com" />
+          </div>
+          <div>
+            <label class="text-[0.6875rem] uppercase tracking-widest font-semibold text-on-surface-variant mb-2 block">Password</label>
+            <input class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" id="new-password" type="password" placeholder="Min. 8 characters" />
+          </div>
+          <div>
+            <label class="text-[0.6875rem] uppercase tracking-widest font-semibold text-on-surface-variant mb-2 block">Role</label>
+            <select class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20">
+              <option value="client">Client</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <button class="bg-primary text-zinc-900 rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors w-full" id="add-user-btn" onclick="createUser()">Add User</button>
         </div>
-        <div class="form-group">
-          <label class="form-label" for="new-password">Password</label>
-          <input class="form-input" id="new-password" type="password" placeholder="Min. 8 characters" />
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="new-role">Role</label>
-          <select class="form-select" id="new-role">
-            <option value="client">Client</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
-        <button class="btn-primary" onclick="createUser()">Add User</button>
       </div>
 
       <!-- Users Table -->
-      <table id="users-table">
-        <thead>
-          <tr>
-            <th>Email</th>
-            <th>Role</th>
-            <th>Status</th>
-            <th>Created</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="users-tbody">
-          <tr><td colspan="5" class="empty-state">Loading users...</td></tr>
-        </tbody>
-      </table>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-white/5">
+              <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Email</th>
+              <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Role</th>
+              <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Status</th>
+              <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Created</th>
+              <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody">
+            <tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+              <td class="px-6 py-4 text-sm text-on-surface-variant" colspan="5">Loading users...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </main>
-</div>
 
-<div class="toast" id="toast"></div>
+  <div class="fixed bottom-6 right-6 z-50 bg-zinc-800 border border-white/10 rounded-xl px-5 py-3 text-sm text-zinc-100 shadow-xl hidden" id="toast"></div>
 
 <script>
   let currentUserId = null;
 
-  // ── Auth guard: redirect non-admins ─────────────────────────
+  // ── Auth guard: redirect non-admins ─────────────────────────────
   async function init() {
     try {
       const res = await fetch('/api/admin/me', { credentials: 'include' });
@@ -349,7 +163,7 @@
     }
   }
 
-  // ── Load & render users ──────────────────────────────────────
+  // ── Load & render users ──────────────────────────────────────────
   async function loadUsers() {
     try {
       const res = await fetch('/api/admin/users', { credentials: 'include' });
@@ -364,51 +178,51 @@
   function renderUsers(users) {
     const tbody = document.getElementById('users-tbody');
     if (!users.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No users yet.</td></tr>';
+      tbody.innerHTML = '<tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors"><td colspan="5" class="px-6 py-4 text-sm text-on-surface-variant text-center">No users yet.</td></tr>';
       return;
     }
     tbody.innerHTML = users.map(u => {
       const roleBadge = u.role === 'admin'
-        ? '<span class="badge badge-admin">Admin</span>'
-        : '<span class="badge badge-client">Client</span>';
+        ? '<span class="bg-primary/10 text-primary border border-primary/20 rounded-full px-2.5 py-0.5 text-xs font-medium">Admin</span>'
+        : '<span class="bg-primary/10 text-primary border border-primary/20 rounded-full px-2.5 py-0.5 text-xs font-medium">Client</span>';
       const statusBadge = u.isActive
-        ? '<span class="badge badge-active">Active</span>'
-        : '<span class="badge badge-inactive">Inactive</span>';
+        ? '<span class="bg-secondary/10 text-secondary border border-secondary/20 rounded-full px-2.5 py-0.5 text-xs font-medium">Active</span>'
+        : '<span class="bg-red-500/10 text-red-400 border border-red-500/20 rounded-full px-2.5 py-0.5 text-xs font-medium">Inactive</span>';
       const created = new Date(u.createdAt).toLocaleDateString('en-CA');
       const isSelf = u.id === currentUserId;
 
       const toggleRoleBtn = !isSelf
-        ? `<button class="btn-sm btn-role" onclick="toggleRole('${u.id}', '${u.role}')">
+        ? `<button class="bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl px-3 py-1.5 text-xs font-semibold hover:bg-red-500/20 transition-colors" onclick="toggleRole('${u.id}', '${u.role}')">
              ${u.role === 'admin' ? 'Make Client' : 'Make Admin'}
            </button>`
         : '';
 
       const toggleActiveBtn = !isSelf
         ? (u.isActive
-            ? `<button class="btn-sm btn-danger" onclick="setActive('${u.id}', false)">Deactivate</button>`
-            : `<button class="btn-sm btn-restore" onclick="setActive('${u.id}', true)">Activate</button>`)
-        : '<span style="font-size:0.72rem;color:var(--text-3)">Your account</span>';
+            ? `<button class="bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl px-3 py-1.5 text-xs font-semibold hover:bg-red-500/20 transition-colors" onclick="setActive('${u.id}', false)">Deactivate</button>`
+            : `<button class="bg-secondary/10 text-secondary border border-secondary/20 rounded-xl px-3 py-1.5 text-xs font-semibold hover:bg-secondary/20 transition-colors" onclick="setActive('${u.id}', true)">Activate</button>`)
+        : '<span class="text-xs text-on-surface-variant">Your account</span>';
 
-      return `<tr>
-        <td>${escHtml(u.email)}</td>
-        <td>${roleBadge}</td>
-        <td>${statusBadge}</td>
-        <td style="color:var(--text-2)">${created}</td>
-        <td><div class="action-group">${toggleRoleBtn}${toggleActiveBtn}</div></td>
+      return `<tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+        <td class="px-6 py-4 text-sm">${escHtml(u.email)}</td>
+        <td class="px-6 py-4 text-sm">${roleBadge}</td>
+        <td class="px-6 py-4 text-sm">${statusBadge}</td>
+        <td class="px-6 py-4 text-sm text-on-surface-variant">${created}</td>
+        <td class="px-6 py-4 text-sm"><div class="flex gap-2 items-center">${toggleRoleBtn}${toggleActiveBtn}</div></td>
       </tr>`;
     }).join('');
   }
 
-  // ── Create user ──────────────────────────────────────────────
+  // ── Create user ──────────────────────────────────────────────────
   async function createUser() {
     const email    = document.getElementById('new-email').value.trim();
     const password = document.getElementById('new-password').value;
-    const role     = document.getElementById('new-role').value;
+    const role     = document.querySelector('select').value;
 
     if (!email || !password) { showToast('Email and password are required', 'error'); return; }
     if (password.length < 8) { showToast('Password must be at least 8 characters', 'error'); return; }
 
-    const btn = document.querySelector('#new-user-form .btn-primary');
+    const btn = document.getElementById('add-user-btn');
     btn.disabled = true;
     try {
       const res = await fetch('/api/admin/users', {
@@ -421,7 +235,7 @@
       if (!res.ok) { showToast(data.error || 'Failed to create user', 'error'); return; }
       document.getElementById('new-email').value = '';
       document.getElementById('new-password').value = '';
-      document.getElementById('new-role').value = 'client';
+      document.querySelector('select').value = 'client';
       showToast(`User ${data.user.email} created`, 'success');
       await loadUsers();
     } catch {
@@ -431,13 +245,13 @@
     }
   }
 
-  // ── Toggle role ──────────────────────────────────────────────
+  // ── Toggle role ──────────────────────────────────────────────────
   async function toggleRole(id, currentRole) {
     const newRole = currentRole === 'admin' ? 'client' : 'admin';
     await patchUser(id, { role: newRole }, `Role updated to ${newRole}`);
   }
 
-  // ── Activate / deactivate ────────────────────────────────────
+  // ── Activate / deactivate ────────────────────────────────────────
   async function setActive(id, isActive) {
     const label = isActive ? 'activated' : 'deactivated';
     await patchUser(id, { isActive }, `User ${label}`);
@@ -460,13 +274,13 @@
     }
   }
 
-  // ── Logout ───────────────────────────────────────────────────
+  // ── Logout ───────────────────────────────────────────────────────
   async function logout() {
     await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
     location.href = '/login.html';
   }
 
-  // ── Helpers ──────────────────────────────────────────────────
+  // ── Helpers ──────────────────────────────────────────────────────
   function escHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -475,12 +289,18 @@
   function showToast(msg, type = 'success') {
     const el = document.getElementById('toast');
     el.textContent = msg;
-    el.className = `toast show ${type}`;
+    el.classList.remove('hidden');
+    if (type === 'success') {
+      el.className = 'fixed bottom-6 right-6 z-50 bg-zinc-800 border border-secondary/30 rounded-xl px-5 py-3 text-sm text-secondary shadow-xl';
+    } else {
+      el.className = 'fixed bottom-6 right-6 z-50 bg-zinc-800 border border-red-500/30 rounded-xl px-5 py-3 text-sm text-red-400 shadow-xl';
+    }
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { el.classList.remove('show'); }, 3000);
+    toastTimer = setTimeout(() => { el.classList.add('hidden'); }, 3000);
   }
 
   init();
 </script>
+
 </body>
 </html>
