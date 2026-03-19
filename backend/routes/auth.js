@@ -127,6 +127,14 @@ router.get('/callback', async (req, res) => {
       },
     });
 
+    // Heal any existing null-userId account row so status lookups find it by userId
+    if (userId) {
+      await prisma.jobberAccount.updateMany({
+        where: { accountId, userId: null },
+        data:  { userId },
+      });
+    }
+
     console.log(`[auth] Jobber account connected: ${accountId}${userId ? ` (portal user: ${userId})` : ''}. Expires: ${expiresAt.toISOString()}`);
     res.redirect(`${frontendOrigin}/connections.html?connected=true`);
   } catch (err) {

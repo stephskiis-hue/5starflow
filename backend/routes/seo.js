@@ -63,14 +63,57 @@ router.get('/audits', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/seo/pagespeed
+// Tier 1 (Free): runs Google PageSpeed for mobile + desktop, returns scores + issues.
+// No Claude API key required.
+// Body: { url }
+// ---------------------------------------------------------------------------
+router.post('/pagespeed', async (req, res) => {
+  const { url } = req.body || {};
+  if (!url) return res.status(400).json({ error: 'url is required' });
+
+  try {
+    const [mobile, desktop] = await Promise.all([
+      getPageSpeed(url, 'mobile'),
+      getPageSpeed(url, 'desktop'),
+    ]);
+
+    // Merge + deduplicate issues from both strategies
+    const seen = new Set();
+    const allIssues = [];
+    for (const issue of [...mobile.issues, ...desktop.issues]) {
+      if (!seen.has(issue.id)) {
+        seen.add(issue.id);
+        allIssues.push(issue);
+      }
+    }
+
+    res.json({
+      url,
+      mobile:  { score: mobile.score,  seoScore: mobile.seoScore,  lcp: mobile.lcp,  cls: mobile.cls,  fid: mobile.fid  },
+      desktop: { score: desktop.score, seoScore: desktop.seoScore, lcp: desktop.lcp, cls: desktop.cls, fid: desktop.fid },
+      issues:  allIssues,
+      hasClaudeKey: !!process.env.ANTHROPIC_API_KEY,
+    });
+  } catch (err) {
+    console.error('[seo] /pagespeed error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/seo/run-audit
-// Manual trigger (authenticated session required — handled by requireAuth in server.js)
+// Manual trigger — tier: 'pro' (Haiku, no competitors) or 'pro-plus' (Sonnet + competitors)
 // ---------------------------------------------------------------------------
 router.post('/run-audit', async (req, res) => {
+  const tier = ['pro', 'pro-plus'].includes(req.body?.tier) ? req.body.tier : 'pro-plus';
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(402).json({ error: 'Claude API key required for AI audit. Set ANTHROPIC_API_KEY in your .env.' });
+  }
   try {
-    // Fire and forget — audit is async; pass userId so it's scoped to this user
-    runWeeklyAudit(req.user.userId).catch(err => console.error('[seo] run-audit error:', err.message));
-    res.json({ success: true, message: 'Audit started — check /api/seo/status for progress' });
+    // Fire and forget — audit is async
+    runWeeklyAudit(req.user.userId, tier).catch(err => console.error('[seo] run-audit error:', err.message));
+    res.json({ success: true, tier, message: 'Audit started — check /api/seo/status for progress' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

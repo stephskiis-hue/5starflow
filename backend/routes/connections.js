@@ -10,7 +10,9 @@ const axios   = require('axios');
 router.get('/status', async (req, res) => {
   try {
     // ── Jobber ──────────────────────────────────────────────────────────────
-    const jobberAccount = await prisma.jobberAccount.findFirst({ where: { userId: req.user.userId } });
+    const jobberAccount =
+      await prisma.jobberAccount.findFirst({ where: { userId: req.user.userId } }) ??
+      await prisma.jobberAccount.findFirst();
     const lastRefreshLog = jobberAccount
       ? await prisma.tokenRefreshLog.findFirst({
           where:   { accountId: jobberAccount.accountId },

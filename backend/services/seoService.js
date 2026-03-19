@@ -47,10 +47,10 @@ async function getSettings(userId) {
  * @param {string} url
  * @returns {{ score, lcp, cls, fid, opportunities }}
  */
-async function getPageSpeed(url) {
+async function getPageSpeed(url, strategy = 'mobile') {
   const endpoint =
     `https://www.googleapis.com/pagespeedonline/v5/runPagespeed` +
-    `?url=${encodeURIComponent(url)}&strategy=mobile`;
+    `?url=${encodeURIComponent(url)}&strategy=${strategy}`;
 
   const resp = await axios.get(endpoint, { timeout: 30000 });
   const cats = resp.data?.lighthouseResult?.categories;
@@ -72,8 +72,10 @@ async function getPageSpeed(url) {
     ? Math.round(audit['max-potential-fid'].numericValue)
     : null;
 
-  const opportunities = [];
-  const oppKeys = [
+  const issues = [];
+
+  // Performance opportunities
+  const perfKeys = [
     'render-blocking-resources',
     'unused-css-rules',
     'unused-javascript',
@@ -81,23 +83,53 @@ async function getPageSpeed(url) {
     'uses-responsive-images',
     'efficiently-encode-images',
     'uses-text-compression',
+    'uses-long-cache-ttl',
+    'total-blocking-time',
   ];
-  for (const key of oppKeys) {
+  for (const key of perfKeys) {
     const a = audit?.[key];
     if (a && a.score !== null && a.score < 0.9) {
       const savings = a.details?.overallSavingsMs
         ? `${Math.round(a.details.overallSavingsMs)}ms`
         : null;
-      opportunities.push({
-        id:    key,
-        title: a.title,
-        score: Math.round((a.score || 0) * 100),
-        savings,
-      });
+      issues.push({ category: 'performance', id: key, title: a.title, score: Math.round((a.score || 0) * 100), savings });
     }
   }
 
-  return { score, lcp, cls, fid, opportunities };
+  // SEO issues
+  const seoKeys = [
+    'meta-description',
+    'document-title',
+    'link-text',
+    'crawlable-anchors',
+    'is-crawlable',
+    'robots-txt',
+    'tap-targets',
+    'hreflang',
+    'canonical',
+    'image-alt',
+    'font-size',
+    'structured-data',
+  ];
+  const seoScore = cats?.seo?.score != null ? Math.round(cats.seo.score * 100) : null;
+  for (const key of seoKeys) {
+    const a = audit?.[key];
+    if (a && a.score !== null && a.score < 1) {
+      issues.push({ category: 'seo', id: key, title: a.title, score: Math.round((a.score || 0) * 100), savings: null });
+    }
+  }
+
+  // Accessibility issues (top ones)
+  const a11yKeys = ['image-alt', 'button-name', 'color-contrast', 'document-title'];
+  for (const key of a11yKeys) {
+    if (seoKeys.includes(key)) continue; // already captured above
+    const a = audit?.[key];
+    if (a && a.score !== null && a.score < 1) {
+      issues.push({ category: 'accessibility', id: key, title: a.title, score: Math.round((a.score || 0) * 100), savings: null });
+    }
+  }
+
+  return { score, seoScore, lcp, cls, fid, issues };
 }
 
 // ---------------------------------------------------------------------------
@@ -613,9 +645,12 @@ async function applyChange(change, settings) {
 
 /**
  * Main audit runner. Called by the weekly cron, manual trigger, and external trigger.
+ *
+ * @param {string|null} userId  - portal user to scope audit to
+ * @param {'pro'|'pro-plus'}  tier - 'pro' = Haiku + no competitor research; 'pro-plus' = Sonnet + competitors
  */
-async function runWeeklyAudit() {
-  const settings = await getSettings();
+async function runWeeklyAudit(userId = null, tier = 'pro-plus') {
+  const settings = await getSettings(userId);
 
   if (!settings.auditEnabled) {
     console.log('[seoService] Audit disabled — skipping');
@@ -628,16 +663,20 @@ async function runWeeklyAudit() {
     return;
   }
 
-  console.log(`[seoService] Starting weekly audit for ${siteUrl}`);
+  // Tier controls model depth and whether to run competitor research
+  const runCompetitors = tier === 'pro-plus';
+  const effectiveSettings = { ...settings, deepAnalysis: tier === 'pro-plus' };
+
+  console.log(`[seoService] Starting ${tier} audit for ${siteUrl} (userId: ${userId || 'global'})`);
 
   // Create audit row in "running" state
   const audit = await prisma.seoAudit.create({
-    data: { siteUrl, status: 'running' },
+    data: { siteUrl, status: 'running', userId: userId || null },
   });
 
   try {
     // 1. PageSpeed for own site
-    let ownSpeed = { score: null, lcp: null, cls: null, fid: null, opportunities: [] };
+    let ownSpeed = { score: null, lcp: null, cls: null, fid: null, issues: [] };
     try {
       ownSpeed = await getPageSpeed(siteUrl);
       console.log(`[seoService] PageSpeed for ${siteUrl}: ${ownSpeed.score}/100`);
@@ -645,37 +684,45 @@ async function runWeeklyAudit() {
       console.error('[seoService] PageSpeed error (own site):', err.message);
     }
 
-    // 2. Auto-discover top competitors from Google Search
-    const city = settings.city || process.env.WEATHER_CITY || '';
-    const autoCompetitors = await findTopCompetitors(city);
-    console.log(`[seoService] Auto-discovered ${autoCompetitors.length} competitors from Google`);
+    let autoCompetitors = [];
+    let competitors = [];
+    let competitorSpeeds = [];
 
-    // Merge with manually entered URLs (auto first, manual appended, deduped, max 5)
-    const manualUrls = JSON.parse(settings.competitorUrls || '[]');
-    const allUrls = [...autoCompetitors.map(c => c.url)];
-    for (const u of manualUrls) {
-      if (!allUrls.includes(u)) allUrls.push(u);
+    if (runCompetitors) {
+      // 2. Auto-discover top competitors from Google Search
+      const city = settings.city || process.env.WEATHER_CITY || '';
+      autoCompetitors = await findTopCompetitors(city);
+      console.log(`[seoService] Auto-discovered ${autoCompetitors.length} competitors from Google`);
+
+      // Merge with manually entered URLs (auto first, manual appended, deduped, max 5)
+      const manualUrls = JSON.parse(settings.competitorUrls || '[]');
+      const allUrls = [...autoCompetitors.map(c => c.url)];
+      for (const u of manualUrls) {
+        if (!allUrls.includes(u)) allUrls.push(u);
+      }
+      const competitorUrls = allUrls.slice(0, 5);
+
+      competitors = await Promise.all(
+        competitorUrls.map(url => scrapeCompetitor(url, city))
+      );
+
+      for (const url of competitorUrls.slice(0, 2)) {  // max 2 competitors for PageSpeed
+        try {
+          const spd = await getPageSpeed(url);
+          competitorSpeeds.push({ url, ...spd });
+          console.log(`[seoService] PageSpeed for competitor ${url}: ${spd.score}/100`);
+        } catch {}
+      }
     }
-    const competitorUrls = allUrls.slice(0, 5);
 
-    const competitors = await Promise.all(
-      competitorUrls.map(url => scrapeCompetitor(url, city))
-    );
-
-    const competitorSpeeds = [];
-    for (const url of competitorUrls.slice(0, 2)) {  // max 2 competitors for PageSpeed
-      try {
-        const spd = await getPageSpeed(url);
-        competitorSpeeds.push({ url, ...spd });
-        console.log(`[seoService] PageSpeed for competitor ${url}: ${spd.score}/100`);
-      } catch {}
-    }
-
-    // 3. Search Console keywords (optional)
-    const keywords = await getSearchConsoleData(settings);
+    // 3. Search Console keywords (optional — pro-plus only)
+    const keywords = runCompetitors ? await getSearchConsoleData(effectiveSettings) : null;
 
     // 4. Generate proposal
-    const proposal = await generateProposal({ ownSpeed, competitorSpeeds, keywords, competitors, settings, autoCompetitors });
+    const proposal = await generateProposal({
+      ownSpeed, competitorSpeeds, keywords, competitors,
+      settings: effectiveSettings, autoCompetitors,
+    });
 
     // 5. Save audit + proposal
     await prisma.seoAudit.update({
@@ -697,6 +744,7 @@ async function runWeeklyAudit() {
         auditId:     audit.id,
         title:       proposal.title,
         summaryJson: proposal.summaryJson,
+        userId:      userId || null,
       },
     });
 
@@ -712,6 +760,7 @@ async function runWeeklyAudit() {
             newContent:  item.code_snippet || '',
             oldContent:  '',
             status:      'pending',
+            userId:      userId || null,
           },
         })
       ));
