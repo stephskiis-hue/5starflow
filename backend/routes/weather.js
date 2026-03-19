@@ -473,25 +473,30 @@ router.post('/run-check', async (req, res) => {
   }
 });
 
-// Temporary: introspect Jobber schema to find visit mutation names
-router.get('/debug/jobber-mutations', async (req, res) => {
+// Debug: introspect VisitEditScheduleInput field names
+router.get('/debug/jobber-schema', async (req, res) => {
   try {
     const { jobberGraphQL } = require('../services/jobberClient');
     const data = await jobberGraphQL(`
       query {
-        __schema {
-          mutationType {
-            fields {
-              name
-              args { name type { name kind ofType { name kind } } }
-            }
-          }
+        inputType: __type(name: "VisitEditScheduleInput") {
+          inputFields { name type { name kind ofType { name kind } } }
         }
       }
     `, {}, req.user.userId);
-    const fields = data?.__schema?.mutationType?.fields || [];
-    const visitFields = fields.filter(f => f.name.toLowerCase().includes('visit'));
-    res.json({ visitMutations: visitFields, allCount: fields.length });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Test: directly reschedule a specific visit. Body: { visitId, newStartAt }
+router.post('/test/reschedule', async (req, res) => {
+  const { visitId, newStartAt } = req.body || {};
+  if (!visitId || !newStartAt) return res.status(400).json({ error: 'visitId and newStartAt required' });
+  try {
+    const result = await rescheduleJobberVisit(visitId, newStartAt, null, req.user.userId);
+    res.json({ success: true, visit: result });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

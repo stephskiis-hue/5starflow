@@ -68,10 +68,9 @@ const WEEKLY_VISITS_QUERY = `
   }
 `;
 
-// visitUpdate is the correct Jobber 2026-03-10 mutation for rescheduling visits
-const UPDATE_VISIT_MUTATION = `
-  mutation UpdateVisit($visitId: EncodedId!, $startAt: ISO8601DateTime!, $endAt: ISO8601DateTime) {
-    visitUpdate(visitId: $visitId, attributes: { startAt: $startAt, endAt: $endAt }) {
+const EDIT_VISIT_SCHEDULE_MUTATION = `
+  mutation EditVisitSchedule($id: EncodedId!, $startAt: ISO8601DateTime!, $endAt: ISO8601DateTime) {
+    visitEditSchedule(id: $id, input: { startAt: $startAt, endAt: $endAt }) {
       visit { id startAt endAt }
       userErrors { message path }
     }
@@ -140,14 +139,14 @@ async function fetchWeekVisits(userId, startDate, endDate) {
 }
 
 /**
- * Move a Jobber visit to a new startAt (and optionally endAt) using visitUpdate mutation.
+ * Move a Jobber visit to a new startAt (and optionally endAt) using visitEditSchedule mutation.
  * Throws if the mutation returns userErrors.
  */
 async function rescheduleJobberVisit(visitId, newStartAt, newEndAt, userId) {
-  const vars   = { visitId, startAt: newStartAt, ...(newEndAt ? { endAt: newEndAt } : {}) };
-  const data   = await jobberGraphQL(UPDATE_VISIT_MUTATION, vars, userId);
-  const result = data?.visitUpdate;
-  if (!result) throw new Error('visitUpdate returned no data — check Jobber API version');
+  const vars   = { id: visitId, startAt: newStartAt, ...(newEndAt ? { endAt: newEndAt } : {}) };
+  const data   = await jobberGraphQL(EDIT_VISIT_SCHEDULE_MUTATION, vars, userId);
+  const result = data?.visitEditSchedule;
+  if (!result) throw new Error('visitEditSchedule returned no data');
   if (result.userErrors?.length) throw new Error(result.userErrors.map((e) => e.message).join('; '));
   return result.visit;
 }
