@@ -401,9 +401,10 @@ async function getOpenDays(daysAhead = 14, userId) {
  */
 async function sendRainSMS(phone, firstName, newDateLabel, customMessage, userId) {
   const to   = toE164(phone);
-  const body = customMessage ||
-    `Hey there! Due to rain in the forecast, your lawn cut has been rescheduled ` +
-    `to ${newDateLabel}. We appreciate your flexibility! — No-Bs Yardwork`;
+  const name = firstName || 'there';
+  const body = customMessage
+    ? `Hi ${name}, ${customMessage}`
+    : `Hi ${name}! Due to rain in the forecast, your lawn cut has been rescheduled to ${newDateLabel}. We appreciate your flexibility! — No-Bs Yardwork`;
 
   if (process.env.DRY_RUN === 'true') {
     console.log(`[weatherService] DRY RUN — would send rain SMS to ${to}: "${body.slice(0, 80)}..."`);
@@ -414,7 +415,11 @@ async function sendRainSMS(phone, firstName, newDateLabel, customMessage, userId
   if (!creds.accountSid || !creds.authToken) throw new Error('Twilio credentials not configured');
 
   const client = twilio(creds.accountSid, creds.authToken);
-  const msg    = await client.messages.create({ body, from: creds.fromNumber, to });
+  const params = { body, from: creds.fromNumber, to };
+  if (process.env.APP_URL) {
+    params.statusCallback = `${process.env.APP_URL}/api/weather/twilio-callback`;
+  }
+  const msg = await client.messages.create(params);
 
   console.log(`[weatherService] Rain SMS sent to ${to} | SID: ${msg.sid}`);
   return msg.sid;
@@ -424,9 +429,10 @@ async function sendRainSMS(phone, firstName, newDateLabel, customMessage, userId
  * Send rain reschedule email via Gmail (uses per-user DB creds).
  */
 async function sendRainEmail(to, firstName, newDateLabel, customMessage, userId) {
-  const text = customMessage ||
-    `Hey there! Due to rain in the forecast, your lawn cut has been rescheduled ` +
-    `to ${newDateLabel}. We appreciate your flexibility! — No-Bs Yardwork`;
+  const name = firstName || 'there';
+  const text = customMessage
+    ? `Hi ${name}, ${customMessage}`
+    : `Hi ${name}! Due to rain in the forecast, your lawn cut has been rescheduled to ${newDateLabel}. We appreciate your flexibility! — No-Bs Yardwork`;
 
   if (process.env.DRY_RUN === 'true') {
     console.log(`[weatherService] DRY RUN — would send rain email to ${to} for ${firstName}`);
@@ -460,9 +466,9 @@ async function sendRainEmail(to, firstName, newDateLabel, customMessage, userId)
 </body></html>`;
 
   const info = await transporter.sendMail({
-    from: `"${creds.fromName || 'No-Bs Yardwork'}" <${creds.user}>`,
+    from:    `"${creds.fromName || 'No-Bs Yardwork'}" <${creds.user}>`,
     to,
-    subject: 'Your lawn cut has been rescheduled',
+    subject: `Hi ${name} — your lawn cut has been rescheduled`,
     html,
     text,
   });

@@ -87,6 +87,19 @@ app.use('/api/gmail', gmailRouter);
 // Portal login/logout/setup-user
 app.use('/auth', portalRouter);
 
+// Twilio delivery status callback — public (Twilio posts here, no session)
+app.post('/api/weather/twilio-callback', express.urlencoded({ extended: false }), async (req, res) => {
+  const { MessageSid, MessageStatus } = req.body || {};
+  if (MessageSid && MessageStatus) {
+    const prisma = require('./lib/prismaClient');
+    await prisma.rainMessage.updateMany({
+      where: { messageSid: MessageSid },
+      data:  { status: MessageStatus },
+    }).catch(err => console.warn('[twilio-callback] DB update failed:', err.message));
+  }
+  res.sendStatus(204);
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({

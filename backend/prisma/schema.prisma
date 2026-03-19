@@ -102,6 +102,24 @@ model RainReschedule {
   @@index([userId])
 }
 
+// Per-client, per-channel log for every rain reschedule message sent.
+model RainMessage {
+  id            String   @id @default(cuid())
+  rescheduleId  String   // FK to RainReschedule.id
+  visitId       String
+  clientId      String
+  clientName    String
+  channel       String   // "sms" | "email"
+  status        String   @default("sent")  // "sent" | "failed" | "delivered" | "undelivered"
+  messageSid    String?  // Twilio message SID (for delivery callbacks)
+  error         String?  // error message if status is "failed"
+  sentAt        DateTime @default(now())
+  userId        String?
+
+  @@index([rescheduleId])
+  @@index([userId])
+}
+
 // Per-user settings row for the weather/rain feature.
 model WeatherSettings {
   id                     String  @id @default(cuid())

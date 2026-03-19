@@ -241,9 +241,30 @@ router.post('/reschedule-visits', async (req, res) => {
   let smsCount     = 0;
   let emailCount   = 0;
   const errors     = [];
+  const messageLog = []; // per-client, per-channel records
+
+  // Create batch log row first so per-message rows can reference it
+  let rescheduleLog = null;
+  try {
+    rescheduleLog = await prisma.rainReschedule.create({
+      data: {
+        originalDay:  getDayTag(),
+        originalDate: toDateString(),
+        newDate:      targetDate,
+        clientCount:  visits.length,
+        smsCount:     0,
+        emailCount:   0,
+        message:      customMessage || `Rescheduled to ${newDateLabel} via calendar`,
+        userId,
+      },
+    });
+  } catch (logErr) {
+    console.warn('[weather] Failed to create reschedule log:', logErr.message);
+  }
 
   for (const visit of visits) {
-    const { id: visitId, startAt, endAt, firstName, clientName, phone, smsAllowed, email } = visit;
+    const { id: visitId, clientId, startAt, endAt, firstName, clientName, phone, smsAllowed, email } = visit;
+    const name = firstName || clientName || 'there';
 
     // Preserve same time-of-day, change only the date
     const timeOfDay  = startAt ? startAt.slice(11) : '08:00:00Z';
@@ -269,42 +290,43 @@ router.post('/reschedule-visits', async (req, res) => {
     // 2. Notify client via SMS
     if (phone && smsAllowed) {
       try {
-        await sendRainSMS(phone, firstName || clientName || 'there', newDateLabel, customMessage, userId);
+        const sid = await sendRainSMS(phone, name, newDateLabel, customMessage, userId);
         smsCount++;
+        messageLog.push({ rescheduleId: rescheduleLog?.id, visitId, clientId: clientId || visitId, clientName: name, channel: 'sms', status: 'sent', messageSid: sid, userId });
       } catch (err) {
         console.error(`[weather] SMS failed for visitId=${visitId}:`, err.message);
         errors.push({ visitId, clientName, step: 'sms', error: err.message });
+        messageLog.push({ rescheduleId: rescheduleLog?.id, visitId, clientId: clientId || visitId, clientName: name, channel: 'sms', status: 'failed', error: err.message, userId });
       }
     }
 
     // 3. Notify client via email
     if (email) {
       try {
-        await sendRainEmail(email, firstName || clientName || 'there', newDateLabel, customMessage, userId);
+        await sendRainEmail(email, name, newDateLabel, customMessage, userId);
         emailCount++;
+        messageLog.push({ rescheduleId: rescheduleLog?.id, visitId, clientId: clientId || visitId, clientName: name, channel: 'email', status: 'sent', userId });
       } catch (err) {
         console.error(`[weather] Email failed for visitId=${visitId}:`, err.message);
         errors.push({ visitId, clientName, step: 'email', error: err.message });
+        messageLog.push({ rescheduleId: rescheduleLog?.id, visitId, clientId: clientId || visitId, clientName: name, channel: 'email', status: 'failed', error: err.message, userId });
       }
     }
   }
 
-  // Log the batch reschedule event
-  try {
-    await prisma.rainReschedule.create({
-      data: {
-        originalDay:  getDayTag(),
-        originalDate: toDateString(),
-        newDate:      targetDate,
-        clientCount:  movedCount,
-        smsCount,
-        emailCount,
-        message:      customMessage || `Rescheduled to ${newDateLabel} via calendar`,
-        userId,
-      },
-    });
-  } catch (logErr) {
-    console.warn('[weather] Failed to log reschedule event:', logErr.message);
+  // Update batch totals + write per-message rows
+  if (rescheduleLog) {
+    try {
+      await prisma.rainReschedule.update({
+        where: { id: rescheduleLog.id },
+        data:  { clientCount: movedCount, smsCount, emailCount },
+      });
+      if (messageLog.length > 0) {
+        await prisma.rainMessage.createMany({ data: messageLog.filter(m => m.rescheduleId) });
+      }
+    } catch (logErr) {
+      console.warn('[weather] Failed to update reschedule log:', logErr.message);
+    }
   }
 
   // Bust calendar cache so it reflects the new visit dates
@@ -473,5 +495,44 @@ router.post('/run-check', async (req, res) => {
   }
 });
 
+
+/**
+ * GET /api/weather/history
+ * Last 30 reschedule batch events for this user.
+ */
+router.get('/history', async (req, res) => {
+  try {
+    const rows = await prisma.rainReschedule.findMany({
+      where:   { userId: req.user.userId },
+      orderBy: { notifiedAt: 'desc' },
+      take:    30,
+    });
+    res.json({ history: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/weather/history/:id
+ * Single reschedule batch with all per-client message records.
+ */
+router.get('/history/:id', async (req, res) => {
+  try {
+    const batch = await prisma.rainReschedule.findFirst({
+      where: { id: req.params.id, userId: req.user.userId },
+    });
+    if (!batch) return res.status(404).json({ error: 'Not found' });
+
+    const messages = await prisma.rainMessage.findMany({
+      where:   { rescheduleId: batch.id },
+      orderBy: { sentAt: 'asc' },
+    });
+
+    res.json({ batch, messages });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;
