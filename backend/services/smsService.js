@@ -1,5 +1,6 @@
 const twilio = require('twilio');
 const prisma = require('../lib/prismaClient');
+const { getMessageSettings } = require('./emailService');
 
 const REVIEW_LINK = process.env.REVIEW_LINK || 'https://g.page/r/CSu2cqDYFOxDEAE/review';
 
@@ -51,10 +52,15 @@ function toE164(raw, countryCode = '1') {
 async function sendReviewSMS(rawPhone, firstName, userId) {
   const to = toE164(rawPhone);
 
-  const body =
-    `Hi ${firstName}! We hope you're loving the look of your property! ` +
-    `We put in the sweat so you didn't have to—we'd love to hear what you think of the results. 🫡 \n\n` +
-    `${REVIEW_LINK} — Much appreciated! ⭐️⭐️⭐️⭐️⭐️`;
+  const msgSettings = await getMessageSettings(userId);
+  const reviewLink  = msgSettings?.reviewLink || REVIEW_LINK;
+  const body = msgSettings?.smsBody?.trim()
+    ? msgSettings.smsBody
+        .replace(/\{\{firstName\}\}/g, firstName)
+        .replace(/\{\{reviewLink\}\}/g, reviewLink)
+    : `Hi ${firstName}! We hope you're loving the look of your property! ` +
+      `We put in the sweat so you didn't have to—we'd love to hear what you think of the results. 🫡 \n\n` +
+      `${reviewLink} — Much appreciated! ⭐️⭐️⭐️⭐️⭐️`;
 
   if (process.env.DRY_RUN === 'true') {
     console.log(`[smsService] DRY RUN — would send SMS to ${to}: "${body.slice(0, 80)}..."`);

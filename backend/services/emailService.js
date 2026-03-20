@@ -4,6 +4,11 @@ const prisma = require('../lib/prismaClient');
 
 const REVIEW_LINK = process.env.REVIEW_LINK || 'https://g.page/r/CSu2cqDYFOxDEAE/review';
 
+async function getMessageSettings(userId) {
+  if (!userId) return null;
+  return prisma.messageSettings.findUnique({ where: { userId } }).catch(() => null);
+}
+
 /**
  * Load Gmail OAuth2 credentials for a user from DB.
  * Returns null if not configured (no env var fallback — OAuth only).
@@ -72,15 +77,30 @@ async function ensureFreshToken(userId, creds) {
 
 /**
  * Build the branded HTML email body.
- * Replicates the Zapier Gmail step template exactly, parameterized with firstName.
+ * Accepts optional MessageSettings; falls back to hardcoded defaults.
  */
-function buildHtmlEmail(firstName) {
+function buildHtmlEmail(firstName, s) {
+  // If custom HTML is set, use it entirely (with placeholder substitution)
+  if (s?.emailCustomHtml?.trim()) {
+    return s.emailCustomHtml
+      .replace(/\{\{firstName\}\}/g, firstName)
+      .replace(/\{\{reviewLink\}\}/g, s.reviewLink || REVIEW_LINK)
+      .replace(/\{\{businessName\}\}/g, s.businessName || 'My Business');
+  }
+
+  const businessName = s?.businessName || 'No-Bs Yardwork';
+  const tagline      = s?.tagline      || 'Design &bull; Build &bull; Maintain';
+  const logoUrl      = s?.logoUrl      || 'https://no-bs-yardwork.com/images/about-img-2.png?v=11';
+  const reviewLink   = s?.reviewLink   || REVIEW_LINK;
+  const btnColor     = s?.buttonColor  || '#1b5e20';
+  const emailBody    = s?.emailBody    || "We hope you're loving the look of your property! We put in the sweat so you didn't have to&mdash;we'd love to hear what you think of the results. 🫡";
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>No-Bs Yardwork Review Request</title>
+  <title>${businessName} Review Request</title>
 </head>
 <body style="margin:0; padding:0; background-color:#ffffff; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
 
@@ -92,18 +112,18 @@ function buildHtmlEmail(firstName) {
 
           <tr>
             <td align="center" style="padding: 60px 20px 25px 20px;">
-              <table border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">
+              ${logoUrl ? `<table border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">
                 <tr>
                   <td align="center" style="background-color: #ffffff; padding: 6px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #f0f0f0;">
-                    <img src="https://no-bs-yardwork.com/images/about-img-2.png?v=11"
-                         alt="No-Bs Yardwork"
+                    <img src="${logoUrl}"
+                         alt="${businessName}"
                          width="115"
                          style="display:block; max-width:115px; height:auto; border-radius: 14px;">
                   </td>
                 </tr>
-              </table>
-              <p style="margin: 0; font-size: 10px; color: #1b5e20; text-transform: uppercase; letter-spacing: 2px; font-weight: 800; opacity: 0.8;">
-                Design &bull; Build &bull; Maintain
+              </table>` : ''}
+              <p style="margin: 0; font-size: 10px; color: ${btnColor}; text-transform: uppercase; letter-spacing: 2px; font-weight: 800; opacity: 0.8;">
+                ${tagline}
               </p>
             </td>
           </tr>
@@ -116,40 +136,32 @@ function buildHtmlEmail(firstName) {
               </h1>
 
               <p style="font-size: 16px; color: #4b5563; line-height: 1.6; margin: 0 0 35px 0; text-align: center;">
-                We hope you're loving the look of your property! We put in the sweat so you didn't have to&mdash;we'd love to hear what you think of the results. 🫡
+                ${emailBody}
               </p>
 
               <div style="text-align: center; border: 1px solid #f3f4f6; border-radius: 24px; padding: 30px 20px; background-color: #fcfdfc;">
-                <p style="font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 15px; font-weight: 700;">
-                  Rate our "No-Bs" Service
-                </p>
                 <div style="font-size: 20px; color: #fbbf24; margin-bottom: 25px; letter-spacing: 2px; line-height: 1;">
                   &#9733; &#9733; &#9733; &#9733; &#9733;
                 </div>
 
-                <a href="${REVIEW_LINK}"
-                   style="background-color: #1b5e20;
+                <a href="${reviewLink}"
+                   style="background-color: ${btnColor};
                           color: #ffffff;
                           padding: 16px 32px;
                           text-decoration: none;
                           border-radius: 14px;
                           font-weight: bold;
                           font-size: 15px;
-                          display: inline-block;
-                          box-shadow: 0 8px 16px rgba(27, 94, 32, 0.15);">
+                          display: inline-block;">
                   Leave a Google Review
                 </a>
               </div>
 
-              <p style="font-size: 13px; color: #9ca3af; line-height: 1.6; text-align: center; margin-top: 40px; font-style: italic; max-width: 85%; margin-left: auto; margin-right: auto;">
-                "Your feedback helps us grow and keeps us motivated to keep Winnipeg looking sharp. Plus, it makes us look good to our moms."
-              </p>
-
               <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top: 35px;">
                 <tr>
                   <td align="center">
-                    <p style="font-size: 15px; color: #1b5e20; font-weight: 800; margin: 0;">
-                      &mdash; The No-Bs Yardwork Team
+                    <p style="font-size: 15px; color: ${btnColor}; font-weight: 800; margin: 0;">
+                      &mdash; The ${businessName} Team
                     </p>
                   </td>
                 </tr>
@@ -161,7 +173,7 @@ function buildHtmlEmail(firstName) {
           <tr>
             <td align="center" style="background-color: #fcfdfc; padding: 30px 20px; border-top: 1px solid #f3f4f6; border-bottom-left-radius: 32px; border-bottom-right-radius: 32px;">
               <p style="font-size: 10px; color: #d1d5db; margin: 0; font-weight: 700; letter-spacing: 1.5px;">
-                &copy; 2026 NO-BS YARDWORK
+                &copy; ${new Date().getFullYear()} ${businessName.toUpperCase()}
               </p>
             </td>
           </tr>
@@ -172,7 +184,7 @@ function buildHtmlEmail(firstName) {
           <tr>
             <td align="center" style="padding: 30px 0;">
               <p style="font-size: 11px; color: #9ca3af; line-height: 1.5; max-width: 400px; margin: 0;">
-                You are receiving this because you recently completed a project with No-Bs Yardwork in Winnipeg. Thanks for supporting local!
+                You are receiving this because you recently completed a project with ${businessName}. Thanks for supporting local!
               </p>
             </td>
           </tr>
@@ -219,11 +231,12 @@ async function sendReviewEmail(to, firstName, userId) {
     },
   });
 
+  const msgSettings = await getMessageSettings(userId);
   const info = await transporter.sendMail({
     from:    `"${creds.fromName}" <${creds.user}>`,
     to,
-    subject: 'Could you do us a small favor?',
-    html:    buildHtmlEmail(firstName),
+    subject: msgSettings?.emailSubject || 'Could you do us a small favor?',
+    html:    buildHtmlEmail(firstName, msgSettings),
   });
 
   console.log(`[emailService] Email sent to ${to} | messageId: ${info.messageId}`);
@@ -233,7 +246,7 @@ async function sendReviewEmail(to, firstName, userId) {
 /**
  * Plain, professional follow-up email sent 24 hours after the initial request.
  */
-function buildFollowUpHtmlEmail(firstName) {
+function buildFollowUpHtmlEmail(firstName, reviewLink = REVIEW_LINK, businessName = 'No-Bs Yardwork', btnColor = '#1b5e20') {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -258,8 +271,8 @@ function buildFollowUpHtmlEmail(firstName) {
                 If you did have a moment, an honest review would mean the world to us. It only takes about 30 seconds and helps us keep growing.
               </p>
               <div style="text-align: center; margin-bottom: 35px;">
-                <a href="${REVIEW_LINK}"
-                   style="background-color: #1b5e20;
+                <a href="${reviewLink}"
+                   style="background-color: ${btnColor};
                           color: #ffffff;
                           padding: 15px 30px;
                           text-decoration: none;
@@ -273,15 +286,15 @@ function buildFollowUpHtmlEmail(firstName) {
               <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin: 0;">
                 Either way, thank you for trusting us with your property. We hope you're enjoying the results.
               </p>
-              <p style="font-size: 15px; color: #1b5e20; font-weight: 700; margin: 25px 0 0 0;">
-                &mdash; The No-Bs Yardwork Team
+              <p style="font-size: 15px; color: ${btnColor}; font-weight: 700; margin: 25px 0 0 0;">
+                &mdash; The ${businessName} Team
               </p>
             </td>
           </tr>
           <tr>
             <td align="center" style="background-color: #fcfdfc; padding: 20px; border-top: 1px solid #f3f4f6;">
               <p style="font-size: 10px; color: #d1d5db; margin: 0; font-weight: 700; letter-spacing: 1.5px;">
-                &copy; 2026 NO-BS YARDWORK
+                &copy; ${new Date().getFullYear()} ${businessName.toUpperCase()}
               </p>
             </td>
           </tr>
@@ -324,15 +337,19 @@ async function sendFollowUpEmail(to, firstName, userId) {
     },
   });
 
+  const msgSettings = await getMessageSettings(userId);
+  const reviewLink  = msgSettings?.reviewLink || REVIEW_LINK;
+  const businessName = msgSettings?.businessName || 'No-Bs Yardwork';
+  const btnColor    = msgSettings?.buttonColor || '#1b5e20';
   const info = await transporter.sendMail({
     from:    `"${creds.fromName}" <${creds.user}>`,
     to,
     subject: 'One last thing — could you spare 30 seconds?',
-    html:    buildFollowUpHtmlEmail(firstName),
+    html:    buildFollowUpHtmlEmail(firstName, reviewLink, businessName, btnColor),
   });
 
   console.log(`[emailService] Follow-up email sent to ${to} | messageId: ${info.messageId}`);
   return info.messageId;
 }
 
-module.exports = { sendReviewEmail, sendFollowUpEmail, getGmailCreds, ensureFreshToken };
+module.exports = { sendReviewEmail, sendFollowUpEmail, getGmailCreds, ensureFreshToken, getMessageSettings };

@@ -168,4 +168,36 @@ router.delete('/gmail', async (req, res) => {
   }
 });
 
+// GET /api/settings/message — load message customization settings
+router.get('/message', async (req, res) => {
+  try {
+    const settings = await prisma.messageSettings.findUnique({
+      where: { userId: req.user.userId },
+    });
+    res.json({ settings: settings || null });
+  } catch (err) {
+    console.error('[settings] GET /message error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/settings/message — save message customization settings
+router.post('/message', async (req, res) => {
+  try {
+    const {
+      businessName, tagline, logoUrl, reviewLink, buttonColor,
+      emailSubject, emailBody, emailCustomHtml, smsBody,
+    } = req.body;
+    const settings = await prisma.messageSettings.upsert({
+      where:  { userId: req.user.userId },
+      update: { businessName, tagline, logoUrl, reviewLink, buttonColor, emailSubject, emailBody, emailCustomHtml, smsBody },
+      create: { userId: req.user.userId, businessName, tagline, logoUrl, reviewLink, buttonColor, emailSubject, emailBody, emailCustomHtml, smsBody },
+    });
+    res.json({ success: true, settings });
+  } catch (err) {
+    console.error('[settings] POST /message error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
