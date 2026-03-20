@@ -61,11 +61,10 @@ router.get('/connect', (req, res) => {
  */
 router.get('/callback', async (req, res) => {
   const { code, error, state } = req.query;
-  const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:3001';
 
   if (error || !code) {
     console.warn('[auth] OAuth callback error:', error || 'no code received');
-    return res.redirect(`${frontendOrigin}/connections.html?connected=false&reason=${encodeURIComponent(error || 'no_code')}`);
+    return res.redirect(`/connections.html?connected=false&reason=${encodeURIComponent(error || 'no_code')}`);
   }
 
   // Decode signed state to recover userId
@@ -136,13 +135,13 @@ router.get('/callback', async (req, res) => {
     }
 
     console.log(`[auth] Jobber account connected: ${accountId}${userId ? ` (portal user: ${userId})` : ''}. Expires: ${expiresAt.toISOString()}`);
-    res.redirect(`${frontendOrigin}/connections.html?connected=true`);
+    res.redirect('/connections.html?connected=true');
   } catch (err) {
     const detail = err.response?.data
       ? JSON.stringify(err.response.data)
       : err.message;
     console.error('[auth] Token exchange failed:', detail);
-    res.redirect(`${frontendOrigin}/connections.html?connected=false&reason=token_exchange_failed`);
+    res.redirect('/connections.html?connected=false&reason=token_exchange_failed');
   }
 });
 
