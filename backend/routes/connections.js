@@ -1,24 +1,47 @@
-const express = require('express');
-const router  = express.Router();
-const prisma  = require('../lib/prismaClient');
-const axios   = require('axios');
+const express  = require('express');
+const router   = express.Router();
+const prisma   = require('../lib/prismaClient');
+const axios    = require('axios');
+const nodemailer = require('nodemailer');
+
+// Helper: upsert a verification record after a successful test or OAuth connect.
+async function markVerified(userId, service) {
+  await prisma.connectionVerification.upsert({
+    where:  { userId_service: { userId, service } },
+    update: { verifiedAt: new Date() },
+    create: { userId, service },
+  });
+}
+
+// Helper: clear verification (e.g. after disconnect).
+async function clearVerified(userId, service) {
+  await prisma.connectionVerification.deleteMany({ where: { userId, service } });
+}
 
 /**
  * GET /api/connections/status
- * Returns live status for all 6 integrations.
+ * Returns live status for all integrations.
+ * Green checkmark requires a ConnectionVerification record — not just env vars.
  */
 router.get('/status', async (req, res) => {
   try {
+    const uid = req.user.userId;
+
+    // Load all verifications for this user in one query
+    const verifications = await prisma.connectionVerification.findMany({ where: { userId: uid } });
+    const isVerified = (service) => verifications.some(v => v.service === service);
+
     // ── Jobber ──────────────────────────────────────────────────────────────
     let jobberAccount = await prisma.jobberAccount.findFirst({
-      where: { OR: [{ userId: req.user.userId }, { userId: null }] },
+      where: { OR: [{ userId: uid }, { userId: null }] },
     });
-    // Heal missing userId so future lookups work correctly
     if (jobberAccount && !jobberAccount.userId) {
       jobberAccount = await prisma.jobberAccount.update({
         where: { id: jobberAccount.id },
-        data:  { userId: req.user.userId },
+        data:  { userId: uid },
       });
+      // Auto-verify since they successfully went through OAuth
+      await markVerified(uid, 'jobber');
     }
     const lastRefreshLog = jobberAccount
       ? await prisma.tokenRefreshLog.findFirst({
@@ -33,24 +56,19 @@ router.get('/status', async (req, res) => {
           take: 10,
         })
       : [];
-
-    let tokenMinutesLeft = null;
-    if (jobberAccount) {
-      tokenMinutesLeft = Math.max(
-        0,
-        Math.floor((new Date(jobberAccount.expiresAt) - Date.now()) / 60000)
-      );
-    }
+    const tokenMinutesLeft = jobberAccount
+      ? Math.max(0, Math.floor((new Date(jobberAccount.expiresAt) - Date.now()) / 60000))
+      : null;
 
     const jobber = jobberAccount
       ? {
-          connected:        true,
+          connected:        isVerified('jobber'),
           accountId:        jobberAccount.accountId,
           expiresAt:        jobberAccount.expiresAt,
           tokenMinutesLeft,
           hasRefreshToken:  !!(jobberAccount.refreshToken),
-          lastRefresh:      lastRefreshLog ? lastRefreshLog.createdAt : null,
-          lastRefreshOk:    lastRefreshLog ? lastRefreshLog.success   : null,
+          lastRefresh:      lastRefreshLog?.createdAt || null,
+          lastRefreshOk:    lastRefreshLog?.success   || null,
           recentLogs:       recentLogs.map(l => ({
             createdAt: l.createdAt,
             success:   l.success,
@@ -61,17 +79,17 @@ router.get('/status', async (req, res) => {
       : { connected: false, hasRefreshToken: false };
 
     // ── Gmail ───────────────────────────────────────────────────────────────
-    const gmailCred = await prisma.gmailCredential.findUnique({ where: { userId: req.user.userId } });
+    const gmailCred = await prisma.gmailCredential.findUnique({ where: { userId: uid } });
     const gmail = {
-      configured:  !!(gmailCred || (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD)),
+      configured:  isVerified('gmail'),
       fromAddress: gmailCred?.gmailUser || process.env.GMAIL_USER || null,
       fromName:    gmailCred?.fromName  || null,
     };
 
     // ── Twilio ──────────────────────────────────────────────────────────────
-    const twilioCred = await prisma.twilioCredential.findUnique({ where: { userId: req.user.userId } });
+    const twilioCred = await prisma.twilioCredential.findUnique({ where: { userId: uid } });
     const twilio = {
-      configured:  !!(twilioCred || (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)),
+      configured:  isVerified('twilio'),
       fromNumber:  twilioCred?.fromNumber || process.env.TWILIO_PHONE_NUMBER || null,
       accountSid:  twilioCred
         ? twilioCred.accountSid.slice(0, 8) + '...'
@@ -81,35 +99,32 @@ router.get('/status', async (req, res) => {
     };
 
     // ── OpenWeatherMap ──────────────────────────────────────────────────────
-    const owKey = process.env.OPENWEATHER_API_KEY;
     const latestWeather = await prisma.weatherCheck.findFirst({
-      where:   { userId: req.user.userId },
+      where:   { userId: uid },
       orderBy: { checkedAt: 'desc' },
     });
     const openweather = {
-      configured: !!(owKey && !owKey.includes('your_') && !owKey.includes('get_free')),
+      configured: isVerified('openweather'),
       city:       process.env.WEATHER_CITY || null,
-      lastCheck:  latestWeather ? latestWeather.checkedAt : null,
-      lastDate:   latestWeather ? latestWeather.date      : null,
+      lastCheck:  latestWeather?.checkedAt || null,
+      lastDate:   latestWeather?.date      || null,
     };
 
-    // ── Google ──────────────────────────────────────────────────────────────
-    const seoSettings = await prisma.seoSettings.findFirst({ where: { userId: req.user.userId } });
+    // ── Google Search Console ────────────────────────────────────────────────
+    const seoSettings = await prisma.seoSettings.findFirst({ where: { userId: uid } });
     const google = {
-      connected:     !!(seoSettings && seoSettings.googleAccessToken),
+      connected:     !!(seoSettings?.googleAccessToken),
       siteProperty:  seoSettings?.siteProperty  || null,
       ga4PropertyId: seoSettings?.ga4PropertyId || null,
       tokenExpiry:   seoSettings?.googleTokenExpiry || null,
     };
 
     // ── Skyvern (placeholder) ───────────────────────────────────────────────
-    const skyvern = {
-      connected:  false,
-      comingSoon: true,
-    };
+    const skyvern = { connected: false, comingSoon: true };
 
+    // ── PageSpeed ───────────────────────────────────────────────────────────
     const pagespeed = {
-      configured: !!process.env.GOOGLE_API_KEY,
+      configured: isVerified('pagespeed') || !!process.env.GOOGLE_API_KEY,
       hasApiKey:  !!process.env.GOOGLE_API_KEY,
     };
 
@@ -122,76 +137,84 @@ router.get('/status', async (req, res) => {
 
 /**
  * POST /api/connections/test/:service
- * Live-tests a specific integration and returns { ok, message }.
+ * Live-tests a specific integration. On success, saves a verification record
+ * so the status page shows the green checkmark.
  */
 router.post('/test/:service', async (req, res) => {
   const { service } = req.params;
+  const uid = req.user.userId;
+
+  const succeed = async (message) => {
+    await markVerified(uid, service);
+    return res.json({ ok: true, verified: true, message });
+  };
+  const fail = (message) => res.json({ ok: false, verified: false, message });
 
   try {
     switch (service) {
       case 'jobber': {
         const { getValidAccessToken } = require('../services/jobberClient');
-        const token = await getValidAccessToken(req.user.userId);
-        const resp = await axios.post(
+        const token = await getValidAccessToken(uid);
+        const resp  = await axios.post(
           process.env.JOBBER_GRAPHQL_URL || 'https://api.getjobber.com/api/graphql',
           { query: '{ account { id name } }' },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-              'X-JOBBER-GRAPHQL-VERSION': '2026-03-10',
-            },
-          }
+          { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-JOBBER-GRAPHQL-VERSION': '2026-03-10' } }
         );
         const accountName = resp.data?.data?.account?.name || 'Unknown';
-        return res.json({ ok: true, message: `Connected — account: ${accountName}` });
+        return succeed(`Connected — account: ${accountName}`);
       }
 
       case 'gmail': {
+        // Try OAuth credential first
         const { getGmailCreds, ensureFreshToken } = require('../services/emailService');
-        const creds = await getGmailCreds(req.user.userId);
-        if (!creds) return res.json({ ok: false, message: 'Gmail not connected — sign in with Google to connect' });
-        const accessToken = await ensureFreshToken(req.user.userId, creds);
-        const tokenCheck = await axios.get(
-          `https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${accessToken}`
-        ).catch(err => ({ status: err.response?.status || 400 }));
-        if (tokenCheck.status === 200) {
-          return res.json({ ok: true, message: `Gmail connected — ready to send as ${creds.user}` });
+        const creds = await getGmailCreds(uid);
+        if (creds) {
+          const accessToken = await ensureFreshToken(uid, creds);
+          const check = await axios.get(
+            `https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${accessToken}`
+          ).catch(e => ({ status: e.response?.status || 400 }));
+          if (check.status === 200) return succeed(`Gmail connected — sending as ${creds.user}`);
+          return fail('Gmail OAuth token invalid — sign out and reconnect');
         }
-        return res.json({ ok: false, message: 'Gmail token invalid — sign out and sign in again' });
+        // Fall back to App Password (env vars)
+        const gmailUser = process.env.GMAIL_USER;
+        const gmailPass = process.env.GMAIL_APP_PASSWORD;
+        if (!gmailUser || !gmailPass) return fail('No Gmail credentials found — add GMAIL_USER and GMAIL_APP_PASSWORD');
+        const transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: { user: gmailUser, pass: gmailPass },
+        });
+        await transporter.verify();
+        return succeed(`Gmail SMTP verified — sending as ${gmailUser}`);
       }
 
       case 'twilio': {
         const twilio = require('twilio');
         const { getTwilioCreds } = require('../services/smsService');
-        const creds = await getTwilioCreds(req.user.userId);
-        if (!creds.accountSid || !creds.authToken) return res.json({ ok: false, message: 'Twilio credentials not configured — add them in Settings' });
+        const creds = await getTwilioCreds(uid);
+        if (!creds.accountSid || !creds.authToken) return fail('Twilio credentials not configured — add them in Settings');
         const client  = twilio(creds.accountSid, creds.authToken);
         const account = await client.api.accounts(creds.accountSid).fetch();
-        return res.json({ ok: true, message: `Twilio connected — status: ${account.status}` });
+        return succeed(`Twilio connected — status: ${account.status}`);
       }
 
       case 'openweather': {
         const key  = process.env.OPENWEATHER_API_KEY;
         const city = process.env.WEATHER_CITY || 'Winnipeg';
-        if (!key || key.includes('your_') || key.includes('get_free')) {
-          return res.json({ ok: false, message: 'OPENWEATHER_API_KEY not configured' });
-        }
-        const resp = await axios.get(
-          `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${key}&units=metric`
-        );
+        if (!key || key.includes('your_') || key.includes('get_free')) return fail('OPENWEATHER_API_KEY not configured');
+        const resp    = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${key}&units=metric`);
         const weather = resp.data?.weather?.[0]?.description || 'ok';
         const temp    = resp.data?.main?.temp;
-        return res.json({ ok: true, message: `${city}: ${weather}, ${temp}°C` });
+        return succeed(`${city}: ${weather}, ${temp}°C`);
       }
 
       case 'pagespeed': {
         const { getPageSpeed } = require('../services/seoService');
-        const settings = await prisma.seoSettings.findFirst({ where: { userId: req.user.userId } });
+        const settings = await prisma.seoSettings.findFirst({ where: { userId: uid } });
         const url = settings?.siteUrl;
-        if (!url) return res.json({ ok: false, message: 'Set your site URL in SEO Settings first.' });
+        if (!url) return fail('Set your site URL in SEO Settings first.');
         const result = await getPageSpeed(url, 'mobile');
-        return res.json({ ok: true, message: `PageSpeed OK — score: ${result.score ?? 'n/a'}/100 for ${url}` });
+        return succeed(`PageSpeed OK — score: ${result.score ?? 'n/a'}/100 for ${url}`);
       }
 
       default:
@@ -199,7 +222,7 @@ router.post('/test/:service', async (req, res) => {
     }
   } catch (err) {
     console.error(`[connections] test/${service} error:`, err.message);
-    res.json({ ok: false, message: err.message });
+    return fail(err.message);
   }
 });
 

@@ -135,6 +135,16 @@ router.get('/callback', async (req, res) => {
     }
 
     console.log(`[auth] Jobber account connected: ${accountId}${userId ? ` (portal user: ${userId})` : ''}. Expires: ${expiresAt.toISOString()}`);
+
+    // Mark Jobber as verified so connections page shows green immediately after OAuth
+    if (userId) {
+      await prisma.connectionVerification.upsert({
+        where:  { userId_service: { userId, service: 'jobber' } },
+        update: { verifiedAt: new Date() },
+        create: { userId, service: 'jobber' },
+      }).catch(() => {}); // non-fatal
+    }
+
     res.redirect('/review-dashboard.html?connected=true');
   } catch (err) {
     const detail = err.response?.data

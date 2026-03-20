@@ -344,3 +344,14 @@ model MessageTemplate {
 
   @@index([userId, type])
 }
+
+// Tracks when each integration was last successfully verified (test passed or OAuth connected).
+// Green checkmark only shows when a record exists here.
+model ConnectionVerification {
+  id         String   @id @default(cuid())
+  userId     String
+  service    String   // 'jobber' | 'gmail' | 'twilio' | 'openweather' | 'pagespeed'
+  verifiedAt DateTime @default(now())
+
+  @@unique([userId, service])
+}

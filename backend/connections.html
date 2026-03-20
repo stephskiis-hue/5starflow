@@ -233,6 +233,7 @@
     const result = document.getElementById(`test-result-${service}`);
     if (!btn || !result) return;
 
+    const origLabel = btn.textContent;
     btn.disabled    = true;
     btn.textContent = 'Testing...';
     result.style.display = 'none';
@@ -243,13 +244,15 @@
       result.textContent    = data.message || (data.ok ? 'OK' : 'Failed');
       result.className      = `px-2.5 py-0.5 rounded text-xs font-medium ${data.ok ? 'bg-secondary/10 text-secondary' : 'bg-red-500/10 text-red-400'}`;
       result.style.display  = 'block';
+      // Reload status cards so checkmark updates immediately on success
+      if (data.ok) await loadStatus();
     } catch (err) {
       result.textContent   = err.message;
       result.className     = 'px-2.5 py-0.5 rounded text-xs font-medium bg-red-500/10 text-red-400';
       result.style.display = 'block';
     } finally {
       btn.disabled    = false;
-      btn.textContent = 'Test';
+      btn.textContent = origLabel;
     }
   }
 
@@ -262,6 +265,7 @@
       { label: 'OpenWeather',   ok: data.openweather?.configured,        href: '#openweather' },
       { label: 'Google Search', ok: data.google?.connected,              href: '#google' },
     ];
+    // configured/connected now only true when backend has a verified test record
     document.getElementById('checklist-items').innerHTML = items.map(item => `
       <a href="${item.href}" class="flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${item.ok ? 'border-secondary/20 bg-secondary/5 text-zinc-100' : 'border-red-500/20 bg-red-500/5 text-red-400'}">
         <span class="text-sm">${item.ok ? '✅' : '❌'}</span>
@@ -379,7 +383,7 @@
       ${!ok ? '<div class="text-xs text-on-surface-variant mb-4">Add GMAIL_USER and GMAIL_APP_PASSWORD to .env</div>' : ''}
       <div id="test-result-gmail"></div>
       <div class="flex gap-2 mt-4">
-        <button id="test-btn-gmail" class="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors text-zinc-300" onclick="testService('gmail')" ${ok ? '' : 'disabled'}>Test SMTP</button>
+        <button id="test-btn-gmail" class="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors text-zinc-300" onclick="testService('gmail')">Test SMTP</button>
       </div>
     </div>`;
   }
@@ -457,7 +461,7 @@
       ${!ok ? '<div class="text-xs text-on-surface-variant mb-4">Add OPENWEATHER_API_KEY to .env — free key at openweathermap.org</div>' : ''}
       <div id="test-result-openweather"></div>
       <div class="flex gap-2 mt-4">
-        <button id="test-btn-openweather" class="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors text-zinc-300" onclick="testService('openweather')" ${ok ? '' : 'disabled'}>Test API</button>
+        <button id="test-btn-openweather" class="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors text-zinc-300" onclick="testService('openweather')">Test API</button>
       </div>
     </div>`;
   }
