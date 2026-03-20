@@ -14,16 +14,32 @@ const { refreshAccessToken } = require('./jobberClient');
  *   - Gives at least 2 retry chances before actual expiry
  */
 async function refreshExpiringTokens() {
-  const fifteenMinutesFromNow = new Date(Date.now() + 15 * 60 * 1000);
+  const THRESHOLD_MINUTES = 15;
+  const thresholdTime = new Date(Date.now() + THRESHOLD_MINUTES * 60 * 1000);
 
-  const accounts = await prisma.jobberAccount.findMany({
-    where: {
-      expiresAt:    { lte: fifteenMinutesFromNow },
-      refreshToken: { not: '' },  // Skip browser-login tokens — they have no refresh token
-    },
+  const allAccounts = await prisma.jobberAccount.findMany({
+    where: { refreshToken: { not: '' } },
   });
 
-  if (accounts.length === 0) {
+  if (allAccounts.length === 0) {
+    console.log('[tokenManager] No accounts with refresh tokens found.');
+    return { refreshed: 0, failed: 0 };
+  }
+
+  const now = new Date();
+  const toRefresh = [];
+
+  for (const acct of allAccounts) {
+    const minsLeft = Math.round((acct.expiresAt - now) / 60000);
+    const willRefresh = acct.expiresAt <= thresholdTime;
+    console.log(
+      `[tokenManager] Account ${acct.accountId}: ${minsLeft}m left. ` +
+      `Threshold: ${THRESHOLD_MINUTES}m. Refreshing: ${willRefresh}`
+    );
+    if (willRefresh) toRefresh.push(acct);
+  }
+
+  if (toRefresh.length === 0) {
     console.log('[tokenManager] All tokens healthy — no refresh needed.');
     return { refreshed: 0, failed: 0 };
   }
@@ -31,7 +47,7 @@ async function refreshExpiringTokens() {
   let refreshed = 0;
   let failed = 0;
 
-  for (const account of accounts) {
+  for (const account of toRefresh) {
     try {
       await refreshAccessToken(account, 'scheduler');
       refreshed++;
