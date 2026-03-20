@@ -17,6 +17,7 @@ const cron    = require('node-cron');
 const axios   = require('axios');
 const cheerio = require('cheerio');
 const prisma  = require('../lib/prismaClient');
+const { JWT } = require('google-auth-library');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -152,20 +153,54 @@ async function getPageSpeed(url, strategy = 'mobile') {
  * @param {object} settings - SeoSettings row
  * @returns {Array|null} top 20 keywords by impressions, or null if not connected
  */
-async function getSearchConsoleData(settings) {
-  if (!settings.googleAccessToken || !settings.siteProperty) return null;
-
-  // Check token expiry
-  if (settings.googleTokenExpiry && new Date(settings.googleTokenExpiry) < new Date()) {
-    console.log('[seoService] Google token expired — skipping Search Console');
+/**
+ * Build a Google service account JWT client with Search Console + Analytics scopes.
+ * Returns null if GOOGLE_CLIENT_EMAIL / GOOGLE_PRIVATE_KEY are not set.
+ */
+async function getServiceAccountClient() {
+  const email = process.env.GOOGLE_CLIENT_EMAIL;
+  const key   = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+  if (!email || !key) return null;
+  try {
+    const client = new JWT({
+      email,
+      key,
+      scopes: [
+        'https://www.googleapis.com/auth/webmasters.readonly',
+        'https://www.googleapis.com/auth/analytics.readonly',
+      ],
+    });
+    await client.authorize();
+    return client;
+  } catch (err) {
+    console.error('[seoService] Service account auth failed:', err.message);
     return null;
   }
+}
+
+async function getSearchConsoleData(settings) {
+  if (!settings.siteProperty) return null;
 
   const endDate   = new Date();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - 28);
-
   const fmt = (d) => d.toISOString().split('T')[0];
+
+  // Prefer service account (no browser login needed); fall back to stored OAuth token
+  let authHeader;
+  const saClient = await getServiceAccountClient();
+  if (saClient) {
+    const hdrs = await saClient.getRequestHeaders();
+    authHeader = hdrs.Authorization;
+  } else if (settings.googleAccessToken) {
+    if (settings.googleTokenExpiry && new Date(settings.googleTokenExpiry) < new Date()) {
+      console.log('[seoService] Google OAuth token expired — skipping Search Console');
+      return null;
+    }
+    authHeader = `Bearer ${settings.googleAccessToken}`;
+  } else {
+    return null;
+  }
 
   try {
     const resp = await axios.post(
@@ -178,7 +213,7 @@ async function getSearchConsoleData(settings) {
         orderBy:    [{ fieldName: 'impressions', sortOrder: 'DESCENDING' }],
       },
       {
-        headers: { Authorization: `Bearer ${settings.googleAccessToken}` },
+        headers: { Authorization: authHeader },
         timeout: 15000,
       }
     );
@@ -814,4 +849,5 @@ module.exports = {
   getPageSpeed,
   scrapeCompetitor,
   getSearchConsoleData,
+  getServiceAccountClient,
 };

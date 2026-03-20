@@ -12,6 +12,7 @@ const {
   getPageSpeed,
   scrapeCompetitor,
   getSearchConsoleData,
+  getServiceAccountClient,
 } = require('../services/seoService');
 
 // ---------------------------------------------------------------------------
@@ -387,31 +388,42 @@ router.get('/traffic-stats', async (req, res) => {
     const settings = await getSettings(userId);
     const { googleAccessToken, googleRefreshToken, googleTokenExpiry, ga4PropertyId } = settings || {};
 
-    if (!googleAccessToken || !ga4PropertyId) {
+    if (!ga4PropertyId) {
       return res.json({ configured: false });
     }
 
-    // Refresh token inline if expiring within 5 minutes
-    let accessToken = googleAccessToken;
-    if (googleTokenExpiry && new Date(googleTokenExpiry) < new Date(Date.now() + 5 * 60 * 1000)) {
-      if (googleRefreshToken) {
-        try {
-          const resp = await axios.post('https://oauth2.googleapis.com/token', {
-            client_id:     process.env.GOOGLE_CLIENT_ID,
-            client_secret: process.env.GOOGLE_CLIENT_SECRET,
-            refresh_token: googleRefreshToken,
-            grant_type:    'refresh_token',
-          });
-          accessToken = resp.data.access_token;
-          const newExpiry = new Date(Date.now() + (resp.data.expires_in || 3600) * 1000);
-          await prisma.seoSettings.update({
-            where: { id: settings.id },
-            data:  { googleAccessToken: accessToken, googleTokenExpiry: newExpiry },
-          });
-        } catch (refreshErr) {
-          console.error('[seo] traffic-stats inline token refresh failed:', refreshErr.message);
+    // Build Authorization header — prefer service account (no browser login needed)
+    let authHeader;
+    const saClient = await getServiceAccountClient();
+    if (saClient) {
+      const hdrs = await saClient.getRequestHeaders();
+      authHeader = hdrs.Authorization;
+    } else if (googleAccessToken) {
+      // Fall back to stored OAuth token, refreshing inline if needed
+      let accessToken = googleAccessToken;
+      if (googleTokenExpiry && new Date(googleTokenExpiry) < new Date(Date.now() + 5 * 60 * 1000)) {
+        if (googleRefreshToken) {
+          try {
+            const resp = await axios.post('https://oauth2.googleapis.com/token', {
+              client_id:     process.env.GOOGLE_CLIENT_ID,
+              client_secret: process.env.GOOGLE_CLIENT_SECRET,
+              refresh_token: googleRefreshToken,
+              grant_type:    'refresh_token',
+            });
+            accessToken = resp.data.access_token;
+            const newExpiry = new Date(Date.now() + (resp.data.expires_in || 3600) * 1000);
+            await prisma.seoSettings.update({
+              where: { id: settings.id },
+              data:  { googleAccessToken: accessToken, googleTokenExpiry: newExpiry },
+            });
+          } catch (refreshErr) {
+            console.error('[seo] traffic-stats inline token refresh failed:', refreshErr.message);
+          }
         }
       }
+      authHeader = `Bearer ${accessToken}`;
+    } else {
+      return res.json({ configured: false });
     }
 
     // Normalise property ID — accept both "properties/123456" and "123456"
@@ -427,7 +439,7 @@ router.get('/traffic-stats', async (req, res) => {
         dimensions: [{ name: 'sessionDefaultChannelGrouping' }],
         limit: 8,
       },
-      { headers: { Authorization: `Bearer ${accessToken}` } }
+      { headers: { Authorization: authHeader } }
     );
 
     const rows = (gaRes.data.rows || []).map(r => ({

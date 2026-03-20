@@ -112,11 +112,15 @@ router.get('/status', async (req, res) => {
 
     // ── Google Search Console ────────────────────────────────────────────────
     const seoSettings = await prisma.seoSettings.findFirst({ where: { userId: uid } });
+    const saEmail = process.env.GOOGLE_CLIENT_EMAIL || null;
+    const saConfigured = !!(saEmail && process.env.GOOGLE_PRIVATE_KEY);
     const google = {
-      connected:     !!(seoSettings?.googleAccessToken),
-      siteProperty:  seoSettings?.siteProperty  || null,
-      ga4PropertyId: seoSettings?.ga4PropertyId || null,
-      tokenExpiry:   seoSettings?.googleTokenExpiry || null,
+      connected:              !!(seoSettings?.googleAccessToken) || saConfigured,
+      serviceAccountConfigured: saConfigured,
+      serviceAccountEmail:    saEmail,
+      siteProperty:           seoSettings?.siteProperty  || null,
+      ga4PropertyId:          seoSettings?.ga4PropertyId || null,
+      tokenExpiry:            seoSettings?.googleTokenExpiry || null,
     };
 
     // ── Skyvern (placeholder) ───────────────────────────────────────────────
@@ -215,6 +219,18 @@ router.post('/test/:service', async (req, res) => {
         if (!url) return fail('Set your site URL in SEO Settings first.');
         const result = await getPageSpeed(url, 'mobile');
         return succeed(`PageSpeed OK — score: ${result.score ?? 'n/a'}/100 for ${url}`);
+      }
+
+      case 'google': {
+        const { getServiceAccountClient } = require('../services/seoService');
+        const settings = await prisma.seoSettings.findFirst({ where: { userId: uid } });
+        if (!settings?.siteProperty) return fail('Set your Search Console property first (e.g. sc-domain:yourdomain.com)');
+        const client = await getServiceAccountClient();
+        if (!client) return fail('Service account not configured — check GOOGLE_CLIENT_EMAIL and GOOGLE_PRIVATE_KEY in .env');
+        const hdrs = await client.getRequestHeaders();
+        const resp = await axios.get('https://www.googleapis.com/webmasters/v3/sites', { headers: hdrs });
+        const sites = (resp.data.siteEntry || []).map(s => s.siteUrl);
+        return succeed(`Connected — ${sites.length} site(s) accessible in Search Console`);
       }
 
       default:
