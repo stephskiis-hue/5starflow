@@ -205,6 +205,7 @@
           <span class="material-symbols-outlined text-tertiary" id="seo-trend-icon">analytics</span>
           <p class="text-xs text-on-surface-variant leading-relaxed" id="seo-insight-text">Run an audit to see your PageSpeed score.</p>
         </div>
+        <div id="seo-recent-scans"></div>
       </section>
 
       <!-- Jobber Integration -->
@@ -494,15 +495,17 @@
     }
   }
 
-  function renderSeoCard(seo) {
+  function renderSeoCard(seo, seoAudits) {
     const scoreEl   = document.getElementById('seo-score');
     const circleEl  = document.getElementById('seo-circle');
     const insightEl = document.getElementById('seo-insight-text');
     const trendIcon = document.getElementById('seo-trend-icon');
+    const scansEl   = document.getElementById('seo-recent-scans');
 
     if (!seo || seo.error) {
       scoreEl.textContent  = '—';
       insightEl.textContent = 'Run an audit to see your PageSpeed score.';
+      renderRecentScans(scansEl, null);
       return;
     }
 
@@ -513,6 +516,7 @@
     if (!audit || score === null || score === undefined) {
       scoreEl.textContent   = audit?.status === 'running' ? '...' : '—';
       insightEl.textContent = audit?.status === 'running' ? 'Audit in progress...' : 'No audit data yet. Run your first audit.';
+      renderRecentScans(scansEl, seoAudits?.audits || []);
       return;
     }
 
@@ -547,6 +551,70 @@
       trendIcon.textContent  = 'warning';
       insightEl.textContent  = `Score ${score}/100 needs attention — audited ${when}.`;
     }
+
+    // Render recent scans
+    renderRecentScans(scansEl, seoAudits?.audits || []);
+  }
+
+  function renderRecentScans(container, audits) {
+    if (!container) return;
+
+    if (!audits || audits.length === 0) {
+      container.innerHTML = `
+        <div class="pt-6 border-t border-white/5">
+          <p class="text-xs text-on-surface-variant mb-3">No scans yet —</p>
+          <a href="/seo-dashboard.html" class="text-xs text-primary hover:underline flex items-center gap-1">
+            Run a free scan <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+          </a>
+        </div>
+      `;
+      return;
+    }
+
+    const recentThree = audits.slice(0, 3);
+    const rows = recentThree.map(audit => {
+      const date = new Date(audit.runAt);
+      const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      const score = audit.performanceScore;
+
+      let color, bgColor;
+      if (audit.status === 'running') {
+        color = 'bg-zinc-500';
+        bgColor = 'bg-zinc-500/20';
+      } else if (score >= 75) {
+        color = 'bg-secondary';
+        bgColor = 'bg-secondary/20';
+      } else if (score >= 50) {
+        color = 'bg-yellow-400';
+        bgColor = 'bg-yellow-400/20';
+      } else {
+        color = 'bg-red-400';
+        bgColor = 'bg-red-400/20';
+      }
+
+      const scoreDisplay = audit.status === 'running'
+        ? '<span class="w-1.5 h-1.5 rounded-full ' + color + ' animate-pulse inline-block"></span>'
+        : `<span class="text-xs font-bold">${score}</span>`;
+
+      return `
+        <div class="flex items-center justify-between py-2 text-xs text-on-surface-variant">
+          <span>${dateStr}</span>
+          <span class="flex items-center gap-2 px-2 py-0.5 rounded-lg ${bgColor}">
+            ${scoreDisplay}
+          </span>
+          <span class="text-xs text-on-surface-variant">Performance</span>
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="pt-6 border-t border-white/5">
+        <h4 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3">Recent Scans</h4>
+        <div class="space-y-1">
+          ${rows}
+        </div>
+      </div>
+    `;
   }
 
   function renderAnalyticsCard(analytics) {
@@ -599,11 +667,12 @@
   // ── Dashboard fetch ─────────────────────────────────────────────
   async function loadDashboard() {
     try {
-      const [statusRes, queueRes, weatherRes, seoRes, analyticsRes] = await Promise.all([
+      const [statusRes, queueRes, weatherRes, seoRes, seoAuditsRes, analyticsRes] = await Promise.all([
         fetch('/api/status'),
         fetch('/api/pending-reviews'),
         fetch('/api/weather/today').catch(() => null),
         fetch('/api/seo/status').catch(() => null),
+        fetch('/api/seo/audits').catch(() => null),
         fetch('/api/analytics/stats').catch(() => null),
       ]);
 
@@ -611,13 +680,14 @@
       const queue     = await queueRes.json();
       const weather   = weatherRes   ? await weatherRes.json().catch(() => null)   : null;
       const seo       = seoRes       ? await seoRes.json().catch(() => null)       : null;
+      const seoAudits = seoAuditsRes ? await seoAuditsRes.json().catch(() => null) : null;
       const analytics = analyticsRes ? await analyticsRes.json().catch(() => null) : null;
 
       loadUserInfo(status);
       renderReviewCard(queue, status);
       renderJobberCard(status);
       renderWeatherCard(weather);
-      renderSeoCard(seo);
+      renderSeoCard(seo, seoAudits);
       renderAnalyticsCard(analytics);
       renderStatusStrip(status);
     } catch (err) {
