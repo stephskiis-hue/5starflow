@@ -209,6 +209,12 @@ h2 {
   color: var(--color-accent);
 }
 
+.nav-logo-img {
+  height: 40px;
+  width: auto;
+  display: block;
+}
+
 .nav-menu {
   display: flex;
   align-items: center;
