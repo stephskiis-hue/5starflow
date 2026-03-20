@@ -32,6 +32,8 @@
       aside { display: none !important; }
       main { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
     }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    .pulsing { animation: pulse 1.5s ease-in-out infinite; }
   </style>
 </head>
 <body class="bg-black text-zinc-100 dark min-h-screen">
@@ -871,9 +873,6 @@
 
   fetchAll();
   setInterval(fetchAll, 10000);
-
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
-  .pulsing { animation: pulse 1.5s ease-in-out infinite; }
 </script>
 
 <script>
