@@ -46,7 +46,11 @@
             "outline": "#8b91a0",
             "surface-container-highest": "#353534"
           },
-          fontFamily: { "headline": ["Inter"], "body": ["Inter"], "label": ["Inter"] },
+          fontFamily: {
+            "headline": ["Inter"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          },
           borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
         },
       },
@@ -56,12 +60,7 @@
     body { background-color: #000000; color: #e5e2e1; font-family: 'Inter', sans-serif; overflow-x: hidden; }
     .glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); }
     .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
-    .field-label { display: block; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #8b91a0; margin-bottom: 0.4rem; }
-    .field-input { width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; padding: 0.6rem 0.85rem; color: #e5e2e1; font-size: 0.875rem; outline: none; transition: border-color 0.15s; }
-    .field-input:focus { border-color: rgba(170,199,255,0.5); }
-    .field-input::placeholder { color: #4b5563; }
-    textarea.field-input { resize: vertical; min-height: 80px; font-family: 'Inter', sans-serif; }
-    .email-preview { background: #ffffff; border-radius: 1.5rem; overflow: hidden; max-width: 520px; margin: 0 auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+    .result-msg { display: none; }
     @media (max-width: 640px) {
       aside { display: none !important; }
       main { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
@@ -73,18 +72,19 @@
   <!-- Sidebar -->
   <aside class="fixed left-6 top-6 bottom-6 w-64 rounded-[3rem] border-t border-white/10 bg-zinc-900/60 backdrop-blur-2xl flex flex-col h-[calc(100vh-3rem)] p-4 shadow-[0_40px_40px_-5px_rgba(0,0,0,0.6)] z-50">
     <div class="mb-8 px-4 pt-4">
-      <img src="/images/logo.png" alt="5StarFlow" style="height:36px;width:auto;display:block;margin:0 auto 0.5rem;">
       <h1 class="text-xl font-bold text-zinc-100 tracking-tighter">Command Center</h1>
       <p class="text-xs text-zinc-500 font-medium mt-1">5StarFlow</p>
     </div>
-    <nav class="flex-1 space-y-0.5 overflow-y-auto">
+
+    <nav class="flex-1 space-y-0.5 overflow-y-auto" id="main-nav">
       <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/index.html">
-        <span class="material-symbols-outlined text-[20px]">home</span>
+        <span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;">home</span>
         <span class="text-sm font-medium tracking-tight">Home</span>
       </a>
       <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/review-dashboard.html">
         <span class="material-symbols-outlined text-[20px]">rate_review</span>
         <span class="text-sm font-medium tracking-tight">Review Requests</span>
+        <span class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary/10 text-secondary hidden" id="sidebar-pending"></span>
       </a>
       <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/weather-dashboard.html">
         <span class="material-symbols-outlined text-[20px]">thunderstorm</span>
@@ -102,19 +102,16 @@
         <span class="material-symbols-outlined text-[20px]">hub</span>
         <span class="text-sm font-medium tracking-tight">App Connections</span>
       </a>
-      <a class="flex items-center gap-3 px-4 py-3 text-zinc-100 rounded-xl relative before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-secondary before:rounded-full hover:bg-white/5 transition-all duration-200" href="/message-settings.html">
-        <span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">edit_note</span>
-        <span class="text-sm font-medium tracking-tight">Message Templates</span>
-      </a>
       <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/settings.html">
         <span class="material-symbols-outlined text-[20px]">settings</span>
         <span class="text-sm font-medium tracking-tight">Settings</span>
       </a>
-      <a id="admin-nav-link" class="hidden flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/admin.html">
-        <span class="material-symbols-outlined text-[20px]">manage_accounts</span>
-        <span class="text-sm font-medium tracking-tight">User Management</span>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-100 rounded-xl relative before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-secondary before:rounded-full hover:bg-white/5 transition-all duration-200" href="/message-settings.html">
+        <span class="material-symbols-outlined text-[20px]">mail</span>
+        <span class="text-sm font-medium tracking-tight">Message Templates</span>
       </a>
     </nav>
+
     <div class="mt-auto px-2 pt-4 border-t border-white/5">
       <div class="flex items-center gap-3 p-2">
         <div class="w-9 h-9 rounded-full bg-surface-container-highest flex items-center justify-center text-sm font-bold text-zinc-100 flex-shrink-0" id="user-avatar">?</div>
@@ -129,317 +126,72 @@
     </div>
   </aside>
 
-  <!-- Main -->
+  <!-- Main Canvas -->
   <main class="pl-80 pr-12 py-10 min-h-screen">
 
-    <div class="mb-8">
+    <!-- Page Header -->
+    <div class="mb-10">
       <h2 class="text-2xl font-black text-zinc-100 tracking-tight">Message Templates</h2>
-      <p class="text-sm text-on-surface-variant mt-1">Customize the review request emails and SMS sent to your clients</p>
+      <p class="text-sm text-on-surface-variant mt-1">Customize the SMS and email sent to clients after a completed job</p>
     </div>
 
-    <!-- Toast -->
-    <div id="toast" style="display:none;position:fixed;top:1.5rem;right:1.5rem;z-index:9999;padding:0.85rem 1.25rem;border-radius:1rem;font-size:0.875rem;font-weight:600;max-width:320px;"></div>
+    <!-- SMS Template Card -->
+    <div class="glass-card rounded-xl p-8 mb-6">
+      <h3 class="text-lg font-semibold text-zinc-100 mb-4">SMS Template</h3>
 
-    <div class="grid gap-6" style="grid-template-columns: 1fr 1fr; align-items: start;">
-
-      <!-- ── Left: Settings Form ── -->
-      <div class="space-y-4">
-
-        <!-- Branding card -->
-        <div class="glass-card rounded-[1.75rem] p-6 space-y-4">
-          <h3 class="text-sm font-bold text-zinc-100 uppercase tracking-widest mb-2">Branding</h3>
-
-          <div>
-            <label class="field-label">Business Name</label>
-            <input id="f-businessName" class="field-input" type="text" placeholder="No-Bs Yardwork">
-          </div>
-
-          <div>
-            <label class="field-label">Tagline <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#6b7280;">(shown under logo)</span></label>
-            <input id="f-tagline" class="field-input" type="text" placeholder="Design • Build • Maintain">
-          </div>
-
-          <div>
-            <label class="field-label">Logo URL</label>
-            <input id="f-logoUrl" class="field-input" type="url" placeholder="https://yourdomain.com/logo.png" oninput="updateLogoPreview()">
-            <div id="logo-preview-wrap" style="margin-top:0.6rem;display:none;">
-              <img id="logo-preview-img" src="" alt="Logo preview" style="height:48px;width:auto;border-radius:8px;border:1px solid rgba(255,255,255,0.1);">
-            </div>
-          </div>
-
-          <div>
-            <label class="field-label">Google Review Link</label>
-            <input id="f-reviewLink" class="field-input" type="url" placeholder="https://g.page/r/YOUR_LINK/review">
-          </div>
-
-          <div>
-            <label class="field-label">Button Color</label>
-            <div style="display:flex;gap:0.6rem;align-items:center;">
-              <input id="f-buttonColor-picker" type="color" value="#1b5e20" oninput="document.getElementById('f-buttonColor').value=this.value;schedulePreview();" style="width:2.5rem;height:2.5rem;border-radius:0.5rem;border:1px solid rgba(255,255,255,0.15);background:transparent;cursor:pointer;padding:2px;">
-              <input id="f-buttonColor" class="field-input" type="text" value="#1b5e20" placeholder="#1b5e20" style="flex:1;" oninput="document.getElementById('f-buttonColor-picker').value=this.value;schedulePreview();">
-            </div>
-          </div>
+      <div class="flex flex-col gap-4">
+        <div>
+          <label for="sms-template" class="text-sm font-medium text-on-surface-variant block mb-2">Message</label>
+          <textarea id="sms-template" rows="8" placeholder="Enter your SMS template..." class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none"></textarea>
         </div>
 
-        <!-- Email card -->
-        <div class="glass-card rounded-[1.75rem] p-6 space-y-4">
-          <h3 class="text-sm font-bold text-zinc-100 uppercase tracking-widest mb-2">Email</h3>
+        <p class="text-xs text-on-surface-variant">
+          Available variables: <span class="font-mono">{firstName}</span> <span class="text-zinc-600">·</span> <span class="font-mono">{reviewLink}</span>
+        </p>
 
-          <div>
-            <label class="field-label">Subject Line</label>
-            <input id="f-emailSubject" class="field-input" type="text" placeholder="Could you do us a small favor?">
-          </div>
-
-          <div>
-            <label class="field-label">Body Text <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#6b7280;">(the main paragraph)</span></label>
-            <textarea id="f-emailBody" class="field-input" rows="4" placeholder="We hope you're loving the results..."></textarea>
-          </div>
-
-          <!-- Custom HTML toggle -->
-          <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:1rem;">
-            <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;user-select:none;">
-              <input id="f-useCustomHtml" type="checkbox" style="width:1rem;height:1rem;accent-color:#47e266;cursor:pointer;" onchange="toggleCustomHtml()">
-              <span class="text-sm font-semibold text-zinc-200">Use my own custom HTML</span>
-            </label>
-            <p style="font-size:0.75rem;color:#6b7280;margin:0.35rem 0 0 1.6rem;">Replaces the built-in template entirely. Use <code style="background:rgba(255,255,255,0.08);padding:0.1rem 0.3rem;border-radius:0.25rem;font-size:0.7rem;">&#123;&#123;firstName&#125;&#125;</code>, <code style="background:rgba(255,255,255,0.08);padding:0.1rem 0.3rem;border-radius:0.25rem;font-size:0.7rem;">&#123;&#123;reviewLink&#125;&#125;</code>, and <code style="background:rgba(255,255,255,0.08);padding:0.1rem 0.3rem;border-radius:0.25rem;font-size:0.7rem;">&#123;&#123;businessName&#125;&#125;</code> as placeholders.</p>
-            <div id="custom-html-wrap" style="display:none;margin-top:0.85rem;">
-              <textarea id="f-emailCustomHtml" class="field-input" rows="12" style="font-family:monospace;font-size:0.78rem;" placeholder="<!DOCTYPE html>&#10;<html>&#10;  ...your full email HTML here...&#10;</html>"></textarea>
-            </div>
-          </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-4 mt-2">
+          <p class="text-xs text-on-surface-variant font-semibold mb-2">Live Preview</p>
+          <p class="text-sm text-zinc-100" id="sms-preview">Your message will appear here...</p>
         </div>
 
-        <!-- SMS card -->
-        <div class="glass-card rounded-[1.75rem] p-6 space-y-4">
-          <h3 class="text-sm font-bold text-zinc-100 uppercase tracking-widest mb-2">SMS</h3>
-          <div>
-            <label class="field-label">SMS Message <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#6b7280;">(leave blank to use default)</span></label>
-            <textarea id="f-smsBody" class="field-input" rows="4" placeholder="Hi {{firstName}}! We hope you're loving the results...&#10;&#10;{{reviewLink}} — Much appreciated! ⭐️⭐️⭐️⭐️⭐️" oninput="updateSmsCounter()"></textarea>
-            <p id="sms-counter" style="font-size:0.7rem;color:#6b7280;margin-top:0.3rem;text-align:right;">0 / 160 chars</p>
-            <p style="font-size:0.75rem;color:#6b7280;margin-top:0.25rem;">Use <code style="background:rgba(255,255,255,0.08);padding:0.1rem 0.3rem;border-radius:0.25rem;font-size:0.7rem;">&#123;&#123;firstName&#125;&#125;</code> and <code style="background:rgba(255,255,255,0.08);padding:0.1rem 0.3rem;border-radius:0.25rem;font-size:0.7rem;">&#123;&#123;reviewLink&#125;&#125;</code> as placeholders.</p>
-          </div>
-        </div>
-
-        <!-- Save button -->
-        <button id="save-btn" onclick="saveSettings()" class="w-full py-3 rounded-2xl font-bold text-sm transition-all duration-200" style="background:#47e266;color:#000;">
-          Save Templates
+        <button id="sms-reset-btn" onclick="resetSmsTemplate()" class="bg-white/5 text-zinc-100 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-white/10 transition-colors w-fit">
+          Reset to Default
         </button>
-
-      </div>
-
-      <!-- ── Right: Live Preview ── -->
-      <div class="space-y-4" style="position:sticky;top:2rem;">
-
-        <div class="glass-card rounded-[1.75rem] p-5">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
-            <h3 class="text-sm font-bold text-zinc-100 uppercase tracking-widest">Email Preview</h3>
-            <span style="font-size:0.7rem;color:#6b7280;background:rgba(255,255,255,0.06);padding:0.2rem 0.6rem;border-radius:0.5rem;">Live</span>
-          </div>
-          <div class="email-preview" id="email-preview-box" style="max-height:600px;overflow-y:auto;">
-            <div style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem;">Loading preview...</div>
-          </div>
-        </div>
-
-        <div class="glass-card rounded-[1.75rem] p-5">
-          <h3 class="text-sm font-bold text-zinc-100 uppercase tracking-widest mb-3">SMS Preview</h3>
-          <div style="background:rgba(255,255,255,0.06);border-radius:1rem;padding:1rem;">
-            <div style="background:#1b5e20;color:#fff;border-radius:1rem 1rem 0.25rem 1rem;padding:0.75rem 1rem;font-size:0.875rem;line-height:1.5;max-width:85%;white-space:pre-wrap;" id="sms-preview-box">Loading...</div>
-          </div>
-        </div>
-
       </div>
     </div>
+
+    <!-- Email Subject Card -->
+    <div class="glass-card rounded-xl p-8 mb-8">
+      <h3 class="text-lg font-semibold text-zinc-100 mb-4">Email Subject</h3>
+
+      <div class="flex flex-col gap-4">
+        <div>
+          <label for="email-subject" class="text-sm font-medium text-on-surface-variant block mb-2">Email Subject Line</label>
+          <input type="text" id="email-subject" placeholder="Enter email subject..." class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Save Section -->
+    <div class="flex flex-col gap-4 items-start">
+      <button id="save-btn" onclick="saveSettings()" class="bg-primary text-zinc-900 rounded-xl px-6 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors">
+        Save Templates
+      </button>
+      <p class="text-xs text-on-surface-variant" id="last-saved" style="display: none;"></p>
+    </div>
+
+    <div class="result-msg" id="save-result"></div>
 
   </main>
 
 <script>
-  const DEFAULTS = {
-    businessName:    'No-Bs Yardwork',
-    tagline:         'Design • Build • Maintain',
-    logoUrl:         'https://no-bs-yardwork.com/images/about-img-2.png?v=11',
-    reviewLink:      'https://g.page/r/CSu2cqDYFOxDEAE/review',
-    buttonColor:     '#1b5e20',
-    emailSubject:    'Could you do us a small favor?',
-    emailBody:       "We hope you're loving the look of your property! We put in the sweat so you didn't have to—we'd love to hear what you think of the results. 🫡",
-    emailCustomHtml: '',
-    smsBody:         '',
-  };
+  const API = '';
+  let currentUserId = null;
 
-  function val(id) { return document.getElementById(id)?.value?.trim() || ''; }
-
-  function getFormValues() {
-    return {
-      businessName:    val('f-businessName')    || DEFAULTS.businessName,
-      tagline:         val('f-tagline')         || DEFAULTS.tagline,
-      logoUrl:         val('f-logoUrl'),
-      reviewLink:      val('f-reviewLink')      || DEFAULTS.reviewLink,
-      buttonColor:     val('f-buttonColor')     || DEFAULTS.buttonColor,
-      emailSubject:    val('f-emailSubject')    || DEFAULTS.emailSubject,
-      emailBody:       val('f-emailBody')       || DEFAULTS.emailBody,
-      emailCustomHtml: document.getElementById('f-useCustomHtml').checked ? val('f-emailCustomHtml') : '',
-      smsBody:         val('f-smsBody'),
-    };
+  function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  function populateForm(s) {
-    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
-    set('f-businessName',    s.businessName);
-    set('f-tagline',         s.tagline);
-    set('f-logoUrl',         s.logoUrl);
-    set('f-reviewLink',      s.reviewLink);
-    set('f-buttonColor',     s.buttonColor || '#1b5e20');
-    set('f-buttonColor-picker', s.buttonColor || '#1b5e20');
-    set('f-emailSubject',    s.emailSubject);
-    set('f-emailBody',       s.emailBody);
-    set('f-emailCustomHtml', s.emailCustomHtml);
-    set('f-smsBody',         s.smsBody);
-    if (s.emailCustomHtml) {
-      document.getElementById('f-useCustomHtml').checked = true;
-      document.getElementById('custom-html-wrap').style.display = 'block';
-    }
-    updateLogoPreview();
-    updateSmsCounter();
-  }
-
-  function toggleCustomHtml() {
-    const on  = document.getElementById('f-useCustomHtml').checked;
-    document.getElementById('custom-html-wrap').style.display = on ? 'block' : 'none';
-    schedulePreview();
-  }
-
-  function updateLogoPreview() {
-    const url  = val('f-logoUrl');
-    const wrap = document.getElementById('logo-preview-wrap');
-    const img  = document.getElementById('logo-preview-img');
-    if (url) { img.src = url; wrap.style.display = 'block'; }
-    else { wrap.style.display = 'none'; }
-    schedulePreview();
-  }
-
-  function updateSmsCounter() {
-    const len = val('f-smsBody').length;
-    document.getElementById('sms-counter').textContent = `${len} / 160 chars${len > 160 ? ' (' + Math.ceil(len/160) + ' parts)' : ''}`;
-    scheduleSmsPreview();
-  }
-
-  // ── Preview rendering ──────────────────────────────────────────────────────
-  let _previewTimer = null;
-  function schedulePreview() {
-    clearTimeout(_previewTimer);
-    _previewTimer = setTimeout(renderEmailPreview, 300);
-  }
-
-  let _smsTimer = null;
-  function scheduleSmsPreview() {
-    clearTimeout(_smsTimer);
-    _smsTimer = setTimeout(renderSmsPreview, 200);
-  }
-
-  function renderEmailPreview() {
-    const s = getFormValues();
-    const firstName = 'Alex';
-    let html;
-
-    if (s.emailCustomHtml?.trim()) {
-      html = s.emailCustomHtml
-        .replace(/\{\{firstName\}\}/g, firstName)
-        .replace(/\{\{reviewLink\}\}/g, s.reviewLink)
-        .replace(/\{\{businessName\}\}/g, s.businessName);
-    } else {
-      const logoHtml = s.logoUrl
-        ? `<div style="text-align:center;padding:40px 20px 20px;">
-             <div style="display:inline-block;background:#fff;padding:6px;border-radius:16px;box-shadow:0 4px 15px rgba(0,0,0,0.05);border:1px solid #f0f0f0;">
-               <img src="${s.logoUrl}" alt="${s.businessName}" width="100" style="display:block;border-radius:10px;max-width:100px;height:auto;">
-             </div>
-             <p style="margin:12px 0 0;font-size:10px;color:${s.buttonColor};text-transform:uppercase;letter-spacing:2px;font-weight:800;">${s.tagline}</p>
-           </div>`
-        : `<div style="text-align:center;padding:40px 20px 20px;"><p style="margin:0;font-size:10px;color:${s.buttonColor};text-transform:uppercase;letter-spacing:2px;font-weight:800;">${s.tagline}</p></div>`;
-
-      html = `<div style="font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#fff;border-radius:24px;overflow:hidden;max-width:520px;margin:0 auto;border:1px solid #f0f0f0;">
-        ${logoHtml}
-        <div style="padding:10px 36px 40px;">
-          <h1 style="font-size:22px;color:#111827;margin:0 0 14px;font-weight:800;text-align:center;">Hi ${firstName},</h1>
-          <p style="font-size:15px;color:#4b5563;line-height:1.6;margin:0 0 28px;text-align:center;">${s.emailBody}</p>
-          <div style="text-align:center;border:1px solid #f3f4f6;border-radius:20px;padding:24px 16px;background:#fcfdfc;">
-            <div style="font-size:18px;color:#fbbf24;margin-bottom:18px;">★ ★ ★ ★ ★</div>
-            <a href="${s.reviewLink}" style="background:${s.buttonColor};color:#fff;padding:14px 28px;text-decoration:none;border-radius:12px;font-weight:700;font-size:14px;display:inline-block;">Leave a Google Review</a>
-          </div>
-          <p style="font-size:14px;color:${s.buttonColor};font-weight:800;text-align:center;margin:28px 0 0;">— The ${s.businessName} Team</p>
-        </div>
-        <div style="background:#fcfdfc;padding:20px;border-top:1px solid #f3f4f6;text-align:center;">
-          <p style="font-size:10px;color:#d1d5db;margin:0;font-weight:700;letter-spacing:1.5px;">© ${new Date().getFullYear()} ${s.businessName.toUpperCase()}</p>
-        </div>
-      </div>`;
-    }
-
-    document.getElementById('email-preview-box').innerHTML = html;
-  }
-
-  function renderSmsPreview() {
-    const s = getFormValues();
-    const firstName = 'Alex';
-    const body = s.smsBody?.trim()
-      ? s.smsBody.replace(/\{\{firstName\}\}/g, firstName).replace(/\{\{reviewLink\}\}/g, s.reviewLink)
-      : `Hi ${firstName}! We hope you're loving the look of your property! We put in the sweat so you didn't have to—we'd love to hear what you think of the results. 🫡\n\n${s.reviewLink} — Much appreciated! ⭐️⭐️⭐️⭐️⭐️`;
-    document.getElementById('sms-preview-box').textContent = body;
-  }
-
-  // ── Wire up all form fields to trigger preview ─────────────────────────────
-  function wirePreview() {
-    ['f-businessName','f-tagline','f-reviewLink','f-emailSubject','f-emailBody','f-emailCustomHtml']
-      .forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('input', schedulePreview);
-      });
-    document.getElementById('f-smsBody').addEventListener('input', scheduleSmsPreview);
-  }
-
-  // ── Save ───────────────────────────────────────────────────────────────────
-  async function saveSettings() {
-    const btn = document.getElementById('save-btn');
-    btn.disabled = true;
-    btn.textContent = 'Saving…';
-    try {
-      const res  = await fetch('/api/settings/message', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(getFormValues()),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Save failed');
-      showToast('Templates saved!', 'success');
-    } catch (err) {
-      showToast('Error: ' + err.message, 'error');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Save Templates';
-    }
-  }
-
-  // ── Load ───────────────────────────────────────────────────────────────────
-  async function loadSettings() {
-    try {
-      const res  = await fetch('/api/settings/message');
-      if (res.status === 401) { window.location.href = '/login.html'; return; }
-      const data = await res.json();
-      populateForm(data.settings || DEFAULTS);
-    } catch (err) {
-      populateForm(DEFAULTS);
-    }
-    renderEmailPreview();
-    renderSmsPreview();
-  }
-
-  // ── Toast ──────────────────────────────────────────────────────────────────
-  function showToast(msg, type) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.style.cssText = type === 'success'
-      ? 'display:block;position:fixed;top:1.5rem;right:1.5rem;z-index:9999;padding:0.85rem 1.25rem;border-radius:1rem;font-size:0.875rem;font-weight:600;background:rgba(71,226,102,0.1);border:1px solid rgba(71,226,102,0.25);color:#47e266;'
-      : 'display:block;position:fixed;top:1.5rem;right:1.5rem;z-index:9999;padding:0.85rem 1.25rem;border-radius:1rem;font-size:0.875rem;font-weight:600;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.25);color:#f87171;';
-    setTimeout(() => { t.style.display = 'none'; }, 4000);
-  }
-
-  // ── Auth / user info ───────────────────────────────────────────────────────
   async function logout() {
     try {
       const res  = await fetch('/auth/logout', { method: 'POST' });
@@ -448,27 +200,139 @@
     } catch { window.location.href = '/login.html'; }
   }
 
-  wirePreview();
-  loadSettings();
+  async function loadCurrentUser() {
+    try {
+      const res  = await fetch(`${API}/api/status`);
+      const data = await res.json();
+      const email = data.userEmail || 'admin';
+      document.getElementById('user-email').textContent = email;
+      document.getElementById('user-avatar').textContent = email.charAt(0).toUpperCase();
+      currentUserId = data.userId ?? null;
+    } catch (err) {
+      console.error('Could not load user info:', err);
+    }
+  }
+
+  function showResult(id, msg, ok) {
+    const el = document.getElementById(id);
+    el.innerHTML = msg;
+    el.className = 'result-msg text-sm mt-2 ' + (ok ? 'text-secondary' : 'text-red-400');
+    el.style.display = 'block';
+    if (ok) setTimeout(() => { el.style.display = 'none'; }, 4000);
+  }
+
+  function updateSmsPreview() {
+    const template = document.getElementById('sms-template').value;
+    const preview = template
+      .replace(/{firstName}/g, 'John')
+      .replace(/{reviewLink}/g, '#review-link');
+    document.getElementById('sms-preview').textContent = preview || 'Your message will appear here...';
+  }
+
+  async function loadSettings() {
+    try {
+      const res  = await fetch(`${API}/api/message-settings`);
+      const data = await res.json();
+
+      document.getElementById('sms-template').value = data.smsTemplate || data.smsDefault || '';
+      document.getElementById('email-subject').value = data.emailSubject || data.emailSubjectDefault || '';
+
+      window._smsDefault = data.smsDefault || '';
+      window._emailSubjectDefault = data.emailSubjectDefault || '';
+
+      updateSmsPreview();
+
+      if (data.updatedAt) {
+        document.getElementById('last-saved').textContent = 'Last saved: ' + new Date(data.updatedAt).toLocaleString();
+        document.getElementById('last-saved').style.display = 'block';
+      }
+    } catch (err) {
+      console.error('Could not load message settings:', err);
+    }
+  }
+
+  function resetSmsTemplate() {
+    if (!confirm('Reset SMS template to default?')) return;
+    document.getElementById('sms-template').value = window._smsDefault || '';
+    updateSmsPreview();
+  }
+
+  async function saveSettings() {
+    const smsTemplate  = document.getElementById('sms-template').value.trim();
+    const emailSubject = document.getElementById('email-subject').value.trim();
+    const btn          = document.getElementById('save-btn');
+
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+      const res = await fetch(`${API}/api/message-settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          smsTemplate: smsTemplate || null,
+          emailSubject: emailSubject || null
+        }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        showResult('save-result', '✓ Templates saved successfully', true);
+        await loadSettings();
+      } else {
+        showResult('save-result', '✗ ' + (data.error || 'Failed to save templates'), false);
+      }
+    } catch (err) {
+      showResult('save-result', '✗ Network error: ' + err.message, false);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Templates';
+    }
+  }
+
+  // Listen for SMS template changes to update preview
+  document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('sms-template').addEventListener('input', updateSmsPreview);
+    loadCurrentUser();
+    loadSettings();
+    loadSidebarBadge();
+  });
+
+  async function loadSidebarBadge() {
+    try {
+      const res  = await fetch('/api/pending-reviews');
+      const data = await res.json();
+      const n    = data.pendingCount ?? 0;
+      if (n > 0) {
+        document.getElementById('sidebar-pending').textContent = n;
+        document.getElementById('sidebar-pending').classList.remove('hidden');
+      }
+    } catch {}
+  }
 </script>
 
 <script>
+// ── Role-aware nav ────────────────────────────────────────────────
 (async function() {
   try {
     const res = await fetch('/api/admin/me', { credentials: 'include' });
     if (!res.ok) return;
-    const me = await res.json();
+    const me   = await res.json();
+    const role = me.role || 'client';
     const roleEl = document.getElementById('user-role');
-    if (roleEl) roleEl.textContent = me.role === 'admin' ? 'Administrator' : 'Client';
-    if (me.role === 'admin') {
-      const link = document.getElementById('admin-nav-link');
-      if (link) link.classList.remove('hidden');
-    }
-    const emailEl = document.getElementById('user-email');
-    if (emailEl && me.email) emailEl.textContent = me.email;
-    const avatarEl = document.getElementById('user-avatar');
-    if (avatarEl && me.email) avatarEl.textContent = me.email.charAt(0).toUpperCase();
+    if (roleEl) roleEl.textContent = role === 'admin' ? 'Administrator' : 'Client';
+    if (role === 'admin') addAdminLink();
   } catch {}
+
+  function addAdminLink() {
+    const nav = document.getElementById('main-nav');
+    if (!nav || nav.querySelector('a[href="/admin.html"]')) return;
+    const a = document.createElement('a');
+    a.className = 'flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200';
+    a.href = '/admin.html';
+    a.innerHTML = '<span class="material-symbols-outlined text-[20px]">manage_accounts</span><span class="text-sm font-medium tracking-tight">User Management</span>';
+    nav.appendChild(a);
+  }
 })();
 </script>
 

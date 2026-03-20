@@ -70,6 +70,10 @@
         <span class="material-symbols-outlined text-[20px]">hub</span>
         <span class="text-sm font-medium tracking-tight">App Connections</span>
       </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/message-settings.html">
+        <span class="material-symbols-outlined text-[20px]">edit_note</span>
+        <span class="text-sm font-medium tracking-tight">Message Templates</span>
+      </a>
       <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/settings.html">
         <span class="material-symbols-outlined text-[20px]">settings</span>
         <span class="text-sm font-medium tracking-tight">Settings</span>
@@ -270,13 +274,13 @@
     renderChecklist(data);
     const grid = document.getElementById('conn-grid');
     grid.innerHTML = [
-      renderJobberCard(data.jobber),
-      renderGmailCard(data.gmail),
-      renderTwilioCard(data.twilio),
-      renderOpenWeatherCard(data.openweather),
-      renderPageSpeedCard(data.pagespeed),
-      renderGoogleCard(data.google),
-      renderSkyvernCard(data.skyvern),
+      renderJobberCard(data.jobber || {}),
+      renderGmailCard(data.gmail || {}),
+      renderTwilioCard(data.twilio || {}),
+      renderOpenWeatherCard(data.openweather || {}),
+      renderPageSpeedCard(data.pagespeed || {}),
+      renderGoogleCard(data.google || {}),
+      renderSkyvernCard(data.skyvern || {}),
     ].join('');
   }
 

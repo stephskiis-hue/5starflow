@@ -1,8 +1,12 @@
 const twilio = require('twilio');
 const prisma = require('../lib/prismaClient');
-const { getMessageSettings } = require('./emailService');
 
 const REVIEW_LINK = process.env.REVIEW_LINK || 'https://g.page/r/CSu2cqDYFOxDEAE/review';
+
+const DEFAULT_SMS_TEMPLATE =
+  'Hi {firstName}! We hope you\'re loving the look of your property! ' +
+  'We put in the sweat so you didn\'t have to—we\'d love to hear what you think of the results. 🫡 \n\n' +
+  '{reviewLink} — Much appreciated! ⭐️⭐️⭐️⭐️⭐️';
 
 /**
  * Load Twilio credentials for a user from DB.
@@ -52,15 +56,13 @@ function toE164(raw, countryCode = '1') {
 async function sendReviewSMS(rawPhone, firstName, userId) {
   const to = toE164(rawPhone);
 
-  const msgSettings = await getMessageSettings(userId);
-  const reviewLink  = msgSettings?.reviewLink || REVIEW_LINK;
-  const body = msgSettings?.smsBody?.trim()
-    ? msgSettings.smsBody
-        .replace(/\{\{firstName\}\}/g, firstName)
-        .replace(/\{\{reviewLink\}\}/g, reviewLink)
-    : `Hi ${firstName}! We hope you're loving the look of your property! ` +
-      `We put in the sweat so you didn't have to—we'd love to hear what you think of the results. 🫡 \n\n` +
-      `${reviewLink} — Much appreciated! ⭐️⭐️⭐️⭐️⭐️`;
+  const msgSettings = userId
+    ? await prisma.messageSettings.findUnique({ where: { userId } }).catch(() => null)
+    : null;
+  const template = msgSettings?.smsTemplate || DEFAULT_SMS_TEMPLATE;
+  const body = template
+    .replace('{firstName}', firstName)
+    .replace('{reviewLink}', REVIEW_LINK);
 
   if (process.env.DRY_RUN === 'true') {
     console.log(`[smsService] DRY RUN — would send SMS to ${to}: "${body.slice(0, 80)}..."`);
@@ -83,4 +85,4 @@ async function sendReviewSMS(rawPhone, firstName, userId) {
   return message.sid;
 }
 
-module.exports = { sendReviewSMS, getTwilioCreds, toE164 };
+module.exports = { sendReviewSMS, getTwilioCreds };

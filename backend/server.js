@@ -145,6 +145,8 @@ app.use('/api', statusRouter);
 app.use('/api/weather', weatherRouter);
 app.use('/api/connections', connectionsRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/message-settings', require('./routes/messageSettings'));
+app.use('/api/message-templates', requireAuth, require('./routes/messageTemplates'));
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/leaderboard', leaderboardRouter);
