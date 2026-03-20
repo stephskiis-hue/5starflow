@@ -62,15 +62,23 @@ router.get('/status', async (req, res) => {
 
     // ── Gmail ───────────────────────────────────────────────────────────────
     const gmailCred = await prisma.gmailCredential.findUnique({ where: { userId: req.user.userId } });
-    const gmail = gmailCred
-      ? { configured: true, fromAddress: gmailCred.gmailUser, fromName: gmailCred.fromName || null }
-      : { configured: false, fromAddress: null, fromName: null };
+    const gmail = {
+      configured:  !!(gmailCred || (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD)),
+      fromAddress: gmailCred?.gmailUser || process.env.GMAIL_USER || null,
+      fromName:    gmailCred?.fromName  || null,
+    };
 
     // ── Twilio ──────────────────────────────────────────────────────────────
     const twilioCred = await prisma.twilioCredential.findUnique({ where: { userId: req.user.userId } });
-    const twilio = twilioCred
-      ? { configured: true, fromNumber: twilioCred.fromNumber, accountSid: twilioCred.accountSid.slice(0, 8) + '...' }
-      : { configured: false, fromNumber: null, accountSid: null };
+    const twilio = {
+      configured:  !!(twilioCred || (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)),
+      fromNumber:  twilioCred?.fromNumber || process.env.TWILIO_PHONE_NUMBER || null,
+      accountSid:  twilioCred
+        ? twilioCred.accountSid.slice(0, 8) + '...'
+        : process.env.TWILIO_ACCOUNT_SID
+          ? process.env.TWILIO_ACCOUNT_SID.slice(0, 8) + '...'
+          : null,
+    };
 
     // ── OpenWeatherMap ──────────────────────────────────────────────────────
     const owKey = process.env.OPENWEATHER_API_KEY;
