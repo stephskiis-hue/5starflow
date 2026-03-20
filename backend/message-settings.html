@@ -58,9 +58,10 @@
   </script>
   <style>
     body { background-color: #000000; color: #e5e2e1; font-family: 'Inter', sans-serif; overflow-x: hidden; }
-    .glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); }
+    .glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); border-top: 1px solid rgba(255,255,255,0.15); }
     .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
     .result-msg { display: none; }
+    .section-label { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #6b7280; margin-bottom: 1rem; }
     @media (max-width: 640px) {
       aside { display: none !important; }
       main { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
@@ -72,13 +73,13 @@
   <!-- Sidebar -->
   <aside class="fixed left-6 top-6 bottom-6 w-64 rounded-[3rem] border-t border-white/10 bg-zinc-900/60 backdrop-blur-2xl flex flex-col h-[calc(100vh-3rem)] p-4 shadow-[0_40px_40px_-5px_rgba(0,0,0,0.6)] z-50">
     <div class="mb-8 px-4 pt-4">
+      <img src="/images/logo.png" alt="5StarFlow" style="height:36px;width:auto;display:block;margin:0 auto 0.5rem;">
       <h1 class="text-xl font-bold text-zinc-100 tracking-tighter">Command Center</h1>
       <p class="text-xs text-zinc-500 font-medium mt-1">5StarFlow</p>
     </div>
-
     <nav class="flex-1 space-y-0.5 overflow-y-auto" id="main-nav">
       <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/index.html">
-        <span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;">home</span>
+        <span class="material-symbols-outlined text-[20px]">home</span>
         <span class="text-sm font-medium tracking-tight">Home</span>
       </a>
       <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/review-dashboard.html">
@@ -107,7 +108,7 @@
         <span class="text-sm font-medium tracking-tight">Settings</span>
       </a>
       <a class="flex items-center gap-3 px-4 py-3 text-zinc-100 rounded-xl relative before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-secondary before:rounded-full hover:bg-white/5 transition-all duration-200" href="/message-settings.html">
-        <span class="material-symbols-outlined text-[20px]">mail</span>
+        <span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">edit_note</span>
         <span class="text-sm font-medium tracking-tight">Message Templates</span>
       </a>
     </nav>
@@ -137,12 +138,13 @@
 
     <!-- SMS Template Card -->
     <div class="glass-card rounded-xl p-8 mb-6">
+      <span class="section-label">SMS</span>
       <h3 class="text-lg font-semibold text-zinc-100 mb-4">SMS Template</h3>
 
       <div class="flex flex-col gap-4">
         <div>
           <label for="sms-template" class="text-sm font-medium text-on-surface-variant block mb-2">Message</label>
-          <textarea id="sms-template" rows="8" placeholder="Enter your SMS template..." class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none"></textarea>
+          <textarea id="sms-template" rows="8" placeholder="Enter your SMS template..." onfocus="this.select()" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none"></textarea>
         </div>
 
         <p class="text-xs text-on-surface-variant">
@@ -154,30 +156,72 @@
           <p class="text-sm text-zinc-100" id="sms-preview">Your message will appear here...</p>
         </div>
 
-        <button id="sms-reset-btn" onclick="resetSmsTemplate()" class="bg-white/5 text-zinc-100 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-white/10 transition-colors w-fit">
-          Reset to Default
-        </button>
+        <div class="flex gap-3">
+          <button id="sms-reset-btn" onclick="resetSmsTemplate()" class="bg-white/5 text-zinc-400 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-white/10 transition-colors w-fit">
+            Reset to Default
+          </button>
+          <button onclick="saveAsTemplate('sms')" class="bg-white/5 text-zinc-400 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-white/10 transition-colors w-fit">
+            Save as Template
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- Email Subject Card -->
     <div class="glass-card rounded-xl p-8 mb-8">
+      <span class="section-label">EMAIL SUBJECT</span>
       <h3 class="text-lg font-semibold text-zinc-100 mb-4">Email Subject</h3>
 
       <div class="flex flex-col gap-4">
         <div>
           <label for="email-subject" class="text-sm font-medium text-on-surface-variant block mb-2">Email Subject Line</label>
-          <input type="text" id="email-subject" placeholder="Enter email subject..." class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" />
+          <input type="text" id="email-subject" placeholder="Enter email subject..." onfocus="this.select()" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" />
         </div>
+        <button onclick="saveAsTemplate('email')" class="bg-white/5 text-zinc-400 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-white/10 transition-colors w-fit mt-2">
+          Save as Template
+        </button>
+      </div>
+    </div>
+
+    <!-- Template Library -->
+    <div class="glass-card rounded-xl p-8 mb-8">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h3 class="text-lg font-semibold text-zinc-100">Template Library</h3>
+          <p class="text-xs text-on-surface-variant mt-0.5">Click a template to preview, then use it in the editor above</p>
+        </div>
+        <!-- Tab pills -->
+        <div class="flex gap-1 bg-white/5 rounded-xl p-1" id="tpl-tabs">
+          <button onclick="switchTplTab('sms')" id="tab-sms" class="px-4 py-1.5 text-xs font-semibold rounded-lg bg-white/10 text-zinc-100 transition-colors">SMS</button>
+          <button onclick="switchTplTab('email')" id="tab-email" class="px-4 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 hover:text-zinc-200 transition-colors">Email Subject</button>
+        </div>
+      </div>
+
+      <div id="tpl-sms-panel">
+        <p class="text-[10px] font-semibold tracking-widest text-zinc-600 uppercase mb-3">Built-in Presets</p>
+        <div id="builtin-sms-list" class="flex flex-col gap-3 mb-6"></div>
+        <p class="text-[10px] font-semibold tracking-widest text-zinc-600 uppercase mb-3">Your Saved Templates</p>
+        <div id="custom-sms-list" class="flex flex-col gap-3"></div>
+        <p class="text-xs text-zinc-600 italic hidden" id="no-custom-sms">No custom SMS templates saved yet.</p>
+      </div>
+
+      <div id="tpl-email-panel" class="hidden">
+        <p class="text-[10px] font-semibold tracking-widest text-zinc-600 uppercase mb-3">Built-in Presets</p>
+        <div id="builtin-email-list" class="flex flex-col gap-3 mb-6"></div>
+        <p class="text-[10px] font-semibold tracking-widest text-zinc-600 uppercase mb-3">Your Saved Templates</p>
+        <div id="custom-email-list" class="flex flex-col gap-3"></div>
+        <p class="text-xs text-zinc-600 italic hidden" id="no-custom-email">No custom email subject templates saved yet.</p>
       </div>
     </div>
 
     <!-- Save Section -->
     <div class="flex flex-col gap-4 items-start">
-      <button id="save-btn" onclick="saveSettings()" class="bg-primary text-zinc-900 rounded-xl px-6 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors">
-        Save Templates
-      </button>
-      <p class="text-xs text-on-surface-variant" id="last-saved" style="display: none;"></p>
+      <div class="flex items-center gap-4">
+        <button id="save-btn" onclick="saveSettings()" class="bg-primary text-zinc-900 rounded-xl px-6 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors">
+          Save Templates
+        </button>
+        <p class="text-xs text-on-surface-variant" id="last-saved" style="display: none;"></p>
+      </div>
     </div>
 
     <div class="result-msg" id="save-result"></div>
@@ -187,6 +231,8 @@
 <script>
   const API = '';
   let currentUserId = null;
+  let expandedTplId = null;
+  let currentTplTab = 'sms';
 
   function escHtml(str) {
     return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -290,12 +336,178 @@
     }
   }
 
+  // ── Built-in presets ────────────────────────────────────────────
+  const BUILTIN_TEMPLATES = {
+    sms: [
+      {
+        id: 'b1', name: 'Emoji-Rich (Default)',
+        content: 'Hi {firstName}! We hope you\'re loving the look of your property! We put in the sweat so you didn\'t have to—we\'d love to hear what you think of the results. 🫡 \n\n{reviewLink} — Much appreciated! ⭐️⭐️⭐️⭐️⭐️'
+      },
+      {
+        id: 'b2', name: 'Friendly & Short',
+        content: 'Hey {firstName}! Hope the yard looks great. 😊 Mind leaving us a quick review? It really helps! {reviewLink} — Thanks!'
+      },
+      {
+        id: 'b3', name: 'Professional',
+        content: 'Hello {firstName}, thank you for choosing our service. We hope you\'re satisfied with the results. We\'d greatly appreciate a brief review: {reviewLink}'
+      },
+    ],
+    email: [
+      { id: 'b4', name: 'Review Ask', content: 'How did we do? 🌿 Leave us a quick review' },
+      { id: 'b5', name: 'Quick Favor', content: 'Could you do us a small favor?' },
+    ]
+  };
+
+  function switchTplTab(tab) {
+    currentTplTab = tab;
+    document.getElementById('tpl-sms-panel').classList.toggle('hidden', tab !== 'sms');
+    document.getElementById('tpl-email-panel').classList.toggle('hidden', tab !== 'email');
+    document.getElementById('tab-sms').className = tab === 'sms'
+      ? 'px-4 py-1.5 text-xs font-semibold rounded-lg bg-white/10 text-zinc-100 transition-colors'
+      : 'px-4 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 hover:text-zinc-200 transition-colors';
+    document.getElementById('tab-email').className = tab === 'email'
+      ? 'px-4 py-1.5 text-xs font-semibold rounded-lg bg-white/10 text-zinc-100 transition-colors'
+      : 'px-4 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 hover:text-zinc-200 transition-colors';
+  }
+
+  function renderTemplateCard(tpl, isBuiltin) {
+    const isExpanded = expandedTplId === tpl.id;
+    const preview = tpl.content.length > 90 ? tpl.content.slice(0, 90) + '…' : tpl.content;
+    return `
+      <div class="border border-white/8 rounded-xl p-4 hover:border-white/15 transition-all cursor-pointer ${isExpanded ? 'bg-white/5' : ''}" onclick="toggleTplExpand('${tpl.id}')">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-semibold text-zinc-100">${escHtml(tpl.name)}</span>
+          <div class="flex gap-2" onclick="event.stopPropagation()">
+            <button onclick="useTpl('${tpl.id}', ${isBuiltin})" class="px-3 py-1 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">Use This</button>
+            ${!isBuiltin ? `<button onclick="deleteTpl('${tpl.id}')" class="px-2 py-1 text-xs rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">✕</button>` : ''}
+          </div>
+        </div>
+        <p class="text-xs text-zinc-500 mt-1.5 font-mono leading-relaxed">${escHtml(preview)}</p>
+        ${isExpanded ? `<div class="mt-3 pt-3 border-t border-white/8">
+          <p class="text-[10px] font-semibold tracking-widest text-zinc-600 uppercase mb-2">Full Preview</p>
+          <p class="text-xs text-zinc-300 font-mono whitespace-pre-wrap leading-relaxed">${escHtml(tpl.content.replace(/{firstName}/g,'John').replace(/{reviewLink}/g,'https://g.page/r/..../review'))}</p>
+        </div>` : ''}
+      </div>`;
+  }
+
+  function toggleTplExpand(id) {
+    expandedTplId = expandedTplId === id ? null : id;
+    loadTemplateLibrary();
+  }
+
+  function getTplById(id) {
+    for (const list of Object.values(BUILTIN_TEMPLATES)) {
+      const found = list.find(t => t.id === id);
+      if (found) return { tpl: found, isBuiltin: true };
+    }
+    return null;
+  }
+
+  async function loadTemplateLibrary() {
+    // Render built-ins
+    ['sms','email'].forEach(type => {
+      const el = document.getElementById(`builtin-${type}-list`);
+      el.innerHTML = BUILTIN_TEMPLATES[type].map(t => renderTemplateCard(t, true)).join('');
+    });
+
+    // Load custom from API
+    try {
+      const res = await fetch('/api/message-templates');
+      const data = await res.json();
+      const customs = data.templates || [];
+
+      ['sms','email'].forEach(type => {
+        const list = customs.filter(t => t.type === type);
+        const el = document.getElementById(`custom-${type}-list`);
+        const emptyEl = document.getElementById(`no-custom-${type}`);
+        if (list.length === 0) {
+          el.innerHTML = '';
+          emptyEl.classList.remove('hidden');
+        } else {
+          emptyEl.classList.add('hidden');
+          el.innerHTML = list.map(t => renderTemplateCard(t, false)).join('');
+        }
+      });
+      // Attach delete handlers via window scope
+      window._customTemplates = customs;
+    } catch (err) {
+      console.error('Could not load templates:', err);
+    }
+  }
+
+  function useTpl(id, isBuiltin) {
+    let content;
+    if (isBuiltin) {
+      const result = getTplById(id);
+      if (!result) return;
+      content = result.tpl.content;
+      // Determine type from BUILTIN_TEMPLATES
+      const type = BUILTIN_TEMPLATES.sms.find(t => t.id === id) ? 'sms' : 'email';
+      if (type === 'sms') {
+        document.getElementById('sms-template').value = content;
+        updateSmsPreview();
+        document.getElementById('sms-template').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        document.getElementById('email-subject').value = content;
+        document.getElementById('email-subject').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    } else {
+      const tpl = (window._customTemplates || []).find(t => t.id === id);
+      if (!tpl) return;
+      if (tpl.type === 'sms') {
+        document.getElementById('sms-template').value = tpl.content;
+        updateSmsPreview();
+        document.getElementById('sms-template').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        document.getElementById('email-subject').value = tpl.content;
+        document.getElementById('email-subject').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }
+
+  async function deleteTpl(id) {
+    if (!confirm('Delete this template?')) return;
+    try {
+      const res = await fetch(`/api/message-templates/${id}`, { method: 'DELETE' });
+      if (res.ok) await loadTemplateLibrary();
+      else showResult('save-result', '✗ Could not delete template', false);
+    } catch (err) {
+      showResult('save-result', '✗ ' + err.message, false);
+    }
+  }
+
+  async function saveAsTemplate(type) {
+    const name = prompt(`Name for this ${type === 'sms' ? 'SMS' : 'email subject'} template:`);
+    if (!name) return;
+    const content = type === 'sms'
+      ? document.getElementById('sms-template').value.trim()
+      : document.getElementById('email-subject').value.trim();
+    if (!content) { alert('No content to save.'); return; }
+    try {
+      const res = await fetch('/api/message-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, type, content }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        await loadTemplateLibrary();
+        switchTplTab(type);
+      } else {
+        showResult('save-result', '✗ ' + (data.error || 'Failed to save template'), false);
+      }
+    } catch (err) {
+      showResult('save-result', '✗ ' + err.message, false);
+    }
+  }
+
   // Listen for SMS template changes to update preview
   document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('sms-template').addEventListener('input', updateSmsPreview);
     loadCurrentUser();
     loadSettings();
     loadSidebarBadge();
+    loadTemplateLibrary();
   });
 
   async function loadSidebarBadge() {
