@@ -169,6 +169,7 @@
           <button class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-white/10 transition-colors" id="test-clients-btn" onclick="testClients()" style="display:none;">Test: Clients</button>
           <button class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-white/10 transition-colors" id="test-invoice-btn" onclick="testLatestInvoice()" style="display:none;">Test: Invoice</button>
           <button class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-white/10 transition-colors" id="register-webhook-btn" onclick="registerWebhook()" style="display:none;">Register Webhook</button>
+          <button class="bg-secondary/10 border border-secondary/20 text-secondary rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-secondary/20 transition-colors" id="test-send-btn" onclick="openTestSendModal()" style="display:none;">Send Test Request</button>
         </div>
 
         <div id="refresh-toast" class="mt-4 p-4 rounded-xl font-sm" style="display:none;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);color:#34d399;"></div>
@@ -207,6 +208,30 @@
     </div>
 
   </main>
+
+<!-- Test Send Modal -->
+<div id="test-send-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;display:flex;align-items:center;justify-content:center;padding:1rem;" class="hidden">
+  <div style="background:#111;border:1px solid rgba(255,255,255,0.1);border-radius:1.5rem;width:100%;max-width:520px;padding:2rem;box-shadow:0 40px 60px rgba(0,0,0,0.6);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+      <div>
+        <h3 style="font-size:1.1rem;font-weight:700;color:#e5e2e1;margin:0;">Send Test Request</h3>
+        <p style="font-size:0.78rem;color:#8b91a0;margin:0.3rem 0 0;">DRY RUN — no real messages sent</p>
+      </div>
+      <button onclick="closeTestSendModal()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#8b91a0;border-radius:0.75rem;width:2rem;height:2rem;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;">&times;</button>
+    </div>
+
+    <div id="test-send-loading" style="text-align:center;padding:2rem 0;color:#8b91a0;font-size:0.875rem;">Loading clients...</div>
+
+    <div id="test-send-picker" style="display:none;">
+      <label style="font-size:0.75rem;font-weight:600;color:#8b91a0;text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:0.5rem;">Select Client</label>
+      <select id="test-send-select" style="width:100%;background:#1a1a1a;border:1px solid rgba(255,255,255,0.1);border-radius:0.75rem;color:#e5e2e1;padding:0.65rem 0.9rem;font-size:0.875rem;outline:none;margin-bottom:1rem;"></select>
+      <div id="test-send-preview" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:1rem;padding:1rem;font-size:0.82rem;color:#8b91a0;margin-bottom:1.25rem;min-height:80px;"></div>
+      <button onclick="runTestSend()" id="test-send-run-btn" style="width:100%;background:#47e266;color:#000;border:none;border-radius:0.75rem;padding:0.75rem;font-size:0.9rem;font-weight:700;cursor:pointer;">Run Dry-Run Test</button>
+    </div>
+
+    <div id="test-send-result" style="display:none;"></div>
+  </div>
+</div>
 
 <script>
   const API = '';
@@ -263,7 +288,8 @@
       connectBtn.style.display = 'none';
       disconnectBtn.style.display = forceRefreshBtn.style.display =
       testClientsBtn.style.display = testInvoiceBtn.style.display =
-      registerWebhookBtn.style.display = 'inline-flex';
+      registerWebhookBtn.style.display =
+      document.getElementById('test-send-btn').style.display = 'inline-flex';
       barWrap.style.display = 'block';
 
       if (data.tokenExpired) {
@@ -670,6 +696,113 @@
       setTimeout(() => { toast.style.display = 'none'; }, 10000);
     }
   }
+
+  // ── Test Send Modal ───────────────────────────────────────────────────────
+  let testClients = [];
+
+  async function openTestSendModal() {
+    const modal = document.getElementById('test-send-modal');
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    document.getElementById('test-send-loading').style.display = 'block';
+    document.getElementById('test-send-picker').style.display = 'none';
+    document.getElementById('test-send-result').style.display = 'none';
+
+    try {
+      const res  = await fetch(`${API}/api/clients-list`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      testClients = data.clients;
+
+      const select = document.getElementById('test-send-select');
+      select.innerHTML = testClients.map((c, i) => `<option value="${i}">${escHtml(c.name)}${c.phone ? ' · ' + escHtml(c.phone) : ''}${c.email ? ' · ' + escHtml(c.email) : ''}</option>`).join('');
+
+      document.getElementById('test-send-loading').style.display = 'none';
+      document.getElementById('test-send-picker').style.display = 'block';
+      updateTestSendPreview();
+      select.addEventListener('change', updateTestSendPreview);
+    } catch (err) {
+      document.getElementById('test-send-loading').textContent = '✗ Failed to load clients: ' + err.message;
+    }
+  }
+
+  function updateTestSendPreview() {
+    const idx = parseInt(document.getElementById('test-send-select').value, 10);
+    const c = testClients[idx];
+    if (!c) return;
+    const channel = (c.phone && c.smsAllowed) ? 'SMS' : c.email ? 'Email' : 'None';
+    const channelColor = channel === 'SMS' ? '#47e266' : channel === 'Email' ? '#38bdf8' : '#f87171';
+    document.getElementById('test-send-preview').innerHTML =
+      `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+        <div><span style="color:#6b7280;display:block;font-size:0.7rem;margin-bottom:0.2rem;">PHONE</span><span style="color:#e5e2e1;">${escHtml(c.phone || '—')}</span>${c.phone ? '<span style="color:#8b91a0;font-size:0.7rem;"> (' + (c.smsAllowed ? 'SMS allowed' : 'no SMS') + ')</span>' : ''}</div>
+        <div><span style="color:#6b7280;display:block;font-size:0.7rem;margin-bottom:0.2rem;">EMAIL</span><span style="color:#e5e2e1;">${escHtml(c.email || '—')}</span></div>
+        <div><span style="color:#6b7280;display:block;font-size:0.7rem;margin-bottom:0.2rem;">CHANNEL</span><span style="color:${channelColor};font-weight:600;">${channel}</span></div>
+        <div><span style="color:#6b7280;display:block;font-size:0.7rem;margin-bottom:0.2rem;">FOLLOW-UP</span><span style="color:#8b91a0;">${c.email ? '24h email' : '—'}</span></div>
+      </div>`;
+  }
+
+  function closeTestSendModal() {
+    const modal = document.getElementById('test-send-modal');
+    modal.style.display = 'none';
+    modal.classList.add('hidden');
+  }
+
+  async function runTestSend() {
+    const idx = parseInt(document.getElementById('test-send-select').value, 10);
+    const c = testClients[idx];
+    if (!c) return;
+    const btn = document.getElementById('test-send-run-btn');
+    btn.disabled = true; btn.textContent = 'Running...';
+
+    try {
+      const res  = await fetch(`${API}/api/test-send-review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: c.id }),
+      });
+      const data = await res.json();
+
+      const resultEl = document.getElementById('test-send-result');
+      document.getElementById('test-send-picker').style.display = 'none';
+
+      if (!data.success) {
+        resultEl.innerHTML = `<div style="color:#f87171;padding:1rem;background:rgba(248,113,113,0.1);border-radius:0.75rem;">✗ ${escHtml(data.error)}</div>`;
+      } else if (!data.wouldSend) {
+        resultEl.innerHTML = `
+          <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:1rem;padding:1.25rem;margin-bottom:1rem;">
+            <div style="font-size:0.8rem;font-weight:700;color:#fbbf24;margin-bottom:0.5rem;">SKIPPED — Would Not Send</div>
+            <div style="font-size:0.82rem;color:#8b91a0;">${escHtml(data.skippedReason)}</div>
+          </div>
+          <button onclick="closeTestSendModal()" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#e5e2e1;border-radius:0.75rem;padding:0.65rem;font-size:0.875rem;font-weight:600;cursor:pointer;">Close</button>`;
+      } else {
+        const chanColor = data.channel === 'sms' ? '#47e266' : '#38bdf8';
+        const chanLabel = data.channel === 'sms' ? 'SMS' : 'Email';
+        resultEl.innerHTML = `
+          <div style="background:rgba(71,226,102,0.08);border:1px solid rgba(71,226,102,0.2);border-radius:1rem;padding:1.25rem;margin-bottom:0.75rem;">
+            <div style="font-size:0.8rem;font-weight:700;color:#47e266;margin-bottom:0.75rem;">DRY RUN COMPLETE — Would Have Sent</div>
+            <div style="display:grid;gap:0.5rem;font-size:0.82rem;">
+              <div><span style="color:#6b7280;">Client:</span> <span style="color:#e5e2e1;font-weight:600;">${escHtml(data.clientName)}</span></div>
+              <div><span style="color:#6b7280;">Initial channel:</span> <span style="color:${chanColor};font-weight:600;">${chanLabel}</span>${data.channel === 'sms' ? ' → <span style="color:#8b91a0;">'+escHtml(data.phone)+'</span>' : ' → <span style="color:#8b91a0;">'+escHtml(data.email)+'</span>'}</div>
+              <div><span style="color:#6b7280;">Follow-up email (24h):</span> <span style="color:${data.followUpEmail ? '#8b91a0' : '#6b7280'};">${data.followUpEmail ? escHtml(data.followUpEmail) : '—'}</span></div>
+              <div><span style="color:#6b7280;">Jobber tag:</span> <span style="color:#8b91a0;">"review-sent" would be added</span></div>
+              <div><span style="color:#6b7280;">DB record:</span> <span style="color:#8b91a0;">ReviewSent row would be created</span></div>
+            </div>
+          </div>
+          <button onclick="closeTestSendModal()" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#e5e2e1;border-radius:0.75rem;padding:0.65rem;font-size:0.875rem;font-weight:600;cursor:pointer;">Close</button>`;
+      }
+      resultEl.style.display = 'block';
+    } catch (err) {
+      document.getElementById('test-send-result').innerHTML = `<div style="color:#f87171;">✗ ${escHtml(err.message)}</div>`;
+      document.getElementById('test-send-result').style.display = 'block';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Run Dry-Run Test';
+    }
+  }
+
+  // Close modal on backdrop click
+  document.getElementById('test-send-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('test-send-modal')) closeTestSendModal();
+  });
 
   // ── Init ──────────────────────────────────────────────────────────────────
   async function fetchAll() {

@@ -178,6 +178,112 @@ router.delete('/pending-reviews/:id', async (req, res) => {
 });
 
 /**
+ * GET /api/clients-list
+ * Returns up to 50 clients from Jobber with contact info for the test-send modal.
+ */
+router.get('/clients-list', async (req, res) => {
+  try {
+    const { jobberGraphQL } = require('../services/jobberClient');
+    const data = await jobberGraphQL(`{
+      clients(first: 50) {
+        nodes {
+          id
+          name
+          phones { number primary smsAllowed }
+          emails { address primary }
+        }
+      }
+    }`);
+    const clients = (data?.clients?.nodes || []).map((c) => {
+      const primaryPhone = c.phones?.find((p) => p.primary) || c.phones?.[0] || null;
+      const primaryEmail = c.emails?.find((e) => e.primary)?.address || c.emails?.[0]?.address || null;
+      return {
+        id:         c.id,
+        name:       c.name,
+        phone:      primaryPhone?.number || null,
+        smsAllowed: primaryPhone?.smsAllowed === true,
+        email:      primaryEmail,
+      };
+    });
+    res.json({ success: true, clients });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/test-send-review
+ * Dry-runs the full review-request flow for a specific client.
+ * Always uses DRY_RUN mode regardless of env var — never actually sends.
+ * Body: { clientId }
+ */
+router.post('/test-send-review', async (req, res) => {
+  try {
+    const { jobberGraphQL } = require('../services/jobberClient');
+    const { clientId } = req.body;
+    if (!clientId) return res.status(400).json({ success: false, error: 'clientId required' });
+
+    // Fetch client details
+    const data = await jobberGraphQL(`
+      query GetClient($clientId: EncodedId!) {
+        client(id: $clientId) {
+          id name
+          phones { number primary smsAllowed }
+          emails { address primary }
+          tags { nodes { label } }
+        }
+      }
+    `, { clientId });
+
+    const client = data?.client;
+    if (!client) return res.status(404).json({ success: false, error: 'Client not found in Jobber' });
+
+    const primaryPhone = client.phones?.find((p) => p.primary) || client.phones?.[0] || null;
+    const phone      = primaryPhone?.number || null;
+    const smsAllowed = primaryPhone?.smsAllowed === true;
+    const email      = client.emails?.find((e) => e.primary)?.address || client.emails?.[0]?.address || null;
+    const tags       = client.tags?.nodes?.map((t) => t.label.toLowerCase()) ?? [];
+    const firstName  = client.name.trim().split(/\s+/)[0] || client.name;
+
+    const hasReviewTag  = tags.includes('review-sent');
+    const alreadyInDB   = !!(await prisma.reviewSent.findUnique({ where: { clientId } }));
+
+    // Determine what channel would fire
+    let channel = null;
+    let wouldSend = false;
+    if (!hasReviewTag && !alreadyInDB) {
+      if (phone && smsAllowed) { channel = 'sms'; wouldSend = true; }
+      else if (email)          { channel = 'email'; wouldSend = true; }
+    }
+
+    const result = {
+      success: true,
+      clientName: client.name,
+      firstName,
+      phone,
+      smsAllowed,
+      email,
+      hasReviewTag,
+      alreadyInDB,
+      wouldSend,
+      channel,
+      followUpEmail: wouldSend && email ? email : null,
+      skippedReason: !wouldSend
+        ? hasReviewTag  ? 'Client already has "review-sent" tag in Jobber'
+        : alreadyInDB   ? 'Client already in ReviewSent database'
+        : !phone && !email ? 'No phone or email on file'
+        : 'Unknown'
+        : null,
+    };
+
+    console.log(`[status] TEST SEND — client: ${client.name} | channel: ${channel || 'none'} | wouldSend: ${wouldSend}`);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * GET /api/test-clients
  * Fetches total client count + sample names from Jobber.
  * Use this to verify the full GraphQL pipeline is working end-to-end.
