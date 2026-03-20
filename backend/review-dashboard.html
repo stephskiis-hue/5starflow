@@ -275,6 +275,7 @@
     try {
       const res  = await fetch(`${API}/api/status`);
       if (res.status === 401) { window.location.href = '/login.html'; return; }
+      if (!res.ok) throw new Error(`/api/status ${res.status}`);
       const data = await res.json();
 
       // Sidebar user info
@@ -342,6 +343,10 @@
       }
     } catch (err) {
       console.error('Status fetch error:', err);
+      const connEl = document.getElementById('connection-status');
+      if (connEl) { connEl.textContent = 'Error'; connEl.style.color = '#f87171'; }
+      const expiryEl = document.getElementById('token-expiry');
+      if (expiryEl) expiryEl.textContent = err.message || 'Failed to load';
     }
   }
 
@@ -390,6 +395,8 @@
       </table>`;
     } catch (err) {
       console.error('Log fetch error:', err);
+      const c = document.getElementById('log-container');
+      if (c) c.innerHTML = `<div style="color:#f87171;padding:1rem;font-size:0.875rem;">⚠ Failed to load refresh logs: ${escHtml(err.message)}</div>`;
     }
   }
 
@@ -488,6 +495,8 @@
       </div>`;
     } catch (err) {
       console.error('Queue fetch error:', err);
+      const c = document.getElementById('queue-container');
+      if (c) c.innerHTML = `<div style="color:#f87171;padding:1rem;font-size:0.875rem;">⚠ Failed to load review queue: ${escHtml(err.message)}</div>`;
     }
   }
 
@@ -525,6 +534,8 @@
       </div>`;
     } catch (err) {
       console.error('Review stats fetch error:', err);
+      const c = document.getElementById('review-container');
+      if (c) c.innerHTML = `<div style="color:#f87171;padding:1rem;font-size:0.875rem;">⚠ Failed to load review stats: ${escHtml(err.message)}</div>`;
     }
   }
 
@@ -871,7 +882,24 @@
     window.history.replaceState({}, '', '/review-dashboard.html');
   }
 
-  fetchAll();
+  let _loaded = false;
+  const _guard = setTimeout(() => {
+    if (_loaded) return;
+    const connEl = document.getElementById('connection-status');
+    if (connEl && (connEl.textContent === 'Loading...' || connEl.textContent === '—')) {
+      connEl.textContent = 'Error — server unreachable';
+      connEl.style.color = '#f87171';
+    }
+    ['log-container','queue-container','review-container'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.textContent.includes('Loading'))
+        el.innerHTML = '<div style="color:#f87171;padding:1rem;font-size:0.875rem;">⚠ Data failed to load. <button onclick="fetchAll()" style="margin-left:0.5rem;background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.3);color:#f87171;padding:0.25rem 0.75rem;border-radius:0.5rem;cursor:pointer;">Retry</button></div>';
+    });
+  }, 6000);
+
+  fetchAll()
+    .then(() => { _loaded = true; clearTimeout(_guard); })
+    .catch(err => { clearTimeout(_guard); console.error('[fetchAll]', err); });
   setInterval(fetchAll, 10000);
 </script>
 
