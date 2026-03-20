@@ -141,6 +141,51 @@ async function refreshExpiringGmailTokens() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// SEO Google OAuth token refresh (same credentials as Gmail — same Google app)
+// ---------------------------------------------------------------------------
+
+/**
+ * Refresh Google access tokens stored in SeoSettings that are expiring within 10 minutes.
+ */
+async function refreshExpiringSeoGoogleTokens() {
+  const tenMinutesFromNow = new Date(Date.now() + 10 * 60 * 1000);
+
+  const settings = await prisma.seoSettings.findMany({
+    where: {
+      googleRefreshToken: { not: null },
+      googleTokenExpiry:  { lte: tenMinutesFromNow },
+    },
+  });
+
+  if (settings.length === 0) return;
+
+  console.log(`[tokenManager] Refreshing ${settings.length} SEO Google token(s)...`);
+
+  for (const s of settings) {
+    try {
+      const resp = await axios.post('https://oauth2.googleapis.com/token', {
+        client_id:     process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        refresh_token: s.googleRefreshToken,
+        grant_type:    'refresh_token',
+      });
+
+      const { access_token, expires_in } = resp.data;
+      const googleTokenExpiry = new Date(Date.now() + (expires_in || 3600) * 1000);
+
+      await prisma.seoSettings.update({
+        where: { id: s.id },
+        data:  { googleAccessToken: access_token, googleTokenExpiry },
+      });
+
+      console.log(`[tokenManager] SEO Google token refreshed for userId=${s.userId}`);
+    } catch (err) {
+      console.error(`[tokenManager] SEO Google token refresh failed for userId=${s.userId}:`, err.response?.data || err.message);
+    }
+  }
+}
+
 /**
  * Start the proactive token refresh scheduler.
  * Called once on server startup from server.js.
@@ -158,6 +203,9 @@ function startTokenRefreshScheduler() {
     await refreshExpiringGmailTokens().catch((err) => {
       console.error('[tokenManager] Gmail refresh error:', err.message);
     });
+    await refreshExpiringSeoGoogleTokens().catch((err) => {
+      console.error('[tokenManager] SEO Google refresh error:', err.message);
+    });
   });
 
   // Run immediately on startup — catches any tokens that expired while server was down
@@ -167,6 +215,9 @@ function startTokenRefreshScheduler() {
   });
   refreshExpiringGmailTokens().catch((err) => {
     console.error('[tokenManager] Initial Gmail refresh error:', err.message);
+  });
+  refreshExpiringSeoGoogleTokens().catch((err) => {
+    console.error('[tokenManager] Initial SEO Google refresh error:', err.message);
   });
 }
 

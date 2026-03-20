@@ -348,6 +348,24 @@
         </div>
       </section>
 
+      <!-- Traffic Sources -->
+      <section class="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-xl p-8 group hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500" id="traffic-sources-card">
+        <div class="flex justify-between items-start mb-5">
+          <h3 class="text-xl font-bold text-zinc-100">Traffic Sources</h3>
+          <span class="text-xs font-bold px-3 py-1 rounded-full border border-primary/20 bg-primary/10 text-primary" id="traffic-sources-badge">Last 7 days</span>
+        </div>
+        <div class="mb-5" id="traffic-sources-body">
+          <span class="text-5xl font-black text-white tracking-tighter" id="traffic-total-sessions">—</span>
+          <span class="text-xs text-on-surface-variant block mt-1">total sessions</span>
+          <div class="mt-4 space-y-2" id="traffic-channel-list">
+            <div class="text-xs text-on-surface-variant">Loading...</div>
+          </div>
+        </div>
+        <div class="pt-4 border-t border-white/5 hidden" id="traffic-connect-cta">
+          <a href="/connections.html#google" class="text-xs text-primary hover:underline">Connect Google Analytics →</a>
+        </div>
+      </section>
+
       <!-- Rain Alerts -->
       <section class="col-span-12 lg:col-span-4 glass-card rounded-xl p-8 group hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 flex flex-col justify-between cursor-pointer" onclick="window.location='/weather-dashboard.html'">
         <div class="flex justify-between items-start">
@@ -754,6 +772,49 @@
     }
   }
 
+  function renderTrafficSourcesCard(data) {
+    const totalEl   = document.getElementById('traffic-total-sessions');
+    const listEl    = document.getElementById('traffic-channel-list');
+    const ctaEl     = document.getElementById('traffic-connect-cta');
+    const bodyEl    = document.getElementById('traffic-sources-body');
+    const badgeEl   = document.getElementById('traffic-sources-badge');
+
+    if (!data || !data.configured) {
+      totalEl.textContent = '—';
+      listEl.innerHTML    = '<div class="text-xs text-on-surface-variant">Not connected</div>';
+      ctaEl.classList.remove('hidden');
+      badgeEl.textContent  = 'Not Connected';
+      badgeEl.className    = 'text-xs font-bold px-3 py-1 rounded-full border border-white/10 bg-white/5 text-on-surface-variant';
+      return;
+    }
+
+    ctaEl.classList.add('hidden');
+    totalEl.textContent = (data.totalSessions || 0).toLocaleString();
+    badgeEl.textContent = 'Last 7 days';
+    badgeEl.className   = 'text-xs font-bold px-3 py-1 rounded-full border border-primary/20 bg-primary/10 text-primary';
+
+    const channels  = (data.channels || []).slice(0, 5);
+    const maxSess   = channels[0]?.sessions || 1;
+
+    if (channels.length === 0) {
+      listEl.innerHTML = '<div class="text-xs text-on-surface-variant">No channel data available</div>';
+      return;
+    }
+
+    listEl.innerHTML = channels.map(ch => {
+      const pct  = Math.round((ch.sessions / maxSess) * 100);
+      const name = ch.channel || 'Other';
+      return `
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-on-surface-variant w-28 truncate flex-shrink-0">${name}</span>
+          <div class="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+            <div class="h-full bg-primary rounded-full" style="width:${pct}%"></div>
+          </div>
+          <span class="text-xs font-bold text-zinc-200 w-10 text-right flex-shrink-0">${ch.sessions.toLocaleString()}</span>
+        </div>`;
+    }).join('');
+  }
+
   function renderStatusStrip(status) {
     const strip = document.getElementById('status-strip');
     const chip = (dotClass, text) =>
@@ -774,13 +835,14 @@
   // ── Dashboard fetch ─────────────────────────────────────────────
   async function loadDashboard() {
     try {
-      const [statusRes, queueRes, weatherRes, seoRes, seoAuditsRes, analyticsRes] = await Promise.all([
+      const [statusRes, queueRes, weatherRes, seoRes, seoAuditsRes, analyticsRes, trafficRes] = await Promise.all([
         fetch('/api/status'),
         fetch('/api/pending-reviews'),
         fetch('/api/weather/today').catch(() => null),
         fetch('/api/seo/status').catch(() => null),
         fetch('/api/seo/audits').catch(() => null),
         fetch('/api/analytics/stats').catch(() => null),
+        fetch('/api/seo/traffic-stats').catch(() => null),
       ]);
 
       if (statusRes.status === 401) { window.location.href = '/login.html'; return; }
@@ -789,7 +851,8 @@
       const weather   = weatherRes   ? await weatherRes.json().catch(() => null)   : null;
       const seo       = seoRes       ? await seoRes.json().catch(() => null)       : null;
       const seoAudits = seoAuditsRes ? await seoAuditsRes.json().catch(() => null) : null;
-      const analytics = analyticsRes ? await analyticsRes.json().catch(() => null) : null;
+      const analytics    = analyticsRes ? await analyticsRes.json().catch(() => null)    : null;
+      const trafficStats = trafficRes   ? await trafficRes.json().catch(() => null)      : null;
 
       loadUserInfo(status);
       renderReviewCard(queue, status);
@@ -797,6 +860,7 @@
       renderWeatherCard(weather);
       renderSeoCard(seo, seoAudits, seo?.latestPageSpeed);
       renderAnalyticsCard(analytics);
+      renderTrafficSourcesCard(trafficStats);
       renderStatusStrip(status);
     } catch (err) {
       console.error('Dashboard load error:', err);

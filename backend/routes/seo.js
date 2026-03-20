@@ -339,7 +339,7 @@ router.post('/settings', async (req, res) => {
     const {
       siteUrl, competitorUrls, deployType,
       deployHost, deployPort, deployUser, deployPass, deployPath, deployBranch,
-      siteProperty, auditEnabled,
+      siteProperty, auditEnabled, ga4PropertyId,
     } = req.body || {};
 
     const data = {};
@@ -353,6 +353,7 @@ router.post('/settings', async (req, res) => {
     if (deployBranch     !== undefined) data.deployBranch     = deployBranch;
     if (siteProperty     !== undefined) data.siteProperty     = siteProperty;
     if (auditEnabled     !== undefined) data.auditEnabled     = Boolean(auditEnabled);
+    if (ga4PropertyId    !== undefined) data.ga4PropertyId    = ga4PropertyId || null;
     // Only overwrite password if a real value (not masked) is provided
     if (deployPass && deployPass !== '••••••••') data.deployPass = deployPass;
 
@@ -361,6 +362,87 @@ router.post('/settings', async (req, res) => {
   } catch (err) {
     console.error('[seo] /settings POST error:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/seo/traffic-stats
+// Returns GA4 channel breakdown for the last 7 days using stored OAuth tokens.
+// Results cached 30 min per user to avoid GA4 quota exhaustion.
+// ---------------------------------------------------------------------------
+
+const trafficStatsCache = new Map(); // userId -> { data, cachedAt }
+const TRAFFIC_CACHE_TTL = 30 * 60 * 1000;
+
+router.get('/traffic-stats', async (req, res) => {
+  const userId = req.user.userId;
+
+  // Serve from cache if fresh
+  const cached = trafficStatsCache.get(userId);
+  if (cached && Date.now() - cached.cachedAt < TRAFFIC_CACHE_TTL) {
+    return res.json({ ...cached.data, fromCache: true });
+  }
+
+  try {
+    const settings = await getSettings(userId);
+    const { googleAccessToken, googleRefreshToken, googleTokenExpiry, ga4PropertyId } = settings || {};
+
+    if (!googleAccessToken || !ga4PropertyId) {
+      return res.json({ configured: false });
+    }
+
+    // Refresh token inline if expiring within 5 minutes
+    let accessToken = googleAccessToken;
+    if (googleTokenExpiry && new Date(googleTokenExpiry) < new Date(Date.now() + 5 * 60 * 1000)) {
+      if (googleRefreshToken) {
+        try {
+          const resp = await axios.post('https://oauth2.googleapis.com/token', {
+            client_id:     process.env.GOOGLE_CLIENT_ID,
+            client_secret: process.env.GOOGLE_CLIENT_SECRET,
+            refresh_token: googleRefreshToken,
+            grant_type:    'refresh_token',
+          });
+          accessToken = resp.data.access_token;
+          const newExpiry = new Date(Date.now() + (resp.data.expires_in || 3600) * 1000);
+          await prisma.seoSettings.update({
+            where: { id: settings.id },
+            data:  { googleAccessToken: accessToken, googleTokenExpiry: newExpiry },
+          });
+        } catch (refreshErr) {
+          console.error('[seo] traffic-stats inline token refresh failed:', refreshErr.message);
+        }
+      }
+    }
+
+    // Normalise property ID — accept both "properties/123456" and "123456"
+    const propId = ga4PropertyId.startsWith('properties/')
+      ? ga4PropertyId
+      : `properties/${ga4PropertyId}`;
+
+    const gaRes = await axios.post(
+      `https://analyticsdata.googleapis.com/v1beta/${propId}:runReport`,
+      {
+        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+        metrics:    [{ name: 'sessions' }],
+        dimensions: [{ name: 'sessionDefaultChannelGrouping' }],
+        limit: 8,
+      },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+
+    const rows = (gaRes.data.rows || []).map(r => ({
+      channel:  r.dimensionValues?.[0]?.value || 'Other',
+      sessions: parseInt(r.metricValues?.[0]?.value || '0', 10),
+    })).sort((a, b) => b.sessions - a.sessions);
+
+    const totalSessions = rows.reduce((s, r) => s + r.sessions, 0);
+
+    const result = { configured: true, propertyId: propId, channels: rows, totalSessions };
+    trafficStatsCache.set(userId, { data: result, cachedAt: Date.now() });
+    res.json(result);
+  } catch (err) {
+    console.error('[seo] traffic-stats error:', err.response?.data || err.message);
+    res.status(500).json({ configured: false, error: err.message });
   }
 });
 

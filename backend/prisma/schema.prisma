@@ -251,6 +251,7 @@ model SeoSettings {
   googleRefreshToken String?
   googleTokenExpiry  DateTime?
   siteProperty       String?  // Search Console property e.g. "sc-domain:nobsyardwork.com"
+  ga4PropertyId      String?  // GA4 property ID e.g. "properties/123456789"
   auditEnabled       Boolean  @default(true)
   deepAnalysis       Boolean  @default(false) // true = Sonnet (~4¢), false = Haiku (~0.7¢)
   updatedAt          DateTime @updatedAt
@@ -301,6 +302,22 @@ model PageSpeedHistory {
   runAt        DateTime @default(now())
 
   @@index([userId])
+}
+
+// Per-user message customization for review request emails and SMS.
+model MessageSettings {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  businessName    String   @default("My Business")
+  tagline         String   @default("")
+  logoUrl         String   @default("")
+  reviewLink      String   @default("")
+  buttonColor     String   @default("#1b5e20")
+  emailSubject    String   @default("Could you do us a small favor?")
+  emailBody       String   @default("We hope you're loving the results! We'd love to hear what you think.")
+  emailCustomHtml String   @default("")
+  smsBody         String   @default("")
+  updatedAt       DateTime @updatedAt
 }
 
 // Per-user Gmail credentials for outbound email (Google OAuth2).

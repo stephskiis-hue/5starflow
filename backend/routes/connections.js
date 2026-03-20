@@ -78,12 +78,13 @@ router.get('/status', async (req, res) => {
       lastDate:   latestWeather ? latestWeather.date      : null,
     };
 
-    // ── Google (placeholder) ────────────────────────────────────────────────
+    // ── Google ──────────────────────────────────────────────────────────────
     const seoSettings = await prisma.seoSettings.findFirst({ where: { userId: req.user.userId } });
     const google = {
-      connected:   !!(seoSettings && seoSettings.googleAccessToken),
-      placeholder: true,
-      siteProperty: seoSettings ? seoSettings.siteProperty : null,
+      connected:     !!(seoSettings && seoSettings.googleAccessToken),
+      siteProperty:  seoSettings?.siteProperty  || null,
+      ga4PropertyId: seoSettings?.ga4PropertyId || null,
+      tokenExpiry:   seoSettings?.googleTokenExpiry || null,
     };
 
     // ── Skyvern (placeholder) ───────────────────────────────────────────────

@@ -489,37 +489,84 @@
 
   function renderGoogleCard(g) {
     const ok = g.connected;
+    const statusClass = ok
+      ? 'bg-secondary/10 text-secondary border border-secondary/20'
+      : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20';
     return `
-    <div class="glass-card rounded-xl p-6 opacity-60">
+    <div class="glass-card rounded-xl p-6" id="google">
       <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center mb-4">
-        <span class="material-symbols-outlined text-blue-400 text-lg">search</span>
+        <span class="material-symbols-outlined text-blue-400 text-lg">analytics</span>
       </div>
       <div class="flex items-start justify-between mb-4">
         <div>
           <h3 class="text-sm font-semibold text-zinc-100">Google</h3>
           <p class="text-xs text-on-surface-variant mt-0.5">Search Console & Analytics</p>
         </div>
-        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-500/10 text-zinc-400 border border-zinc-500/20">
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClass}">
           ${ok ? 'Connected' : 'Not Connected'}
         </span>
       </div>
       <div class="text-xs text-on-surface-variant mb-4">
-        <span class="font-semibold">Required for:</span> SEO audits · Analytics
+        <span class="font-semibold">Required for:</span> SEO audits · Traffic Sources card
       </div>
       <div class="space-y-2 mb-4">
         <div class="flex items-center justify-between text-xs">
-          <span class="text-on-surface-variant">Site property</span>
+          <span class="text-on-surface-variant">Search Console property</span>
           <span class="text-zinc-300">${g.siteProperty || 'Not set'}</span>
         </div>
         <div class="flex items-center justify-between text-xs">
-          <span class="text-on-surface-variant">Scope</span>
-          <span class="text-zinc-300">Search Console + Analytics</span>
+          <span class="text-on-surface-variant">Token expiry</span>
+          <span class="text-zinc-300">${g.tokenExpiry ? new Date(g.tokenExpiry).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
         </div>
       </div>
+      <div class="mb-4">
+        <label class="block text-xs font-medium text-on-surface-variant mb-1">GA4 Property ID</label>
+        <div class="flex gap-2">
+          <input type="text" id="ga4-property-id-input"
+            value="${g.ga4PropertyId || ''}"
+            placeholder="e.g. properties/123456789"
+            class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-primary/50 placeholder-zinc-600" />
+          <button onclick="saveGa4PropertyId()"
+            class="px-3 py-2 text-xs font-semibold bg-primary/10 border border-primary/20 rounded-xl hover:bg-primary/20 transition-colors text-primary whitespace-nowrap">
+            Save
+          </button>
+        </div>
+        <p class="text-[10px] text-zinc-600 mt-1">Find this in GA4 → Admin → Property Settings → Property ID. Prefix with "properties/".</p>
+        <div id="ga4-save-result" class="text-xs mt-1 hidden"></div>
+      </div>
       <div class="flex gap-2 mt-4">
-        <a class="px-3 py-1.5 text-xs font-medium bg-primary/10 border border-primary/20 rounded-xl hover:bg-primary/20 transition-colors text-primary inline-block" href="/api/seo/google/auth">Connect Google</a>
+        <a class="px-3 py-1.5 text-xs font-medium ${ok ? 'bg-secondary/10 border border-secondary/20 text-secondary' : 'bg-primary/10 border border-primary/20 text-primary'} rounded-xl hover:opacity-80 transition-opacity inline-block" href="/api/seo/google/auth">
+          ${ok ? 'Re-connect Google' : 'Connect Google'}
+        </a>
       </div>
     </div>`;
+  }
+
+  async function saveGa4PropertyId() {
+    const input  = document.getElementById('ga4-property-id-input');
+    const result = document.getElementById('ga4-save-result');
+    const value  = input.value.trim();
+    result.className = 'text-xs mt-1';
+    result.textContent = 'Saving...';
+    result.classList.remove('hidden');
+    try {
+      const res  = await fetch('/api/seo/settings', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ga4PropertyId: value || null }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        result.textContent = '✓ Saved';
+        result.style.color = '#47e266';
+      } else {
+        result.textContent = data.error || 'Failed to save';
+        result.style.color = '#f87171';
+      }
+    } catch (err) {
+      result.textContent = err.message;
+      result.style.color = '#f87171';
+    }
   }
 
   function renderSkyvernCard(s) {
