@@ -1,5 +1,6 @@
 const { jobberGraphQL } = require('./jobberClient');
 const prisma = require('../lib/prismaClient');
+const { awardPoints } = require('./loyaltyService');
 
 const REVIEW_SENT_TAG = 'review-sent';
 
@@ -135,6 +136,11 @@ async function handleInvoicePaid(invoiceData) {
 
     console.log(
       `[reviewRequester] Queued review for "${clientName}" (SMS:${phone ? 'yes' : 'no'}, Email:${primaryEmail ? 'yes' : 'no'}) — sends at ${scheduledAt.toISOString()}`
+    );
+
+    // Award loyalty points (fire-and-forget — never blocks the review queue)
+    awardPoints(clientId, clientName, phone, userId).catch(err =>
+      console.error(`[reviewRequester] loyaltyService error for "${clientName}":`, err.message)
     );
   } catch (err) {
     if (err.code === 'P2002') {

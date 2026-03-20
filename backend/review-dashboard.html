@@ -210,7 +210,7 @@
   </main>
 
 <!-- Test Send Modal -->
-<div id="test-send-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;display:flex;align-items:center;justify-content:center;padding:1rem;" class="hidden">
+<div id="test-send-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center;padding:1rem;" class="hidden">
   <div style="background:#111;border:1px solid rgba(255,255,255,0.1);border-radius:1.5rem;width:100%;max-width:520px;padding:2rem;box-shadow:0 40px 60px rgba(0,0,0,0.6);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
       <div>
@@ -226,6 +226,19 @@
       <label style="font-size:0.75rem;font-weight:600;color:#8b91a0;text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:0.5rem;">Select Client</label>
       <select id="test-send-select" style="width:100%;background:#1a1a1a;border:1px solid rgba(255,255,255,0.1);border-radius:0.75rem;color:#e5e2e1;padding:0.65rem 0.9rem;font-size:0.875rem;outline:none;margin-bottom:1rem;"></select>
       <div id="test-send-preview" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:1rem;padding:1rem;font-size:0.82rem;color:#8b91a0;margin-bottom:1.25rem;min-height:80px;"></div>
+    </div>
+
+    <!-- Manual ID fallback — always visible -->
+    <div id="test-send-manual-wrap" style="display:none;">
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+        <div style="flex:1;height:1px;background:rgba(255,255,255,0.07);"></div>
+        <span style="font-size:0.72rem;color:#6b7280;">or paste Client ID</span>
+        <div style="flex:1;height:1px;background:rgba(255,255,255,0.07);"></div>
+      </div>
+      <input id="test-send-manual-id" placeholder="Jobber EncodedId (e.g. Z2lkOi8v...)" style="width:100%;background:#1a1a1a;border:1px solid rgba(255,255,255,0.1);border-radius:0.75rem;color:#e5e2e1;padding:0.65rem 0.9rem;font-size:0.82rem;outline:none;margin-bottom:1rem;box-sizing:border-box;" />
+    </div>
+
+    <div id="test-send-run-wrap" style="display:none;">
       <button onclick="runTestSend()" id="test-send-run-btn" style="width:100%;background:#47e266;color:#000;border:none;border-radius:0.75rem;padding:0.75rem;font-size:0.9rem;font-weight:700;cursor:pointer;">Run Dry-Run Test</button>
     </div>
 
@@ -711,11 +724,18 @@
     modal.classList.remove('hidden');
     modal.style.display = 'flex';
     document.getElementById('test-send-loading').style.display = 'block';
+    document.getElementById('test-send-loading').textContent = 'Loading clients...';
     document.getElementById('test-send-picker').style.display = 'none';
+    document.getElementById('test-send-manual-wrap').style.display = 'none';
+    document.getElementById('test-send-run-wrap').style.display = 'none';
     document.getElementById('test-send-result').style.display = 'none';
+    document.getElementById('test-send-manual-id').value = '';
 
     try {
-      const res  = await fetch(`${API}/api/clients-list`);
+      const res = await Promise.race([
+        fetch(`${API}/api/clients-list`),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('Timed out — try pasting a Client ID manually')), 10000)),
+      ]);
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       testClients = data.clients;
@@ -729,8 +749,12 @@
       select.addEventListener('change', updateTestSendPreview);
     } catch (err) {
       document.getElementById('test-send-loading').innerHTML =
-        '<span style="color:#f87171;">✗ Could not load clients — make sure Jobber is connected and try again.<br><span style="font-size:0.75rem;opacity:0.7;">' + escHtml(err.message) + '</span></span>';
+        '<span style="color:#f87171;font-size:0.82rem;">✗ ' + escHtml(err.message) + '</span>';
     }
+
+    // Always show manual input + run button regardless of dropdown load result
+    document.getElementById('test-send-manual-wrap').style.display = 'block';
+    document.getElementById('test-send-run-wrap').style.display = 'block';
   }
 
   function updateTestSendPreview() {
@@ -755,9 +779,13 @@
   }
 
   async function runTestSend() {
+    const manualId = document.getElementById('test-send-manual-id').value.trim();
     const idx = parseInt(document.getElementById('test-send-select').value, 10);
-    const c = testClients[idx];
-    if (!c) return;
+    const clientId = manualId || testClients[idx]?.id;
+    if (!clientId) {
+      alert('Select a client from the dropdown or paste a Client ID.');
+      return;
+    }
     const btn = document.getElementById('test-send-run-btn');
     btn.disabled = true; btn.textContent = 'Running...';
 
@@ -765,12 +793,14 @@
       const res  = await fetch(`${API}/api/test-send-review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: c.id }),
+        body: JSON.stringify({ clientId }),
       });
       const data = await res.json();
 
       const resultEl = document.getElementById('test-send-result');
       document.getElementById('test-send-picker').style.display = 'none';
+      document.getElementById('test-send-manual-wrap').style.display = 'none';
+      document.getElementById('test-send-run-wrap').style.display = 'none';
 
       if (!data.success) {
         resultEl.innerHTML = `<div style="color:#f87171;padding:1rem;background:rgba(248,113,113,0.1);border-radius:0.75rem;">✗ ${escHtml(data.error)}</div>`;

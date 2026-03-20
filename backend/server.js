@@ -16,6 +16,7 @@ const gmailRouter       = require('./routes/gmail');
 const settingsRouter    = require('./routes/settings');
 const analyticsRouter   = require('./routes/analytics');
 const auditRouter       = require('./routes/websiteAudit');
+const leaderboardRouter = require('./routes/leaderboard');
 const { requireAuth } = require('./middleware/requireAuth');
 const { startTokenRefreshScheduler } = require('./services/tokenManager');
 const { startDeliveryQueue }         = require('./services/deliveryQueue');
@@ -100,6 +101,21 @@ app.post('/api/weather/twilio-callback', express.urlencoded({ extended: false })
   res.sendStatus(204);
 });
 
+// Referral redirect — public, no auth required (clients click from their phones)
+// Sets hasPendingMultiplier=true for the referrer, then redirects to booking page.
+app.get('/r/:slug', async (req, res) => {
+  try {
+    const prisma = require('./lib/prismaClient');
+    await prisma.loyaltyClient.updateMany({
+      where: { referralSlug: req.params.slug },
+      data:  { hasPendingMultiplier: true },
+    });
+  } catch (err) {
+    console.error('[referral] DB update failed:', err.message);
+  }
+  res.redirect(process.env.REFERRAL_REDIRECT_URL || '/login.html');
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({
@@ -131,6 +147,7 @@ app.use('/api/connections', connectionsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/audit', auditRouter);
+app.use('/api/leaderboard', leaderboardRouter);
 
 // ---------------------------------------------------------------------------
 // Error handler

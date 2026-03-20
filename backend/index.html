@@ -64,6 +64,79 @@
       aside { display: none !important; }
       main { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
     }
+    /* --- Client Leaderboard --- */
+    .lb-grid {
+      display: grid;
+      grid-template-columns: 52px 1fr 110px 130px 160px 110px;
+      gap: 0;
+    }
+    .lb-header {
+      padding: 8px 10px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #8b91a0;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .lb-cell {
+      padding: 11px 10px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .lb-row:hover .lb-cell { background: rgba(255,255,255,0.03); }
+    .lb-rank-gold   { color: #fbbf24; font-weight: 800; }
+    .lb-rank-silver { color: #94a3b8; font-weight: 800; }
+    .lb-rank-bronze { color: #c47e4a; font-weight: 800; }
+    .lb-rank-other  { color: #8b91a0; font-weight: 600; }
+    .lb-2x-badge {
+      font-size: 9px; font-weight: 800; letter-spacing: 0.05em;
+      padding: 2px 5px; border-radius: 4px;
+      background: rgba(233,179,255,0.15); color: #e9b3ff;
+      margin-left: 6px; flex-shrink: 0;
+    }
+    .lb-copy-btn {
+      font-size: 11px; font-weight: 600;
+      padding: 4px 10px; border-radius: 6px;
+      background: rgba(170,199,255,0.1); color: #aac7ff;
+      border: 1px solid rgba(170,199,255,0.2);
+      cursor: pointer; transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .lb-copy-btn:hover { background: rgba(170,199,255,0.2); }
+    .lb-copy-btn.copied { background: rgba(71,226,102,0.15); color: #47e266; border-color: rgba(71,226,102,0.2); }
+    .lb-action-wrap { position: relative; }
+    .lb-action-btn {
+      font-size: 11px; font-weight: 600;
+      padding: 4px 10px; border-radius: 6px;
+      background: rgba(255,255,255,0.06); color: #e5e2e1;
+      border: 1px solid rgba(255,255,255,0.1);
+      cursor: pointer; transition: background 0.15s;
+      white-space: nowrap; display: flex; align-items: center; gap: 4px;
+    }
+    .lb-action-btn:hover { background: rgba(255,255,255,0.1); }
+    .lb-dropdown {
+      position: absolute; right: 0; top: calc(100% + 4px); z-index: 99;
+      background: #1c1b1b; border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; overflow: hidden; min-width: 170px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    .lb-dropdown button {
+      display: block; width: 100%; text-align: left;
+      padding: 9px 14px; font-size: 12px; font-weight: 500; color: #e5e2e1;
+      background: transparent; border: none; cursor: pointer;
+      transition: background 0.1s;
+    }
+    .lb-dropdown button:hover { background: rgba(255,255,255,0.07); }
+    .lb-dropdown button.danger { color: #f87171; }
+    .lb-dropdown button.danger:hover { background: rgba(248,113,113,0.1); }
+    .lb-empty {
+      grid-column: 1 / -1;
+      padding: 32px 16px; text-align: center;
+      font-size: 13px; color: #8b91a0;
+    }
   </style>
 </head>
 <body class="bg-black min-h-screen">
@@ -298,6 +371,30 @@
           <span class="material-symbols-outlined text-[14px] text-on-surface-variant">schedule</span>
           <span class="text-[10px] text-on-surface-variant">Updated <span id="weather-checked">—</span></span>
           <span class="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold border" id="weather-badge">—</span>
+        </div>
+      </section>
+
+      <!-- Client Leaderboard (Full Width) -->
+      <section class="col-span-12 glass-card rounded-xl p-8" id="leaderboard-section">
+        <div class="flex justify-between items-center mb-6">
+          <div>
+            <span class="text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-on-surface-variant mb-2 block">Loyalty Engine</span>
+            <h3 class="text-2xl font-bold text-zinc-100">Client Leaderboard</h3>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-tertiary-container/10 text-tertiary border-tertiary/20" id="lb-count-badge">— clients</span>
+          </div>
+        </div>
+
+        <!-- Grid Header + Rows -->
+        <div class="lb-grid" id="lb-grid">
+          <div class="lb-header">Rank</div>
+          <div class="lb-header">Client</div>
+          <div class="lb-header">Hustle Score</div>
+          <div class="lb-header">Status</div>
+          <div class="lb-header">Referral Link</div>
+          <div class="lb-header">Actions</div>
+          <div class="lb-empty">Loading leaderboard...</div>
         </div>
       </section>
 
@@ -698,6 +795,202 @@
 
   loadDashboard();
   setInterval(loadDashboard, 30000);
+
+  // ── Client Leaderboard ──────────────────────────────────────────
+  const LB_REFERRAL_BASE = window.location.origin + '/r';
+
+  function rankLabel(rank) {
+    if (rank === 1) return `<span class="lb-rank-gold">🥇 1</span>`;
+    if (rank === 2) return `<span class="lb-rank-silver">🥈 2</span>`;
+    if (rank === 3) return `<span class="lb-rank-bronze">🥉 3</span>`;
+    return `<span class="lb-rank-other">${rank}</span>`;
+  }
+
+  function openDropdown(wrap) {
+    // Close any other open dropdowns first
+    document.querySelectorAll('.lb-dropdown').forEach(d => {
+      if (d !== wrap.querySelector('.lb-dropdown')) d.remove();
+    });
+    const existing = wrap.querySelector('.lb-dropdown');
+    if (existing) { existing.remove(); return; }
+  }
+
+  function buildDropdown(jobberClientId, displayName) {
+    const drop = document.createElement('div');
+    drop.className = 'lb-dropdown';
+
+    const smsBtn = document.createElement('button');
+    smsBtn.textContent = 'Reward via SMS';
+    smsBtn.addEventListener('click', () => sendReward(jobberClientId, 'sms', displayName));
+
+    const emailBtn = document.createElement('button');
+    emailBtn.textContent = 'Reward via Email';
+    emailBtn.addEventListener('click', () => sendReward(jobberClientId, 'email', displayName));
+
+    const divider = document.createElement('div');
+    divider.style.cssText = 'height:1px;background:rgba(255,255,255,0.08);margin:4px 0;';
+
+    const optOutBtn = document.createElement('button');
+    optOutBtn.className = 'danger';
+    optOutBtn.textContent = 'Remove from Game';
+    optOutBtn.addEventListener('click', () => removeFromGame(jobberClientId, displayName));
+
+    drop.appendChild(smsBtn);
+    drop.appendChild(emailBtn);
+    drop.appendChild(divider);
+    drop.appendChild(optOutBtn);
+    return drop;
+  }
+
+  async function sendReward(jobberClientId, channel, displayName) {
+    document.querySelectorAll('.lb-dropdown').forEach(d => d.remove());
+    const REWARDS = ['$20 off next mow', 'Free Aeration', 'Priority scheduling', '$15 off any service'];
+    const rewardText_raw = prompt(
+      `Reward message for ${displayName} (${channel}):\n\nPresets:\n${REWARDS.map((r,i)=>`${i+1}. ${r}`).join('\n')}\n\nEnter message or leave blank for default:`,
+      ''
+    );
+    if (rewardText_raw === null) return; // cancelled
+    try {
+      const res = await fetch('/api/leaderboard/reward', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ jobberClientId, channel, rewardText: rewardText_raw || undefined }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        alert(data.dryRun ? `DRY RUN — would send ${channel} to ${displayName}` : `Reward sent to ${displayName}!`);
+      } else {
+        alert('Error: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Request failed: ' + err.message);
+    }
+  }
+
+  async function removeFromGame(jobberClientId, displayName) {
+    document.querySelectorAll('.lb-dropdown').forEach(d => d.remove());
+    if (!confirm(`Remove ${displayName} from the leaderboard?\n\nThey won't earn or lose points. You can re-add them from the leaderboard.`)) return;
+    try {
+      const res = await fetch('/api/leaderboard/opt-out', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ jobberClientId, optOut: true }),
+      });
+      const data = await res.json();
+      if (data.ok) loadLeaderboard();
+      else alert('Error: ' + (data.error || 'Unknown error'));
+    } catch (err) {
+      alert('Request failed: ' + err.message);
+    }
+  }
+
+  function copyReferralLink(slug, btn) {
+    const url = `${LB_REFERRAL_BASE}/${slug}`;
+    navigator.clipboard.writeText(url).then(() => {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy Link'; btn.classList.remove('copied'); }, 2000);
+    });
+  }
+
+  async function loadLeaderboard() {
+    try {
+      const res     = await fetch('/api/leaderboard');
+      const clients = await res.json();
+      const grid    = document.getElementById('lb-grid');
+      const badge   = document.getElementById('lb-count-badge');
+
+      badge.textContent = `${clients.length} client${clients.length !== 1 ? 's' : ''}`;
+
+      // Keep header row, replace body
+      const headers = Array.from(grid.querySelectorAll('.lb-header'));
+      grid.innerHTML = '';
+      headers.forEach(h => grid.appendChild(h));
+
+      if (clients.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'lb-empty';
+        empty.textContent = 'No clients yet. Points are awarded automatically when invoices are paid.';
+        grid.appendChild(empty);
+        return;
+      }
+
+      clients.forEach(client => {
+        const wrap = document.createElement('div');
+        wrap.className = 'lb-row';
+        wrap.style.display = 'contents';
+
+        // Rank cell
+        const rankCell = document.createElement('div');
+        rankCell.className = 'lb-cell';
+        rankCell.innerHTML = rankLabel(client.rank);
+
+        // Client name cell
+        const nameCell = document.createElement('div');
+        nameCell.className = 'lb-cell font-medium text-zinc-100';
+        nameCell.textContent = client.displayName;
+
+        // Hustle Score cell
+        const scoreCell = document.createElement('div');
+        scoreCell.className = 'lb-cell font-bold text-white';
+        scoreCell.innerHTML = `${client.totalPoints} pts${client.hasPendingMultiplier ? '<span class="lb-2x-badge">2x</span>' : ''}`;
+
+        // Status cell
+        const statusCell = document.createElement('div');
+        statusCell.className = 'lb-cell';
+        let statusColor = 'text-on-surface-variant';
+        if (client.status === 'Top Fan') statusColor = 'text-yellow-400';
+        else if (client.status === 'Top 10% Fan') statusColor = 'text-tertiary';
+        else if (client.status === 'Rising Star') statusColor = 'text-primary';
+        statusCell.innerHTML = `<span class="text-xs font-semibold ${statusColor}">${client.status}</span>`;
+
+        // Referral Link cell
+        const linkCell = document.createElement('div');
+        linkCell.className = 'lb-cell';
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'lb-copy-btn';
+        copyBtn.textContent = 'Copy Link';
+        copyBtn.addEventListener('click', () => copyReferralLink(client.referralSlug, copyBtn));
+        linkCell.appendChild(copyBtn);
+
+        // Actions cell
+        const actionCell = document.createElement('div');
+        actionCell.className = 'lb-cell';
+        const actionWrap = document.createElement('div');
+        actionWrap.className = 'lb-action-wrap';
+        const actionBtn = document.createElement('button');
+        actionBtn.className = 'lb-action-btn';
+        actionBtn.innerHTML = 'Actions <span class="material-symbols-outlined" style="font-size:14px;line-height:1">expand_more</span>';
+        actionBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openDropdown(actionWrap);
+          const drop = buildDropdown(client.jobberClientId, client.displayName);
+          actionWrap.appendChild(drop);
+        });
+        actionWrap.appendChild(actionBtn);
+        actionCell.appendChild(actionWrap);
+
+        wrap.appendChild(rankCell);
+        wrap.appendChild(nameCell);
+        wrap.appendChild(scoreCell);
+        wrap.appendChild(statusCell);
+        wrap.appendChild(linkCell);
+        wrap.appendChild(actionCell);
+        grid.appendChild(wrap);
+      });
+
+      // Close dropdowns when clicking elsewhere
+      document.addEventListener('click', () => {
+        document.querySelectorAll('.lb-dropdown').forEach(d => d.remove());
+      }, { once: false });
+
+    } catch (err) {
+      console.error('[leaderboard] Load error:', err);
+    }
+  }
+
+  loadLeaderboard();
+  setInterval(loadLeaderboard, 60000);
 </script>
 
 <script>
