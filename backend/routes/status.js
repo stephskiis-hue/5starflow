@@ -18,7 +18,7 @@ router.get('/status', async (req, res) => {
       await prisma.jobberAccount.findFirst();
 
     if (!account) {
-      return res.json({ connected: false });
+      return res.json({ connected: false, userEmail: req.user.email });
     }
 
     const now = new Date();
@@ -27,6 +27,7 @@ router.get('/status', async (req, res) => {
 
     res.json({
       connected: true,
+      userEmail: req.user.email,
       accountId: account.accountId,
       expiresAt: account.expiresAt.toISOString(),
       tokenExpired,

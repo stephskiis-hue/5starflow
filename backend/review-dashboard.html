@@ -300,6 +300,9 @@
         return;
       }
 
+      const banner = document.getElementById('jobber-not-connected-banner');
+      if (banner) banner.style.display = 'none';
+
       connEl.textContent = 'Connected';
       connEl.style.color = '#47e266';
       jobberConnected = true;

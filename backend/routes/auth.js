@@ -135,7 +135,7 @@ router.get('/callback', async (req, res) => {
     }
 
     console.log(`[auth] Jobber account connected: ${accountId}${userId ? ` (portal user: ${userId})` : ''}. Expires: ${expiresAt.toISOString()}`);
-    res.redirect('/connections.html?connected=true');
+    res.redirect('/review-dashboard.html');
   } catch (err) {
     const detail = err.response?.data
       ? JSON.stringify(err.response.data)
