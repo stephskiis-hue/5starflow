@@ -774,6 +774,7 @@
         fetch('/api/analytics/stats').catch(() => null),
       ]);
 
+      if (statusRes.status === 401) { window.location.href = '/login.html'; return; }
       const status    = await statusRes.json();
       const queue     = await queueRes.json();
       const weather   = weatherRes   ? await weatherRes.json().catch(() => null)   : null;

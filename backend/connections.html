@@ -74,6 +74,10 @@
         <span class="material-symbols-outlined text-[20px]">settings</span>
         <span class="text-sm font-medium tracking-tight">Settings</span>
       </a>
+      <a id="admin-nav-link" class="hidden flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/admin.html">
+        <span class="material-symbols-outlined text-[20px]">manage_accounts</span>
+        <span class="text-sm font-medium tracking-tight">User Management</span>
+      </a>
     </nav>
 
     <div class="mt-auto px-2 pt-4 border-t border-white/5">
@@ -581,6 +585,7 @@
         fetch('/api/connections/status'),
         fetch('/api/status'),
       ]);
+      if (statusRes.status === 401) { window.location.href = '/login.html'; return; }
       const conn   = await connRes.json();
       const status = await statusRes.json();
 
