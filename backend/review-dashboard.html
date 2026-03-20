@@ -236,6 +236,7 @@
 <script>
   const API = '';
   const TOKEN_MAX_SECONDS = 3600;
+  let jobberConnected = false;
 
   // ── Utilities ─────────────────────────────────────────────────────────────
   function escHtml(str) {
@@ -284,6 +285,7 @@
 
       connEl.textContent = 'Connected';
       connEl.style.color = '#47e266';
+      jobberConnected = true;
       accountEl.textContent = data.accountId || '—';
       connectBtn.style.display = 'none';
       disconnectBtn.style.display = forceRefreshBtn.style.display =
@@ -701,6 +703,10 @@
   let testClients = [];
 
   async function openTestSendModal() {
+    if (!jobberConnected) {
+      alert('Connect your Jobber account first before running a test.');
+      return;
+    }
     const modal = document.getElementById('test-send-modal');
     modal.classList.remove('hidden');
     modal.style.display = 'flex';
@@ -722,7 +728,8 @@
       updateTestSendPreview();
       select.addEventListener('change', updateTestSendPreview);
     } catch (err) {
-      document.getElementById('test-send-loading').textContent = '✗ Failed to load clients: ' + err.message;
+      document.getElementById('test-send-loading').innerHTML =
+        '<span style="color:#f87171;">✗ Could not load clients — make sure Jobber is connected and try again.<br><span style="font-size:0.75rem;opacity:0.7;">' + escHtml(err.message) + '</span></span>';
     }
   }
 
