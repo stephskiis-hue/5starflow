@@ -733,7 +733,7 @@
   }
 
   // ── Test Send Modal ───────────────────────────────────────────────────────
-  let testClients = [];
+  let _testClientsList = [];
 
   async function openTestSendModal() {
     if (!jobberConnected) {
@@ -758,10 +758,10 @@
       ]);
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
-      testClients = data.clients;
+      _testClientsList = data.clients;
 
       const select = document.getElementById('test-send-select');
-      select.innerHTML = testClients.map((c, i) => `<option value="${i}">${escHtml(c.name)}${c.phone ? ' · ' + escHtml(c.phone) : ''}${c.email ? ' · ' + escHtml(c.email) : ''}</option>`).join('');
+      select.innerHTML = _testClientsList.map((c, i) => `<option value="${i}">${escHtml(c.name)}${c.phone ? ' · ' + escHtml(c.phone) : ''}${c.email ? ' · ' + escHtml(c.email) : ''}</option>`).join('');
 
       document.getElementById('test-send-loading').style.display = 'none';
       document.getElementById('test-send-picker').style.display = 'block';
@@ -779,7 +779,7 @@
 
   function updateTestSendPreview() {
     const idx = parseInt(document.getElementById('test-send-select').value, 10);
-    const c = testClients[idx];
+    const c = _testClientsList[idx];
     if (!c) return;
     const channel = (c.phone && c.smsAllowed) ? 'SMS' : c.email ? 'Email' : 'None';
     const channelColor = channel === 'SMS' ? '#47e266' : channel === 'Email' ? '#38bdf8' : '#f87171';
@@ -801,7 +801,7 @@
   async function runTestSend() {
     const manualId = document.getElementById('test-send-manual-id').value.trim();
     const idx = parseInt(document.getElementById('test-send-select').value, 10);
-    const clientId = manualId || testClients[idx]?.id;
+    const clientId = manualId || _testClientsList[idx]?.id;
     if (!clientId) {
       alert('Select a client from the dropdown or paste a Client ID.');
       return;
