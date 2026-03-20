@@ -10,9 +10,16 @@ const axios   = require('axios');
 router.get('/status', async (req, res) => {
   try {
     // ── Jobber ──────────────────────────────────────────────────────────────
-    const jobberAccount =
-      await prisma.jobberAccount.findFirst({ where: { userId: req.user.userId } }) ??
-      await prisma.jobberAccount.findFirst();
+    let jobberAccount = await prisma.jobberAccount.findFirst({
+      where: { OR: [{ userId: req.user.userId }, { userId: null }] },
+    });
+    // Heal missing userId so future lookups work correctly
+    if (jobberAccount && !jobberAccount.userId) {
+      jobberAccount = await prisma.jobberAccount.update({
+        where: { id: jobberAccount.id },
+        data:  { userId: req.user.userId },
+      });
+    }
     const lastRefreshLog = jobberAccount
       ? await prisma.tokenRefreshLog.findFirst({
           where:   { accountId: jobberAccount.accountId },
