@@ -262,6 +262,11 @@
     return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  function showContainerError(id, msg) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = `<div style="color:#f87171;padding:1rem;font-size:0.875rem;">⚠ ${escHtml(msg)}</div>`;
+  }
+
   async function logout() {
     try {
       const res  = await fetch('/auth/logout', { method: 'POST' });
@@ -395,8 +400,7 @@
       </table>`;
     } catch (err) {
       console.error('Log fetch error:', err);
-      const c = document.getElementById('log-container');
-      if (c) c.innerHTML = `<div style="color:#f87171;padding:1rem;font-size:0.875rem;">⚠ Failed to load refresh logs: ${escHtml(err.message)}</div>`;
+      showContainerError('log-container', `Failed to load refresh logs: ${err.message}`);
     }
   }
 
@@ -495,8 +499,7 @@
       </div>`;
     } catch (err) {
       console.error('Queue fetch error:', err);
-      const c = document.getElementById('queue-container');
-      if (c) c.innerHTML = `<div style="color:#f87171;padding:1rem;font-size:0.875rem;">⚠ Failed to load review queue: ${escHtml(err.message)}</div>`;
+      showContainerError('queue-container', `Failed to load review queue: ${err.message}`);
     }
   }
 
@@ -534,8 +537,7 @@
       </div>`;
     } catch (err) {
       console.error('Review stats fetch error:', err);
-      const c = document.getElementById('review-container');
-      if (c) c.innerHTML = `<div style="color:#f87171;padding:1rem;font-size:0.875rem;">⚠ Failed to load review stats: ${escHtml(err.message)}</div>`;
+      showContainerError('review-container', `Failed to load review stats: ${err.message}`);
     }
   }
 
