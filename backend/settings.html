@@ -431,18 +431,11 @@
     const role = me.role || 'client';
     const roleEl = document.getElementById('user-role');
     if (roleEl) roleEl.textContent = role === 'admin' ? 'Administrator' : 'Client';
-    if (role === 'admin') addAdminLink();
+    if (role === 'admin') {
+      const link = document.getElementById('admin-nav-link');
+      if (link) link.classList.remove('hidden');
+    }
   } catch {}
-
-  function addAdminLink() {
-    const nav = document.getElementById('main-nav');
-    if (!nav || nav.querySelector('a[href="/admin.html"]')) return;
-    const a = document.createElement('a');
-    a.className = 'flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200';
-    a.href = '/admin.html';
-    a.innerHTML = '<span class="material-symbols-outlined text-[20px]">manage_accounts</span><span class="text-sm font-medium tracking-tight">User Management</span>';
-    nav.appendChild(a);
-  }
 })();
 </script>
 
