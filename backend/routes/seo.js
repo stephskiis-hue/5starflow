@@ -89,6 +89,21 @@ router.post('/pagespeed', async (req, res) => {
       }
     }
 
+    // Save to history (fire-and-forget — never let a DB error break the response)
+    prisma.pageSpeedHistory.create({
+      data: {
+        userId:      req.user?.userId ?? null,
+        siteUrl:     url,
+        mobileScore:  mobile.score  ?? null,
+        desktopScore: desktop.score ?? null,
+        mobileSeo:    mobile.seoScore  ?? null,
+        lcp:          mobile.lcp ?? null,
+        cls:          mobile.cls ?? null,
+        fid:          mobile.fid ?? null,
+        issuesJson:   JSON.stringify(allIssues),
+      },
+    }).catch(err => console.error('[seo] history save error:', err.message));
+
     res.json({
       url,
       mobile:  { score: mobile.score,  seoScore: mobile.seoScore,  lcp: mobile.lcp,  cls: mobile.cls,  fid: mobile.fid  },
@@ -104,6 +119,25 @@ router.post('/pagespeed', async (req, res) => {
       rateLimited: is429,
       needsApiKey: is429 && !process.env.GOOGLE_API_KEY,
     });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/seo/pagespeed/history
+// Last 20 Free Site Score runs for the current user.
+// ---------------------------------------------------------------------------
+router.get('/pagespeed/history', async (req, res) => {
+  try {
+    const rows = await prisma.pageSpeedHistory.findMany({
+      where:   { userId: req.user.userId },
+      orderBy: { runAt: 'desc' },
+      take:    20,
+      select:  { id: true, siteUrl: true, mobileScore: true, desktopScore: true,
+                 mobileSeo: true, lcp: true, cls: true, fid: true, issuesJson: true, runAt: true },
+    });
+    res.json({ history: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

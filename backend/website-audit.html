@@ -232,6 +232,7 @@
 <script>
   const API = window.location.origin;
   let currentPageId = null;
+  let scanPollInterval = null;
 
   // ── Utilities ─────────────────────────────────────────────────────────────
   function escHtml(str) {
@@ -500,24 +501,64 @@
   }
 
   // ── Pages Tab ──────────────────────────────────────────────────────────────
-  async function scanServer() {
+
+  function setScanningState(isScanning) {
     const btn = document.getElementById('scan-btn');
-    btn.disabled = true;
-    btn.textContent = 'Scanning...';
+    btn.disabled = isScanning;
+    btn.textContent = isScanning ? '⟳ Scanning...' : 'Scan Server';
+    if (isScanning) {
+      localStorage.setItem('5sf_scanRunning', '1');
+    } else {
+      localStorage.removeItem('5sf_scanRunning');
+    }
+  }
+
+  function startScanPoller() {
+    if (scanPollInterval) return;
+    scanPollInterval = setInterval(async () => {
+      try {
+        const res  = await fetch(`${API}/api/audit/scan/status`);
+        const data = await res.json();
+        if (!data.scanning) {
+          clearInterval(scanPollInterval);
+          scanPollInterval = null;
+          setScanningState(false);
+          await loadPages();
+          if (data.error) {
+            showToast(data.error, 'red');
+          } else {
+            showToast(`Scan complete — found ${data.found ?? 0} HTML file(s)`, 'green');
+          }
+        }
+      } catch { /* network blip — try again next tick */ }
+    }, 3000);
+  }
+
+  async function checkScanStatus() {
     try {
-      const res = await fetch(`${API}/api/audit/scan`, { method: 'POST' });
+      const res  = await fetch(`${API}/api/audit/scan/status`);
       const data = await res.json();
-      if (res.ok) {
-        await loadPages();
-        showToast(`Scan complete — found ${data.found} HTML file(s)`, 'green');
+      if (data.scanning) {
+        setScanningState(true);
+        startScanPoller();
+      }
+    } catch { /* ignore — non-critical on load */ }
+  }
+
+  async function scanServer() {
+    setScanningState(true);
+    try {
+      const res  = await fetch(`${API}/api/audit/scan`, { method: 'POST' });
+      const data = await res.json();
+      if (data.started || data.alreadyRunning) {
+        startScanPoller();
       } else {
-        showToast(data.error || 'Scan failed', 'red');
+        setScanningState(false);
+        showToast(data.error || 'Scan failed to start', 'red');
       }
     } catch (err) {
+      setScanningState(false);
       showToast(err.message, 'red');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Scan Server';
     }
   }
 
@@ -847,6 +888,7 @@
   }
 
   refreshAll();
+  checkScanStatus();
   setInterval(refreshAll, 15000);
 </script>
 

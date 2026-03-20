@@ -13,6 +13,9 @@ const prisma  = require('../lib/prismaClient');
 const { testConnection, previewFiles, listHtmlFiles, downloadFile, uploadFile } = require('../services/ftpService');
 const { auditPage } = require('../services/auditService');
 
+// In-memory scan job state — resets on server restart (acceptable: scan stops if server restarts)
+const activeScanJobs = new Map(); // userId -> { status, startedAt, found, error }
+
 // ─────────────────────────────────────────────
 // Password encryption helpers
 // Uses AES-256-CBC if FTP_ENCRYPTION_KEY is set (must be 32 chars).
@@ -191,37 +194,65 @@ router.delete('/ignore/:id', async (req, res) => {
 // Scan & Page Management
 // ─────────────────────────────────────────────
 
+// GET /api/audit/scan/status
+// Returns whether a scan is currently running for this user.
+router.get('/scan/status', (req, res) => {
+  const job = activeScanJobs.get(req.user.userId);
+  res.json({
+    scanning: job?.status === 'scanning',
+    found:    job?.found  ?? null,
+    error:    job?.error  ?? null,
+  });
+});
+
 // POST /api/audit/scan
 // List all HTML files from FTP server, upsert AuditPage rows.
+// Fire-and-forget: responds immediately, runs scan in background so navigation doesn't cancel it.
 router.post('/scan', async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const config = await getActiveConfig(userId);
-    if (!config) return res.status(400).json({ error: 'No FTP config saved. Call /ftp-save first.' });
+  const userId = req.user.userId;
 
-    const ignoreRows = await prisma.auditIgnore.findMany({ where: { userId } });
-    const ignorePatterns = ignoreRows.map(r => r.pattern);
-
-    const files = await listHtmlFiles(config, config.rootPath, ignorePatterns);
-
-    const hostBase = config.host.startsWith('http') ? config.host : `https://${config.host}`;
-
-    const upserts = await Promise.all(
-      files.map(file => {
-        const pageUrl = hostBase + file.path.replace(config.rootPath, '');
-        return prisma.auditPage.upsert({
-          where:  { userId_path: { userId, path: file.path } },
-          update: { filename: file.filename, pageUrl },
-          create: { userId, path: file.path, filename: file.filename, status: 'discovered', pageUrl },
-        });
-      })
-    );
-
-    res.json({ success: true, found: files.length, pages: upserts });
-  } catch (err) {
-    console.error('[audit] scan error:', err.message);
-    res.status(500).json({ error: err.message });
+  // If already scanning, just confirm it's running
+  if (activeScanJobs.get(userId)?.status === 'scanning') {
+    return res.json({ alreadyRunning: true });
   }
+
+  // Mark as scanning and respond immediately so the frontend can navigate away
+  activeScanJobs.set(userId, { status: 'scanning', startedAt: new Date() });
+  res.json({ started: true });
+
+  // Run the actual scan in background (after response is sent)
+  ;(async () => {
+    try {
+      const config = await getActiveConfig(userId);
+      if (!config) {
+        activeScanJobs.set(userId, { status: 'error', error: 'No FTP config saved. Call /ftp-save first.' });
+        return;
+      }
+
+      const ignoreRows = await prisma.auditIgnore.findMany({ where: { userId } });
+      const ignorePatterns = ignoreRows.map(r => r.pattern);
+
+      const files = await listHtmlFiles(config, config.rootPath, ignorePatterns);
+
+      const hostBase = config.host.startsWith('http') ? config.host : `https://${config.host}`;
+
+      await Promise.all(
+        files.map(file => {
+          const pageUrl = hostBase + file.path.replace(config.rootPath, '');
+          return prisma.auditPage.upsert({
+            where:  { userId_path: { userId, path: file.path } },
+            update: { filename: file.filename, pageUrl },
+            create: { userId, path: file.path, filename: file.filename, status: 'discovered', pageUrl },
+          });
+        })
+      );
+
+      activeScanJobs.set(userId, { status: 'done', found: files.length });
+    } catch (err) {
+      console.error('[audit] scan error:', err.message);
+      activeScanJobs.set(userId, { status: 'error', error: err.message });
+    }
+  })();
 });
 
 // GET /api/audit/pages

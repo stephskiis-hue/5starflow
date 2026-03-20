@@ -286,6 +286,23 @@ model LoyaltyClient {
   @@index([userId])
 }
 
+// PageSpeed score history — one row per Free Site Score run.
+model PageSpeedHistory {
+  id           String   @id @default(cuid())
+  userId       String?
+  siteUrl      String
+  mobileScore  Int?
+  desktopScore Int?
+  mobileSeo    Int?
+  lcp          Float?
+  cls          Float?
+  fid          Float?
+  issuesJson   String?  // JSON: [{ id, category, title, score, savings }]
+  runAt        DateTime @default(now())
+
+  @@index([userId])
+}
+
 // Per-user Gmail credentials for outbound email (Google OAuth2).
 model GmailCredential {
   id           String    @id @default(cuid())

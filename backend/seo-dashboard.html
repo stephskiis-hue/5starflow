@@ -319,6 +319,15 @@
       </div>
     </div>
 
+    <!-- Free Site Score History -->
+    <div class="glass-card rounded-xl p-6 mb-8">
+      <h3 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-4">Free Site Score History</h3>
+      <p class="text-xs text-on-surface-variant mb-4">Every time you run a Free Site Score check, the result is saved here. Click any row to see the issues found.</p>
+      <div id="pagespeed-history">
+        <div class="text-center py-6"><p class="text-sm text-on-surface-variant">No scores recorded yet.</p></div>
+      </div>
+    </div>
+
     <!-- ── Advanced Settings (collapsible) ──────────────────────── -->
     <div class="glass-card rounded-xl overflow-hidden mb-10">
       <button
@@ -556,6 +565,7 @@
       }
 
       renderFreeScanResults(data);
+      loadPageSpeedHistory();
 
       // Update tier lock state based on hasClaudeKey
       setTierLockState(!data.hasClaudeKey);
@@ -1014,6 +1024,96 @@
       </div>`;
   }
 
+  // ── PageSpeed history ─────────────────────────────────────────────
+  async function loadPageSpeedHistory() {
+    try {
+      const res  = await fetch(`${API}/api/seo/pagespeed/history`);
+      const data = await res.json();
+      renderPageSpeedHistory(data.history || []);
+    } catch { /* non-critical */ }
+  }
+
+  function renderPageSpeedHistory(rows) {
+    const el = document.getElementById('pagespeed-history');
+    if (!rows.length) {
+      el.innerHTML = '<div class="text-center py-6"><p class="text-sm text-on-surface-variant">No scores recorded yet.</p></div>';
+      return;
+    }
+
+    const scoreColor = s => s === null || s === undefined ? 'text-on-surface-variant'
+      : s >= 75 ? 'text-secondary' : s >= 50 ? 'text-yellow-400' : 'text-red-400';
+
+    const tableRows = rows.map(r => {
+      let issues = [];
+      try { issues = JSON.parse(r.issuesJson || '[]'); } catch {}
+
+      const issueHtml = issues.length ? issues.map(i => {
+        let badge = 'bg-primary/10 text-primary border border-primary/20';
+        if (i.score !== undefined) {
+          badge = i.score <= 0.49 ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                : i.score <= 0.89 ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                : 'bg-secondary/10 text-secondary border border-secondary/20';
+        }
+        return `<div class="flex items-start gap-2 py-1.5">
+          <span class="rounded-full px-2 py-0.5 text-[10px] font-medium ${badge} flex-shrink-0">${escHtml(i.category || 'issue')}</span>
+          <span class="text-xs text-zinc-300">${escHtml(i.title || i.message || '')}</span>
+        </div>`;
+      }).join('') : '<p class="text-xs text-on-surface-variant py-2">No issues recorded.</p>';
+
+      const rowId = `ps-row-${r.id}`;
+      const detailId = `ps-detail-${r.id}`;
+
+      return `
+        <tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors cursor-pointer"
+            onclick="togglePsDetail('${detailId}')">
+          <td class="px-4 py-3 text-sm text-zinc-100">
+            ${new Date(r.runAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            <span class="block text-[10px] text-on-surface-variant">
+              ${new Date(r.runAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-xs text-on-surface-variant">${escHtml(r.siteUrl || '')}</td>
+          <td class="px-4 py-3 text-sm text-center font-semibold ${scoreColor(r.mobileScore)}">${r.mobileScore ?? '—'}</td>
+          <td class="px-4 py-3 text-sm text-center font-semibold ${scoreColor(r.desktopScore)}">${r.desktopScore ?? '—'}</td>
+          <td class="px-4 py-3 text-sm text-center font-semibold ${scoreColor(r.mobileSeo)}">${r.mobileSeo ?? '—'}</td>
+          <td class="px-4 py-3 text-sm text-center text-on-surface-variant">${r.lcp != null ? r.lcp + 's' : '—'}</td>
+          <td class="px-4 py-3 text-sm text-center text-on-surface-variant">${issues.length}</td>
+          <td class="px-4 py-3 text-sm text-center text-on-surface-variant">▶</td>
+        </tr>
+        <tr id="${detailId}" class="hidden">
+          <td colspan="8" class="px-6 pb-4 pt-2 bg-white/[0.02]">
+            <div class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2">Issues Found</div>
+            ${issueHtml}
+          </td>
+        </tr>`;
+    }).join('');
+
+    el.innerHTML = `
+      <div class="overflow-x-auto rounded-lg">
+        <table class="w-full">
+          <thead><tr class="bg-white/5 border-b border-white/10">
+            <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Date</th>
+            <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Site</th>
+            <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">Mobile</th>
+            <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">Desktop</th>
+            <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">SEO</th>
+            <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">LCP</th>
+            <th class="px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-center">Issues</th>
+            <th class="px-4 py-3"></th>
+          </tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function togglePsDetail(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const icon = el.previousElementSibling?.querySelector('td:last-child');
+    const hidden = el.classList.toggle('hidden');
+    if (icon) icon.textContent = hidden ? '▶' : '▼';
+  }
+
   // ── Load settings ─────────────────────────────────────────────────
   async function loadSettings() {
     try {
@@ -1133,6 +1233,7 @@
   loadSettings();
   loadUserInfo();
   loadSidebarBadge();
+  loadPageSpeedHistory();
   setInterval(loadPage, 30000);
 </script>
 
