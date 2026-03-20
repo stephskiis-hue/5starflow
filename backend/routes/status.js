@@ -116,10 +116,12 @@ router.get('/pending-reviews', async (req, res) => {
     const now = new Date();
     const enriched = rows.map((r) => {
       let status;
-      if (r.cancelled)                                         status = 'cancelled';
-      else if (r.processed)                                    status = 'sent';
-      else if (r.scheduledAt <= now)                           status = 'overdue';
-      else                                                     status = 'pending';
+      if (r.cancelled)                                                        status = 'cancelled';
+      else if (r.processed && r.followUpSent)                                 status = 'follow-up-sent';
+      else if (r.processed && r.followUpScheduledAt && !r.followUpSent)       status = 'follow-up-pending';
+      else if (r.processed)                                                    status = 'sent';
+      else if (r.scheduledAt <= now)                                           status = 'overdue';
+      else                                                                     status = 'pending';
 
       return {
         id: r.id,
@@ -130,6 +132,9 @@ router.get('/pending-reviews', async (req, res) => {
         scheduledAt: r.scheduledAt.toISOString(),
         processed: r.processed,
         cancelled: r.cancelled,
+        channel: r.channel || null,
+        followUpScheduledAt: r.followUpScheduledAt?.toISOString() || null,
+        followUpSent: r.followUpSent,
         status,
         minutesUntilSend: (status === 'pending') ? Math.max(0, Math.round((r.scheduledAt - now) / 60000)) : null,
       };
@@ -489,6 +494,23 @@ router.post('/register-webhook', async (req, res) => {
 
     // Persist the webhook ID so setup-status can check it locally
     await prisma.jobberAccount.updateMany({ data: { webhookId: webhook?.id } });
+
+    // Also register CLIENT_UPDATE webhook (for tag-removal detection)
+    try {
+      await jobberGraphQL(
+        `mutation WebhookEndpointCreate($url: String!, $topic: WebHookTopicEnum!) {
+          webhookEndpointCreate(input: { url: $url, topic: $topic }) {
+            webhookEndpoint { id topic }
+            userErrors { message }
+          }
+        }`,
+        { url: webhookUrl, topic: 'CLIENT_UPDATE' }
+      );
+      console.log('[status] CLIENT_UPDATE webhook registered');
+    } catch (err) {
+      // Non-fatal — tag removal detection won't work but core flow is unaffected
+      console.warn('[status] CLIENT_UPDATE webhook registration failed (non-fatal):', err.message);
+    }
 
     res.json({ success: true, webhookId: webhook?.id, url: webhook?.url, topic: webhook?.topic });
   } catch (err) {

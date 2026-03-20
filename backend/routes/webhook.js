@@ -2,7 +2,22 @@ const express = require('express');
 const router = express.Router();
 const { verifyWebhookSignature } = require('../middleware/verifyWebhook');
 const { handleInvoicePaid } = require('../services/reviewRequester');
+const { jobberGraphQL } = require('../services/jobberClient');
 const prisma = require('../lib/prismaClient');
+
+const REVIEW_SENT_TAG = 'review-sent';
+
+const GET_CLIENT_TAGS = `
+  query GetClientTags($clientId: EncodedId!) {
+    client(id: $clientId) {
+      tags {
+        nodes {
+          label
+        }
+      }
+    }
+  }
+`;
 
 /**
  * POST /webhook/jobber
@@ -50,6 +65,32 @@ router.post(
         })
         .catch((err) => {
           console.error('[webhook] handleInvoicePaid error:', err.message);
+        });
+    }
+
+    if (topic === 'CLIENT_UPDATE' && itemId) {
+      // itemId is the clientId — check if "review-sent" tag was removed
+      prisma.jobberAccount.findFirst({ where: { accountId } })
+        .then(async (account) => {
+          const userId = account?.userId || null;
+          try {
+            const result = await jobberGraphQL(GET_CLIENT_TAGS, { clientId: itemId }, userId);
+            const tags = result?.client?.tags?.nodes?.map((t) => t.label.toLowerCase()) ?? [];
+
+            if (!tags.includes(REVIEW_SENT_TAG)) {
+              // Tag is gone — check if they're in our ReviewSent table
+              const existing = await prisma.reviewSent.findUnique({ where: { clientId: itemId } });
+              if (existing) {
+                await prisma.reviewSent.delete({ where: { clientId: itemId } });
+                console.log(`[webhook] CLIENT_UPDATE: "review-sent" tag removed for client ${itemId} — deleted from ReviewSent, client is re-eligible`);
+              }
+            }
+          } catch (err) {
+            console.error('[webhook] CLIENT_UPDATE tag check failed:', err.message);
+          }
+        })
+        .catch((err) => {
+          console.error('[webhook] CLIENT_UPDATE account lookup failed:', err.message);
         });
     }
   }

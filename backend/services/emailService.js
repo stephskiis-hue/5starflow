@@ -230,4 +230,109 @@ async function sendReviewEmail(to, firstName, userId) {
   return info.messageId;
 }
 
-module.exports = { sendReviewEmail, getGmailCreds, ensureFreshToken };
+/**
+ * Plain, professional follow-up email sent 24 hours after the initial request.
+ */
+function buildFollowUpHtmlEmail(firstName) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>One last thing</title>
+</head>
+<body style="margin:0; padding:0; background-color:#ffffff; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" border="0" cellpadding="0" cellspacing="0" style="padding: 40px 10px; background-color:#ffffff;">
+    <tr>
+      <td align="center">
+        <table width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width:550px; background-color:#ffffff; border-radius:32px; border-collapse: separate; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f0f0f0;">
+          <tr>
+            <td style="padding: 50px 45px 45px 45px;">
+              <h1 style="font-size: 22px; color: #111827; margin: 0 0 20px 0; font-weight: 700;">
+                Hi ${firstName},
+              </h1>
+              <p style="font-size: 15px; color: #4b5563; line-height: 1.7; margin: 0 0 20px 0;">
+                We sent you a message yesterday about leaving us a Google review, and we completely understand if it slipped your mind — life gets busy.
+              </p>
+              <p style="font-size: 15px; color: #4b5563; line-height: 1.7; margin: 0 0 30px 0;">
+                If you did have a moment, an honest review would mean the world to us. It only takes about 30 seconds and helps us keep growing.
+              </p>
+              <div style="text-align: center; margin-bottom: 35px;">
+                <a href="${REVIEW_LINK}"
+                   style="background-color: #1b5e20;
+                          color: #ffffff;
+                          padding: 15px 30px;
+                          text-decoration: none;
+                          border-radius: 12px;
+                          font-weight: 600;
+                          font-size: 15px;
+                          display: inline-block;">
+                  Leave a Google Review
+                </a>
+              </div>
+              <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin: 0;">
+                Either way, thank you for trusting us with your property. We hope you're enjoying the results.
+              </p>
+              <p style="font-size: 15px; color: #1b5e20; font-weight: 700; margin: 25px 0 0 0;">
+                &mdash; The No-Bs Yardwork Team
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="background-color: #fcfdfc; padding: 20px; border-top: 1px solid #f3f4f6;">
+              <p style="font-size: 10px; color: #d1d5db; margin: 0; font-weight: 700; letter-spacing: 1.5px;">
+                &copy; 2026 NO-BS YARDWORK
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * Send the 24-hour professional follow-up email.
+ *
+ * @param {string} to        - recipient email address
+ * @param {string} firstName - client's first name
+ * @param {string} userId    - portal user whose Gmail creds to use
+ */
+async function sendFollowUpEmail(to, firstName, userId) {
+  if (process.env.DRY_RUN === 'true') {
+    console.log(`[emailService] DRY RUN — would send follow-up email to ${to} for ${firstName}`);
+    return 'dry-run';
+  }
+
+  const creds = await getGmailCreds(userId);
+  if (!creds) {
+    throw new Error('Gmail not connected for this account — connect via Settings → Gmail');
+  }
+
+  const accessToken = await ensureFreshToken(userId, creds);
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      type:         'OAuth2',
+      user:         creds.user,
+      clientId:     process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      refreshToken: creds.refreshToken,
+      accessToken,
+    },
+  });
+
+  const info = await transporter.sendMail({
+    from:    `"${creds.fromName}" <${creds.user}>`,
+    to,
+    subject: 'One last thing — could you spare 30 seconds?',
+    html:    buildFollowUpHtmlEmail(firstName),
+  });
+
+  console.log(`[emailService] Follow-up email sent to ${to} | messageId: ${info.messageId}`);
+  return info.messageId;
+}
+
+module.exports = { sendReviewEmail, sendFollowUpEmail, getGmailCreds, ensureFreshToken };

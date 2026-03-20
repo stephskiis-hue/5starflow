@@ -40,6 +40,7 @@ model ReviewSent {
   id        String   @id @default(cuid())
   clientId  String   @unique  // Jobber EncodedId of the client
   invoiceId String             // Invoice that triggered the send
+  accountId String?            // Jobber account ID — for per-account visibility
   sentAt    DateTime @default(now())
 }
 
@@ -67,10 +68,13 @@ model PendingReview {
   smsAllowed  Boolean  @default(false)
   email       String?           // null if client has no primary email
   scheduledAt DateTime          // when to send = enqueued time + REVIEW_DELAY_MINUTES
-  processed   Boolean  @default(false)
-  cancelled   Boolean  @default(false)
-  userId      String?           // portal user who owns this queued review
-  createdAt   DateTime @default(now())
+  processed            Boolean   @default(false)
+  cancelled            Boolean   @default(false)
+  channel              String?             // "sms" | "email" — which channel was used for initial send
+  followUpScheduledAt  DateTime?           // set after initial send if client has email (now + 24h)
+  followUpSent         Boolean   @default(false)
+  userId               String?             // portal user who owns this queued review
+  createdAt            DateTime  @default(now())
 }
 
 // Daily weather check log — one row per morning check run.

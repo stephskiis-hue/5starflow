@@ -2,7 +2,7 @@ const cron = require('node-cron');
 const prisma = require('../lib/prismaClient');
 const { jobberGraphQL } = require('./jobberClient');
 const { sendReviewSMS } = require('./smsService');
-const { sendReviewEmail } = require('./emailService');
+const { sendReviewEmail, sendFollowUpEmail } = require('./emailService');
 
 const REVIEW_SENT_TAG = 'review-sent';
 
@@ -89,34 +89,28 @@ async function processOneReview(row) {
   let smsSent = false;
   let emailSent = false;
 
-  // --- Path A: SMS (only if phone exists and SMS is allowed) ---
+  // --- Exclusive channel selection ---
+  // phone + smsAllowed → SMS only
+  // phone + !smsAllowed, or no phone + email → email only
+  // no contact method → log and bail
   if (phone && smsAllowed) {
     try {
       await sendReviewSMS(phone, firstName, userId);
       smsSent = true;
     } catch (err) {
       console.error(`${tag} SMS failed (${phone}):`, err.message);
-      // Non-fatal — email path still runs
     }
-  } else {
-    console.log(`${tag} SMS skipped — phone: ${phone || 'none'}, smsAllowed: ${smsAllowed}`);
-  }
-
-  // --- Path B: Email (always runs if email address available) ---
-  if (email) {
+  } else if (email) {
     try {
       await sendReviewEmail(email, firstName, userId);
       emailSent = true;
     } catch (err) {
       console.error(`${tag} Email failed (${email}):`, err.message);
-      // Non-fatal
     }
   } else {
-    console.log(`${tag} Email skipped — no email address on record`);
-  }
-
-  if (!smsSent && !emailSent) {
-    console.warn(`${tag} Both delivery channels failed or unavailable — marking processed to prevent infinite retry`);
+    console.warn(`${tag} No contact method available — marking processed`);
+    await markProcessed(id);
+    return;
   }
 
   // --- Add "review-sent" tag in Jobber ---
@@ -135,24 +129,86 @@ async function processOneReview(row) {
 
   // --- Write ReviewSent record (dedup backup) ---
   try {
+    const acctRow = await prisma.jobberAccount.findFirst({ where: { userId: userId || undefined } });
     await prisma.reviewSent.upsert({
-      where: { clientId },
+      where:  { clientId },
       update: {},
-      create: { clientId, invoiceId },
+      create: { clientId, invoiceId, accountId: acctRow?.accountId || null },
     });
   } catch (err) {
     console.error(`${tag} ReviewSent write failed:`, err.message);
   }
 
-  // --- Mark PendingReview as done ---
-  await markProcessed(id);
-  console.log(`${tag} Done — SMS: ${smsSent}, Email: ${emailSent}`);
+  // --- Schedule 24-hour follow-up email if client has an email address ---
+  const followUpScheduledAt = email ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null;
+
+  // --- Mark PendingReview as done, record channel + follow-up schedule ---
+  await prisma.pendingReview.update({
+    where: { id },
+    data: {
+      processed:           true,
+      channel:             smsSent ? 'sms' : 'email',
+      followUpScheduledAt,
+    },
+  });
+
+  console.log(
+    `${tag} Done — channel: ${smsSent ? 'SMS' : 'Email'}` +
+    (followUpScheduledAt ? ` | follow-up scheduled at ${followUpScheduledAt.toISOString()}` : '')
+  );
 }
 
 async function markProcessed(id) {
   await prisma.pendingReview.update({
     where: { id },
     data: { processed: true },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Follow-up processor — sends the 24h "professional" follow-up email
+// ---------------------------------------------------------------------------
+
+async function processFollowUps() {
+  const now = new Date();
+
+  const due = await prisma.pendingReview.findMany({
+    where: {
+      processed:           true,
+      cancelled:           false,
+      followUpSent:        false,
+      followUpScheduledAt: { lte: now },
+      email:               { not: null },
+    },
+  });
+
+  if (due.length === 0) return;
+
+  console.log(`[deliveryQueue] ${due.length} follow-up(s) due — processing...`);
+
+  for (const row of due) {
+    try {
+      await processOneFollowUp(row);
+    } catch (err) {
+      console.error(`[deliveryQueue] Follow-up error for invoice ${row.invoiceId}:`, err.message);
+    }
+  }
+}
+
+async function processOneFollowUp(row) {
+  const { id, clientName, firstName, email, userId } = row;
+  const tag = `[deliveryQueue][follow-up][${clientName}]`;
+
+  try {
+    await sendFollowUpEmail(email, firstName, userId);
+    console.log(`${tag} Follow-up email sent to ${email}`);
+  } catch (err) {
+    console.error(`${tag} Follow-up email failed:`, err.message);
+  }
+
+  await prisma.pendingReview.update({
+    where: { id },
+    data:  { followUpSent: true },
   });
 }
 
@@ -172,11 +228,17 @@ function startDeliveryQueue() {
     await processPendingReviews().catch((err) => {
       console.error('[deliveryQueue] Scheduler error:', err.message);
     });
+    await processFollowUps().catch((err) => {
+      console.error('[deliveryQueue] Follow-up scheduler error:', err.message);
+    });
   });
 
   // Immediate run on startup
   processPendingReviews().catch((err) => {
     console.error('[deliveryQueue] Startup run error:', err.message);
+  });
+  processFollowUps().catch((err) => {
+    console.error('[deliveryQueue] Follow-up startup run error:', err.message);
   });
 }
 
