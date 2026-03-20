@@ -539,6 +539,51 @@
   }
 
   // ── Free scan ────────────────────────────────────────────────────
+  let freeScanPollInterval = null;
+
+  function setFreeScanState(isScanning) {
+    const btn = document.getElementById('free-scan-btn');
+    btn.disabled    = isScanning;
+    btn.textContent = isScanning ? '⟳ Scanning...' : 'Run Free Scan';
+  }
+
+  function startFreeScanPoller() {
+    if (freeScanPollInterval) return;
+    freeScanPollInterval = setInterval(async () => {
+      try {
+        const res  = await fetch(`${API}/api/seo/pagespeed/running`);
+        const data = await res.json();
+        if (!data.running) {
+          clearInterval(freeScanPollInterval);
+          freeScanPollInterval = null;
+          setFreeScanState(false);
+          if (data.result) {
+            renderFreeScanResults(data.result);
+            loadPageSpeedHistory();
+            setTierLockState(!data.result.hasClaudeKey);
+          } else if (data.error) {
+            showToast(data.error, 'error');
+          }
+        }
+      } catch { /* network blip — retry next tick */ }
+    }, 3000);
+  }
+
+  async function checkFreeScanStatus() {
+    try {
+      const res  = await fetch(`${API}/api/seo/pagespeed/running`);
+      const data = await res.json();
+      if (data.running) {
+        setFreeScanState(true);
+        startFreeScanPoller();
+      } else if (data.result) {
+        // Completed while we were away — show results immediately
+        renderFreeScanResults(data.result);
+        setTierLockState(!data.result.hasClaudeKey);
+      }
+    } catch { /* non-critical */ }
+  }
+
   async function runFreeScan() {
     const url = document.getElementById('site-url-input').value.trim();
     if (!url) {
@@ -547,33 +592,27 @@
     }
     document.getElementById('url-error').classList.add('hidden');
 
-    const btn = document.getElementById('free-scan-btn');
-    btn.disabled = true;
-    btn.textContent = 'Scanning...';
+    setFreeScanState(true);
 
     try {
-      const res  = await fetch(`${API}/api/seo/pagespeed`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ url }),
-      });
+      const res  = await fetch(`${API}/api/seo/pagespeed`, { method: 'POST' });
       const data = await res.json();
 
       if (!res.ok) {
+        setFreeScanState(false);
         showToast(data.error || 'Scan failed', 'error');
         return;
       }
 
-      renderFreeScanResults(data);
-      loadPageSpeedHistory();
-
-      // Update tier lock state based on hasClaudeKey
-      setTierLockState(!data.hasClaudeKey);
+      if (data.started || data.alreadyRunning) {
+        startFreeScanPoller();
+      } else {
+        setFreeScanState(false);
+        showToast('Scan failed to start', 'error');
+      }
     } catch (err) {
+      setFreeScanState(false);
       showToast('Scan error: ' + err.message, 'error');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Run Free Scan';
     }
   }
 
@@ -1234,6 +1273,7 @@
   loadUserInfo();
   loadSidebarBadge();
   loadPageSpeedHistory();
+  checkFreeScanStatus();
   setInterval(loadPage, 30000);
 </script>
 

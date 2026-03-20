@@ -593,7 +593,7 @@
     }
   }
 
-  function renderSeoCard(seo, seoAudits) {
+  function renderSeoCard(seo, seoAudits, latestPageSpeed) {
     const scoreEl   = document.getElementById('seo-score');
     const circleEl  = document.getElementById('seo-circle');
     const insightEl = document.getElementById('seo-insight-text');
@@ -601,20 +601,22 @@
     const scansEl   = document.getElementById('seo-recent-scans');
 
     if (!seo || seo.error) {
-      scoreEl.textContent  = '—';
-      insightEl.textContent = 'Run an audit to see your PageSpeed score.';
-      renderRecentScans(scansEl, null);
+      scoreEl.textContent   = latestPageSpeed?.mobileScore ?? '—';
+      insightEl.textContent = latestPageSpeed ? 'Latest Free Site Score (mobile).' : 'Run an audit to see your PageSpeed score.';
+      renderRecentScans(scansEl, [], latestPageSpeed);
       return;
     }
 
     const audit   = seo.latestAudit;
     const pending = seo.pendingProposals ?? 0;
-    const score   = audit?.performanceScore;
+    // Use AI audit score if available, fall back to latest pagespeed mobile score
+    const score   = audit?.performanceScore ?? latestPageSpeed?.mobileScore ?? null;
+    const usingPageSpeed = (audit?.performanceScore == null) && score != null;
 
-    if (!audit || score === null || score === undefined) {
+    if (score === null || score === undefined) {
       scoreEl.textContent   = audit?.status === 'running' ? '...' : '—';
       insightEl.textContent = audit?.status === 'running' ? 'Audit in progress...' : 'No audit data yet. Run your first audit.';
-      renderRecentScans(scansEl, seoAudits?.audits || []);
+      renderRecentScans(scansEl, seoAudits?.audits || [], latestPageSpeed);
       return;
     }
 
@@ -635,29 +637,39 @@
       circleEl.style.color = '#f87171';
     }
 
-    // Last audit time
-    const days = Math.floor((Date.now() - new Date(audit.runAt).getTime()) / 86400000);
-    const when = days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days}d ago`;
-
-    if (pending > 0) {
-      trendIcon.textContent  = 'lightbulb';
-      insightEl.textContent  = `${pending} proposal${pending > 1 ? 's' : ''} pending review from audit ${when}.`;
-    } else if (score >= 80) {
-      trendIcon.textContent  = 'trending_up';
-      insightEl.textContent  = `Score of ${score}/100 — last audited ${when}.`;
+    if (usingPageSpeed) {
+      const days = Math.floor((Date.now() - new Date(latestPageSpeed.runAt).getTime()) / 86400000);
+      const when = days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days}d ago`;
+      trendIcon.textContent  = score >= 75 ? 'trending_up' : 'warning';
+      insightEl.textContent  = `Free Site Score ${score}/100 — last checked ${when}.`;
     } else {
-      trendIcon.textContent  = 'warning';
-      insightEl.textContent  = `Score ${score}/100 needs attention — audited ${when}.`;
+      // Last audit time
+      const days = Math.floor((Date.now() - new Date(audit.runAt).getTime()) / 86400000);
+      const when = days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days}d ago`;
+
+      if (pending > 0) {
+        trendIcon.textContent  = 'lightbulb';
+        insightEl.textContent  = `${pending} proposal${pending > 1 ? 's' : ''} pending review from audit ${when}.`;
+      } else if (score >= 80) {
+        trendIcon.textContent  = 'trending_up';
+        insightEl.textContent  = `Score of ${score}/100 — last audited ${when}.`;
+      } else {
+        trendIcon.textContent  = 'warning';
+        insightEl.textContent  = `Score ${score}/100 needs attention — audited ${when}.`;
+      }
     }
 
     // Render recent scans
-    renderRecentScans(scansEl, seoAudits?.audits || []);
+    renderRecentScans(scansEl, seoAudits?.audits || [], latestPageSpeed);
   }
 
-  function renderRecentScans(container, audits) {
+  function renderRecentScans(container, audits, latestPageSpeed) {
     if (!container) return;
 
-    if (!audits || audits.length === 0) {
+    // Build rows from AI audits that have real scores
+    const scoredAudits = (audits || []).filter(a => a.performanceScore != null);
+
+    if (scoredAudits.length === 0 && !latestPageSpeed) {
       container.innerHTML = `
         <div class="pt-6 border-t border-white/5">
           <p class="text-xs text-on-surface-variant mb-3">No scans yet —</p>
@@ -669,48 +681,45 @@
       return;
     }
 
-    const recentThree = audits.slice(0, 3);
-    const rows = recentThree.map(audit => {
-      const date = new Date(audit.runAt);
-      const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-      const score = audit.performanceScore;
-
+    const scoreRow = (dateStr, score, label, isRunning) => {
       let color, bgColor;
-      if (audit.status === 'running') {
-        color = 'bg-zinc-500';
-        bgColor = 'bg-zinc-500/20';
+      if (isRunning) {
+        color = 'bg-zinc-500'; bgColor = 'bg-zinc-500/20';
       } else if (score >= 75) {
-        color = 'bg-secondary';
-        bgColor = 'bg-secondary/20';
+        color = 'bg-secondary'; bgColor = 'bg-secondary/20';
       } else if (score >= 50) {
-        color = 'bg-yellow-400';
-        bgColor = 'bg-yellow-400/20';
+        color = 'bg-yellow-400'; bgColor = 'bg-yellow-400/20';
       } else {
-        color = 'bg-red-400';
-        bgColor = 'bg-red-400/20';
+        color = 'bg-red-400'; bgColor = 'bg-red-400/20';
       }
-
-      const scoreDisplay = audit.status === 'running'
-        ? '<span class="w-1.5 h-1.5 rounded-full ' + color + ' animate-pulse inline-block"></span>'
+      const scoreDisplay = isRunning
+        ? `<span class="w-1.5 h-1.5 rounded-full ${color} animate-pulse inline-block"></span>`
         : `<span class="text-xs font-bold">${score}</span>`;
-
       return `
         <div class="flex items-center justify-between py-2 text-xs text-on-surface-variant">
           <span>${dateStr}</span>
-          <span class="flex items-center gap-2 px-2 py-0.5 rounded-lg ${bgColor}">
-            ${scoreDisplay}
-          </span>
-          <span class="text-xs text-on-surface-variant">Performance</span>
-        </div>
-      `;
-    }).join('');
+          <span class="flex items-center gap-2 px-2 py-0.5 rounded-lg ${bgColor}">${scoreDisplay}</span>
+          <span class="text-xs text-on-surface-variant">${label}</span>
+        </div>`;
+    };
+
+    // Show up to 3 AI audit rows + latest pagespeed row (if no AI scores available)
+    const rows = [];
+    scoredAudits.slice(0, 3).forEach(audit => {
+      const dateStr = new Date(audit.runAt).toLocaleDateString([], { month: 'short', day: 'numeric' });
+      rows.push(scoreRow(dateStr, audit.performanceScore, 'AI Audit', audit.status === 'running'));
+    });
+
+    // Append pagespeed row if there are no AI audit rows with scores
+    if (scoredAudits.length === 0 && latestPageSpeed) {
+      const dateStr = new Date(latestPageSpeed.runAt).toLocaleDateString([], { month: 'short', day: 'numeric' });
+      rows.push(scoreRow(dateStr, latestPageSpeed.mobileScore, 'Free Score', false));
+    }
 
     container.innerHTML = `
       <div class="pt-6 border-t border-white/5">
         <h4 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3">Recent Scans</h4>
-        <div class="space-y-1">
-          ${rows}
-        </div>
+        <div class="space-y-1">${rows.join('')}</div>
       </div>
     `;
   }
@@ -786,7 +795,7 @@
       renderReviewCard(queue, status);
       renderJobberCard(status);
       renderWeatherCard(weather);
-      renderSeoCard(seo, seoAudits);
+      renderSeoCard(seo, seoAudits, seo?.latestPageSpeed);
       renderAnalyticsCard(analytics);
       renderStatusStrip(status);
     } catch (err) {
