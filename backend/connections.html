@@ -614,10 +614,18 @@
     } else if (connected === 'true') {
       const msg = document.createElement('div');
       msg.className = 'fixed top-6 right-6 bg-secondary/10 border border-secondary/30 text-secondary px-4 py-3 rounded-xl text-sm font-medium z-[9999]';
-      msg.textContent = '✓ Jobber connected successfully';
+      const returnTo = sessionStorage.getItem('jobberConnectReturnTo');
+      msg.textContent = returnTo
+        ? '✓ Jobber connected — returning to dashboard…'
+        : '✓ Jobber connected successfully';
       document.body.appendChild(msg);
-      setTimeout(() => msg.remove(), 4000);
       history.replaceState({}, '', '/connections.html');
+      if (returnTo) {
+        sessionStorage.removeItem('jobberConnectReturnTo');
+        setTimeout(() => { window.location.href = returnTo; }, 1500);
+      } else {
+        setTimeout(() => msg.remove(), 4000);
+      }
     } else if (connected === 'false') {
       const msg = document.createElement('div');
       msg.className = 'fixed top-6 right-6 bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl text-sm font-medium z-[9999]';

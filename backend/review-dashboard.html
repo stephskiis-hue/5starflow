@@ -294,12 +294,11 @@
       const registerWebhookBtn = document.getElementById('register-webhook-btn');
 
       if (!data.connected) {
-        window.location.href = '/connections.html?reason=jobber_not_connected';
+        sessionStorage.setItem('jobberConnectReturnTo', '/review-dashboard.html');
+        const banner = document.getElementById('jobber-not-connected-banner');
+        if (banner) banner.style.display = 'flex';
         return;
       }
-
-      const banner = document.getElementById('jobber-not-connected-banner');
-      if (banner) banner.style.display = 'none';
 
       connEl.textContent = 'Connected';
       connEl.style.color = '#47e266';
