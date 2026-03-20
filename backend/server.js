@@ -121,6 +121,7 @@ app.use(requireAuth);
 
 // Serve dashboard and other static files (protected)
 app.use(express.static(__dirname));
+app.use('/images', express.static(path.join(__dirname, '..', 'images')));
 
 // Protected API routes
 app.use('/api', portalRouter);  // /api/admin/me, /api/admin/users, etc.
