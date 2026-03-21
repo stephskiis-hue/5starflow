@@ -62,9 +62,45 @@
     .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
     .result-msg { display: none; }
     .section-label { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #6b7280; margin-bottom: 1rem; }
+
+    /* Custom styles for message template editor */
+    .field-label { display: block; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #8b91a0; margin-bottom: 0.4rem; }
+    .field-input { width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; padding: 0.6rem 0.85rem; color: #e5e2e1; font-size: 0.875rem; outline: none; transition: border-color 0.15s; }
+    .field-input:focus { border-color: rgba(170,199,255,0.5); }
+    .field-input::placeholder { color: #4b5563; }
+    textarea.field-input { resize: vertical; min-height: 80px; font-family: 'Inter', sans-serif; }
+
+    .email-preview { background: #ffffff; border-radius: 1.5rem; overflow: hidden; max-width: 520px; margin: 0 auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+    .email-header { background: #f5f5f5; padding: 2rem 1.5rem 1rem; text-align: center; border-bottom: 1px solid #e5e5e5; }
+    .email-logo { max-height: 60px; margin-bottom: 1.5rem; }
+    .email-body { padding: 2rem 1.5rem; }
+    .email-greeting { font-size: 0.95rem; color: #1f2937; margin-bottom: 1rem; font-weight: 500; }
+    .email-content { font-size: 0.875rem; line-height: 1.6; color: #374151; margin-bottom: 1.5rem; }
+    .email-stars { text-align: center; font-size: 1.5rem; color: #f59e0b; margin: 1.5rem 0; letter-spacing: 0.25rem; }
+    .email-cta { display: inline-block; padding: 0.75rem 2rem; border-radius: 0.5rem; color: white; font-weight: 600; text-decoration: none; text-align: center; margin: 1.5rem auto; width: fit-content; margin-left: auto; margin-right: auto; display: block; }
+    .email-footer { text-align: center; font-size: 0.75rem; color: #9ca3af; border-top: 1px solid #e5e5e5; padding-top: 1.5rem; margin-top: 1.5rem; }
+
+    .sms-bubble { background: #31a24c; color: white; padding: 1rem 1.25rem; border-radius: 1.25rem; border-bottom-left-radius: 0.25rem; max-width: 320px; font-size: 0.875rem; line-height: 1.5; word-wrap: break-word; }
+    .sms-counter { font-size: 0.75rem; color: #8b91a0; text-align: right; margin-top: 0.5rem; }
+    .sms-counter.warning { color: #f59e0b; }
+    .sms-counter.danger { color: #ff6b6b; }
+
+    .color-picker-row { display: flex; gap: 0.75rem; align-items: flex-end; }
+    .color-picker-row input[type="color"] { height: 38px; width: 60px; border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; cursor: pointer; }
+    .color-picker-row .field-input { flex: 1; }
+
+    .logo-preview-container { margin-top: 0.75rem; }
+    .logo-preview { max-height: 80px; max-width: 100%; border-radius: 0.75rem; }
+
+    .pill-badge { display: inline-block; background: rgba(71, 226, 102, 0.1); color: #47e266; font-size: 0.7rem; font-weight: 700; padding: 0.25rem 0.6rem; border-radius: 0.5rem; }
+
+    .sticky-previews { position: sticky; top: 2rem; }
+
     @media (max-width: 640px) {
       aside { display: none !important; }
       main { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
+      .grid { grid-template-columns: 1fr !important; }
+      .sticky-previews { position: static; }
     }
   </style>
 </head>
@@ -133,129 +169,369 @@
     <!-- Page Header -->
     <div class="mb-10">
       <h2 class="text-2xl font-black text-zinc-100 tracking-tight">Message Templates</h2>
-      <p class="text-sm text-on-surface-variant mt-1">Customize the SMS and email sent to clients after a completed job</p>
+      <p class="text-sm text-on-surface-variant mt-1">Customize email branding, subject, body, and SMS messages sent to clients</p>
     </div>
 
-    <!-- SMS Template Card -->
-    <div class="glass-card rounded-xl p-8 mb-6">
-      <span class="section-label">SMS</span>
-      <h3 class="text-lg font-semibold text-zinc-100 mb-4">SMS Template</h3>
+    <!-- 2-Column Layout: Form (left) + Previews (right) -->
+    <div class="grid gap-6" style="grid-template-columns: 1fr 1fr; align-items: start;">
 
-      <div class="flex flex-col gap-4">
-        <div>
-          <label for="sms-template" class="text-sm font-medium text-on-surface-variant block mb-2">Message</label>
-          <textarea id="sms-template" rows="8" placeholder="Enter your SMS template..." onfocus="this.select()" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none"></textarea>
+      <!-- LEFT COLUMN: Settings Form -->
+      <div>
+
+        <!-- Card 1: Branding -->
+        <div class="glass-card rounded-2xl p-8 mb-6">
+          <span class="section-label">Branding</span>
+
+          <!-- Business Name -->
+          <div class="mb-5">
+            <label class="field-label">Business Name</label>
+            <input type="text" id="f-businessName" class="field-input" placeholder="No-Bs Yardwork">
+          </div>
+
+          <!-- Tagline -->
+          <div class="mb-5">
+            <label class="field-label">Tagline</label>
+            <input type="text" id="f-tagline" class="field-input" placeholder="Design • Build • Maintain">
+          </div>
+
+          <!-- Logo URL -->
+          <div class="mb-5">
+            <label class="field-label">Logo URL</label>
+            <input type="text" id="f-logoUrl" class="field-input" placeholder="https://example.com/logo.png" oninput="updateLogoPreview()">
+            <div class="logo-preview-container" id="logo-preview-container" style="display: none;">
+              <img id="logo-preview-img" class="logo-preview" alt="Logo preview">
+            </div>
+          </div>
+
+          <!-- Review Link -->
+          <div class="mb-5">
+            <label class="field-label">Google Review Link</label>
+            <input type="text" id="f-reviewLink" class="field-input" placeholder="https://g.page/r/...">
+          </div>
+
+          <!-- Button Color -->
+          <div class="mb-0">
+            <label class="field-label">Button Color</label>
+            <div class="color-picker-row">
+              <input type="color" id="f-buttonColor-picker" oninput="syncColorHex()">
+              <input type="text" id="f-buttonColor" class="field-input" placeholder="#47e266" oninput="syncColorPicker()" style="font-family: 'Courier New', monospace;">
+            </div>
+          </div>
         </div>
 
-        <p class="text-xs text-on-surface-variant">
-          Available variables: <span class="font-mono">{firstName}</span> <span class="text-zinc-600">·</span> <span class="font-mono">{reviewLink}</span>
-        </p>
+        <!-- Card 2: Email Settings -->
+        <div class="glass-card rounded-2xl p-8 mb-6">
+          <span class="section-label">Email</span>
 
-        <div class="bg-white/5 border border-white/10 rounded-xl p-4 mt-2">
-          <p class="text-xs text-on-surface-variant font-semibold mb-2">Live Preview</p>
-          <p class="text-sm text-zinc-100" id="sms-preview">Your message will appear here...</p>
+          <!-- Email Subject -->
+          <div class="mb-5">
+            <label class="field-label">Subject Line</label>
+            <input type="text" id="f-emailSubject" class="field-input" placeholder="Could you do us a small favor?">
+          </div>
+
+          <!-- Email Body -->
+          <div class="mb-5">
+            <label class="field-label">Email Body</label>
+            <textarea id="f-emailBody" class="field-input" rows="4" placeholder="Enter your email message..."></textarea>
+          </div>
+
+          <!-- Custom HTML Toggle -->
+          <div class="mb-5 p-4 bg-white/3 border border-white/8 rounded-lg">
+            <label class="flex items-center gap-2 cursor-pointer mb-2">
+              <input type="checkbox" id="f-useCustomHtml" class="w-4 h-4" onchange="toggleCustomHtml()">
+              <span class="text-sm font-medium text-on-surface">Use Custom HTML Email</span>
+            </label>
+            <p class="text-xs text-on-surface-variant">Advanced: Write your own HTML email template</p>
+          </div>
+
+          <!-- Custom HTML Textarea (hidden by default) -->
+          <div id="custom-html-section" style="display: none;">
+            <label class="field-label">Custom HTML Template</label>
+            <textarea id="f-emailCustomHtml" class="field-input" rows="6" placeholder="<html><body>...</body></html>" style="font-family: 'Courier New', monospace;"></textarea>
+            <p class="text-xs text-on-surface-variant mt-2">Available variables: {{firstName}}, {{businessName}}, {{buttonColor}}, {{reviewLink}}</p>
+          </div>
         </div>
 
-        <div class="flex gap-3">
-          <button id="sms-reset-btn" onclick="resetSmsTemplate()" class="bg-white/5 text-zinc-400 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-white/10 transition-colors w-fit">
-            Reset to Default
-          </button>
-          <button onclick="saveAsTemplate('sms')" class="bg-white/5 text-zinc-400 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-white/10 transition-colors w-fit">
-            Save as Template
-          </button>
-        </div>
-      </div>
-    </div>
+        <!-- Card 3: SMS Settings -->
+        <div class="glass-card rounded-2xl p-8 mb-8">
+          <span class="section-label">SMS</span>
 
-    <!-- Email Subject Card -->
-    <div class="glass-card rounded-xl p-8 mb-8">
-      <span class="section-label">EMAIL SUBJECT</span>
-      <h3 class="text-lg font-semibold text-zinc-100 mb-4">Email Subject</h3>
+          <!-- SMS Message -->
+          <div class="mb-4">
+            <label class="field-label">SMS Message</label>
+            <textarea id="f-smsBody" class="field-input" rows="4" placeholder="Hi {{firstName}}, we'd love to hear what you think..." oninput="updateSmsCounter()"></textarea>
+          </div>
 
-      <div class="flex flex-col gap-4">
-        <div>
-          <label for="email-subject" class="text-sm font-medium text-on-surface-variant block mb-2">Email Subject Line</label>
-          <input type="text" id="email-subject" placeholder="Enter email subject..." onfocus="this.select()" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" />
+          <!-- SMS Counter -->
+          <div class="sms-counter" id="sms-counter">0 / 160 chars</div>
+
+          <!-- Help Text -->
+          <p class="text-xs text-on-surface-variant mt-3">
+            Available variables: <span class="font-mono">{{firstName}}</span> · <span class="font-mono">{{reviewLink}}</span>
+          </p>
         </div>
-        <button onclick="saveAsTemplate('email')" class="bg-white/5 text-zinc-400 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-white/10 transition-colors w-fit mt-2">
-          Save as Template
+
+        <!-- Save Button -->
+        <button id="save-btn" onclick="saveSettings()" class="w-full bg-secondary text-zinc-900 rounded-xl px-6 py-2.5 text-sm font-semibold hover:bg-secondary/90 transition-colors">
+          Save Settings
         </button>
-      </div>
-    </div>
 
-    <!-- Template Library -->
-    <div class="glass-card rounded-xl p-8 mb-8">
-      <div class="flex items-center justify-between mb-6">
-        <div>
-          <h3 class="text-lg font-semibold text-zinc-100">Template Library</h3>
-          <p class="text-xs text-on-surface-variant mt-0.5">Click a template to preview, then use it in the editor above</p>
+        <div class="result-msg" id="save-result"></div>
+      </div>
+
+      <!-- RIGHT COLUMN: Live Previews (sticky) -->
+      <div class="sticky-previews">
+
+        <!-- Email Preview Card -->
+        <div class="glass-card rounded-2xl p-6 mb-6">
+          <div class="flex items-center gap-2 mb-4">
+            <h3 class="text-sm font-bold text-on-surface">EMAIL PREVIEW</h3>
+            <span class="pill-badge">Live</span>
+          </div>
+          <div id="email-preview-box" class="email-preview">
+            <!-- Live email preview will render here -->
+          </div>
         </div>
-        <!-- Tab pills -->
-        <div class="flex gap-1 bg-white/5 rounded-xl p-1" id="tpl-tabs">
-          <button onclick="switchTplTab('sms')" id="tab-sms" class="px-4 py-1.5 text-xs font-semibold rounded-lg bg-white/10 text-zinc-100 transition-colors">SMS</button>
-          <button onclick="switchTplTab('email')" id="tab-email" class="px-4 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 hover:text-zinc-200 transition-colors">Email Subject</button>
+
+        <!-- SMS Preview Card -->
+        <div class="glass-card rounded-2xl p-6">
+          <h3 class="text-sm font-bold text-on-surface mb-4">SMS PREVIEW</h3>
+          <div id="sms-preview-box" class="sms-bubble">
+            Your message will appear here...
+          </div>
         </div>
+
       </div>
 
-      <div id="tpl-sms-panel">
-        <p class="text-[10px] font-semibold tracking-widest text-zinc-600 uppercase mb-3">Built-in Presets</p>
-        <div id="builtin-sms-list" class="flex flex-col gap-3 mb-6"></div>
-        <p class="text-[10px] font-semibold tracking-widest text-zinc-600 uppercase mb-3">Your Saved Templates</p>
-        <div id="custom-sms-list" class="flex flex-col gap-3"></div>
-        <p class="text-xs text-zinc-600 italic hidden" id="no-custom-sms">No custom SMS templates saved yet.</p>
-      </div>
-
-      <div id="tpl-email-panel" class="hidden">
-        <p class="text-[10px] font-semibold tracking-widest text-zinc-600 uppercase mb-3">Built-in Presets</p>
-        <div id="builtin-email-list" class="flex flex-col gap-3 mb-6"></div>
-        <p class="text-[10px] font-semibold tracking-widest text-zinc-600 uppercase mb-3">Your Saved Templates</p>
-        <div id="custom-email-list" class="flex flex-col gap-3"></div>
-        <p class="text-xs text-zinc-600 italic hidden" id="no-custom-email">No custom email subject templates saved yet.</p>
-      </div>
     </div>
-
-    <!-- Save Section -->
-    <div class="flex flex-col gap-4 items-start">
-      <div class="flex items-center gap-4">
-        <button id="save-btn" onclick="saveSettings()" class="bg-primary text-zinc-900 rounded-xl px-6 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors">
-          Save Templates
-        </button>
-        <p class="text-xs text-on-surface-variant" id="last-saved" style="display: none;"></p>
-      </div>
-    </div>
-
-    <div class="result-msg" id="save-result"></div>
 
   </main>
 
 <script>
-  const API = '';
+  const API = window.location.origin;
   let currentUserId = null;
-  let expandedTplId = null;
-  let currentTplTab = 'sms';
+  let previewDebounceTimer = null;
+  let smsPreviewDebounceTimer = null;
+
+  const DEFAULTS = {
+    businessName: 'No-Bs Yardwork',
+    tagline: 'Design • Build • Maintain',
+    logoUrl: 'https://no-bs-yardwork.com/images/about-img-2.png?v=11',
+    reviewLink: 'https://g.page/r/CSu2cqDYFOxDEAE/review',
+    buttonColor: '#1b5e20',
+    emailSubject: 'Could you do us a small favor?',
+    emailBody: "We hope you're loving the look of your property! We put in the sweat so you didn't have to—we'd love to hear what you think of the results. 🫡",
+    emailCustomHtml: '',
+    smsBody: 'Hi {{firstName}}! We hope you\'re loving the look of your property! We put in the sweat so you didn\'t have to—we\'d love to hear what you think of the results. 🫡\n\n{{reviewLink}} — Much appreciated!',
+    useCustomHtml: false,
+  };
 
   function escHtml(str) {
     return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  async function logout() {
-    try {
-      const res  = await fetch('/auth/logout', { method: 'POST' });
-      const data = await res.json();
-      window.location.href = data.redirect || '/login.html';
-    } catch { window.location.href = '/login.html'; }
+  function val(id) {
+    return document.getElementById(id)?.value?.trim() || '';
   }
 
-  async function loadCurrentUser() {
+  function getFormValues() {
+    return {
+      businessName: val('f-businessName') || DEFAULTS.businessName,
+      tagline: val('f-tagline') || DEFAULTS.tagline,
+      logoUrl: val('f-logoUrl') || DEFAULTS.logoUrl,
+      reviewLink: val('f-reviewLink') || DEFAULTS.reviewLink,
+      buttonColor: val('f-buttonColor') || DEFAULTS.buttonColor,
+      emailSubject: val('f-emailSubject') || DEFAULTS.emailSubject,
+      emailBody: val('f-emailBody') || DEFAULTS.emailBody,
+      emailCustomHtml: val('f-emailCustomHtml') || DEFAULTS.emailCustomHtml,
+      smsBody: val('f-smsBody') || DEFAULTS.smsBody,
+      useCustomHtml: document.getElementById('f-useCustomHtml')?.checked || false,
+    };
+  }
+
+  function populateForm(settings) {
+    const s = settings || {};
+    document.getElementById('f-businessName').value = s.businessName || DEFAULTS.businessName;
+    document.getElementById('f-tagline').value = s.tagline || DEFAULTS.tagline;
+    document.getElementById('f-logoUrl').value = s.logoUrl || DEFAULTS.logoUrl;
+    document.getElementById('f-reviewLink').value = s.reviewLink || DEFAULTS.reviewLink;
+    document.getElementById('f-buttonColor').value = s.buttonColor || DEFAULTS.buttonColor;
+    document.getElementById('f-buttonColor-picker').value = s.buttonColor || DEFAULTS.buttonColor;
+    document.getElementById('f-emailSubject').value = s.emailSubject || DEFAULTS.emailSubject;
+    document.getElementById('f-emailBody').value = s.emailBody || DEFAULTS.emailBody;
+    document.getElementById('f-emailCustomHtml').value = s.emailCustomHtml || DEFAULTS.emailCustomHtml;
+    document.getElementById('f-smsBody').value = s.smsBody || DEFAULTS.smsBody;
+    document.getElementById('f-useCustomHtml').checked = s.useCustomHtml || false;
+  }
+
+  function syncColorHex() {
+    const picker = document.getElementById('f-buttonColor-picker').value;
+    document.getElementById('f-buttonColor').value = picker;
+    schedulePreview();
+  }
+
+  function syncColorPicker() {
+    const hex = val('f-buttonColor');
+    if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
+      document.getElementById('f-buttonColor-picker').value = hex;
+      schedulePreview();
+    }
+  }
+
+  function updateLogoPreview() {
+    const url = val('f-logoUrl');
+    const container = document.getElementById('logo-preview-container');
+    const img = document.getElementById('logo-preview-img');
+    if (url) {
+      img.src = url;
+      img.onerror = function() {
+        container.style.display = 'none';
+      };
+      container.style.display = 'block';
+    } else {
+      container.style.display = 'none';
+    }
+    schedulePreview();
+  }
+
+  function toggleCustomHtml() {
+    const checked = document.getElementById('f-useCustomHtml').checked;
+    document.getElementById('custom-html-section').style.display = checked ? 'block' : 'none';
+    schedulePreview();
+  }
+
+  function updateSmsCounter() {
+    const text = val('f-smsBody');
+    const chars = text.length;
+    const parts = Math.ceil(chars / 160) || 1;
+    const counter = document.getElementById('sms-counter');
+    if (chars === 0) {
+      counter.textContent = '0 / 160 chars';
+      counter.className = 'sms-counter';
+    } else if (chars > 160) {
+      counter.textContent = `${chars} chars (${parts} parts)`;
+      counter.className = 'sms-counter danger';
+    } else {
+      counter.textContent = `${chars} / 160 chars`;
+      counter.className = 'sms-counter';
+    }
+    scheduleSmsPreview();
+  }
+
+  function schedulePreview() {
+    if (previewDebounceTimer) clearTimeout(previewDebounceTimer);
+    previewDebounceTimer = setTimeout(renderEmailPreview, 300);
+  }
+
+  function scheduleSmsPreview() {
+    if (smsPreviewDebounceTimer) clearTimeout(smsPreviewDebounceTimer);
+    smsPreviewDebounceTimer = setTimeout(renderSmsPreview, 200);
+  }
+
+  function renderEmailPreview() {
+    const vals = getFormValues();
+    const box = document.getElementById('email-preview-box');
+
+    if (vals.useCustomHtml && vals.emailCustomHtml) {
+      // Render custom HTML (with variable substitution)
+      let html = vals.emailCustomHtml
+        .replace(/\{\{firstName\}\}/g, 'John')
+        .replace(/\{\{businessName\}\}/g, escHtml(vals.businessName))
+        .replace(/\{\{buttonColor\}\}/g, vals.buttonColor)
+        .replace(/\{\{reviewLink\}\}/g, vals.reviewLink);
+      box.innerHTML = html;
+      return;
+    }
+
+    // Default template
+    let html = '<div class="email-preview">';
+
+    // Logo
+    if (vals.logoUrl) {
+      html += `<div class="email-header"><img src="${escHtml(vals.logoUrl)}" alt="${escHtml(vals.businessName)}" class="email-logo"></div>`;
+    } else {
+      html += '<div class="email-header"></div>';
+    }
+
+    // Body
+    html += '<div class="email-body">';
+    html += '<p class="email-greeting">Hi John,</p>';
+    html += `<p class="email-content">${escHtml(vals.emailBody).replace(/\n/g, '<br>')}</p>`;
+    html += '<div class="email-stars">★★★★★</div>';
+    html += `<a href="${escHtml(vals.reviewLink)}" class="email-cta" style="background-color: ${vals.buttonColor};">Leave a Review</a>`;
+    html += `<div class="email-footer">© 2026 ${escHtml(vals.businessName)}. All rights reserved.<br><strong>${escHtml(vals.tagline)}</strong></div>`;
+    html += '</div>';
+    html += '</div>';
+
+    box.innerHTML = html;
+  }
+
+  function renderSmsPreview() {
+    const vals = getFormValues();
+    const box = document.getElementById('sms-preview-box');
+    let text = vals.smsBody
+      .replace(/\{\{firstName\}\}/g, 'John')
+      .replace(/\{\{reviewLink\}\}/g, 'https://g.page/...');
+    box.textContent = text || 'Your message will appear here...';
+  }
+
+  function wirePreview() {
+    // Wire all form inputs to trigger preview on input/change
+    ['f-businessName', 'f-tagline', 'f-logoUrl', 'f-reviewLink', 'f-buttonColor', 'f-emailSubject', 'f-emailBody', 'f-emailCustomHtml'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', schedulePreview);
+    });
+    ['f-smsBody'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', updateSmsCounter);
+    });
+  }
+
+  async function saveSettings() {
+    const vals = getFormValues();
+    const btn = document.getElementById('save-btn');
+
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
     try {
-      const res  = await fetch(`${API}/api/status`);
+      const res = await fetch(`${API}/api/settings/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(vals),
+      });
       const data = await res.json();
-      const email = data.userEmail || 'admin';
-      document.getElementById('user-email').textContent = email;
-      document.getElementById('user-avatar').textContent = email.charAt(0).toUpperCase();
-      currentUserId = data.userId ?? null;
+
+      if (res.ok && data.success) {
+        showResult('save-result', '✓ Settings saved successfully', true);
+        await loadSettings();
+      } else {
+        showResult('save-result', '✗ ' + (data.error || 'Failed to save settings'), false);
+      }
     } catch (err) {
-      console.error('Could not load user info:', err);
+      showResult('save-result', '✗ Network error: ' + err.message, false);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Settings';
+    }
+  }
+
+  async function loadSettings() {
+    try {
+      const res = await fetch(`${API}/api/settings/message`);
+      const data = await res.json();
+      populateForm(data);
+      updateLogoPreview();
+      renderEmailPreview();
+      renderSmsPreview();
+      updateSmsCounter();
+    } catch (err) {
+      console.error('Could not load settings:', err);
+      populateForm(DEFAULTS);
+      updateLogoPreview();
+      renderEmailPreview();
+      renderSmsPreview();
+      updateSmsCounter();
     }
   }
 
@@ -267,260 +543,45 @@
     if (ok) setTimeout(() => { el.style.display = 'none'; }, 4000);
   }
 
-  function updateSmsPreview() {
-    const template = document.getElementById('sms-template').value;
-    const preview = template
-      .replace(/{firstName}/g, 'John')
-      .replace(/{reviewLink}/g, '#review-link');
-    document.getElementById('sms-preview').textContent = preview || 'Your message will appear here...';
-  }
-
-  async function loadSettings() {
+  async function logout() {
     try {
-      const res  = await fetch(`${API}/api/message-settings`);
+      const res = await fetch('/auth/logout', { method: 'POST' });
       const data = await res.json();
-
-      document.getElementById('sms-template').value = data.smsTemplate || data.smsDefault || '';
-      document.getElementById('email-subject').value = data.emailSubject || data.emailSubjectDefault || '';
-
-      window._smsDefault = data.smsDefault || '';
-      window._emailSubjectDefault = data.emailSubjectDefault || '';
-
-      updateSmsPreview();
-
-      if (data.updatedAt) {
-        document.getElementById('last-saved').textContent = 'Last saved: ' + new Date(data.updatedAt).toLocaleString();
-        document.getElementById('last-saved').style.display = 'block';
-      }
-    } catch (err) {
-      console.error('Could not load message settings:', err);
-    }
+      window.location.href = data.redirect || '/login.html';
+    } catch { window.location.href = '/login.html'; }
   }
 
-  function resetSmsTemplate() {
-    if (!confirm('Reset SMS template to default?')) return;
-    document.getElementById('sms-template').value = window._smsDefault || '';
-    updateSmsPreview();
-  }
-
-  async function saveSettings() {
-    const smsTemplate  = document.getElementById('sms-template').value.trim();
-    const emailSubject = document.getElementById('email-subject').value.trim();
-    const btn          = document.getElementById('save-btn');
-
-    btn.disabled = true;
-    btn.textContent = 'Saving...';
-
+  async function loadCurrentUser() {
     try {
-      const res = await fetch(`${API}/api/message-settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          smsTemplate: smsTemplate || null,
-          emailSubject: emailSubject || null
-        }),
-      });
+      const res = await fetch(`${API}/api/status`);
       const data = await res.json();
-
-      if (res.ok && data.success) {
-        showResult('save-result', '✓ Templates saved successfully', true);
-        await loadSettings();
-      } else {
-        showResult('save-result', '✗ ' + (data.error || 'Failed to save templates'), false);
-      }
+      const email = data.userEmail || 'admin';
+      document.getElementById('user-email').textContent = email;
+      document.getElementById('user-avatar').textContent = email.charAt(0).toUpperCase();
+      currentUserId = data.userId ?? null;
     } catch (err) {
-      showResult('save-result', '✗ Network error: ' + err.message, false);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Save Templates';
+      console.error('Could not load user info:', err);
     }
   }
-
-  // ── Built-in presets ────────────────────────────────────────────
-  const BUILTIN_TEMPLATES = {
-    sms: [
-      {
-        id: 'b1', name: 'Emoji-Rich (Default)',
-        content: 'Hi {firstName}! We hope you\'re loving the look of your property! We put in the sweat so you didn\'t have to—we\'d love to hear what you think of the results. 🫡 \n\n{reviewLink} — Much appreciated! ⭐️⭐️⭐️⭐️⭐️'
-      },
-      {
-        id: 'b2', name: 'Friendly & Short',
-        content: 'Hey {firstName}! Hope the yard looks great. 😊 Mind leaving us a quick review? It really helps! {reviewLink} — Thanks!'
-      },
-      {
-        id: 'b3', name: 'Professional',
-        content: 'Hello {firstName}, thank you for choosing our service. We hope you\'re satisfied with the results. We\'d greatly appreciate a brief review: {reviewLink}'
-      },
-    ],
-    email: [
-      { id: 'b4', name: 'Review Ask', content: 'How did we do? 🌿 Leave us a quick review' },
-      { id: 'b5', name: 'Quick Favor', content: 'Could you do us a small favor?' },
-    ]
-  };
-
-  function switchTplTab(tab) {
-    currentTplTab = tab;
-    document.getElementById('tpl-sms-panel').classList.toggle('hidden', tab !== 'sms');
-    document.getElementById('tpl-email-panel').classList.toggle('hidden', tab !== 'email');
-    document.getElementById('tab-sms').className = tab === 'sms'
-      ? 'px-4 py-1.5 text-xs font-semibold rounded-lg bg-white/10 text-zinc-100 transition-colors'
-      : 'px-4 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 hover:text-zinc-200 transition-colors';
-    document.getElementById('tab-email').className = tab === 'email'
-      ? 'px-4 py-1.5 text-xs font-semibold rounded-lg bg-white/10 text-zinc-100 transition-colors'
-      : 'px-4 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 hover:text-zinc-200 transition-colors';
-  }
-
-  function renderTemplateCard(tpl, isBuiltin) {
-    const isExpanded = expandedTplId === tpl.id;
-    const preview = tpl.content.length > 90 ? tpl.content.slice(0, 90) + '…' : tpl.content;
-    return `
-      <div class="border border-white/8 rounded-xl p-4 hover:border-white/15 transition-all cursor-pointer ${isExpanded ? 'bg-white/5' : ''}" onclick="toggleTplExpand('${tpl.id}')">
-        <div class="flex items-center justify-between">
-          <span class="text-sm font-semibold text-zinc-100">${escHtml(tpl.name)}</span>
-          <div class="flex gap-2" onclick="event.stopPropagation()">
-            <button onclick="useTpl('${tpl.id}', ${isBuiltin})" class="px-3 py-1 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">Use This</button>
-            ${!isBuiltin ? `<button onclick="deleteTpl('${tpl.id}')" class="px-2 py-1 text-xs rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">✕</button>` : ''}
-          </div>
-        </div>
-        <p class="text-xs text-zinc-500 mt-1.5 font-mono leading-relaxed">${escHtml(preview)}</p>
-        ${isExpanded ? `<div class="mt-3 pt-3 border-t border-white/8">
-          <p class="text-[10px] font-semibold tracking-widest text-zinc-600 uppercase mb-2">Full Preview</p>
-          <p class="text-xs text-zinc-300 font-mono whitespace-pre-wrap leading-relaxed">${escHtml(tpl.content.replace(/{firstName}/g,'John').replace(/{reviewLink}/g,'https://g.page/r/..../review'))}</p>
-        </div>` : ''}
-      </div>`;
-  }
-
-  function toggleTplExpand(id) {
-    expandedTplId = expandedTplId === id ? null : id;
-    loadTemplateLibrary();
-  }
-
-  function getTplById(id) {
-    for (const list of Object.values(BUILTIN_TEMPLATES)) {
-      const found = list.find(t => t.id === id);
-      if (found) return { tpl: found, isBuiltin: true };
-    }
-    return null;
-  }
-
-  async function loadTemplateLibrary() {
-    // Render built-ins
-    ['sms','email'].forEach(type => {
-      const el = document.getElementById(`builtin-${type}-list`);
-      el.innerHTML = BUILTIN_TEMPLATES[type].map(t => renderTemplateCard(t, true)).join('');
-    });
-
-    // Load custom from API
-    try {
-      const res = await fetch('/api/message-templates');
-      const data = await res.json();
-      const customs = data.templates || [];
-
-      ['sms','email'].forEach(type => {
-        const list = customs.filter(t => t.type === type);
-        const el = document.getElementById(`custom-${type}-list`);
-        const emptyEl = document.getElementById(`no-custom-${type}`);
-        if (list.length === 0) {
-          el.innerHTML = '';
-          emptyEl.classList.remove('hidden');
-        } else {
-          emptyEl.classList.add('hidden');
-          el.innerHTML = list.map(t => renderTemplateCard(t, false)).join('');
-        }
-      });
-      // Attach delete handlers via window scope
-      window._customTemplates = customs;
-    } catch (err) {
-      console.error('Could not load templates:', err);
-    }
-  }
-
-  function useTpl(id, isBuiltin) {
-    let content;
-    if (isBuiltin) {
-      const result = getTplById(id);
-      if (!result) return;
-      content = result.tpl.content;
-      // Determine type from BUILTIN_TEMPLATES
-      const type = BUILTIN_TEMPLATES.sms.find(t => t.id === id) ? 'sms' : 'email';
-      if (type === 'sms') {
-        document.getElementById('sms-template').value = content;
-        updateSmsPreview();
-        document.getElementById('sms-template').scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else {
-        document.getElementById('email-subject').value = content;
-        document.getElementById('email-subject').scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    } else {
-      const tpl = (window._customTemplates || []).find(t => t.id === id);
-      if (!tpl) return;
-      if (tpl.type === 'sms') {
-        document.getElementById('sms-template').value = tpl.content;
-        updateSmsPreview();
-        document.getElementById('sms-template').scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else {
-        document.getElementById('email-subject').value = tpl.content;
-        document.getElementById('email-subject').scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
-  }
-
-  async function deleteTpl(id) {
-    if (!confirm('Delete this template?')) return;
-    try {
-      const res = await fetch(`/api/message-templates/${id}`, { method: 'DELETE' });
-      if (res.ok) await loadTemplateLibrary();
-      else showResult('save-result', '✗ Could not delete template', false);
-    } catch (err) {
-      showResult('save-result', '✗ ' + err.message, false);
-    }
-  }
-
-  async function saveAsTemplate(type) {
-    const name = prompt(`Name for this ${type === 'sms' ? 'SMS' : 'email subject'} template:`);
-    if (!name) return;
-    const content = type === 'sms'
-      ? document.getElementById('sms-template').value.trim()
-      : document.getElementById('email-subject').value.trim();
-    if (!content) { alert('No content to save.'); return; }
-    try {
-      const res = await fetch('/api/message-templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, type, content }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        await loadTemplateLibrary();
-        switchTplTab(type);
-      } else {
-        showResult('save-result', '✗ ' + (data.error || 'Failed to save template'), false);
-      }
-    } catch (err) {
-      showResult('save-result', '✗ ' + err.message, false);
-    }
-  }
-
-  // Listen for SMS template changes to update preview
-  document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('sms-template').addEventListener('input', updateSmsPreview);
-    loadCurrentUser();
-    loadSettings();
-    loadSidebarBadge();
-    loadTemplateLibrary();
-  });
 
   async function loadSidebarBadge() {
     try {
-      const res  = await fetch('/api/pending-reviews');
+      const res = await fetch('/api/pending-reviews');
       const data = await res.json();
-      const n    = data.pendingCount ?? 0;
+      const n = data.pendingCount ?? 0;
       if (n > 0) {
         document.getElementById('sidebar-pending').textContent = n;
         document.getElementById('sidebar-pending').classList.remove('hidden');
       }
     } catch {}
   }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    wirePreview();
+    loadCurrentUser();
+    loadSettings();
+    loadSidebarBadge();
+  });
 </script>
 
 <script>
@@ -529,7 +590,7 @@
   try {
     const res = await fetch('/api/admin/me', { credentials: 'include' });
     if (!res.ok) return;
-    const me   = await res.json();
+    const me = await res.json();
     const role = me.role || 'client';
     const roleEl = document.getElementById('user-role');
     if (roleEl) roleEl.textContent = role === 'admin' ? 'Administrator' : 'Client';
