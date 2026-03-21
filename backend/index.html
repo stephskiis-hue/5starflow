@@ -350,6 +350,16 @@
             </defs>
           </svg>
         </div>
+        <div class="border-t border-white/5 mt-4 pt-3" id="analytics-event-section" style="display:none">
+          <div class="flex items-center gap-2" onclick="event.stopPropagation()">
+            <select id="analytics-event-select" onchange="onEventSelectChange()"
+              class="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-zinc-300 focus:outline-none cursor-pointer appearance-none">
+              <option value="">Select event to track…</option>
+            </select>
+            <span id="analytics-event-count" class="text-sm font-bold text-zinc-100 shrink-0">—</span>
+          </div>
+          <span class="text-xs text-on-surface-variant block mt-1" id="analytics-event-label">events (30 days)</span>
+        </div>
       </section>
 
       <!-- Traffic Sources -->
@@ -776,6 +786,40 @@
     }
   }
 
+  // Stores events for the dropdown so onchange can look up counts without a network call
+  let _ga4Events = [];
+
+  function renderAnalyticsEvents(data) {
+    const section   = document.getElementById('analytics-event-section');
+    const select    = document.getElementById('analytics-event-select');
+    const countEl   = document.getElementById('analytics-event-count');
+    if (!section || !select) return;
+    if (!data?.configured || !data.events?.length) return;
+
+    _ga4Events = data.events;
+
+    // Rebuild options
+    select.innerHTML = '<option value="">Select event to track…</option>'
+      + data.events.map(e => `<option value="${e.name}">${e.name}</option>`).join('');
+
+    // Auto-select first event matching "call", else first event
+    const phoneEvent = data.events.find(e => /call/i.test(e.name));
+    const defaultEvt = phoneEvent || data.events[0];
+    if (defaultEvt) {
+      select.value     = defaultEvt.name;
+      countEl.textContent = defaultEvt.count.toLocaleString();
+    }
+
+    section.style.display = '';
+  }
+
+  function onEventSelectChange() {
+    const select  = document.getElementById('analytics-event-select');
+    const countEl = document.getElementById('analytics-event-count');
+    const evt     = _ga4Events.find(e => e.name === select.value);
+    countEl.textContent = evt ? evt.count.toLocaleString() : '—';
+  }
+
   function renderTrafficSourcesCard(data) {
     const totalEl   = document.getElementById('traffic-total-sessions');
     const listEl    = document.getElementById('traffic-channel-list');
@@ -839,7 +883,7 @@
   // ── Dashboard fetch ─────────────────────────────────────────────
   async function loadDashboard() {
     try {
-      const [statusRes, queueRes, weatherRes, seoRes, seoAuditsRes, analyticsRes, trafficRes] = await Promise.all([
+      const [statusRes, queueRes, weatherRes, seoRes, seoAuditsRes, analyticsRes, trafficRes, eventsRes] = await Promise.all([
         fetch('/api/status'),
         fetch('/api/pending-reviews'),
         fetch('/api/weather/today').catch(() => null),
@@ -847,6 +891,7 @@
         fetch('/api/seo/audits').catch(() => null),
         fetch('/api/analytics/stats').catch(() => null),
         fetch('/api/seo/traffic-stats').catch(() => null),
+        fetch('/api/analytics/events').catch(() => null),
       ]);
 
       if (statusRes.status === 401) { window.location.href = '/login.html'; return; }
@@ -857,6 +902,7 @@
       const seoAudits = seoAuditsRes ? await seoAuditsRes.json().catch(() => null) : null;
       const analytics    = analyticsRes ? await analyticsRes.json().catch(() => null)    : null;
       const trafficStats = trafficRes   ? await trafficRes.json().catch(() => null)      : null;
+      const eventsData   = eventsRes    ? await eventsRes.json().catch(() => null)       : null;
 
       loadUserInfo(status);
       renderReviewCard(queue, status);
@@ -865,6 +911,7 @@
       renderSeoCard(seo, seoAudits, seo?.latestPageSpeed);
       renderAnalyticsCard(analytics);
       renderTrafficSourcesCard(trafficStats);
+      renderAnalyticsEvents(eventsData);
       renderStatusStrip(status);
     } catch (err) {
       console.error('Dashboard load error:', err);

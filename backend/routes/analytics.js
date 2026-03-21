@@ -140,4 +140,65 @@ router.get('/test', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// GET /api/analytics/events
+// Returns top GA4 events (last 30 days) with counts. 30-min cache.
+// ---------------------------------------------------------------------------
+let _eventsCache    = null;
+let _eventsCacheAt  = 0;
+
+router.get('/events', async (req, res) => {
+  const propertyId = process.env.GA4_PROPERTY_ID;
+  const email      = process.env.GOOGLE_CLIENT_EMAIL;
+  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+  if (!propertyId || !email || !privateKey) {
+    return res.json({ configured: false, events: [] });
+  }
+
+  // Serve from cache unless force refresh
+  if (_eventsCache && !req.query.force && Date.now() - _eventsCacheAt < 30 * 60 * 1000) {
+    return res.json({ configured: true, events: _eventsCache, fromCache: true });
+  }
+
+  try {
+    const auth        = new GoogleAuth({ credentials: { client_email: email, private_key: privateKey }, scopes: ['https://www.googleapis.com/auth/analytics.readonly'] });
+    const client      = await auth.getClient();
+    const tokenResult = await client.getAccessToken();
+    const token       = tokenResult.token;
+
+    const url  = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`;
+    const apiRes = await fetch(url, {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+        metrics:    [{ name: 'eventCount' }],
+        dimensions: [{ name: 'eventName' }],
+        limit: 20,
+        orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+      }),
+    });
+
+    if (!apiRes.ok) {
+      const text = await apiRes.text();
+      return res.json({ configured: false, events: [], error: `GA4 ${apiRes.status}: ${text}` });
+    }
+
+    const data   = await apiRes.json();
+    const events = (data.rows || []).map(r => ({
+      name:  r.dimensionValues[0].value,
+      count: parseInt(r.metricValues[0].value, 10) || 0,
+    }));
+
+    _eventsCache   = events;
+    _eventsCacheAt = Date.now();
+
+    res.json({ configured: true, events });
+  } catch (err) {
+    console.error('[analytics] /events error:', err.message);
+    res.json({ configured: false, events: [], error: err.message });
+  }
+});
+
 module.exports = router;
