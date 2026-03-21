@@ -20,12 +20,15 @@ const {
 // Latest audit + pending proposal count — scoped to current user
 // ---------------------------------------------------------------------------
 router.get('/status', async (req, res) => {
+  if (!req.user || !req.user.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   try {
     const [latestAudit, pendingCount, latestPageSpeed] = await Promise.all([
-      prisma.seoAudit.findFirst({ where: { userId: req.user?.userId }, orderBy: { runAt: 'desc' } }),
-      prisma.seoProposal.count({ where: { status: 'pending', userId: req.user?.userId } }),
+      prisma.seoAudit.findFirst({ where: { userId: req.user.userId }, orderBy: { runAt: 'desc' } }),
+      prisma.seoProposal.count({ where: { status: 'pending', userId: req.user.userId } }),
       prisma.pageSpeedHistory.findFirst({
-        where:   { userId: req.user?.userId },
+        where:   { userId: req.user.userId },
         orderBy: { runAt: 'desc' },
         select:  { mobileScore: true, desktopScore: true, mobileSeo: true, lcp: true, cls: true, fid: true, runAt: true },
       }),
@@ -46,9 +49,12 @@ router.get('/status', async (req, res) => {
 // Last 10 audit runs — scoped to current user
 // ---------------------------------------------------------------------------
 router.get('/audits', async (req, res) => {
+  if (!req.user || !req.user.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   try {
     const audits = await prisma.seoAudit.findMany({
-      where:   { userId: req.user?.userId },
+      where:   { userId: req.user.userId },
       orderBy: { runAt: 'desc' },
       take: 10,
     });
@@ -56,7 +62,7 @@ router.get('/audits', async (req, res) => {
     // Attach proposal status to each audit
     const auditIds = audits.map(a => a.id);
     const proposals = await prisma.seoProposal.findMany({
-      where: { auditId: { in: auditIds }, userId: req.user?.userId },
+      where: { auditId: { in: auditIds }, userId: req.user.userId },
       select: { auditId: true, status: true, id: true },
     });
     const proposalMap = Object.fromEntries(proposals.map(p => [p.auditId, p]));
@@ -77,6 +83,9 @@ router.get('/audits', async (req, res) => {
 // Check whether a pagespeed scan is in progress for the current user.
 // ---------------------------------------------------------------------------
 router.get('/pagespeed/running', (req, res) => {
+  if (!req.user || !req.user.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   const job = activePageSpeedJobs.get(req.user.userId);
   res.json({
     running: job?.status === 'running',
@@ -92,6 +101,9 @@ router.get('/pagespeed/running', (req, res) => {
 // Poll GET /api/seo/pagespeed/running for results.
 // ---------------------------------------------------------------------------
 router.post('/pagespeed', async (req, res) => {
+  if (!req.user || !req.user.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   const userId = req.user.userId;
 
   // If already running, just confirm — frontend will poll
@@ -167,6 +179,9 @@ router.post('/pagespeed', async (req, res) => {
 // Last 20 Free Site Score runs for the current user.
 // ---------------------------------------------------------------------------
 router.get('/pagespeed/history', async (req, res) => {
+  if (!req.user || !req.user.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   try {
     const rows = await prisma.pageSpeedHistory.findMany({
       where:   { userId: req.user.userId },
@@ -186,13 +201,16 @@ router.get('/pagespeed/history', async (req, res) => {
 // Manual trigger — tier: 'pro' (Haiku, no competitors) or 'pro-plus' (Sonnet + competitors)
 // ---------------------------------------------------------------------------
 router.post('/run-audit', async (req, res) => {
+  if (!req.user || !req.user.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   const tier = ['pro', 'pro-plus'].includes(req.body?.tier) ? req.body.tier : 'pro-plus';
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(402).json({ error: 'Claude API key required for AI audit. Set ANTHROPIC_API_KEY in your .env.' });
   }
   try {
     // Fire and forget — audit is async
-    runWeeklyAudit(req.user?.userId, tier).catch(err => console.error('[seo] run-audit error:', err.message));
+    runWeeklyAudit(req.user.userId, tier).catch(err => console.error('[seo] run-audit error:', err.message));
     res.json({ success: true, tier, message: 'Audit started — check /api/seo/status for progress' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -222,9 +240,12 @@ router.post('/trigger', async (req, res) => {
 // List proposals, pending first — scoped to current user
 // ---------------------------------------------------------------------------
 router.get('/proposals', async (req, res) => {
+  if (!req.user || !req.user.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   try {
     const proposals = await prisma.seoProposal.findMany({
-      where: { userId: req.user?.userId },
+      where: { userId: req.user.userId },
       orderBy: [
         { status: 'asc' },   // "pending" sorts before "approved"/"declined" alphabetically
         { createdAt: 'desc' },
@@ -235,7 +256,7 @@ router.get('/proposals', async (req, res) => {
     // Attach changes to each proposal
     const ids = proposals.map(p => p.id);
     const changes = await prisma.seoChange.findMany({
-      where: { proposalId: { in: ids }, userId: req.user?.userId },
+      where: { proposalId: { in: ids }, userId: req.user.userId },
     });
     const changeMap = {};
     for (const c of changes) {
@@ -260,6 +281,9 @@ router.get('/proposals', async (req, res) => {
 // Body: { decision: "approved" | "declined" }
 // ---------------------------------------------------------------------------
 router.post('/proposals/:id/respond', async (req, res) => {
+  if (!req.user || !req.user.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   const { id }                          = req.params;
   const { decision, selectedChangeIds } = req.body || {};
 
@@ -268,7 +292,7 @@ router.post('/proposals/:id/respond', async (req, res) => {
   }
 
   try {
-    const proposal = await prisma.seoProposal.findFirst({ where: { id, userId: req.user?.userId } });
+    const proposal = await prisma.seoProposal.findFirst({ where: { id, userId: req.user.userId } });
     if (!proposal) return res.status(404).json({ error: 'Proposal not found' });
     if (proposal.status !== 'pending') {
       return res.status(400).json({ error: `Proposal already ${proposal.status}` });
@@ -280,8 +304,8 @@ router.post('/proposals/:id/respond', async (req, res) => {
     });
 
     if (decision === 'approved') {
-      const settings = await getSettings(req.user?.userId);
-      let allChanges = await prisma.seoChange.findMany({ where: { proposalId: id, userId: req.user?.userId } });
+      const settings = await getSettings(req.user.userId);
+      let allChanges = await prisma.seoChange.findMany({ where: { proposalId: id, userId: req.user.userId } });
 
       let changesToApply = allChanges;
       let skipped = 0;
@@ -317,8 +341,11 @@ router.post('/proposals/:id/respond', async (req, res) => {
 // GET /api/seo/settings
 // ---------------------------------------------------------------------------
 router.get('/settings', async (req, res) => {
+  if (!req.user || !req.user.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   try {
-    const settings = await getSettings(req.user?.userId);
+    const settings = await getSettings(req.user.userId);
     // Mask sensitive fields
     res.json({
       ...settings,
@@ -335,8 +362,11 @@ router.get('/settings', async (req, res) => {
 // POST /api/seo/settings
 // ---------------------------------------------------------------------------
 router.post('/settings', async (req, res) => {
+  if (!req.user || !req.user.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   try {
-    const settings = await getSettings(req.user?.userId);
+    const settings = await getSettings(req.user.userId);
     const {
       siteUrl, competitorUrls, deployType,
       deployHost, deployPort, deployUser, deployPass, deployPath, deployBranch,
@@ -376,6 +406,9 @@ const trafficStatsCache = new Map(); // userId -> { data, cachedAt }
 const TRAFFIC_CACHE_TTL = 30 * 60 * 1000;
 
 router.get('/traffic-stats', async (req, res) => {
+  if (!req.user || !req.user.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   const userId = req.user.userId;
 
   // Serve from cache if fresh
