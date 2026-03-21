@@ -90,10 +90,33 @@ router.get('/test', async (req, res) => {
       topSource = data.rows[0].dimensionValues[0].value || '—';
     }
 
+    // Fetch top GA4 events (last 30 days)
+    let events = [];
+    try {
+      const eventsRes = await fetch(url, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+          metrics:    [{ name: 'eventCount' }],
+          dimensions: [{ name: 'eventName' }],
+          limit: 10,
+          orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+        }),
+      });
+      if (eventsRes.ok) {
+        const eventsData = await eventsRes.json();
+        events = (eventsData.rows || []).map(r => ({
+          name:  r.dimensionValues[0].value,
+          count: parseInt(r.metricValues[0].value, 10) || 0,
+        }));
+      }
+    } catch (_) { /* events are bonus — don't fail the whole test */ }
+
     // Bust cache so the main card refreshes on next load
     clearCache();
 
-    console.log(`[analytics] test: OK — ${visitors} visitors, ${sessions} sessions`);
+    console.log(`[analytics] test: OK — ${visitors} visitors, ${sessions} sessions, ${events.length} event types`);
 
     res.json({
       configured:          true,
@@ -104,6 +127,7 @@ router.get('/test', async (req, res) => {
       pageViews,
       topSource,
       rawRowCount: data.rows?.length ?? 0,
+      events,
     });
   } catch (err) {
     console.error('[analytics] test error:', err.message);

@@ -376,11 +376,12 @@ const trafficStatsCache = new Map(); // userId -> { data, cachedAt }
 const TRAFFIC_CACHE_TTL = 30 * 60 * 1000;
 
 router.get('/traffic-stats', async (req, res) => {
-  const userId = req.user.userId;
+  // req.user may be undefined — /api/seo is mounted before requireAuth
+  const userId = req.user?.userId;
 
-  // Serve from cache if fresh
+  // Serve from cache if fresh (skip if ?force=1)
   const cached = trafficStatsCache.get(userId);
-  if (cached && Date.now() - cached.cachedAt < TRAFFIC_CACHE_TTL) {
+  if (cached && !req.query.force && Date.now() - cached.cachedAt < TRAFFIC_CACHE_TTL) {
     return res.json({ ...cached.data, fromCache: true });
   }
 
@@ -388,7 +389,9 @@ router.get('/traffic-stats', async (req, res) => {
     const settings = await getSettings(userId);
     const { googleAccessToken, googleRefreshToken, googleTokenExpiry, ga4PropertyId } = settings || {};
 
-    if (!ga4PropertyId) {
+    // Fall back to env var if no DB property ID saved
+    const effectivePropertyId = ga4PropertyId || process.env.GA4_PROPERTY_ID;
+    if (!effectivePropertyId) {
       return res.json({ configured: false });
     }
 
@@ -427,9 +430,9 @@ router.get('/traffic-stats', async (req, res) => {
     }
 
     // Normalise property ID — accept both "properties/123456" and "123456"
-    const propId = ga4PropertyId.startsWith('properties/')
-      ? ga4PropertyId
-      : `properties/${ga4PropertyId}`;
+    const propId = effectivePropertyId.startsWith('properties/')
+      ? effectivePropertyId
+      : `properties/${effectivePropertyId}`;
 
     const gaRes = await axios.post(
       `https://analyticsdata.googleapis.com/v1beta/${propId}:runReport`,
