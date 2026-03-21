@@ -180,8 +180,9 @@ router.get('/events', async (req, res) => {
         dimensionFilter: {
           andGroup: {
             expressions: [
-              { filter: { fieldName: 'deviceCategory', stringFilter: { value: 'mobile',  matchType: 'EXACT' } } },
-              { filter: { fieldName: 'country',        stringFilter: { value: 'Canada',  matchType: 'EXACT' } } },
+              { filter: { fieldName: 'deviceCategory', stringFilter: { value: 'mobile',   matchType: 'EXACT' } } },
+              { filter: { fieldName: 'country',        stringFilter: { value: 'Canada',   matchType: 'EXACT' } } },
+              { filter: { fieldName: 'region',         stringFilter: { value: 'Manitoba', matchType: 'EXACT' } } },
             ],
           },
         },
