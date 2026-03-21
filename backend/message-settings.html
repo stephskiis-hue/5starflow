@@ -250,6 +250,11 @@
             <textarea id="f-emailCustomHtml" class="field-input" rows="6" placeholder="<html><body>...</body></html>" style="font-family: 'Courier New', monospace;"></textarea>
             <p class="text-xs text-on-surface-variant mt-2">Available variables: {{firstName}}, {{businessName}}, {{buttonColor}}, {{reviewLink}}</p>
           </div>
+
+          <!-- Save as Template Button -->
+          <button onclick="saveAsTemplate('email')" class="mt-4 bg-white/5 text-zinc-400 border border-white/10 rounded-xl px-4 py-2 text-sm font-medium hover:bg-white/10 transition-colors w-fit">
+            Save as Template
+          </button>
         </div>
 
         <!-- Card 3: SMS Settings -->
@@ -269,6 +274,11 @@
           <p class="text-xs text-on-surface-variant mt-3">
             Available variables: <span class="font-mono">{{firstName}}</span> · <span class="font-mono">{{reviewLink}}</span>
           </p>
+
+          <!-- Save as Template Button -->
+          <button onclick="saveAsTemplate('sms')" class="mt-4 bg-white/5 text-zinc-400 border border-white/10 rounded-xl px-4 py-2 text-sm font-medium hover:bg-white/10 transition-colors w-fit">
+            Save as Template
+          </button>
         </div>
 
         <!-- Save Button -->
@@ -303,6 +313,36 @@
 
       </div>
 
+    </div>
+
+    <!-- Template Library -->
+    <div class="glass-card rounded-[1.75rem] p-8 mt-6">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h3 class="text-lg font-bold text-zinc-100">Template Library</h3>
+          <p class="text-xs text-on-surface-variant mt-0.5">Click a template to preview, then use it in the editor above</p>
+        </div>
+        <div class="flex gap-1 bg-white/5 rounded-xl p-1" id="tpl-tabs">
+          <button onclick="switchTplTab('sms')" id="tab-sms" class="px-4 py-1.5 text-xs font-semibold rounded-lg bg-white/10 text-zinc-100 transition-colors">SMS</button>
+          <button onclick="switchTplTab('email')" id="tab-email" class="px-4 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 hover:text-zinc-200 transition-colors">Email Subject</button>
+        </div>
+      </div>
+
+      <div id="tpl-sms-panel">
+        <p class="text-[10px] font-semibold tracking-widest text-zinc-600 uppercase mb-3">Built-in Presets</p>
+        <div id="builtin-sms-list" class="flex flex-col gap-3 mb-6"></div>
+        <p class="text-[10px] font-semibold tracking-widest text-zinc-600 uppercase mb-3">Your Saved Templates</p>
+        <div id="custom-sms-list" class="flex flex-col gap-3"></div>
+        <p class="text-xs text-zinc-600 italic hidden" id="no-custom-sms">No custom SMS templates saved yet.</p>
+      </div>
+
+      <div id="tpl-email-panel" class="hidden">
+        <p class="text-[10px] font-semibold tracking-widest text-zinc-600 uppercase mb-3">Built-in Presets</p>
+        <div id="builtin-email-list" class="flex flex-col gap-3 mb-6"></div>
+        <p class="text-[10px] font-semibold tracking-widest text-zinc-600 uppercase mb-3">Your Saved Templates</p>
+        <div id="custom-email-list" class="flex flex-col gap-3"></div>
+        <p class="text-xs text-zinc-600 italic hidden" id="no-custom-email">No custom email subject templates saved yet.</p>
+      </div>
     </div>
 
   </main>
@@ -543,6 +583,135 @@
     if (ok) setTimeout(() => { el.style.display = 'none'; }, 4000);
   }
 
+  // ── Template Library ──────────────────────────────────────────────
+  let expandedTplId = null;
+  let currentTplTab = 'sms';
+
+  const BUILTIN_TEMPLATES = {
+    sms: [
+      { id: 'b1', name: 'Emoji-Rich (Default)', content: 'Hi {firstName}! We hope you\'re loving the look of your property! We put in the sweat so you didn\'t have to—we\'d love to hear what you think of the results. 🫡 \n\n{reviewLink} — Much appreciated! ⭐️⭐️⭐️⭐️⭐️' },
+      { id: 'b2', name: 'Friendly & Short', content: 'Hey {firstName}! Hope the yard looks great. 😊 Mind leaving us a quick review? It really helps! {reviewLink} — Thanks!' },
+      { id: 'b3', name: 'Professional', content: 'Hello {firstName}, thank you for choosing our service. We hope you\'re satisfied with the results. We\'d greatly appreciate a brief review: {reviewLink}' },
+    ],
+    email: [
+      { id: 'b4', name: 'Review Ask', content: 'How did we do? 🌿 Leave us a quick review' },
+      { id: 'b5', name: 'Quick Favor', content: 'Could you do us a small favor?' },
+    ]
+  };
+
+  function switchTplTab(tab) {
+    currentTplTab = tab;
+    document.getElementById('tpl-sms-panel').classList.toggle('hidden', tab !== 'sms');
+    document.getElementById('tpl-email-panel').classList.toggle('hidden', tab !== 'email');
+    document.getElementById('tab-sms').className = tab === 'sms'
+      ? 'px-4 py-1.5 text-xs font-semibold rounded-lg bg-white/10 text-zinc-100 transition-colors'
+      : 'px-4 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 hover:text-zinc-200 transition-colors';
+    document.getElementById('tab-email').className = tab === 'email'
+      ? 'px-4 py-1.5 text-xs font-semibold rounded-lg bg-white/10 text-zinc-100 transition-colors'
+      : 'px-4 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 hover:text-zinc-200 transition-colors';
+  }
+
+  function renderTemplateCard(tpl, isBuiltin) {
+    const isExpanded = expandedTplId === tpl.id;
+    const preview = tpl.content.length > 90 ? tpl.content.slice(0, 90) + '…' : tpl.content;
+    return `
+      <div class="border border-white/8 rounded-xl p-4 hover:border-white/15 transition-all cursor-pointer ${isExpanded ? 'bg-white/5' : ''}" onclick="toggleTplExpand('${tpl.id}')">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-semibold text-zinc-100">${escHtml(tpl.name)}</span>
+          <div class="flex gap-2" onclick="event.stopPropagation()">
+            <button onclick="useTpl('${tpl.id}', ${isBuiltin})" class="px-3 py-1 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">Use This</button>
+            ${!isBuiltin ? `<button onclick="deleteTpl('${tpl.id}')" class="px-2 py-1 text-xs rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">✕</button>` : ''}
+          </div>
+        </div>
+        <p class="text-xs text-zinc-500 mt-1.5 font-mono leading-relaxed">${escHtml(preview)}</p>
+        ${isExpanded ? `<div class="mt-3 pt-3 border-t border-white/8">
+          <p class="text-[10px] font-semibold tracking-widest text-zinc-600 uppercase mb-2">Full Preview</p>
+          <p class="text-xs text-zinc-300 font-mono whitespace-pre-wrap leading-relaxed">${escHtml(tpl.content.replace(/{firstName}/g,'John').replace(/{reviewLink}/g,'https://g.page/r/..../review'))}</p>
+        </div>` : ''}
+      </div>`;
+  }
+
+  function toggleTplExpand(id) {
+    expandedTplId = expandedTplId === id ? null : id;
+    loadTemplateLibrary();
+  }
+
+  async function loadTemplateLibrary() {
+    ['sms','email'].forEach(type => {
+      const el = document.getElementById(`builtin-${type}-list`);
+      if (el) el.innerHTML = BUILTIN_TEMPLATES[type].map(t => renderTemplateCard(t, true)).join('');
+    });
+    try {
+      const res = await fetch('/api/message-templates');
+      const data = await res.json();
+      const customs = data.templates || [];
+      window._customTemplates = customs;
+      ['sms','email'].forEach(type => {
+        const list = customs.filter(t => t.type === type);
+        const el = document.getElementById(`custom-${type}-list`);
+        const emptyEl = document.getElementById(`no-custom-${type}`);
+        if (!el) return;
+        if (list.length === 0) {
+          el.innerHTML = '';
+          if (emptyEl) emptyEl.classList.remove('hidden');
+        } else {
+          if (emptyEl) emptyEl.classList.add('hidden');
+          el.innerHTML = list.map(t => renderTemplateCard(t, false)).join('');
+        }
+      });
+    } catch (err) {
+      console.error('Could not load templates:', err);
+    }
+  }
+
+  function useTpl(id, isBuiltin) {
+    let tpl, type;
+    if (isBuiltin) {
+      for (const [t, list] of Object.entries(BUILTIN_TEMPLATES)) {
+        const found = list.find(x => x.id === id);
+        if (found) { tpl = found; type = t; break; }
+      }
+    } else {
+      tpl = (window._customTemplates || []).find(t => t.id === id);
+      if (tpl) type = tpl.type;
+    }
+    if (!tpl) return;
+    if (type === 'sms') {
+      const el = document.getElementById('f-smsBody');
+      if (el) { el.value = tpl.content; updateSmsCounter(); scheduleSmsPreview(); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    } else {
+      const el = document.getElementById('f-emailSubject');
+      if (el) { el.value = tpl.content; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    }
+  }
+
+  async function deleteTpl(id) {
+    if (!confirm('Delete this template?')) return;
+    try {
+      const res = await fetch(`/api/message-templates/${id}`, { method: 'DELETE' });
+      if (res.ok) await loadTemplateLibrary();
+    } catch (err) { console.error(err); }
+  }
+
+  async function saveAsTemplate(type) {
+    const label = type === 'sms' ? 'SMS' : 'email subject';
+    const name = prompt(`Name for this ${label} template:`);
+    if (!name) return;
+    const content = type === 'sms'
+      ? (document.getElementById('f-smsBody')?.value?.trim() || '')
+      : (document.getElementById('f-emailSubject')?.value?.trim() || '');
+    if (!content) { alert('No content to save.'); return; }
+    try {
+      const res = await fetch('/api/message-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, type, content }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) { await loadTemplateLibrary(); switchTplTab(type); }
+    } catch (err) { console.error(err); }
+  }
+
   async function logout() {
     try {
       const res = await fetch('/auth/logout', { method: 'POST' });
@@ -580,6 +749,7 @@
     wirePreview();
     loadCurrentUser();
     loadSettings();
+    loadTemplateLibrary();
     loadSidebarBadge();
   });
 </script>
