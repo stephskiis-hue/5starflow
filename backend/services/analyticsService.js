@@ -103,4 +103,9 @@ async function getGA4Stats() {
   return result;
 }
 
-module.exports = { getGA4Stats };
+function clearCache() {
+  _cache  = null;
+  _cacheAt = 0;
+}
+
+module.exports = { getGA4Stats, clearCache };
