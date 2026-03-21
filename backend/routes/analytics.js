@@ -177,6 +177,14 @@ router.get('/events', async (req, res) => {
         dimensions: [{ name: 'eventName' }],
         limit: 20,
         orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+        dimensionFilter: {
+          andGroup: {
+            expressions: [
+              { filter: { fieldName: 'deviceCategory', stringFilter: { value: 'mobile',  matchType: 'EXACT' } } },
+              { filter: { fieldName: 'country',        stringFilter: { value: 'Canada',  matchType: 'EXACT' } } },
+            ],
+          },
+        },
       }),
     });
 
