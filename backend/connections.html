@@ -533,9 +533,13 @@
             <span class="text-zinc-300 font-mono">${g.ga4PropertyId || '—'}</span>
           </div>
         </div>
-        <div id="test-result-google"></div>
-        <div class="flex gap-2 mt-4">
-          <button id="test-btn-google" class="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors text-zinc-300" onclick="testService('google')">Test</button>
+        <div id="test-result-google" class="mb-2"></div>
+        <div id="test-result-ga4" class="mb-2"></div>
+        <div id="test-result-traffic" class="mb-2"></div>
+        <div class="flex flex-wrap gap-2 mt-4">
+          <button id="test-btn-google" class="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors text-zinc-300" onclick="testService('google')">Test Search Console</button>
+          <button id="test-btn-ga4" class="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors text-zinc-300" onclick="testGA4()">Test Analytics</button>
+          <button id="test-btn-traffic" class="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors text-zinc-300" onclick="testTrafficSources()">Test Traffic</button>
           <button class="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors text-zinc-300" onclick="toggleGoogleEditForm()">Edit</button>
         </div>
       ` : `
@@ -609,6 +613,66 @@
       result.textContent = err.message;
       result.style.color = '#f87171';
     }
+  }
+
+  async function testGA4() {
+    const btn      = document.getElementById('test-btn-ga4');
+    const resultEl = document.getElementById('test-result-ga4');
+    if (!btn || !resultEl) return;
+    btn.disabled    = true;
+    btn.textContent = 'Testing...';
+    resultEl.className   = 'mb-2 px-2.5 py-1.5 rounded text-xs bg-white/5 text-zinc-400';
+    resultEl.textContent = 'Connecting to GA4…';
+
+    try {
+      const res  = await fetch('/api/analytics/test');
+      const data = await res.json();
+
+      if (data.error) {
+        resultEl.className   = 'mb-2 px-2.5 py-1.5 rounded text-xs bg-red-500/10 text-red-400';
+        resultEl.textContent = `GA4 failed: ${data.error}`;
+      } else {
+        const eventsLine = data.events?.length
+          ? ` · ${data.events.length} event types tracked`
+          : '';
+        resultEl.className   = 'mb-2 px-2.5 py-1.5 rounded text-xs bg-secondary/10 text-secondary';
+        resultEl.textContent = `GA4 OK — ${(data.visitors||0).toLocaleString()} visitors · ${(data.sessions||0).toLocaleString()} sessions${eventsLine}`;
+      }
+    } catch (err) {
+      resultEl.className   = 'mb-2 px-2.5 py-1.5 rounded text-xs bg-red-500/10 text-red-400';
+      resultEl.textContent = 'GA4 request failed: ' + err.message;
+    }
+    btn.disabled    = false;
+    btn.textContent = 'Test Analytics';
+  }
+
+  async function testTrafficSources() {
+    const btn      = document.getElementById('test-btn-traffic');
+    const resultEl = document.getElementById('test-result-traffic');
+    if (!btn || !resultEl) return;
+    btn.disabled    = true;
+    btn.textContent = 'Testing...';
+    resultEl.className   = 'mb-2 px-2.5 py-1.5 rounded text-xs bg-white/5 text-zinc-400';
+    resultEl.textContent = 'Fetching traffic data…';
+
+    try {
+      const res  = await fetch('/api/seo/traffic-stats?force=1');
+      const data = await res.json();
+
+      if (!data.configured || data.error) {
+        resultEl.className   = 'mb-2 px-2.5 py-1.5 rounded text-xs bg-red-500/10 text-red-400';
+        resultEl.textContent = `Traffic failed: ${data.error || 'Not configured'}`;
+      } else {
+        const top = data.channels?.[0];
+        resultEl.className   = 'mb-2 px-2.5 py-1.5 rounded text-xs bg-secondary/10 text-secondary';
+        resultEl.textContent = `Traffic OK — ${(data.totalSessions||0).toLocaleString()} sessions · top: ${top?.channel || '—'}`;
+      }
+    } catch (err) {
+      resultEl.className   = 'mb-2 px-2.5 py-1.5 rounded text-xs bg-red-500/10 text-red-400';
+      resultEl.textContent = 'Traffic request failed: ' + err.message;
+    }
+    btn.disabled    = false;
+    btn.textContent = 'Test Traffic';
   }
 
   function copyToClipboard(text) {

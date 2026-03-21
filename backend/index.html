@@ -322,10 +322,7 @@
       <section class="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-xl p-8 group hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 cursor-pointer" onclick="window.open('https://analytics.google.com','_blank')">
         <div class="flex justify-between items-start mb-5">
           <h3 class="text-xl font-bold text-zinc-100">Website Traffic</h3>
-          <div class="flex items-center gap-2">
-            <button id="analytics-test-btn" onclick="event.stopPropagation(); testAnalytics()" class="text-xs px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-zinc-300 transition-colors">Test</button>
-            <span class="text-xs font-bold flex items-center gap-1" id="analytics-badge">—</span>
-          </div>
+          <span class="text-xs font-bold flex items-center gap-1" id="analytics-badge">—</span>
         </div>
         <div class="mb-6">
           <span class="text-5xl font-black text-white tracking-tighter" id="analytics-visitors">—</span>
@@ -353,17 +350,13 @@
             </defs>
           </svg>
         </div>
-        <div id="analytics-test-result" class="hidden mt-4 p-3 rounded-xl text-xs"></div>
       </section>
 
       <!-- Traffic Sources -->
       <section class="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-xl p-8 group hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500" id="traffic-sources-card">
         <div class="flex justify-between items-start mb-5">
           <h3 class="text-xl font-bold text-zinc-100">Traffic Sources</h3>
-          <div class="flex items-center gap-2">
-            <button id="traffic-test-btn" onclick="testTrafficSources()" class="text-xs px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-zinc-300 transition-colors">Test</button>
-            <span class="text-xs font-bold px-3 py-1 rounded-full border border-primary/20 bg-primary/10 text-primary" id="traffic-sources-badge">Last 7 days</span>
-          </div>
+          <span class="text-xs font-bold px-3 py-1 rounded-full border border-primary/20 bg-primary/10 text-primary" id="traffic-sources-badge">Last 7 days</span>
         </div>
         <div class="mb-5" id="traffic-sources-body">
           <span class="text-5xl font-black text-white tracking-tighter" id="traffic-total-sessions">—</span>
@@ -375,7 +368,6 @@
         <div class="pt-4 border-t border-white/5 hidden" id="traffic-connect-cta">
           <a href="/connections.html#google" class="text-xs text-primary hover:underline">Connect Google Analytics →</a>
         </div>
-        <div id="traffic-test-result" class="hidden mt-4 p-3 rounded-xl text-xs"></div>
       </section>
 
       <!-- Rain Alerts -->
@@ -782,93 +774,6 @@
       badgeEl.textContent = 'No Data';
       badgeEl.className   = 'text-xs font-bold flex items-center gap-1 text-on-surface-variant';
     }
-  }
-
-  async function testAnalytics() {
-    const btn       = document.getElementById('analytics-test-btn');
-    const resultEl  = document.getElementById('analytics-test-result');
-
-    btn.disabled    = true;
-    btn.textContent = '...';
-    resultEl.classList.remove('hidden');
-    resultEl.className = 'mt-4 p-3 rounded-xl text-xs bg-white/5 text-zinc-400';
-    resultEl.textContent = 'Testing connection…';
-
-    try {
-      const res  = await fetch('/api/analytics/test');
-      const data = await res.json();
-
-      if (data.error) {
-        resultEl.className   = 'mt-4 p-3 rounded-xl text-xs bg-red-500/10 border border-red-500/20 text-red-300';
-        resultEl.innerHTML   = `<span class="material-symbols-outlined text-[13px] align-middle mr-1">error</span>`
-          + `<strong>Failed</strong><br>`
-          + `<span class="text-red-400/80 break-all">${data.error}</span>`
-          + (data.propertyId ? `<br><span class="text-zinc-500 mt-1 block">Property: ${data.propertyId}</span>` : '')
-          + (data.serviceAccountEmail ? `<br><span class="text-zinc-500">Account: ${data.serviceAccountEmail}</span>` : '');
-      } else {
-        resultEl.className = 'mt-4 p-3 rounded-xl text-xs bg-green-500/10 border border-green-500/20 text-green-300';
-        resultEl.innerHTML = `<span class="material-symbols-outlined text-[13px] align-middle mr-1">check_circle</span>`
-          + `<strong>Connected</strong><br>`
-          + `<span class="text-zinc-400 mt-1 block">Property: ${data.propertyId}</span>`
-          + `<span class="text-zinc-400">Account: ${data.serviceAccountEmail}</span>`
-          + `<div class="grid grid-cols-3 gap-2 mt-2">`
-          + `<div class="bg-white/5 rounded p-1 text-center"><div class="text-white font-bold">${(data.visitors||0).toLocaleString()}</div><div class="text-zinc-500">Visitors</div></div>`
-          + `<div class="bg-white/5 rounded p-1 text-center"><div class="text-white font-bold">${(data.sessions||0).toLocaleString()}</div><div class="text-zinc-500">Sessions</div></div>`
-          + `<div class="bg-white/5 rounded p-1 text-center"><div class="text-white font-bold">${(data.pageViews||0).toLocaleString()}</div><div class="text-zinc-500">Pageviews</div></div>`
-          + `</div>`
-          + `<div class="mt-2 text-zinc-400">Top source: <span class="text-zinc-200">${data.topSource||'—'}</span> &nbsp;·&nbsp; ${data.rawRowCount} channel(s)</div>`
-          + (data.events?.length ? `<div class="mt-3 border-t border-white/10 pt-2"><div class="text-zinc-500 mb-1">Top Events (30d)</div>`
-            + data.events.map(e => `<div class="flex justify-between text-zinc-400"><span>${e.name}</span><span class="text-zinc-200 font-medium">${e.count.toLocaleString()}</span></div>`).join('')
-            + `</div>` : '');
-        // Refresh the main card stats with live data
-        renderAnalyticsCard(data);
-      }
-    } catch (err) {
-      resultEl.className   = 'mt-4 p-3 rounded-xl text-xs bg-red-500/10 border border-red-500/20 text-red-300';
-      resultEl.textContent = 'Request failed: ' + err.message;
-    }
-
-    btn.disabled    = false;
-    btn.textContent = 'Test';
-  }
-
-  async function testTrafficSources() {
-    const btn      = document.getElementById('traffic-test-btn');
-    const resultEl = document.getElementById('traffic-test-result');
-
-    btn.disabled    = true;
-    btn.textContent = '...';
-    resultEl.classList.remove('hidden');
-    resultEl.className   = 'mt-4 p-3 rounded-xl text-xs bg-white/5 text-zinc-400';
-    resultEl.textContent = 'Testing connection…';
-
-    try {
-      const res  = await fetch('/api/seo/traffic-stats?force=1');
-      const data = await res.json();
-
-      if (!data.configured || data.error) {
-        resultEl.className = 'mt-4 p-3 rounded-xl text-xs bg-red-500/10 border border-red-500/20 text-red-300';
-        resultEl.innerHTML = `<span class="material-symbols-outlined text-[13px] align-middle mr-1">error</span>`
-          + `<strong>Failed</strong><br>`
-          + `<span class="text-red-400/80 break-all">${data.error || 'Not configured — set GA4 Property ID in Connections'}</span>`;
-      } else {
-        resultEl.className = 'mt-4 p-3 rounded-xl text-xs bg-green-500/10 border border-green-500/20 text-green-300';
-        const channels = (data.channels || []).slice(0, 5);
-        resultEl.innerHTML = `<span class="material-symbols-outlined text-[13px] align-middle mr-1">check_circle</span>`
-          + `<strong>Connected</strong> — ${(data.totalSessions||0).toLocaleString()} sessions<br>`
-          + `<span class="text-zinc-400 block mt-1">Property: ${data.propertyId}</span>`
-          + (channels.length ? `<div class="mt-2 space-y-1">`
-            + channels.map(ch => `<div class="flex justify-between text-zinc-400"><span>${ch.channel}</span><span class="text-zinc-200 font-medium">${ch.sessions.toLocaleString()}</span></div>`).join('')
-            + `</div>` : '');
-        renderTrafficSourcesCard(data);
-      }
-    } catch (err) {
-      resultEl.className   = 'mt-4 p-3 rounded-xl text-xs bg-red-500/10 border border-red-500/20 text-red-300';
-      resultEl.textContent = 'Request failed: ' + err.message;
-    }
-
-    btn.disabled    = false;
-    btn.textContent = 'Test';
   }
 
   function renderTrafficSourcesCard(data) {

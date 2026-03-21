@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const prisma  = require('../lib/prismaClient');
 const axios   = require('axios');
+const { requireAuth } = require('../middleware/requireAuth');
 
 // In-memory pagespeed job state — resets on server restart (scan stops too, so this is fine)
 const activePageSpeedJobs = new Map(); // userId -> { status, result, error }
@@ -334,7 +335,7 @@ router.get('/settings', async (req, res) => {
 // ---------------------------------------------------------------------------
 // POST /api/seo/settings
 // ---------------------------------------------------------------------------
-router.post('/settings', async (req, res) => {
+router.post('/settings', requireAuth, async (req, res) => {
   try {
     const settings = await getSettings(req.user?.userId);
     const {
@@ -375,7 +376,7 @@ router.post('/settings', async (req, res) => {
 const trafficStatsCache = new Map(); // userId -> { data, cachedAt }
 const TRAFFIC_CACHE_TTL = 30 * 60 * 1000;
 
-router.get('/traffic-stats', async (req, res) => {
+router.get('/traffic-stats', requireAuth, async (req, res) => {
   // req.user may be undefined — /api/seo is mounted before requireAuth
   const userId = req.user?.userId;
 
