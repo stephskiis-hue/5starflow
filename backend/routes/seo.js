@@ -3,6 +3,7 @@ const router  = express.Router();
 const prisma  = require('../lib/prismaClient');
 const axios   = require('axios');
 const { requireAuth } = require('../middleware/requireAuth');
+const { GoogleAuth } = require('google-auth-library');
 
 // In-memory pagespeed job state — resets on server restart (scan stops too, so this is fine)
 const activePageSpeedJobs = new Map(); // userId -> { status, result, error }
@@ -396,12 +397,19 @@ router.get('/traffic-stats', requireAuth, async (req, res) => {
       return res.json({ configured: false });
     }
 
-    // Build Authorization header — prefer service account (no browser login needed)
+    // Build Authorization header — prefer service account via GoogleAuth (same as analyticsService)
     let authHeader;
-    const saClient = await getServiceAccountClient();
-    if (saClient) {
-      const hdrs = await saClient.getRequestHeaders();
-      authHeader = hdrs.Authorization;
+    const saEmail = process.env.GOOGLE_CLIENT_EMAIL;
+    const saKey   = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+
+    if (saEmail && saKey) {
+      const gauth  = new GoogleAuth({
+        credentials: { client_email: saEmail, private_key: saKey },
+        scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
+      });
+      const client      = await gauth.getClient();
+      const tokenResult = await client.getAccessToken();
+      authHeader = `Bearer ${tokenResult.token}`;
     } else if (googleAccessToken) {
       // Fall back to stored OAuth token, refreshing inline if needed
       let accessToken = googleAccessToken;
