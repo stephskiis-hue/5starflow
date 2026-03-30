@@ -287,11 +287,13 @@ router.post('/reschedule-visits', async (req, res) => {
       continue; // skip notification if Jobber move failed
     }
 
-    // 2. Notify client via SMS
+    // 2. Notify client — SMS first, email fallback if no SMS capability or SMS fails
+    let smsSent = false;
     if (phone && smsAllowed) {
       try {
         const sid = await sendRainSMS(phone, name, newDateLabel, customMessage, userId);
         smsCount++;
+        smsSent = true;
         messageLog.push({ rescheduleId: rescheduleLog?.id, visitId, clientId: clientId || visitId, clientName: name, channel: 'sms', status: 'sent', messageSid: sid, userId });
       } catch (err) {
         console.error(`[weather] SMS failed for visitId=${visitId}:`, err.message);
@@ -300,8 +302,8 @@ router.post('/reschedule-visits', async (req, res) => {
       }
     }
 
-    // 3. Notify client via email
-    if (email) {
+    // 3. Email fallback — only if SMS was not sent (no phone, smsAllowed false, or SMS failed)
+    if (!smsSent && email) {
       try {
         await sendRainEmail(email, name, newDateLabel, customMessage, userId);
         emailCount++;

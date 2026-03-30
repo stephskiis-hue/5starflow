@@ -503,18 +503,22 @@ async function batchNotify({ clients, newDate, newDateLabel, customMessage, user
 
   for (const client of clients) {
     const { id, firstName, phone, smsAllowed, email } = client;
+    let smsSent = false;
 
+    // SMS first — if client has a phone number with SMS enabled
     if (phone && smsAllowed) {
       try {
         await sendRainSMS(phone, firstName, newDateLabel, customMessage, userId);
         smsCount++;
+        smsSent = true;
       } catch (err) {
         console.error(`[weatherService] SMS failed for ${client.name}:`, err.message);
         errors.push({ clientId: id, type: 'sms', error: err.message });
       }
     }
 
-    if (email) {
+    // Email fallback — only if SMS was not sent (no phone, smsAllowed false, or SMS failed)
+    if (!smsSent && email) {
       try {
         await sendRainEmail(email, firstName, newDateLabel, customMessage, userId);
         emailCount++;
