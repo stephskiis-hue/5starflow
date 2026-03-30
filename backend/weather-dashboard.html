@@ -382,8 +382,8 @@
   }
 
   async function loadAll() {
+    await loadSettings(); // must finish first so _rainSmsTemplate is set before updateMessagePreview runs
     await Promise.all([
-      loadSettings(),
       loadWeatherToday(),
       loadForecast(),
       loadCalendar(),
