@@ -420,7 +420,7 @@
       ${!ok ? '<div class="text-xs text-on-surface-variant mb-4">Add TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN to .env</div>' : ''}
       <div id="test-result-twilio"></div>
       <div class="flex gap-2 mt-4">
-        <button id="test-btn-twilio" class="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors text-zinc-300" onclick="testService('twilio')" ${ok ? '' : 'disabled'}>Test Credentials</button>
+        <button id="test-btn-twilio" class="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors text-zinc-300" onclick="testService('twilio')" ${t.accountSid ? '' : 'disabled'}>Test Credentials</button>
       </div>
     </div>`;
   }

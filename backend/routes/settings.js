@@ -114,6 +114,12 @@ router.post('/twilio', async (req, res) => {
       create: { userId: req.user.userId, accountSid, authToken, fromNumber },
     });
 
+    await prisma.connectionVerification.upsert({
+      where:  { userId_service: { userId: req.user.userId, service: 'twilio' } },
+      update: { verifiedAt: new Date() },
+      create: { userId: req.user.userId, service: 'twilio' },
+    });
+
     res.json({
       success: true,
       twilio: {
