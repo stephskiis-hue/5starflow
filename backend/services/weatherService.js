@@ -402,9 +402,17 @@ async function getOpenDays(daysAhead = 14, userId) {
 async function sendRainSMS(phone, firstName, newDateLabel, customMessage, userId) {
   const to   = toE164(phone);
   const name = firstName || 'there';
-  const body = customMessage
-    ? `Hi ${name}, ${customMessage}`
-    : `Hi ${name}! Due to rain in the forecast, your lawn cut has been rescheduled to ${newDateLabel}. We appreciate your flexibility! — No-Bs Yardwork`;
+
+  let body;
+  if (customMessage) {
+    // One-off from UI — still resolve placeholders so textarea can show {firstName}/{newDate}
+    body = customMessage.replace(/\{firstName\}/g, name).replace(/\{newDate\}/g, newDateLabel);
+  } else {
+    const settings = await getSettings(userId);
+    const template = settings?.rainSmsTemplate ||
+      `Hi {firstName}! Due to rain in the forecast, your lawn cut has been rescheduled to {newDate}. We appreciate your flexibility! — No-Bs Yardwork`;
+    body = template.replace(/\{firstName\}/g, name).replace(/\{newDate\}/g, newDateLabel);
+  }
 
   if (process.env.DRY_RUN === 'true') {
     console.log(`[weatherService] DRY RUN — would send rain SMS to ${to}: "${body.slice(0, 80)}..."`);
@@ -430,9 +438,17 @@ async function sendRainSMS(phone, firstName, newDateLabel, customMessage, userId
  */
 async function sendRainEmail(to, firstName, newDateLabel, customMessage, userId) {
   const name = firstName || 'there';
-  const text = customMessage
-    ? `Hi ${name}, ${customMessage}`
-    : `Hi ${name}! Due to rain in the forecast, your lawn cut has been rescheduled to ${newDateLabel}. We appreciate your flexibility! — No-Bs Yardwork`;
+
+  let text;
+  if (customMessage) {
+    // One-off from UI — still resolve placeholders so textarea can show {firstName}/{newDate}
+    text = customMessage.replace(/\{firstName\}/g, name).replace(/\{newDate\}/g, newDateLabel);
+  } else {
+    const settings = await getSettings(userId);
+    const template = settings?.rainSmsTemplate ||
+      `Hi {firstName}! Due to rain in the forecast, your lawn cut has been rescheduled to {newDate}. We appreciate your flexibility! — No-Bs Yardwork`;
+    text = template.replace(/\{firstName\}/g, name).replace(/\{newDate\}/g, newDateLabel);
+  }
 
   if (process.env.DRY_RUN === 'true') {
     console.log(`[weatherService] DRY RUN — would send rain email to ${to} for ${firstName}`);

@@ -427,7 +427,7 @@ router.get('/settings', async (req, res) => {
  */
 router.post('/settings', async (req, res) => {
   try {
-    const { city, rainThreshold, businessStartHour, businessEndHour, preferredRescheduleDay, checkEnabled } = req.body || {};
+    const { city, rainThreshold, businessStartHour, businessEndHour, preferredRescheduleDay, checkEnabled, rainSmsTemplate } = req.body || {};
     const settings = await getSettings(req.user.userId);
 
     const updated = await prisma.weatherSettings.update({
@@ -439,6 +439,7 @@ router.post('/settings', async (req, res) => {
         ...(businessEndHour        !== undefined && { businessEndHour: parseInt(businessEndHour, 10) }),
         ...(preferredRescheduleDay !== undefined && { preferredRescheduleDay }),
         ...(checkEnabled           !== undefined && { checkEnabled: Boolean(checkEnabled) }),
+        ...(rainSmsTemplate        !== undefined && { rainSmsTemplate }),
       },
     });
 

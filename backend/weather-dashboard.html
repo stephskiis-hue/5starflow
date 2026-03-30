@@ -319,6 +319,17 @@
       </div>
     </div>
 
+    <!-- SMS Template -->
+    <div class="glass-card rounded-xl p-6">
+      <h3 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">SMS Message Template</h3>
+      <p class="text-xs text-on-surface-variant mb-3">Use <code class="bg-white/10 px-1 rounded">{firstName}</code> and <code class="bg-white/10 px-1 rounded">{newDate}</code> as placeholders — they'll be replaced per client when sent.</p>
+      <textarea id="rain-sms-template" rows="3" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 mb-3"></textarea>
+      <div class="flex gap-3 items-center">
+        <button onclick="saveTemplate()" class="bg-primary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors">Save Template</button>
+        <div id="template-result" class="text-sm" style="display:none;"></div>
+      </div>
+    </div>
+
     <!-- Reschedule History -->
     <div class="glass-card rounded-xl overflow-hidden">
       <div class="p-6 border-b border-white/5">
@@ -390,6 +401,10 @@
       document.getElementById('setting-start').value = s.businessStartHour ?? 7;
       document.getElementById('setting-end').value = s.businessEndHour ?? 18;
       document.getElementById('setting-enabled').value = String(s.checkEnabled !== false);
+      // Load saved SMS template
+      const defaultTemplate = `Hi {firstName}! Due to rain in the forecast, your lawn cut has been rescheduled to {newDate}. We appreciate your flexibility! — No-Bs Yardwork`;
+      document.getElementById('rain-sms-template').value = s.rainSmsTemplate || defaultTemplate;
+      window._rainSmsTemplate = s.rainSmsTemplate || defaultTemplate;
     } catch (err) { console.error('Settings load error:', err); }
   }
 
@@ -568,12 +583,14 @@
   function updateMessagePreview() {
     const sel = document.getElementById('reschedule-select');
     const opt = sel.options[sel.selectedIndex];
-    const label = opt?.dataset?.label || sel.value || '[date]';
+    const label = (opt?.dataset?.label || sel.value || '[date]').split(' — ')[0];
 
     document.getElementById('send-btn').disabled = !sel.value || selectedClientIds.size === 0;
 
-    document.getElementById('message-preview').value =
-      `Hey there! Due to rain in the forecast, your lawn cut has been rescheduled to ${label.split(' — ')[0]}. We appreciate your flexibility! — No-Bs Yardwork`;
+    // Use saved template, substitute {newDate} for preview (leave {firstName} visible)
+    const template = window._rainSmsTemplate ||
+      `Hi {firstName}! Due to rain in the forecast, your lawn cut has been rescheduled to {newDate}. We appreciate your flexibility! — No-Bs Yardwork`;
+    document.getElementById('message-preview').value = template.replace(/\{newDate\}/g, label);
   }
 
   async function sendNotifications() {
@@ -625,6 +642,33 @@
     } finally {
       btn.disabled = false;
       btn.textContent = 'Send to Selected Clients';
+    }
+  }
+
+  async function saveTemplate() {
+    const rainSmsTemplate = document.getElementById('rain-sms-template').value.trim();
+    const el = document.getElementById('template-result');
+    try {
+      const res = await fetch(`${API}/api/weather/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rainSmsTemplate }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        window._rainSmsTemplate = rainSmsTemplate;
+        el.textContent = 'Template saved';
+        el.style.color = 'var(--green)';
+      } else {
+        el.textContent = data.error || 'Save failed';
+        el.style.color = 'var(--red)';
+      }
+      el.style.display = 'block';
+      setTimeout(() => { el.style.display = 'none'; }, 3000);
+    } catch (err) {
+      el.textContent = 'Network error: ' + err.message;
+      el.style.color = 'var(--red)';
+      el.style.display = 'block';
     }
   }
 

@@ -134,6 +134,7 @@ model WeatherSettings {
   businessEndHour        Int     @default(18)
   preferredRescheduleDay String  @default("")    // saved dropdown value (YYYY-MM-DD)
   checkEnabled           Boolean @default(true)
+  rainSmsTemplate        String  @default("")    // user-saved SMS template; supports {firstName} and {newDate}
 }
 
 // SEO: one row per weekly audit run.
