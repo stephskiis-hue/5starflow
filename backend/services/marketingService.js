@@ -60,7 +60,7 @@ async function fetchAllJobberClients(userId) {
     allClients.push(...nodes);
     hasNext = pageInfo.hasNextPage;
     cursor  = pageInfo.endCursor ?? null;
-    if (hasNext) await sleep(500);
+    if (hasNext) await sleep(parseInt(process.env.JOBBER_PAGE_DELAY_MS, 10) || 1500);
   }
 
   return allClients.map((c) => {

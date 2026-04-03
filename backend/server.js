@@ -124,7 +124,12 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
   res.send('<Response></Response>');
 
   const { From, Body, MessageSid, To } = req.body || {};
-  if (!MessageSid || !From || !Body) return;
+  console.log(`[inbound-sms] Webhook received — From=${From} To=${To} Sid=${MessageSid} Body="${Body}"`);
+
+  if (!MessageSid || !From || !Body) {
+    console.warn('[inbound-sms] Missing required fields — ignoring');
+    return;
+  }
 
   const prisma = require('./lib/prismaClient');
   const { toE164 } = require('./services/smsService');
@@ -133,18 +138,34 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
   try {
     // Deduplicate: Twilio can fire the webhook more than once
     const existing = await prisma.inboundSMS.findUnique({ where: { messageSid: MessageSid } });
-    if (existing) return;
+    if (existing) {
+      console.log(`[inbound-sms] Duplicate webhook for sid=${MessageSid} — ignoring`);
+      return;
+    }
 
-    // Find which portal user owns the number that received this message
-    const cred = await prisma.twilioCredential.findFirst({ where: { fromNumber: To } });
+    // Normalize both numbers to E.164 for reliable matching
+    const normalizedFrom = toE164(From) || From;
+    const normalizedTo   = toE164(To)   || To;
+
+    // Find which portal user owns the number that received this message.
+    // Try normalized first, then raw To, then fall back to any credential
+    // (handles format mismatches like +12045551234 vs 12045551234)
+    let cred = await prisma.twilioCredential.findFirst({ where: { fromNumber: normalizedTo } });
+    if (!cred && normalizedTo !== To) {
+      cred = await prisma.twilioCredential.findFirst({ where: { fromNumber: To } });
+    }
     if (!cred) {
-      console.warn(`[inbound-sms] No TwilioCredential found for To=${To}`);
+      // Single-user fallback: if only one credential exists, use it
+      cred = await prisma.twilioCredential.findFirst();
+      if (cred) {
+        console.warn(`[inbound-sms] fromNumber mismatch (To=${To}, stored=${cred.fromNumber}) — using fallback credential`);
+      }
+    }
+    if (!cred) {
+      console.warn(`[inbound-sms] No TwilioCredential found for To=${To} — cannot store message`);
       return;
     }
     const userId = cred.userId;
-
-    // Normalize the sender's phone to E.164 for matching
-    const normalizedFrom = toE164(From) || From;
 
     // Try to match a cached client by phone
     const cachedClient = await prisma.cachedJobberClient.findFirst({
@@ -158,10 +179,25 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
       include: { campaign: { select: { id: true, name: true } } },
     });
 
-    // Parse Y/N response
     const bodyUpper = Body.trim().toUpperCase();
-    const isResponse = ['Y', 'YES', 'N', 'NO'].includes(bodyUpper);
-    const response   = isResponse ? (['Y', 'YES'].includes(bodyUpper) ? 'yes' : 'no') : null;
+
+    // Opt-out / STOP detection (must check before Y/N parsing)
+    const STOP_WORDS = ['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'];
+    const isOptOut = STOP_WORDS.includes(bodyUpper);
+
+    if (isOptOut && cachedClient) {
+      await prisma.cachedJobberClient.updateMany({
+        where: { userId, phone: normalizedFrom },
+        data:  { optedOut: true, optedOutAt: new Date() },
+      });
+      console.log(`[inbound-sms] Opt-out received from ${normalizedFrom} (${cachedClient.name || 'unknown'})`);
+    }
+
+    // Parse Y/N booking response
+    const isResponse = !isOptOut && ['Y', 'YES', 'N', 'NO'].includes(bodyUpper);
+    const response   = isOptOut  ? 'optout'
+                     : isResponse ? (['Y', 'YES'].includes(bodyUpper) ? 'yes' : 'no')
+                     : null;
 
     // Store the inbound message
     const inbound = await prisma.inboundSMS.create({
@@ -170,9 +206,9 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
         from:           normalizedFrom,
         body:           Body.trim(),
         messageSid:     MessageSid,
-        isResponse,
+        isResponse:     isResponse || isOptOut,
         response,
-        clientName:     cachedClient?.name     || null,
+        clientName:     cachedClient?.name           || null,
         jobberClientId: cachedClient?.jobberClientId || null,
         campaignId:     recentMessage?.campaign?.id  || null,
         notified:       false,
@@ -181,20 +217,21 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
     });
 
     console.log(
-      `[inbound-sms] Received from ${normalizedFrom}` +
-      (cachedClient ? ` (${cachedClient.name})` : '') +
-      (isResponse   ? ` — response: ${response}` : '')
+      `[inbound-sms] Stored message from ${normalizedFrom}` +
+      (cachedClient ? ` (${cachedClient.name})` : ' (unmatched)') +
+      (isOptOut   ? ' — OPTED OUT'       : '') +
+      (isResponse ? ` — response: ${response}` : '')
     );
 
     // Link reply back to the matching MarketingMessage record
-    if (recentMessage && isResponse) {
+    if (recentMessage && (isResponse || isOptOut)) {
       await prisma.marketingMessage.update({
         where: { id: recentMessage.id },
         data:  { replyBody: Body.trim(), replyReceivedAt: new Date() },
       });
     }
 
-    // Send admin notification SMS if this is a Y/N response and notifyPhone is set
+    // Send admin SMS notification for Y/N responses (not for opt-outs or general messages)
     if (isResponse && cred.notifyPhone) {
       try {
         const twilioClient = twilio(cred.accountSid, cred.authToken);

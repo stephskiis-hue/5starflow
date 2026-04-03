@@ -449,15 +449,17 @@ model MarketingMessage {
 // Replaces live-on-demand Jobber API calls in the audience builder.
 // ---------------------------------------------------------------------------
 model CachedJobberClient {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   userId         String                          // portal User.id (matches JobberAccount.userId)
   jobberClientId String                          // Jobber's own client GID
   name           String
   firstName      String
   phone          String?
-  smsAllowed     Boolean  @default(false)
-  tags           String   @default("[]")         // JSON array stored as string
-  syncedAt       DateTime @default(now())
+  smsAllowed     Boolean   @default(false)
+  tags           String    @default("[]")        // JSON array stored as string
+  optedOut       Boolean   @default(false)       // true if client texted STOP
+  optedOutAt     DateTime?                       // when they opted out
+  syncedAt       DateTime  @default(now())
 
   @@unique([userId, jobberClientId])
   @@index([userId])

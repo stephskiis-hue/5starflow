@@ -342,16 +342,27 @@ router.post('/campaigns/send', async (req, res) => {
       return res.status(400).json({ error: `Audience exceeds ${MAX_RECIPIENTS} recipient safety limit` });
     }
 
-    // Build message rows — mark skipped upfront for contacts with no phone or smsAllowed=false
+    // Load opted-out phones so we can skip them
+    const optedOutRecords = await prisma.cachedJobberClient.findMany({
+      where:  { userId, optedOut: true },
+      select: { phone: true },
+    });
+    const optedOutPhones = new Set(optedOutRecords.map((r) => r.phone).filter(Boolean));
+
+    // Build message rows — mark skipped upfront for opted-out, no phone, or smsAllowed=false
     const messageRows = audience.contacts.map((c) => {
-      const canSend = c.phone && c.smsAllowed;
+      const isOptedOut = c.phone && optedOutPhones.has(c.phone);
+      const canSend    = c.phone && c.smsAllowed && !isOptedOut;
       return {
         jobberClientId: c.jobberClientId,
         clientName:     c.clientName,
         firstName:      c.firstName,
         phone:          c.phone,
         status:         canSend ? 'pending' : 'skipped',
-        error:          canSend ? null : (!c.phone ? 'No phone number' : 'SMS not allowed'),
+        error:          canSend    ? null
+                       : isOptedOut ? 'Opted out (STOP received)'
+                       : !c.phone  ? 'No phone number'
+                       : 'SMS not allowed',
       };
     });
 

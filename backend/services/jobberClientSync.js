@@ -17,6 +17,8 @@ const cron  = require('node-cron');
 const prisma = require('../lib/prismaClient');
 const { fetchAllJobberClients } = require('./marketingService');
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 // Module-level throttle guard — set when Jobber returns 429
 let syncThrottledUntil = 0;
 
@@ -86,20 +88,23 @@ async function syncAllAccounts() {
   for (const account of accounts) {
     try {
       const result = await syncAccountClients(account);
-      if (!result.skipped) totalSynced += result.synced;
+      if (!result.skipped) {
+        totalSynced += result.synced;
+        await sleep(3000); // breathing room between accounts to avoid burst
+      }
     } catch (err) {
       const isThrottled = /429|throttl/i.test(err.message);
       if (isThrottled) {
         syncThrottledUntil = Date.now() + 120_000; // 2-minute cooldown
         console.warn(
           `[jobberClientSync] Jobber throttled — backing off 120s. ` +
-          `Stopped after account ${account.id}.`
+          `Stopped after account ${account.id} (userId=${account.userId}).`
         );
         break; // stop iterating accounts; resume on next scheduled run
       }
       totalFailed++;
       console.error(
-        `[jobberClientSync] Sync failed for account ${account.id}:`,
+        `[jobberClientSync] Sync failed for account ${account.id} (userId=${account.userId}):`,
         err.message
       );
     }
@@ -123,12 +128,13 @@ function startJobberClientSyncScheduler() {
     );
   });
 
-  // Startup sync — 30s delay lets server fully initialize first
+  // Startup sync — 90s delay lets token refresh scheduler run first
+  // (avoids API burst on cold boot where multiple services start simultaneously)
   setTimeout(() => {
     syncAllAccounts().catch((err) =>
       console.error('[jobberClientSync] Startup sync error:', err.message)
     );
-  }, 30_000);
+  }, 90_000);
 }
 
 module.exports = { startJobberClientSyncScheduler, syncAllAccounts };
