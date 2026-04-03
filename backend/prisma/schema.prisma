@@ -356,3 +356,87 @@ model ConnectionVerification {
 
   @@unique([userId, service])
 }
+
+// ---------------------------------------------------------------------------
+// SMS Marketing System
+// ---------------------------------------------------------------------------
+
+// Reusable SMS message templates. Supports {firstName} placeholder.
+model MarketingTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// Named audience list — a saved set of contacts imported from Jobber.
+model AudienceList {
+  id        String            @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  contacts  AudienceContact[]
+
+  @@index([userId])
+}
+
+// Join table: one row per contact in an audience list (snapshot at import time).
+model AudienceContact {
+  id             String       @id @default(cuid())
+  audienceListId String
+  audienceList   AudienceList @relation(fields: [audienceListId], references: [id], onDelete: Cascade)
+  jobberClientId String
+  clientName     String
+  firstName      String
+  phone          String?
+  smsAllowed     Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@unique([audienceListId, jobberClientId])
+  @@index([audienceListId])
+}
+
+// One campaign = one send job (template + audience). messageBody is frozen snapshot.
+model MarketingCampaign {
+  id              String             @id @default(cuid())
+  userId          String
+  name            String
+  templateId      String
+  audienceListId  String
+  messageBody     String
+  status          String             @default("pending")
+  totalRecipients Int                @default(0)
+  sentCount       Int                @default(0)
+  failedCount     Int                @default(0)
+  skippedCount    Int                @default(0)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime           @default(now())
+  messages        MarketingMessage[]
+
+  @@index([userId])
+}
+
+// Per-recipient delivery log within a campaign.
+model MarketingMessage {
+  id             String            @id @default(cuid())
+  campaignId     String
+  campaign       MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  jobberClientId String
+  clientName     String
+  firstName      String
+  phone          String?
+  status         String            @default("pending")
+  messageSid     String?
+  error          String?
+  sentAt         DateTime?
+  createdAt      DateTime          @default(now())
+
+  @@index([campaignId])
+  @@index([messageSid])
+}

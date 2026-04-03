@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SMS Marketing — 5StarFlow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#aac7ff",
+            "on-surface": "#e5e2e1",
+            "on-background": "#e5e2e1",
+            "inverse-primary": "#005db8",
+            "error": "#ffb4ab",
+            "surface-variant": "#353534",
+            "on-primary": "#003064",
+            "surface": "#131313",
+            "surface-dim": "#131313",
+            "surface-bright": "#3a3939",
+            "inverse-on-surface": "#313030",
+            "on-surface-variant": "#8b91a0",
+            "background": "#131313",
+            "secondary-container": "#09bf49",
+            "surface-container-high": "#2a2a2a",
+            "surface-container-lowest": "#0e0e0e",
+            "surface-container-low": "#1c1b1b",
+            "inverse-surface": "#e5e2e1",
+            "surface-tint": "#aac7ff",
+            "primary-container": "#3e90ff",
+            "tertiary-container": "#c863fb",
+            "primary-fixed-dim": "#aac7ff",
+            "tertiary-fixed-dim": "#e9b3ff",
+            "on-error": "#690005",
+            "outline-variant": "#414754",
+            "surface-container": "#201f1f",
+            "error-container": "#93000a",
+            "on-error-container": "#ffdad6",
+            "secondary": "#47e266",
+            "tertiary": "#e9b3ff",
+            "outline": "#8b91a0",
+            "surface-container-highest": "#353534"
+          },
+          fontFamily: {
+            "headline": ["Inter"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          },
+          borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+        },
+      },
+    }
+  </script>
+  <style>
+    body { background-color: #000000; color: #e5e2e1; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+    .glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .tab-active { background: rgba(170,199,255,0.15); color: #aac7ff; border-color: rgba(170,199,255,0.3); }
+    @media (max-width: 640px) {
+      aside { display: none !important; }
+      main { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
+    }
+  </style>
+</head>
+<body class="bg-black min-h-screen">
+
+  <!-- Sidebar -->
+  <aside class="fixed left-6 top-6 bottom-6 w-64 rounded-[3rem] border-t border-white/10 bg-zinc-900/60 backdrop-blur-2xl flex flex-col h-[calc(100vh-3rem)] p-4 shadow-[0_40px_40px_-5px_rgba(0,0,0,0.6)] z-50">
+    <div class="mb-8 px-4 pt-4">
+      <img src="/images/logo.png" alt="5StarFlow" style="height:36px;width:auto;display:block;margin:0 auto 0.5rem;">
+      <h1 class="text-xl font-bold text-zinc-100 tracking-tighter">Command Center</h1>
+      <p class="text-xs text-zinc-500 font-medium mt-1">5StarFlow</p>
+    </div>
+
+    <nav class="flex-1 space-y-0.5 overflow-y-auto" id="main-nav">
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/index.html">
+        <span class="material-symbols-outlined text-[20px]">home</span>
+        <span class="text-sm font-medium tracking-tight">Home</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/review-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">rate_review</span>
+        <span class="text-sm font-medium tracking-tight">Review Requests</span>
+        <span class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary/10 text-secondary hidden" id="sidebar-pending"></span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/weather-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">thunderstorm</span>
+        <span class="text-sm font-medium tracking-tight">Rain Alerts</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/seo-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">search_check</span>
+        <span class="text-sm font-medium tracking-tight">SEO Audit</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/website-audit.html">
+        <span class="material-symbols-outlined text-[20px]">speed</span>
+        <span class="text-sm font-medium tracking-tight">Website Audit</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-100 rounded-xl relative before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-secondary before:rounded-full hover:bg-white/5 transition-all duration-200" href="/marketing.html">
+        <span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">campaign</span>
+        <span class="text-sm font-medium tracking-tight">SMS Marketing</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/connections.html">
+        <span class="material-symbols-outlined text-[20px]">hub</span>
+        <span class="text-sm font-medium tracking-tight">App Connections</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/message-settings.html">
+        <span class="material-symbols-outlined text-[20px]">edit_note</span>
+        <span class="text-sm font-medium tracking-tight">Message Templates</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/settings.html">
+        <span class="material-symbols-outlined text-[20px]">settings</span>
+        <span class="text-sm font-medium tracking-tight">Settings</span>
+      </a>
+      <a id="admin-nav-link" class="hidden flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/admin.html">
+        <span class="material-symbols-outlined text-[20px]">manage_accounts</span>
+        <span class="text-sm font-medium tracking-tight">User Management</span>
+      </a>
+    </nav>
+
+    <div class="mt-auto px-2 pt-4 border-t border-white/5">
+      <div class="flex items-center gap-3 p-2">
+        <div class="w-9 h-9 rounded-full bg-surface-container-highest flex items-center justify-center text-sm font-bold text-zinc-100 flex-shrink-0" id="user-avatar">?</div>
+        <div class="flex-1 overflow-hidden">
+          <p class="text-sm font-semibold text-zinc-100 truncate" id="user-email">Loading...</p>
+          <p class="text-xs text-zinc-500 truncate" id="user-role">Administrator</p>
+        </div>
+        <button onclick="logout()" class="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex-shrink-0" title="Log out">
+          <span class="material-symbols-outlined text-[18px]">logout</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Canvas -->
+  <main class="pl-80 pr-12 py-10 min-h-screen">
+
+    <!-- Page Header -->
+    <div class="mb-8">
+      <h2 class="text-2xl font-black text-zinc-100 tracking-tight">SMS Marketing</h2>
+      <p class="text-sm text-on-surface-variant mt-1">Create campaigns, build audiences, and send bulk SMS to your clients</p>
+    </div>
+
+    <!-- DRY RUN Banner (hidden by default) -->
+    <div id="dry-run-banner" class="hidden mb-6 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-medium flex items-center gap-2">
+      <span class="material-symbols-outlined text-[18px]">science</span>
+      DRY RUN mode is active — no real SMS messages will be sent
+    </div>
+
+    <!-- Tab Bar -->
+    <div class="flex gap-2 mb-8 flex-wrap">
+      <button onclick="switchTab('templates')" id="tab-btn-templates" class="tab-active px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200">Templates</button>
+      <button onclick="switchTab('audiences')" id="tab-btn-audiences" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Audiences</button>
+      <button onclick="switchTab('send')" id="tab-btn-send" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Send Campaign</button>
+      <button onclick="switchTab('history')" id="tab-btn-history" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">History</button>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- TAB 1: Templates                                                 -->
+    <!-- ================================================================ -->
+    <section id="tab-templates">
+      <!-- Create / Edit Form -->
+      <div class="glass-card rounded-xl p-6 mb-6">
+        <h3 class="text-lg font-bold text-zinc-100 mb-4" id="template-form-title">Create Template</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs text-on-surface-variant font-medium uppercase tracking-wider mb-2">Template Name</label>
+            <input id="tpl-name" type="text" maxlength="100" placeholder="e.g. Spring Cleanup Promo" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20">
+          </div>
+          <div>
+            <label class="block text-xs text-on-surface-variant font-medium uppercase tracking-wider mb-2">Message Body</label>
+            <textarea id="tpl-body" rows="4" maxlength="1600" placeholder="Hi {firstName}! Spring cleanups are here..." class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none"></textarea>
+            <p class="text-xs text-on-surface-variant mt-1">Use <code class="text-primary">{firstName}</code> to insert the client's first name. Max 1600 characters.</p>
+          </div>
+          <div class="flex gap-3">
+            <button onclick="saveTemplate()" id="tpl-save-btn" class="bg-primary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors">Save Template</button>
+            <button onclick="cancelEditTemplate()" id="tpl-cancel-btn" class="hidden bg-white/5 border border-white/10 rounded-xl px-5 py-2.5 text-sm font-medium text-zinc-400 hover:bg-white/10 transition-colors">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Template List -->
+      <div id="template-list" class="space-y-3">
+        <p class="text-sm text-on-surface-variant">Loading templates...</p>
+      </div>
+    </section>
+
+    <!-- ================================================================ -->
+    <!-- TAB 2: Audiences                                                 -->
+    <!-- ================================================================ -->
+    <section id="tab-audiences" class="hidden">
+      <!-- Import Section -->
+      <div class="glass-card rounded-xl p-6 mb-6">
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <h3 class="text-lg font-bold text-zinc-100">Import Clients from Jobber</h3>
+          <button onclick="importJobberClients()" id="import-btn" class="bg-primary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2">
+            <span class="material-symbols-outlined text-[18px]">download</span>
+            Import Clients
+          </button>
+        </div>
+
+        <!-- Client Table (hidden until import) -->
+        <div id="client-table-wrap" class="hidden">
+          <div class="flex items-center gap-3 mb-4 flex-wrap">
+            <label class="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
+              <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll()" class="rounded bg-white/10 border-white/20 text-primary focus:ring-primary/30">
+              Select All
+            </label>
+            <span id="selected-count" class="text-xs text-on-surface-variant">0 selected</span>
+          </div>
+
+          <div class="overflow-x-auto rounded-xl border border-white/10">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-xs uppercase text-on-surface-variant tracking-wider border-b border-white/10">
+                  <th class="px-4 py-3 w-10"></th>
+                  <th class="px-4 py-3">Name</th>
+                  <th class="px-4 py-3">Phone</th>
+                  <th class="px-4 py-3">SMS Allowed</th>
+                </tr>
+              </thead>
+              <tbody id="client-table-body"></tbody>
+            </table>
+          </div>
+
+          <!-- Save Audience -->
+          <div class="flex items-center gap-3 mt-4 flex-wrap">
+            <input id="audience-name" type="text" placeholder="Audience name (e.g. Spring 2026 Clients)" class="flex-1 min-w-[200px] bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20">
+            <button onclick="saveAudience()" id="save-audience-btn" class="bg-secondary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-secondary/90 transition-colors">Save Audience</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Saved Audiences -->
+      <h3 class="text-lg font-bold text-zinc-100 mb-4">Saved Audiences</h3>
+      <div id="audience-list" class="space-y-3">
+        <p class="text-sm text-on-surface-variant">Loading audiences...</p>
+      </div>
+    </section>
+
+    <!-- ================================================================ -->
+    <!-- TAB 3: Send Campaign                                             -->
+    <!-- ================================================================ -->
+    <section id="tab-send" class="hidden">
+      <div class="glass-card rounded-xl p-6 mb-6">
+        <h3 class="text-lg font-bold text-zinc-100 mb-6">Launch Campaign</h3>
+
+        <div class="space-y-5">
+          <!-- Campaign Name -->
+          <div>
+            <label class="block text-xs text-on-surface-variant font-medium uppercase tracking-wider mb-2">Campaign Name</label>
+            <input id="campaign-name" type="text" placeholder="e.g. Spring Cleanup Blast" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20">
+          </div>
+
+          <!-- Template Select -->
+          <div>
+            <label class="block text-xs text-on-surface-variant font-medium uppercase tracking-wider mb-2">Select Template</label>
+            <select id="campaign-template" onchange="previewTemplate()" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20">
+              <option value="">— Choose a template —</option>
+            </select>
+            <div id="template-preview" class="hidden mt-3 p-4 rounded-xl bg-white/5 border border-white/10 text-sm text-zinc-300 whitespace-pre-wrap"></div>
+          </div>
+
+          <!-- Audience Select -->
+          <div>
+            <label class="block text-xs text-on-surface-variant font-medium uppercase tracking-wider mb-2">Select Audience</label>
+            <select id="campaign-audience" onchange="previewAudience()" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20">
+              <option value="">— Choose an audience —</option>
+            </select>
+            <p id="audience-preview" class="hidden mt-2 text-xs text-on-surface-variant"></p>
+          </div>
+
+          <!-- Send Button -->
+          <button onclick="sendCampaign()" id="send-btn" class="bg-secondary text-zinc-900 rounded-xl px-6 py-3 text-sm font-bold hover:bg-secondary/90 transition-colors flex items-center gap-2">
+            <span class="material-symbols-outlined text-[18px]">send</span>
+            Send Campaign
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Progress (hidden until campaign starts) -->
+      <div id="campaign-progress" class="hidden glass-card rounded-xl p-6">
+        <h3 class="text-lg font-bold text-zinc-100 mb-4">Campaign Progress</h3>
+        <div class="mb-4">
+          <div class="w-full bg-white/10 rounded-full h-3 overflow-hidden">
+            <div id="progress-bar" class="bg-secondary h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p class="text-2xl font-black text-secondary" id="prog-sent">0</p>
+            <p class="text-xs text-on-surface-variant uppercase tracking-wider">Sent</p>
+          </div>
+          <div>
+            <p class="text-2xl font-black text-error" id="prog-failed">0</p>
+            <p class="text-xs text-on-surface-variant uppercase tracking-wider">Failed</p>
+          </div>
+          <div>
+            <p class="text-2xl font-black text-on-surface-variant" id="prog-skipped">0</p>
+            <p class="text-xs text-on-surface-variant uppercase tracking-wider">Skipped</p>
+          </div>
+        </div>
+        <p id="prog-status" class="mt-4 text-sm text-on-surface-variant text-center"></p>
+      </div>
+    </section>
+
+    <!-- ================================================================ -->
+    <!-- TAB 4: History                                                   -->
+    <!-- ================================================================ -->
+    <section id="tab-history" class="hidden">
+      <div id="history-list" class="space-y-3">
+        <p class="text-sm text-on-surface-variant">Loading campaign history...</p>
+      </div>
+    </section>
+
+  </main>
+
+<script>
+  // ========================================================================
+  // State
+  // ========================================================================
+  let _templates  = [];
+  let _audiences  = [];
+  let _clients    = [];   // raw Jobber import
+  let _editingId  = null; // template being edited
+  let _pollTimer  = null; // campaign progress poll
+
+  const API = '/api/marketing';
+
+  // ========================================================================
+  // Tabs
+  // ========================================================================
+  function switchTab(tab) {
+    const tabs = ['templates', 'audiences', 'send', 'history'];
+    tabs.forEach(t => {
+      document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+      const btn = document.getElementById('tab-btn-' + t);
+      if (t === tab) {
+        btn.className = 'tab-active px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200';
+      } else {
+        btn.className = 'px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200';
+      }
+    });
+
+    if (tab === 'templates') loadTemplates();
+    if (tab === 'audiences') loadAudiences();
+    if (tab === 'send')      loadSendTab();
+    if (tab === 'history')   loadHistory();
+  }
+
+  // ========================================================================
+  // Auth / Logout
+  // ========================================================================
+  async function logout() {
+    try {
+      const res = await fetch('/auth/logout', { method: 'POST' });
+      const data = await res.json();
+      window.location.href = data.redirect || '/login.html';
+    } catch {
+      window.location.href = '/login.html';
+    }
+  }
+
+  // ========================================================================
+  // Templates
+  // ========================================================================
+  async function loadTemplates() {
+    try {
+      const res = await fetch(API + '/templates', { credentials: 'include' });
+      const data = await res.json();
+      _templates = data.templates || [];
+      renderTemplates();
+    } catch (err) {
+      document.getElementById('template-list').innerHTML = '<p class="text-sm text-error">Failed to load templates</p>';
+    }
+  }
+
+  function renderTemplates() {
+    const el = document.getElementById('template-list');
+    if (_templates.length === 0) {
+      el.innerHTML = '<p class="text-sm text-on-surface-variant">No templates yet. Create one above.</p>';
+      return;
+    }
+    el.innerHTML = _templates.map(t => `
+      <div class="glass-card rounded-xl p-5 flex items-start justify-between gap-4">
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-bold text-zinc-100">${esc(t.name)}</p>
+          <p class="text-xs text-on-surface-variant mt-1 whitespace-pre-wrap line-clamp-2">${esc(t.body)}</p>
+          <p class="text-[10px] text-zinc-600 mt-2">${new Date(t.createdAt).toLocaleDateString()}</p>
+        </div>
+        <div class="flex gap-2 flex-shrink-0">
+          <button onclick="editTemplate('${t.id}')" class="w-8 h-8 flex items-center justify-center rounded-xl bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200 transition-colors" title="Edit">
+            <span class="material-symbols-outlined text-[16px]">edit</span>
+          </button>
+          <button onclick="deleteTemplate('${t.id}')" class="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors" title="Delete">
+            <span class="material-symbols-outlined text-[16px]">delete</span>
+          </button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function saveTemplate() {
+    const name = document.getElementById('tpl-name').value.trim();
+    const body = document.getElementById('tpl-body').value.trim();
+    if (!name || !body) return alert('Name and body are required');
+
+    const btn = document.getElementById('tpl-save-btn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+
+    try {
+      const method = _editingId ? 'PUT' : 'POST';
+      const url = _editingId ? API + '/templates/' + _editingId : API + '/templates';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name, body }),
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error || 'Failed to save');
+      cancelEditTemplate();
+      loadTemplates();
+    } catch (err) {
+      alert('Network error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save Template';
+    }
+  }
+
+  function editTemplate(id) {
+    const t = _templates.find(x => x.id === id);
+    if (!t) return;
+    _editingId = id;
+    document.getElementById('tpl-name').value = t.name;
+    document.getElementById('tpl-body').value = t.body;
+    document.getElementById('template-form-title').textContent = 'Edit Template';
+    document.getElementById('tpl-cancel-btn').classList.remove('hidden');
+    document.getElementById('tpl-save-btn').textContent = 'Update Template';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelEditTemplate() {
+    _editingId = null;
+    document.getElementById('tpl-name').value = '';
+    document.getElementById('tpl-body').value = '';
+    document.getElementById('template-form-title').textContent = 'Create Template';
+    document.getElementById('tpl-cancel-btn').classList.add('hidden');
+    document.getElementById('tpl-save-btn').textContent = 'Save Template';
+  }
+
+  async function deleteTemplate(id) {
+    if (!confirm('Delete this template? This cannot be undone.')) return;
+    try {
+      await fetch(API + '/templates/' + id, { method: 'DELETE', credentials: 'include' });
+      loadTemplates();
+    } catch { alert('Failed to delete'); }
+  }
+
+  // ========================================================================
+  // Audiences
+  // ========================================================================
+  async function loadAudiences() {
+    try {
+      const res = await fetch(API + '/audiences', { credentials: 'include' });
+      const data = await res.json();
+      _audiences = data.audiences || [];
+      renderAudiences();
+    } catch {
+      document.getElementById('audience-list').innerHTML = '<p class="text-sm text-error">Failed to load audiences</p>';
+    }
+  }
+
+  function renderAudiences() {
+    const el = document.getElementById('audience-list');
+    if (_audiences.length === 0) {
+      el.innerHTML = '<p class="text-sm text-on-surface-variant">No saved audiences yet. Import clients from Jobber above.</p>';
+      return;
+    }
+    el.innerHTML = _audiences.map(a => `
+      <div class="glass-card rounded-xl p-5 flex items-center justify-between gap-4">
+        <div>
+          <p class="text-sm font-bold text-zinc-100">${esc(a.name)}</p>
+          <p class="text-xs text-on-surface-variant mt-1">${a._count?.contacts || 0} contacts &middot; ${new Date(a.createdAt).toLocaleDateString()}</p>
+        </div>
+        <button onclick="deleteAudience('${a.id}')" class="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors" title="Delete">
+          <span class="material-symbols-outlined text-[16px]">delete</span>
+        </button>
+      </div>
+    `).join('');
+  }
+
+  async function importJobberClients() {
+    const btn = document.getElementById('import-btn');
+    btn.disabled = true; btn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span> Importing...';
+
+    try {
+      const res = await fetch(API + '/jobber-clients', { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Import failed');
+      _clients = data.clients || [];
+      renderClientTable();
+      document.getElementById('client-table-wrap').classList.remove('hidden');
+    } catch (err) {
+      alert('Failed to import: ' + err.message);
+    } finally {
+      btn.disabled = false; btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">download</span> Import Clients';
+    }
+  }
+
+  function renderClientTable() {
+    const tbody = document.getElementById('client-table-body');
+    if (_clients.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-on-surface-variant">No clients found in Jobber</td></tr>';
+      return;
+    }
+    tbody.innerHTML = _clients.map((c, i) => {
+      const hasPhone = !!c.phone;
+      const smsOk = c.smsAllowed;
+      return `
+        <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+          <td class="px-4 py-3"><input type="checkbox" data-idx="${i}" onchange="updateSelectedCount()" class="client-cb rounded bg-white/10 border-white/20 text-primary focus:ring-primary/30"></td>
+          <td class="px-4 py-3 text-zinc-200 font-medium">${esc(c.name)}</td>
+          <td class="px-4 py-3 text-zinc-400">${hasPhone ? esc(c.phone) : '<span class="text-red-400 text-xs font-medium">No phone</span>'}</td>
+          <td class="px-4 py-3">${smsOk ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-secondary/10 text-secondary border border-secondary/20">Yes</span>' : '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">No</span>'}</td>
+        </tr>
+      `;
+    }).join('');
+    updateSelectedCount();
+  }
+
+  function toggleSelectAll() {
+    const checked = document.getElementById('select-all-cb').checked;
+    document.querySelectorAll('.client-cb').forEach(cb => cb.checked = checked);
+    updateSelectedCount();
+  }
+
+  function updateSelectedCount() {
+    const count = document.querySelectorAll('.client-cb:checked').length;
+    document.getElementById('selected-count').textContent = count + ' selected';
+  }
+
+  async function saveAudience() {
+    const name = document.getElementById('audience-name').value.trim();
+    if (!name) return alert('Please enter an audience name');
+
+    const selected = [];
+    document.querySelectorAll('.client-cb:checked').forEach(cb => {
+      const c = _clients[parseInt(cb.dataset.idx)];
+      if (c) {
+        selected.push({
+          jobberClientId: c.id,
+          clientName: c.name,
+          firstName: c.firstName,
+          phone: c.phone,
+          smsAllowed: c.smsAllowed,
+        });
+      }
+    });
+
+    if (selected.length === 0) return alert('Select at least one contact');
+
+    const btn = document.getElementById('save-audience-btn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+
+    try {
+      const res = await fetch(API + '/audiences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name, contacts: selected }),
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error || 'Failed to save');
+      document.getElementById('audience-name').value = '';
+      document.querySelectorAll('.client-cb').forEach(cb => cb.checked = false);
+      document.getElementById('select-all-cb').checked = false;
+      updateSelectedCount();
+      loadAudiences();
+    } catch (err) {
+      alert('Network error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save Audience';
+    }
+  }
+
+  async function deleteAudience(id) {
+    if (!confirm('Delete this audience? This cannot be undone.')) return;
+    try {
+      await fetch(API + '/audiences/' + id, { method: 'DELETE', credentials: 'include' });
+      loadAudiences();
+    } catch { alert('Failed to delete'); }
+  }
+
+  // ========================================================================
+  // Send Campaign
+  // ========================================================================
+  async function loadSendTab() {
+    // Populate template dropdown
+    try {
+      const res = await fetch(API + '/templates', { credentials: 'include' });
+      const data = await res.json();
+      _templates = data.templates || [];
+      const sel = document.getElementById('campaign-template');
+      sel.innerHTML = '<option value="">-- Choose a template --</option>' +
+        _templates.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+    } catch {}
+
+    // Populate audience dropdown
+    try {
+      const res = await fetch(API + '/audiences', { credentials: 'include' });
+      const data = await res.json();
+      _audiences = data.audiences || [];
+      const sel = document.getElementById('campaign-audience');
+      sel.innerHTML = '<option value="">-- Choose an audience --</option>' +
+        _audiences.map(a => `<option value="${a.id}">${esc(a.name)} (${a._count?.contacts || '?'} contacts)</option>`).join('');
+    } catch {}
+  }
+
+  function previewTemplate() {
+    const id = document.getElementById('campaign-template').value;
+    const el = document.getElementById('template-preview');
+    const t = _templates.find(x => x.id === id);
+    if (t) {
+      el.textContent = t.body;
+      el.classList.remove('hidden');
+    } else {
+      el.classList.add('hidden');
+    }
+  }
+
+  async function previewAudience() {
+    const id = document.getElementById('campaign-audience').value;
+    const el = document.getElementById('audience-preview');
+    if (!id) { el.classList.add('hidden'); return; }
+
+    try {
+      const res = await fetch(API + '/audiences/' + id, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) { el.classList.add('hidden'); return; }
+
+      const contacts = data.audience?.contacts || [];
+      const total = contacts.length;
+      const sendable = contacts.filter(c => c.phone && c.smsAllowed).length;
+      const skipped = total - sendable;
+      el.textContent = `${total} contacts total \u2014 ${sendable} will receive SMS${skipped > 0 ? `, ${skipped} will be skipped (no phone or SMS disabled)` : ''}`;
+      el.classList.remove('hidden');
+    } catch {
+      el.classList.add('hidden');
+    }
+  }
+
+  async function sendCampaign() {
+    const name = document.getElementById('campaign-name').value.trim();
+    const templateId = document.getElementById('campaign-template').value;
+    const audienceListId = document.getElementById('campaign-audience').value;
+
+    if (!name) return alert('Enter a campaign name');
+    if (!templateId) return alert('Select a template');
+    if (!audienceListId) return alert('Select an audience');
+
+    const tpl = _templates.find(t => t.id === templateId);
+    const aud = _audiences.find(a => a.id === audienceListId);
+    const count = aud?._count?.contacts || '?';
+
+    if (!confirm(`Send "${tpl?.name}" to ${count} contacts?\n\nThis cannot be undone.`)) return;
+
+    const btn = document.getElementById('send-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span> Sending...';
+
+    try {
+      const res = await fetch(API + '/campaigns/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name, templateId, audienceListId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to send campaign');
+        return;
+      }
+
+      // Show progress and start polling
+      document.getElementById('campaign-progress').classList.remove('hidden');
+      startProgressPoll(data.campaignId);
+    } catch (err) {
+      alert('Network error: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">send</span> Send Campaign';
+    }
+  }
+
+  function startProgressPoll(campaignId) {
+    if (_pollTimer) clearInterval(_pollTimer);
+
+    async function poll() {
+      try {
+        const res = await fetch(API + '/campaigns/' + campaignId, { credentials: 'include' });
+        const data = await res.json();
+        if (!res.ok) return;
+
+        const c = data.campaign;
+        const total = c.totalRecipients || 1;
+        const processed = c.sentCount + c.failedCount + c.skippedCount;
+        const pct = Math.round((processed / total) * 100);
+
+        document.getElementById('progress-bar').style.width = pct + '%';
+        document.getElementById('prog-sent').textContent = c.sentCount;
+        document.getElementById('prog-failed').textContent = c.failedCount;
+        document.getElementById('prog-skipped').textContent = c.skippedCount;
+
+        if (c.status === 'complete') {
+          document.getElementById('prog-status').innerHTML = '<span class="text-secondary font-semibold">Campaign complete</span>';
+          clearInterval(_pollTimer);
+          _pollTimer = null;
+        } else if (c.status === 'failed') {
+          document.getElementById('prog-status').innerHTML = '<span class="text-error font-semibold">Campaign failed</span>';
+          clearInterval(_pollTimer);
+          _pollTimer = null;
+        } else {
+          document.getElementById('prog-status').textContent = 'Sending... ' + pct + '%';
+        }
+      } catch {}
+    }
+
+    poll(); // immediate first check
+    _pollTimer = setInterval(poll, 2000);
+  }
+
+  // ========================================================================
+  // History
+  // ========================================================================
+  async function loadHistory() {
+    const el = document.getElementById('history-list');
+    try {
+      const res = await fetch(API + '/campaigns', { credentials: 'include' });
+      const data = await res.json();
+      const campaigns = data.campaigns || [];
+
+      if (campaigns.length === 0) {
+        el.innerHTML = '<p class="text-sm text-on-surface-variant">No campaigns sent yet.</p>';
+        return;
+      }
+
+      el.innerHTML = campaigns.map(c => {
+        const statusBadge = {
+          pending:  'bg-amber-500/10 text-amber-400 border-amber-500/20',
+          sending:  'bg-primary/10 text-primary border-primary/20',
+          complete: 'bg-secondary/10 text-secondary border-secondary/20',
+          failed:   'bg-red-500/10 text-red-400 border-red-500/20',
+        }[c.status] || 'bg-white/5 text-zinc-400 border-white/10';
+
+        return `
+          <div class="glass-card rounded-xl p-5 cursor-pointer hover:bg-white/[0.06] transition-colors" onclick="toggleCampaignDetail('${c.id}', this)">
+            <div class="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <p class="text-sm font-bold text-zinc-100">${esc(c.name)}</p>
+                <p class="text-xs text-on-surface-variant mt-1">${new Date(c.createdAt).toLocaleString()}</p>
+              </div>
+              <div class="flex items-center gap-3">
+                <span class="text-xs font-medium px-2.5 py-0.5 rounded-full border ${statusBadge}">${c.status}</span>
+                <div class="flex gap-4 text-xs text-on-surface-variant">
+                  <span class="text-secondary font-bold">${c.sentCount} sent</span>
+                  <span class="text-red-400 font-bold">${c.failedCount} failed</span>
+                  <span>${c.skippedCount} skipped</span>
+                </div>
+              </div>
+            </div>
+            <div id="detail-${c.id}" class="hidden mt-4 pt-4 border-t border-white/5"></div>
+          </div>
+        `;
+      }).join('');
+    } catch {
+      el.innerHTML = '<p class="text-sm text-error">Failed to load history</p>';
+    }
+  }
+
+  async function toggleCampaignDetail(id, el) {
+    const detail = document.getElementById('detail-' + id);
+    if (!detail) return;
+
+    if (!detail.classList.contains('hidden')) {
+      detail.classList.add('hidden');
+      return;
+    }
+
+    detail.innerHTML = '<p class="text-xs text-on-surface-variant">Loading...</p>';
+    detail.classList.remove('hidden');
+
+    try {
+      const res = await fetch(API + '/campaigns/' + id, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) { detail.innerHTML = '<p class="text-xs text-error">Failed to load</p>'; return; }
+
+      const msgs = data.campaign?.messages || [];
+      if (msgs.length === 0) {
+        detail.innerHTML = '<p class="text-xs text-on-surface-variant">No messages in this campaign</p>';
+        return;
+      }
+
+      const statusColor = {
+        sent: 'text-secondary', failed: 'text-red-400', skipped: 'text-zinc-500',
+        delivered: 'text-secondary', undelivered: 'text-red-400', pending: 'text-amber-400',
+      };
+
+      detail.innerHTML = `
+        <div class="overflow-x-auto rounded-xl border border-white/10">
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="text-left text-[10px] uppercase text-on-surface-variant tracking-wider border-b border-white/10">
+                <th class="px-3 py-2">Client</th>
+                <th class="px-3 py-2">Phone</th>
+                <th class="px-3 py-2">Status</th>
+                <th class="px-3 py-2">Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${msgs.map(m => `
+                <tr class="border-b border-white/5">
+                  <td class="px-3 py-2 text-zinc-200">${esc(m.clientName)}</td>
+                  <td class="px-3 py-2 text-zinc-400">${m.phone || '—'}</td>
+                  <td class="px-3 py-2 font-bold ${statusColor[m.status] || 'text-zinc-400'}">${m.status}</td>
+                  <td class="px-3 py-2 text-zinc-500">${m.error ? esc(m.error) : '—'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } catch {
+      detail.innerHTML = '<p class="text-xs text-error">Network error</p>';
+    }
+  }
+
+  // ========================================================================
+  // Helpers
+  // ========================================================================
+  function esc(str) {
+    if (!str) return '';
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // ========================================================================
+  // Init
+  // ========================================================================
+  loadTemplates();
+
+  // Check DRY_RUN status
+  (async function checkDryRun() {
+    try {
+      const res = await fetch('/api/status', { credentials: 'include' });
+      const data = await res.json();
+      if (data.dryRun) {
+        document.getElementById('dry-run-banner').classList.remove('hidden');
+      }
+    } catch {}
+  })();
+</script>
+
+<script>
+(async function() {
+  try {
+    const res = await fetch('/api/admin/me', { credentials: 'include' });
+    if (!res.ok) return;
+    const me = await res.json();
+    const email = me.email || '';
+    document.getElementById('user-email').textContent = email;
+    document.getElementById('user-avatar').textContent = email.charAt(0).toUpperCase();
+    const role = me.role || 'client';
+    const roleEl = document.getElementById('user-role');
+    if (roleEl) roleEl.textContent = role === 'admin' ? 'Administrator' : 'Client';
+    if (role === 'admin') {
+      const link = document.getElementById('admin-nav-link');
+      if (link) link.classList.remove('hidden');
+    }
+  } catch {}
+})();
+</script>
+
+</body>
+</html>

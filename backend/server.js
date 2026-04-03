@@ -17,6 +17,7 @@ const settingsRouter    = require('./routes/settings');
 const analyticsRouter   = require('./routes/analytics');
 const auditRouter       = require('./routes/websiteAudit');
 const leaderboardRouter = require('./routes/leaderboard');
+const marketingRouter   = require('./routes/marketing');
 const { requireAuth } = require('./middleware/requireAuth');
 const { startTokenRefreshScheduler } = require('./services/tokenManager');
 const { startDeliveryQueue }         = require('./services/deliveryQueue');
@@ -101,6 +102,19 @@ app.post('/api/weather/twilio-callback', express.urlencoded({ extended: false })
   res.sendStatus(204);
 });
 
+// Marketing Twilio delivery status callback — public (Twilio posts here, no session)
+app.post('/api/marketing/twilio-callback', express.urlencoded({ extended: false }), async (req, res) => {
+  const { MessageSid, MessageStatus } = req.body || {};
+  if (MessageSid && MessageStatus) {
+    const p = require('./lib/prismaClient');
+    await p.marketingMessage.updateMany({
+      where: { messageSid: MessageSid },
+      data:  { status: MessageStatus },
+    }).catch(err => console.warn('[marketing-twilio-callback] DB update failed:', err.message));
+  }
+  res.sendStatus(204);
+});
+
 // Referral redirect — public, no auth required (clients click from their phones)
 // Sets hasPendingMultiplier=true for the referrer, then redirects to booking page.
 app.get('/r/:slug', async (req, res) => {
@@ -150,6 +164,7 @@ app.use('/api/message-templates', requireAuth, require('./routes/messageTemplate
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/leaderboard', leaderboardRouter);
+app.use('/api/marketing', marketingRouter);
 
 // ---------------------------------------------------------------------------
 // Error handler
@@ -176,6 +191,7 @@ app.listen(PORT, () => {
   console.log(`  Connections : http://localhost:${PORT}/connections.html`);
   console.log(`  Settings    : http://localhost:${PORT}/settings.html`);
   console.log(`  Web Audit   : http://localhost:${PORT}/website-audit.html`);
+  console.log(`  Marketing  : http://localhost:${PORT}/marketing.html`);
   console.log(`  Users       : http://localhost:${PORT}/admin.html`);
   console.log(`  Health      : http://localhost:${PORT}/health`);
   console.log('==============================================');

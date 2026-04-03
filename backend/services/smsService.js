@@ -85,4 +85,4 @@ async function sendReviewSMS(rawPhone, firstName, userId) {
   return message.sid;
 }
 
-module.exports = { sendReviewSMS, getTwilioCreds };
+module.exports = { sendReviewSMS, getTwilioCreds, toE164 };
