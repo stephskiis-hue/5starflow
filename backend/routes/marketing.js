@@ -460,4 +460,230 @@ router.post('/inbox/:id/read', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Conversations (iMessage-style threads — merges InboundSMS + MarketingMessage)
+// ---------------------------------------------------------------------------
+
+// GET /api/marketing/conversations — list all threads (one per unique phone)
+router.get('/conversations', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Phones from inbound messages
+    const inboundRows = await prisma.inboundSMS.findMany({
+      where:    { userId },
+      select:   { from: true },
+      distinct: ['from'],
+    });
+
+    // Phones from outbound campaign messages
+    const outboundRows = await prisma.marketingMessage.findMany({
+      where:    { phone: { not: null }, campaign: { userId } },
+      select:   { phone: true },
+      distinct: ['phone'],
+    });
+
+    // Union of all unique phones
+    const phoneSet = new Set([
+      ...inboundRows.map(r => r.from),
+      ...outboundRows.map(r => r.phone).filter(Boolean),
+    ]);
+
+    // Build thread summary for each phone
+    const threads = await Promise.all([...phoneSet].map(async (phone) => {
+      const lastInbound  = await prisma.inboundSMS.findFirst({
+        where:   { userId, from: phone },
+        orderBy: { receivedAt: 'desc' },
+      });
+      const lastOutbound = await prisma.marketingMessage.findFirst({
+        where:   { phone, status: { notIn: ['skipped', 'pending'] }, campaign: { userId } },
+        orderBy: { sentAt: 'desc' },
+        include: { campaign: { select: { name: true, messageBody: true } } },
+      });
+
+      const inAt  = lastInbound  ? new Date(lastInbound.receivedAt).getTime()  : 0;
+      const outAt = lastOutbound ? new Date(lastOutbound.sentAt || 0).getTime() : 0;
+      const lastMessageAt  = inAt > outAt ? lastInbound.receivedAt  : (lastOutbound?.sentAt || null);
+      const lastMessage    = inAt > outAt ? lastInbound.body        : (lastOutbound?.campaign?.messageBody || '');
+      const lastMessageDir = inAt > outAt ? 'inbound' : 'outbound';
+
+      const unreadCount = await prisma.inboundSMS.count({
+        where: { userId, from: phone, read: false },
+      });
+
+      const client = await prisma.cachedJobberClient.findFirst({ where: { userId, phone } });
+
+      return {
+        phone,
+        clientName:     client?.name           || null,
+        jobberClientId: client?.jobberClientId || null,
+        optedOut:       client?.optedOut       || false,
+        lastMessage:    (lastMessage || '').slice(0, 80),
+        lastMessageAt,
+        lastMessageDir,
+        unreadCount,
+      };
+    }));
+
+    threads.sort((a, b) => {
+      if (!a.lastMessageAt) return 1;
+      if (!b.lastMessageAt) return -1;
+      return new Date(b.lastMessageAt) - new Date(a.lastMessageAt);
+    });
+
+    res.json(threads);
+  } catch (err) {
+    console.error('[marketing] GET /conversations error:', err.message);
+    res.status(500).json({ error: 'Failed to load conversations' });
+  }
+});
+
+// GET /api/marketing/conversations/:phone — full thread (inbound + outbound merged)
+router.get('/conversations/:phone', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const phone  = decodeURIComponent(req.params.phone);
+
+    const inbound  = await prisma.inboundSMS.findMany({
+      where:   { userId, from: phone },
+      orderBy: { receivedAt: 'asc' },
+    });
+
+    const outbound = await prisma.marketingMessage.findMany({
+      where:   { phone, status: { notIn: ['skipped', 'pending'] }, campaign: { userId } },
+      orderBy: { sentAt: 'asc' },
+      include: { campaign: { select: { name: true, messageBody: true } } },
+    });
+
+    const messages = [
+      ...inbound.map(m => ({
+        id:           m.id,
+        direction:    'inbound',
+        body:         m.body,
+        timestamp:    m.receivedAt,
+        status:       'received',
+        response:     m.response,
+        campaignName: null,
+        read:         m.read,
+      })),
+      ...outbound.map(m => ({
+        id:           m.id,
+        direction:    'outbound',
+        body:         m.campaign?.messageBody || '',
+        timestamp:    m.sentAt || m.createdAt,
+        status:       m.status,
+        response:     null,
+        campaignName: m.campaign?.name || null,
+        read:         true,
+      })),
+    ];
+
+    messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    const client = await prisma.cachedJobberClient.findFirst({ where: { userId, phone } });
+
+    res.json({
+      phone,
+      clientName:     client?.name           || null,
+      jobberClientId: client?.jobberClientId || null,
+      optedOut:       client?.optedOut       || false,
+      messages,
+    });
+  } catch (err) {
+    console.error('[marketing] GET /conversations/:phone error:', err.message);
+    res.status(500).json({ error: 'Failed to load thread' });
+  }
+});
+
+// POST /api/marketing/conversations/:phone/send — send a direct reply
+router.post('/conversations/:phone/send', async (req, res) => {
+  try {
+    const userId  = req.user.userId;
+    const phone   = decodeURIComponent(req.params.phone);
+    const { message } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    const cred = await prisma.twilioCredential.findUnique({ where: { userId } });
+    if (!cred) return res.status(400).json({ error: 'No Twilio credentials configured' });
+
+    // Each direct send gets its own campaign row so messageBody is preserved per-message
+    const campaign = await prisma.marketingCampaign.create({
+      data: {
+        userId,
+        name:            'Direct Messages',
+        templateId:      'direct',
+        audienceListId:  'direct',
+        messageBody:     message.trim(),
+        status:          'complete',
+        totalRecipients: 1,
+        skippedCount:    0,
+      },
+    });
+
+    let messageSid = null;
+    let status     = 'sent';
+    let error      = null;
+
+    if (process.env.DRY_RUN === 'true') {
+      messageSid = 'DRY_RUN_' + Date.now();
+    } else {
+      try {
+        const twilio = require('twilio');
+        const tc     = twilio(cred.accountSid, cred.authToken);
+        const sent   = await tc.messages.create({ to: phone, from: cred.fromNumber, body: message.trim() });
+        messageSid   = sent.sid;
+      } catch (twilioErr) {
+        error  = twilioErr.message;
+        status = 'failed';
+      }
+    }
+
+    const client = await prisma.cachedJobberClient.findFirst({ where: { userId, phone } });
+
+    const msg = await prisma.marketingMessage.create({
+      data: {
+        campaignId:     campaign.id,
+        jobberClientId: client?.jobberClientId || 'direct',
+        clientName:     client?.name           || phone,
+        firstName:      client?.firstName      || '',
+        phone,
+        status,
+        messageSid,
+        error,
+        sentAt: new Date(),
+      },
+    });
+
+    // Update campaign sentCount/failedCount
+    await prisma.marketingCampaign.update({
+      where: { id: campaign.id },
+      data:  status === 'sent' ? { sentCount: 1 } : { failedCount: 1 },
+    });
+
+    res.json({ ok: true, messageId: msg.id, status, error });
+  } catch (err) {
+    console.error('[marketing] POST /conversations/:phone/send error:', err.message);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+// POST /api/marketing/conversations/:phone/read — mark all inbound from this phone as read
+router.post('/conversations/:phone/read', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const phone  = decodeURIComponent(req.params.phone);
+    await prisma.inboundSMS.updateMany({
+      where: { userId, from: phone, read: false },
+      data:  { read: true },
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[marketing] POST /conversations/:phone/read error:', err.message);
+    res.status(500).json({ error: 'Failed to mark read' });
+  }
+});
+
 module.exports = router;

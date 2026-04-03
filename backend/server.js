@@ -148,22 +148,32 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
     const normalizedTo   = toE164(To)   || To;
 
     // Find which portal user owns the number that received this message.
-    // Try normalized first, then raw To, then fall back to any credential
-    // (handles format mismatches like +12045551234 vs 12045551234)
+    // Tries: exact E.164 match → raw To match → space-stripped match
+    // (handles "+1 431 450 9814" stored vs "+14314509814" sent by Twilio)
+    // → single-user fallback if only one credential exists.
     let cred = await prisma.twilioCredential.findFirst({ where: { fromNumber: normalizedTo } });
     if (!cred && normalizedTo !== To) {
       cred = await prisma.twilioCredential.findFirst({ where: { fromNumber: To } });
     }
     if (!cred) {
-      // Single-user fallback: if only one credential exists, use it
-      cred = await prisma.twilioCredential.findFirst();
-      if (cred) {
+      // Try matching after stripping spaces from stored number
+      const allCreds = await prisma.twilioCredential.findMany();
+      cred = allCreds.find(c => (c.fromNumber || '').replace(/\s/g, '') === normalizedTo) || null;
+      if (!cred && allCreds.length === 1) {
+        cred = allCreds[0];
         console.warn(`[inbound-sms] fromNumber mismatch (To=${To}, stored=${cred.fromNumber}) — using fallback credential`);
       }
     }
     if (!cred) {
       console.warn(`[inbound-sms] No TwilioCredential found for To=${To} — cannot store message`);
       return;
+    }
+    // Auto-fix stored fromNumber if it contains spaces (normalize to clean E.164 for future lookups)
+    if (cred.fromNumber && /\s/.test(cred.fromNumber)) {
+      const fixed = cred.fromNumber.replace(/\s/g, '');
+      console.log(`[inbound-sms] Auto-fixing stored fromNumber: "${cred.fromNumber}" → "${fixed}"`);
+      prisma.twilioCredential.update({ where: { id: cred.id }, data: { fromNumber: fixed } }).catch(() => {});
+      cred = { ...cred, fromNumber: fixed };
     }
     const userId = cred.userId;
 

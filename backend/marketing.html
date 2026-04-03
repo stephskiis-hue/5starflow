@@ -332,12 +332,12 @@
     </section>
 
     <!-- ================================================================ -->
-    <!-- TAB 5: Inbox                                                      -->
+    <!-- TAB 5: Inbox (iMessage-style two-panel)                          -->
     <!-- ================================================================ -->
     <section id="tab-inbox" class="hidden">
 
       <!-- Admin notify phone setting -->
-      <div class="glass-card rounded-xl p-5 mb-6 flex items-center gap-4 flex-wrap">
+      <div class="glass-card rounded-xl p-5 mb-4 flex items-center gap-4 flex-wrap">
         <span class="material-symbols-outlined text-primary text-[22px]">notifications</span>
         <div class="flex-1 min-w-0">
           <p class="text-sm font-semibold text-zinc-100">Admin Alert Phone</p>
@@ -349,31 +349,51 @@
         </div>
       </div>
 
-      <!-- Inbox header + controls -->
-      <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div>
-          <h3 class="text-lg font-bold text-zinc-100">SMS Inbox</h3>
-          <p class="text-xs text-on-surface-variant mt-0.5">Replies from clients to your marketing number</p>
-        </div>
-        <div class="flex gap-2">
-          <!-- Filter -->
-          <select id="inbox-filter" onchange="renderInbox()" class="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none focus:border-primary/50">
-            <option value="all">All messages</option>
-            <option value="yes">Replied YES</option>
-            <option value="no">Replied NO</option>
-            <option value="stop">Opted Out (STOP)</option>
-            <option value="other">Other</option>
-          </select>
-          <button onclick="markAllRead()" class="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-medium text-zinc-400 hover:bg-white/10 hover:text-zinc-200 transition-colors">Mark all read</button>
-          <button onclick="loadInbox()" class="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-zinc-400 hover:bg-white/10 hover:text-zinc-200 transition-colors" title="Refresh">
-            <span class="material-symbols-outlined text-[18px]">refresh</span>
-          </button>
-        </div>
-      </div>
+      <!-- Two-panel iMessage layout -->
+      <div class="flex gap-4" style="height: calc(100vh - 300px); min-height: 520px;">
 
-      <!-- Inbox list -->
-      <div id="inbox-list" class="space-y-2">
-        <p class="text-sm text-on-surface-variant">Loading inbox...</p>
+        <!-- Left panel: Conversation list -->
+        <div class="w-72 flex-shrink-0 glass-card rounded-xl flex flex-col overflow-hidden">
+          <div class="px-4 py-3 border-b border-white/10 flex items-center justify-between flex-shrink-0">
+            <h3 class="text-sm font-bold text-zinc-100">Messages</h3>
+            <button onclick="loadConversations()" title="Refresh" class="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-white/10 transition-colors">
+              <span class="material-symbols-outlined text-[16px]">refresh</span>
+            </button>
+          </div>
+          <div id="conversation-list" class="flex-1 overflow-y-auto divide-y divide-white/5">
+            <p class="text-xs text-zinc-600 p-4 text-center">Loading conversations...</p>
+          </div>
+        </div>
+
+        <!-- Right panel: Thread view -->
+        <div class="flex-1 glass-card rounded-xl flex flex-col overflow-hidden min-w-0">
+          <!-- Thread header -->
+          <div class="px-5 py-3 border-b border-white/10 flex-shrink-0 flex items-center gap-3">
+            <div id="thread-header-content" class="flex-1 min-w-0">
+              <p class="text-xs text-zinc-600">← Select a conversation</p>
+            </div>
+          </div>
+          <!-- Messages -->
+          <div id="thread-messages" class="flex-1 overflow-y-auto px-4 py-4 space-y-0.5">
+            <div class="flex flex-col items-center justify-center h-full opacity-50">
+              <span class="material-symbols-outlined text-[48px] text-zinc-700 block mb-2">chat_bubble</span>
+              <p class="text-xs text-zinc-600">Choose a conversation to view messages</p>
+            </div>
+          </div>
+          <!-- Reply bar -->
+          <div class="px-4 py-3 border-t border-white/10 flex-shrink-0 flex gap-2 items-end">
+            <textarea id="reply-input" placeholder="Type a message..."
+              rows="1"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendReply();}"
+              oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px';"
+              class="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none overflow-hidden"
+              style="min-height:42px;max-height:120px;"></textarea>
+            <button onclick="sendReply()" id="reply-btn"
+              class="bg-primary text-zinc-900 rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-1 flex-shrink-0 self-end">
+              <span class="material-symbols-outlined text-[18px]">send</span>
+            </button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -383,12 +403,16 @@
   // ========================================================================
   // State
   // ========================================================================
-  let _templates  = [];
-  let _audiences  = [];
-  let _clients    = [];   // cached Jobber clients
-  let _inbox      = [];   // inbound SMS messages
-  let _editingId  = null; // template being edited
-  let _pollTimer  = null; // campaign progress poll
+  let _templates     = [];
+  let _audiences     = [];
+  let _clients       = [];   // cached Jobber clients
+  let _editingId     = null; // template being edited
+  let _pollTimer     = null; // campaign progress poll
+  let _conversations = [];   // conversation list (one per unique phone)
+  let _activePhone   = null; // currently open thread
+  let _thread        = [];   // messages in open thread
+  let _threadTimer   = null; // auto-refresh timer for active thread
+  let _convTimer     = null; // auto-refresh timer for conversation list
 
   const API = '/api/marketing';
 
@@ -411,7 +435,7 @@
     if (tab === 'audiences') { loadAudiences(); loadSyncStatus(); }
     if (tab === 'send')      loadSendTab();
     if (tab === 'history')   loadHistory();
-    if (tab === 'inbox')     { loadInbox(); loadNotifyPhone(); }
+    if (tab === 'inbox')     { loadConversations(); loadNotifyPhone(); }
   }
 
   // ========================================================================
@@ -958,89 +982,204 @@
   }
 
   // ========================================================================
-  // Inbox
+  // Conversations (iMessage-style inbox)
   // ========================================================================
-  async function loadInbox() {
+
+  async function loadConversations() {
     try {
-      const res = await fetch(API + '/inbox', { credentials: 'include' });
-      _inbox = await res.json();
-      renderInbox();
+      const res = await fetch(API + '/conversations', { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed');
+      _conversations = await res.json();
+      renderConversationList();
       updateInboxBadge();
     } catch {
-      document.getElementById('inbox-list').innerHTML = '<p class="text-sm text-error">Failed to load inbox</p>';
+      document.getElementById('conversation-list').innerHTML =
+        '<p class="text-xs text-error px-4 py-3 text-center">Failed to load</p>';
     }
   }
 
-  function renderInbox() {
-    const el     = document.getElementById('inbox-list');
-    const filter = document.getElementById('inbox-filter').value;
-
-    let msgs = _inbox;
-    if (filter === 'yes')   msgs = _inbox.filter(m => m.response === 'yes');
-    if (filter === 'no')    msgs = _inbox.filter(m => m.response === 'no');
-    if (filter === 'stop')  msgs = _inbox.filter(m => m.response === 'optout');
-    if (filter === 'other') msgs = _inbox.filter(m => !m.isResponse);
-
-    if (msgs.length === 0) {
-      el.innerHTML = '<div class="glass-card rounded-xl p-8 text-center"><span class="material-symbols-outlined text-[40px] text-zinc-700 block mb-3">inbox</span><p class="text-sm text-on-surface-variant">No messages yet — replies from your campaigns will appear here</p></div>';
+  function renderConversationList() {
+    const el = document.getElementById('conversation-list');
+    if (_conversations.length === 0) {
+      el.innerHTML = `<div class="p-6 text-center">
+        <span class="material-symbols-outlined text-[32px] text-zinc-800 block mb-2">chat</span>
+        <p class="text-xs text-zinc-600">No conversations yet</p>
+      </div>`;
       return;
     }
 
-    el.innerHTML = msgs.map(m => {
-      const isYes   = m.response === 'yes';
-      const isNo    = m.response === 'no';
-      const border  = isYes ? 'border-l-4 border-l-green-500' : isNo ? 'border-l-4 border-l-red-500' : isStop ? 'border-l-4 border-l-zinc-600' : 'border-l-4 border-l-white/10';
-      const unread  = !m.read ? 'bg-white/[0.07]' : '';
-      const time    = new Date(m.receivedAt).toLocaleString();
-
-      const isStop = m.response === 'optout';
-      const badge = isYes
-        ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/30">✓ YES</span>'
-        : isNo
-        ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/30">✗ NO</span>'
-        : isStop
-        ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-700/60 text-zinc-400 border border-zinc-600/40">STOP</span>'
+    el.innerHTML = _conversations.map(c => {
+      const isActive   = c.phone === _activePhone;
+      const initial    = (c.clientName || c.phone || '?').charAt(0).toUpperCase();
+      const name       = c.clientName || c.phone;
+      const preview    = (c.lastMessage || '').slice(0, 50);
+      const timeStr    = c.lastMessageAt ? timeAgo(c.lastMessageAt) : '';
+      const hasUnread  = c.unreadCount > 0;
+      const unreadBadge = hasUnread
+        ? `<span class="w-4 h-4 rounded-full bg-primary text-zinc-900 text-[9px] font-bold flex items-center justify-center flex-shrink-0">${c.unreadCount > 9 ? '9+' : c.unreadCount}</span>`
         : '';
+      const dirArrow   = c.lastMessageDir === 'outbound' ? '<span class="text-zinc-700">↑ </span>' : '';
+      const activeClass = isActive
+        ? 'bg-white/10 border-l-2 border-primary'
+        : 'hover:bg-white/5 border-l-2 border-transparent';
 
-      return `
-        <div class="glass-card rounded-xl p-4 cursor-pointer hover:bg-white/[0.07] transition-colors ${border} ${unread}"
-             onclick="markRead('${m.id}', this)">
-          <div class="flex items-start justify-between gap-3 flex-wrap">
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 mb-1 flex-wrap">
-                <p class="text-sm font-semibold text-zinc-100">${esc(m.clientName || m.from)}</p>
-                ${badge}
-                ${!m.read ? '<span class="w-2 h-2 rounded-full bg-primary flex-shrink-0"></span>' : ''}
-              </div>
-              <p class="text-sm text-zinc-300">${esc(m.body)}</p>
-              ${m.clientName ? `<p class="text-xs text-zinc-600 mt-1">${esc(m.from)}</p>` : ''}
-              ${m.campaignId ? `<p class="text-xs text-zinc-600 mt-0.5">Campaign reply</p>` : ''}
-            </div>
-            <p class="text-xs text-zinc-600 flex-shrink-0">${time}</p>
+      return `<div class="px-3 py-3 cursor-pointer transition-all ${activeClass} flex items-center gap-3"
+                   onclick="openThread('${c.phone.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">
+        <div class="w-9 h-9 rounded-full bg-surface-container-highest flex items-center justify-center text-sm font-bold text-zinc-300 flex-shrink-0">${esc(initial)}</div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center justify-between gap-1 mb-0.5">
+            <p class="text-sm ${hasUnread ? 'font-bold text-zinc-100' : 'font-medium text-zinc-300'} truncate">${esc(name)}</p>
+            <span class="text-[10px] text-zinc-600 flex-shrink-0">${timeStr}</span>
+          </div>
+          <div class="flex items-center justify-between gap-1">
+            <p class="text-xs text-zinc-500 truncate">${dirArrow}${esc(preview)}${c.optedOut ? ' · <span class="text-zinc-700">STOP</span>' : ''}</p>
+            ${unreadBadge}
           </div>
         </div>
-      `;
+      </div>`;
     }).join('');
   }
 
-  async function markRead(id, el) {
-    const msg = _inbox.find(m => m.id === id);
-    if (!msg || msg.read) return;
-    try {
-      await fetch(API + '/inbox/' + id + '/read', { method: 'POST', credentials: 'include' });
-      msg.read = true;
-      renderInbox();
-      updateInboxBadge();
-    } catch {}
+  async function openThread(phone) {
+    _activePhone = phone;
+    renderConversationList();
+
+    // Update thread header immediately
+    const conv = _conversations.find(c => c.phone === phone);
+    const name = conv?.clientName || phone;
+    const optTag = conv?.optedOut
+      ? ' <span class="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700/50 text-zinc-500 border border-zinc-600/30">STOP</span>'
+      : '';
+    document.getElementById('thread-header-content').innerHTML = `
+      <p class="text-sm font-bold text-zinc-100">${esc(name)}${optTag}</p>
+      <p class="text-xs text-zinc-500">${esc(phone)}</p>`;
+
+    document.getElementById('thread-messages').innerHTML =
+      '<p class="text-xs text-zinc-600 text-center pt-12">Loading...</p>';
+
+    // Mark as read (fire-and-forget)
+    fetch(`${API}/conversations/${encodeURIComponent(phone)}/read`, { method: 'POST', credentials: 'include' }).catch(() => {});
+
+    await loadThread(phone);
+
+    // Refresh active thread every 5s
+    if (_threadTimer) clearInterval(_threadTimer);
+    _threadTimer = setInterval(() => {
+      if (_activePhone === phone) loadThread(phone);
+    }, 5000);
   }
 
-  async function markAllRead() {
+  async function loadThread(phone) {
     try {
-      await fetch(API + '/inbox/mark-all-read', { method: 'POST', credentials: 'include' });
-      _inbox.forEach(m => m.read = true);
-      renderInbox();
+      const res  = await fetch(`${API}/conversations/${encodeURIComponent(phone)}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      _thread = data.messages || [];
+      renderThread(data);
+
+      // Zero out unread badge in conversation list
+      const conv = _conversations.find(c => c.phone === phone);
+      if (conv) conv.unreadCount = 0;
+      renderConversationList();
       updateInboxBadge();
-    } catch { alert('Failed to mark all read'); }
+    } catch {
+      document.getElementById('thread-messages').innerHTML =
+        '<p class="text-xs text-error text-center pt-12">Failed to load messages</p>';
+    }
+  }
+
+  function renderThread(data) {
+    const el   = document.getElementById('thread-messages');
+    const msgs = data.messages || [];
+
+    if (msgs.length === 0) {
+      el.innerHTML = '<div class="text-center pt-12 opacity-50"><p class="text-xs text-zinc-600">No messages yet — send one below</p></div>';
+      return;
+    }
+
+    let lastCampaign = null;
+    let lastTime     = null;
+
+    const html = msgs.map(m => {
+      const isOut = m.direction === 'outbound';
+      const ts    = new Date(m.timestamp);
+      let out     = '';
+
+      // Timestamp divider when gap > 1 hour
+      if (!lastTime || (ts - lastTime) > 3_600_000) {
+        out += `<div class="text-center my-3">
+          <span class="text-[10px] text-zinc-600 px-3 py-1 rounded-full bg-white/5">${ts.toLocaleString()}</span>
+        </div>`;
+      }
+      lastTime = ts;
+
+      // Campaign label above first outbound from a new campaign
+      if (isOut && m.campaignName && m.campaignName !== 'Direct Messages' && m.campaignName !== lastCampaign) {
+        out += `<div class="flex justify-end mb-0.5 pr-1">
+          <span class="text-[9px] text-zinc-600">${esc(m.campaignName)}</span>
+        </div>`;
+        lastCampaign = m.campaignName;
+      }
+
+      // Response badge for inbound
+      let badge = '';
+      if (!isOut) {
+        if (m.response === 'yes')    badge = '<span class="inline-block align-middle ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/25">✓ YES</span>';
+        else if (m.response === 'no') badge = '<span class="inline-block align-middle ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/25">✗ NO</span>';
+        else if (m.response === 'optout') badge = '<span class="inline-block align-middle ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-zinc-700/60 text-zinc-500 border border-zinc-600/40">STOP</span>';
+      }
+
+      const deliveryNote = isOut && m.status && m.status !== 'sent' && m.status !== 'delivered'
+        ? `<span class="block text-[9px] text-zinc-600 text-right mt-0.5">${m.status}</span>`
+        : '';
+
+      if (isOut) {
+        out += `<div class="flex justify-end mb-1">
+          <div class="max-w-[72%] px-4 py-2.5 rounded-2xl rounded-tr-sm bg-primary/20 border border-primary/15">
+            <p class="text-sm text-zinc-100 whitespace-pre-wrap break-words">${esc(m.body)}</p>
+            ${deliveryNote}
+          </div>
+        </div>`;
+      } else {
+        out += `<div class="flex justify-start mb-1">
+          <div class="max-w-[72%] px-4 py-2.5 rounded-2xl rounded-tl-sm bg-white/8 border border-white/10">
+            <p class="text-sm text-zinc-200 whitespace-pre-wrap break-words">${esc(m.body)}${badge}</p>
+          </div>
+        </div>`;
+      }
+      return out;
+    }).join('');
+
+    el.innerHTML = html;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  async function sendReply() {
+    if (!_activePhone) return alert('Select a conversation first');
+    const input   = document.getElementById('reply-input');
+    const message = input.value.trim();
+    if (!message) return;
+
+    const btn = document.getElementById('reply-btn');
+    btn.disabled = true;
+
+    try {
+      const res = await fetch(`${API}/conversations/${encodeURIComponent(_activePhone)}/send`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ message }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || 'Failed to send'); return; }
+      input.value = '';
+      input.style.height = '';
+      await loadThread(_activePhone);
+    } catch (err) {
+      alert('Network error: ' + err.message);
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   async function updateInboxBadge() {
@@ -1055,6 +1194,18 @@
         badge.classList.add('hidden');
       }
     } catch {}
+  }
+
+  function timeAgo(ts) {
+    const diff = Date.now() - new Date(ts).getTime();
+    const mins = Math.floor(diff / 60_000);
+    if (mins < 1)  return 'now';
+    if (mins < 60) return mins + 'm';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24)  return hrs + 'h';
+    const days = Math.floor(hrs / 24);
+    if (days < 7)  return days + 'd';
+    return new Date(ts).toLocaleDateString();
   }
 
   // ========================================================================
@@ -1116,14 +1267,14 @@
 
   // Poll inbox unread badge every 30s
   updateInboxBadge();
-  setInterval(updateInboxBadge, 30000);
+  setInterval(updateInboxBadge, 30_000);
 
-  // Auto-refresh inbox list every 10s when inbox tab is visible
+  // Auto-refresh conversation list every 15s when inbox tab is visible
   setInterval(() => {
     if (!document.getElementById('tab-inbox').classList.contains('hidden')) {
-      loadInbox();
+      loadConversations();
     }
-  }, 10000);
+  }, 15_000);
 </script>
 
 <script>
