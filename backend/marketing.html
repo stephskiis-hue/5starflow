@@ -194,13 +194,20 @@
     <section id="tab-audiences" class="hidden">
       <!-- Import Section -->
       <div class="glass-card rounded-xl p-6 mb-6">
-        <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div class="flex items-center justify-between mb-2 flex-wrap gap-3">
           <h3 class="text-lg font-bold text-zinc-100">Import Clients from Jobber</h3>
-          <button onclick="importJobberClients()" id="import-btn" class="bg-primary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2">
-            <span class="material-symbols-outlined text-[18px]">download</span>
-            Import Clients
-          </button>
+          <div class="flex gap-2">
+            <button onclick="importJobberClients(false)" id="import-btn" class="bg-primary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2">
+              <span class="material-symbols-outlined text-[18px]">download</span>
+              Import Clients
+            </button>
+            <button onclick="importJobberClients(true)" id="refresh-btn" title="Bypass cache and fetch fresh from Jobber" class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium text-zinc-400 hover:bg-white/10 hover:text-zinc-200 transition-colors flex items-center gap-2">
+              <span class="material-symbols-outlined text-[18px]">refresh</span>
+              Refresh
+            </button>
+          </div>
         </div>
+        <p id="cache-status" class="text-xs text-on-surface-variant mb-4 hidden"></p>
 
         <!-- Client Table (hidden until import) -->
         <div id="client-table-wrap" class="hidden">
@@ -493,21 +500,38 @@
     `).join('');
   }
 
-  async function importJobberClients() {
-    const btn = document.getElementById('import-btn');
-    btn.disabled = true; btn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span> Importing...';
+  async function importJobberClients(force = false) {
+    const btn     = document.getElementById('import-btn');
+    const refBtn  = document.getElementById('refresh-btn');
+    const statusEl = document.getElementById('cache-status');
+    btn.disabled = true; refBtn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span> Loading...';
 
     try {
-      const res = await fetch(API + '/jobber-clients', { credentials: 'include' });
+      const url = API + '/jobber-clients' + (force ? '?force=true' : '');
+      const res  = await fetch(url, { credentials: 'include' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Import failed');
+
       _clients = data.clients || [];
       renderClientTable();
       document.getElementById('client-table-wrap').classList.remove('hidden');
+
+      // Show cache status
+      statusEl.classList.remove('hidden');
+      if (data.stale) {
+        statusEl.innerHTML = '<span class="text-amber-400">⚠ Jobber rate-limited — showing cached list. Click Refresh to retry later.</span>';
+      } else if (data.fromCache) {
+        const mins = Math.floor((Date.now() - data.cachedAt) / 60000);
+        statusEl.textContent = `Showing ${_clients.length} clients from cache (${mins}m old) — click Refresh to fetch latest`;
+      } else {
+        statusEl.textContent = `${_clients.length} clients loaded fresh from Jobber`;
+      }
     } catch (err) {
       alert('Failed to import: ' + err.message);
     } finally {
-      btn.disabled = false; btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">download</span> Import Clients';
+      btn.disabled = false; refBtn.disabled = false;
+      btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">download</span> Import Clients';
     }
   }
 

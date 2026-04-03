@@ -4,6 +4,13 @@ const prisma  = require('../lib/prismaClient');
 const { fetchAllJobberClients, dispatchCampaign, MAX_RECIPIENTS } = require('../services/marketingService');
 
 // ---------------------------------------------------------------------------
+// Server-side Jobber client cache — 30 minute TTL per user
+// Prevents Jobber API throttling on repeated imports
+// ---------------------------------------------------------------------------
+const clientCache = new Map(); // userId -> { clients, cachedAt }
+const CLIENT_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+// ---------------------------------------------------------------------------
 // Templates CRUD
 // ---------------------------------------------------------------------------
 
@@ -177,13 +184,48 @@ router.delete('/audiences/:id', async (req, res) => {
   }
 });
 
-// GET /api/marketing/jobber-clients — fetch live from Jobber
+// GET /api/marketing/jobber-clients — cached Jobber client list (30 min TTL)
+// Use ?force=true to bypass cache and fetch fresh from Jobber
 router.get('/jobber-clients', async (req, res) => {
+  const userId = req.user.userId;
+  const force  = req.query.force === 'true';
+
   try {
-    const clients = await fetchAllJobberClients(req.user.userId);
-    res.json({ clients });
+    const cached = clientCache.get(userId);
+    const now    = Date.now();
+
+    // Return cache if fresh and not forcing
+    if (!force && cached && (now - cached.cachedAt) < CLIENT_CACHE_TTL) {
+      const ageMinutes = Math.floor((now - cached.cachedAt) / 60000);
+      console.log(`[marketing] Serving ${cached.clients.length} clients from cache (${ageMinutes}m old)`);
+      return res.json({ clients: cached.clients, fromCache: true, cachedAt: cached.cachedAt });
+    }
+
+    // Fetch fresh from Jobber
+    console.log(`[marketing] Fetching clients from Jobber (force=${force})...`);
+    const clients = await fetchAllJobberClients(userId);
+
+    // Store in cache
+    clientCache.set(userId, { clients, cachedAt: now });
+    console.log(`[marketing] Cached ${clients.length} Jobber clients`);
+
+    res.json({ clients, fromCache: false, cachedAt: now });
   } catch (err) {
     console.error('[marketing] GET /jobber-clients error:', err.message);
+
+    // If Jobber throttled but we have stale cache, return it with a warning
+    const stale = clientCache.get(userId);
+    if (stale) {
+      console.warn('[marketing] Jobber error — serving stale cache as fallback');
+      return res.json({
+        clients:   stale.clients,
+        fromCache: true,
+        stale:     true,
+        cachedAt:  stale.cachedAt,
+        warning:   'Jobber rate-limited — showing cached client list. Click "Refresh" to retry.',
+      });
+    }
+
     res.status(500).json({ error: `Failed to fetch Jobber clients: ${err.message}` });
   }
 });
