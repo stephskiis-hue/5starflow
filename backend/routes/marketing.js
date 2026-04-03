@@ -1,14 +1,8 @@
 const express = require('express');
 const router  = express.Router();
 const prisma  = require('../lib/prismaClient');
-const { fetchAllJobberClients, dispatchCampaign, MAX_RECIPIENTS } = require('../services/marketingService');
-
-// ---------------------------------------------------------------------------
-// Server-side Jobber client cache — 30 minute TTL per user
-// Prevents Jobber API throttling on repeated imports
-// ---------------------------------------------------------------------------
-const clientCache = new Map(); // userId -> { clients, cachedAt }
-const CLIENT_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+const { dispatchCampaign, MAX_RECIPIENTS } = require('../services/marketingService');
+const { toE164 } = require('../services/smsService');
 
 // ---------------------------------------------------------------------------
 // Templates CRUD
@@ -184,49 +178,104 @@ router.delete('/audiences/:id', async (req, res) => {
   }
 });
 
-// GET /api/marketing/jobber-clients — cached Jobber client list (30 min TTL)
-// Use ?force=true to bypass cache and fetch fresh from Jobber
+// ---------------------------------------------------------------------------
+// Jobber client cache (reads from local DB — populated by jobberClientSync.js)
+// ---------------------------------------------------------------------------
+
+// GET /api/marketing/jobber-clients — instant DB read, no live Jobber call
 router.get('/jobber-clients', async (req, res) => {
-  const userId = req.user.userId;
-  const force  = req.query.force === 'true';
-
   try {
-    const cached = clientCache.get(userId);
-    const now    = Date.now();
+    const userId = req.user.userId;
+    const cached = await prisma.cachedJobberClient.findMany({
+      where:   { userId },
+      orderBy: { name: 'asc' },
+    });
 
-    // Return cache if fresh and not forcing
-    if (!force && cached && (now - cached.cachedAt) < CLIENT_CACHE_TTL) {
-      const ageMinutes = Math.floor((now - cached.cachedAt) / 60000);
-      console.log(`[marketing] Serving ${cached.clients.length} clients from cache (${ageMinutes}m old)`);
-      return res.json({ clients: cached.clients, fromCache: true, cachedAt: cached.cachedAt });
-    }
-
-    // Fetch fresh from Jobber
-    console.log(`[marketing] Fetching clients from Jobber (force=${force})...`);
-    const clients = await fetchAllJobberClients(userId);
-
-    // Store in cache
-    clientCache.set(userId, { clients, cachedAt: now });
-    console.log(`[marketing] Cached ${clients.length} Jobber clients`);
-
-    res.json({ clients, fromCache: false, cachedAt: now });
-  } catch (err) {
-    console.error('[marketing] GET /jobber-clients error:', err.message);
-
-    // If Jobber throttled but we have stale cache, return it with a warning
-    const stale = clientCache.get(userId);
-    if (stale) {
-      console.warn('[marketing] Jobber error — serving stale cache as fallback');
+    if (cached.length === 0) {
       return res.json({
-        clients:   stale.clients,
-        fromCache: true,
-        stale:     true,
-        cachedAt:  stale.cachedAt,
-        warning:   'Jobber rate-limited — showing cached client list. Click "Refresh" to retry.',
+        clients:  [],
+        syncedAt: null,
+        warning:  'No cached clients — click "Sync Clients" to import from Jobber.',
       });
     }
 
-    res.status(500).json({ error: `Failed to fetch Jobber clients: ${err.message}` });
+    res.json({
+      clients: cached.map((c) => ({
+        id:         c.jobberClientId,
+        name:       c.name,
+        firstName:  c.firstName,
+        phone:      c.phone,
+        smsAllowed: c.smsAllowed,
+        tags:       JSON.parse(c.tags || '[]'),
+      })),
+      syncedAt: cached[0].syncedAt,
+    });
+  } catch (err) {
+    console.error('[marketing] GET /jobber-clients error:', err.message);
+    res.status(500).json({ error: 'Failed to load cached clients' });
+  }
+});
+
+// POST /api/marketing/sync-clients — triggers a manual background sync
+router.post('/sync-clients', async (req, res) => {
+  try {
+    const { syncAllAccounts } = require('../services/jobberClientSync');
+    syncAllAccounts().catch((err) =>
+      console.error('[marketing] Manual sync error:', err.message)
+    );
+    res.json({ message: 'Sync started — refresh clients in 15–30 seconds.' });
+  } catch (err) {
+    console.error('[marketing] POST /sync-clients error:', err.message);
+    res.status(500).json({ error: 'Failed to start sync' });
+  }
+});
+
+// GET /api/marketing/jobber-account-status — diagnostic: shows linked Jobber account
+router.get('/jobber-account-status', async (req, res) => {
+  try {
+    const userId  = req.user.userId;
+    const account = await prisma.jobberAccount.findFirst({
+      where:  { userId },
+      select: { id: true, userId: true, accountId: true, createdAt: true },
+    });
+    const clientCount = await prisma.cachedJobberClient.count({ where: { userId } });
+    res.json({ account, clientCount });
+  } catch (err) {
+    console.error('[marketing] GET /jobber-account-status error:', err.message);
+    res.status(500).json({ error: 'Failed to load account status' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Notify phone setting (admin's personal mobile for Y/N reply alerts)
+// ---------------------------------------------------------------------------
+
+// GET /api/marketing/notify-phone
+router.get('/notify-phone', async (req, res) => {
+  try {
+    const cred = await prisma.twilioCredential.findUnique({
+      where:  { userId: req.user.userId },
+      select: { notifyPhone: true },
+    });
+    res.json({ notifyPhone: cred?.notifyPhone || null });
+  } catch (err) {
+    console.error('[marketing] GET /notify-phone error:', err.message);
+    res.status(500).json({ error: 'Failed to load notify phone' });
+  }
+});
+
+// PATCH /api/marketing/notify-phone
+router.patch('/notify-phone', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    await prisma.twilioCredential.updateMany({
+      where: { userId: req.user.userId },
+      data:  { notifyPhone: phone ? phone.trim() : null },
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[marketing] PATCH /notify-phone error:', err.message);
+    res.status(500).json({ error: 'Failed to update notify phone' });
   }
 });
 
@@ -332,6 +381,71 @@ router.post('/campaigns/send', async (req, res) => {
   } catch (err) {
     console.error('[marketing] POST /campaigns/send error:', err.message);
     res.status(500).json({ error: 'Failed to create campaign' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Inbox — inbound SMS replies from clients
+// ---------------------------------------------------------------------------
+
+// GET /api/marketing/inbox
+router.get('/inbox', async (req, res) => {
+  try {
+    const messages = await prisma.inboundSMS.findMany({
+      where:   { userId: req.user.userId },
+      orderBy: { receivedAt: 'desc' },
+      take:    200,
+    });
+    res.json(messages);
+  } catch (err) {
+    console.error('[marketing] GET /inbox error:', err.message);
+    res.status(500).json({ error: 'Failed to load inbox' });
+  }
+});
+
+// GET /api/marketing/inbox/unread-count
+router.get('/inbox/unread-count', async (req, res) => {
+  try {
+    const count = await prisma.inboundSMS.count({
+      where: { userId: req.user.userId, read: false },
+    });
+    res.json({ count });
+  } catch (err) {
+    console.error('[marketing] GET /inbox/unread-count error:', err.message);
+    res.status(500).json({ error: 'Failed to get unread count' });
+  }
+});
+
+// POST /api/marketing/inbox/mark-all-read
+router.post('/inbox/mark-all-read', async (req, res) => {
+  try {
+    await prisma.inboundSMS.updateMany({
+      where: { userId: req.user.userId, read: false },
+      data:  { read: true },
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[marketing] POST /inbox/mark-all-read error:', err.message);
+    res.status(500).json({ error: 'Failed to mark all read' });
+  }
+});
+
+// POST /api/marketing/inbox/:id/read
+router.post('/inbox/:id/read', async (req, res) => {
+  try {
+    const msg = await prisma.inboundSMS.findFirst({
+      where: { id: req.params.id, userId: req.user.userId },
+    });
+    if (!msg) return res.status(404).json({ error: 'Message not found' });
+
+    await prisma.inboundSMS.update({
+      where: { id: req.params.id },
+      data:  { read: true },
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[marketing] POST /inbox/:id/read error:', err.message);
+    res.status(500).json({ error: 'Failed to mark read' });
   }
 });
 

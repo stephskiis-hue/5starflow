@@ -156,6 +156,10 @@
       <button onclick="switchTab('audiences')" id="tab-btn-audiences" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Audiences</button>
       <button onclick="switchTab('send')" id="tab-btn-send" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Send Campaign</button>
       <button onclick="switchTab('history')" id="tab-btn-history" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">History</button>
+      <button onclick="switchTab('inbox')" id="tab-btn-inbox" class="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">
+        Inbox
+        <span id="inbox-badge" class="hidden bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">0</span>
+      </button>
     </div>
 
     <!-- ================================================================ -->
@@ -192,18 +196,21 @@
     <!-- TAB 2: Audiences                                                 -->
     <!-- ================================================================ -->
     <section id="tab-audiences" class="hidden">
-      <!-- Import Section -->
+      <!-- Sync Section -->
       <div class="glass-card rounded-xl p-6 mb-6">
         <div class="flex items-center justify-between mb-2 flex-wrap gap-3">
-          <h3 class="text-lg font-bold text-zinc-100">Import Clients from Jobber</h3>
+          <div>
+            <h3 class="text-lg font-bold text-zinc-100">Client List</h3>
+            <p id="sync-status" class="text-xs text-on-surface-variant mt-1">Loading...</p>
+          </div>
           <div class="flex gap-2">
-            <button onclick="importJobberClients(false)" id="import-btn" class="bg-primary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2">
-              <span class="material-symbols-outlined text-[18px]">download</span>
-              Import Clients
+            <button onclick="loadCachedClients()" id="load-clients-btn" class="bg-primary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2">
+              <span class="material-symbols-outlined text-[18px]">group</span>
+              Load Clients
             </button>
-            <button onclick="importJobberClients(true)" id="refresh-btn" title="Bypass cache and fetch fresh from Jobber" class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium text-zinc-400 hover:bg-white/10 hover:text-zinc-200 transition-colors flex items-center gap-2">
-              <span class="material-symbols-outlined text-[18px]">refresh</span>
-              Refresh
+            <button onclick="triggerSync()" id="sync-btn" title="Pull fresh clients from Jobber (runs in background)" class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium text-zinc-400 hover:bg-white/10 hover:text-zinc-200 transition-colors flex items-center gap-2">
+              <span class="material-symbols-outlined text-[18px]">sync</span>
+              Sync Clients
             </button>
           </div>
         </div>
@@ -323,6 +330,51 @@
       </div>
     </section>
 
+    <!-- ================================================================ -->
+    <!-- TAB 5: Inbox                                                      -->
+    <!-- ================================================================ -->
+    <section id="tab-inbox" class="hidden">
+
+      <!-- Admin notify phone setting -->
+      <div class="glass-card rounded-xl p-5 mb-6 flex items-center gap-4 flex-wrap">
+        <span class="material-symbols-outlined text-primary text-[22px]">notifications</span>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-zinc-100">Admin Alert Phone</p>
+          <p class="text-xs text-on-surface-variant mt-0.5">Your personal mobile. You'll get an SMS when a client replies YES or NO to a campaign.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <input id="notify-phone-input" type="tel" placeholder="+14314509814" class="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 w-44">
+          <button onclick="saveNotifyPhone()" class="bg-primary text-zinc-900 rounded-xl px-4 py-2 text-sm font-semibold hover:bg-primary/90 transition-colors">Save</button>
+        </div>
+      </div>
+
+      <!-- Inbox header + controls -->
+      <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div>
+          <h3 class="text-lg font-bold text-zinc-100">SMS Inbox</h3>
+          <p class="text-xs text-on-surface-variant mt-0.5">Replies from clients to your marketing number</p>
+        </div>
+        <div class="flex gap-2">
+          <!-- Filter -->
+          <select id="inbox-filter" onchange="renderInbox()" class="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none focus:border-primary/50">
+            <option value="all">All messages</option>
+            <option value="yes">Replied YES</option>
+            <option value="no">Replied NO</option>
+            <option value="other">Other</option>
+          </select>
+          <button onclick="markAllRead()" class="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-medium text-zinc-400 hover:bg-white/10 hover:text-zinc-200 transition-colors">Mark all read</button>
+          <button onclick="loadInbox()" class="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-zinc-400 hover:bg-white/10 hover:text-zinc-200 transition-colors" title="Refresh">
+            <span class="material-symbols-outlined text-[18px]">refresh</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Inbox list -->
+      <div id="inbox-list" class="space-y-2">
+        <p class="text-sm text-on-surface-variant">Loading inbox...</p>
+      </div>
+    </section>
+
   </main>
 
 <script>
@@ -331,7 +383,8 @@
   // ========================================================================
   let _templates  = [];
   let _audiences  = [];
-  let _clients    = [];   // raw Jobber import
+  let _clients    = [];   // cached Jobber clients
+  let _inbox      = [];   // inbound SMS messages
   let _editingId  = null; // template being edited
   let _pollTimer  = null; // campaign progress poll
 
@@ -341,21 +394,22 @@
   // Tabs
   // ========================================================================
   function switchTab(tab) {
-    const tabs = ['templates', 'audiences', 'send', 'history'];
+    const tabs = ['templates', 'audiences', 'send', 'history', 'inbox'];
     tabs.forEach(t => {
       document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
       const btn = document.getElementById('tab-btn-' + t);
       if (t === tab) {
-        btn.className = 'tab-active px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200';
+        btn.className = 'tab-active flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200';
       } else {
-        btn.className = 'px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200';
+        btn.className = 'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200';
       }
     });
 
     if (tab === 'templates') loadTemplates();
-    if (tab === 'audiences') loadAudiences();
+    if (tab === 'audiences') { loadAudiences(); loadSyncStatus(); }
     if (tab === 'send')      loadSendTab();
     if (tab === 'history')   loadHistory();
+    if (tab === 'inbox')     { loadInbox(); loadNotifyPhone(); }
   }
 
   // ========================================================================
@@ -500,38 +554,69 @@
     `).join('');
   }
 
-  async function importJobberClients(force = false) {
-    const btn     = document.getElementById('import-btn');
-    const refBtn  = document.getElementById('refresh-btn');
-    const statusEl = document.getElementById('cache-status');
-    btn.disabled = true; refBtn.disabled = true;
+  async function loadSyncStatus() {
+    try {
+      const res  = await fetch(API + '/jobber-clients', { credentials: 'include' });
+      const data = await res.json();
+      const el   = document.getElementById('sync-status');
+      if (data.syncedAt) {
+        const mins = Math.round((Date.now() - new Date(data.syncedAt)) / 60000);
+        const ago  = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.round(mins/60)}h ago`;
+        el.textContent = `${(data.clients || []).length} clients cached · Last synced ${ago}`;
+      } else {
+        el.textContent = 'No clients synced yet — click "Sync Clients" to pull from Jobber';
+      }
+    } catch {}
+  }
+
+  async function loadCachedClients() {
+    const btn = document.getElementById('load-clients-btn');
+    btn.disabled = true;
     btn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span> Loading...';
 
     try {
-      const url = API + '/jobber-clients' + (force ? '?force=true' : '');
-      const res  = await fetch(url, { credentials: 'include' });
+      const res  = await fetch(API + '/jobber-clients', { credentials: 'include' });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Import failed');
+      if (!res.ok) throw new Error(data.error || 'Failed to load');
 
       _clients = data.clients || [];
       renderClientTable();
       document.getElementById('client-table-wrap').classList.remove('hidden');
 
-      // Show cache status
-      statusEl.classList.remove('hidden');
-      if (data.stale) {
-        statusEl.innerHTML = '<span class="text-amber-400">⚠ Jobber rate-limited — showing cached list. Click Refresh to retry later.</span>';
-      } else if (data.fromCache) {
-        const mins = Math.floor((Date.now() - data.cachedAt) / 60000);
-        statusEl.textContent = `Showing ${_clients.length} clients from cache (${mins}m old) — click Refresh to fetch latest`;
-      } else {
-        statusEl.textContent = `${_clients.length} clients loaded fresh from Jobber`;
+      const statusEl = document.getElementById('sync-status');
+      if (data.warning) {
+        statusEl.innerHTML = `<span class="text-amber-400">⚠ ${data.warning}</span>`;
+      } else if (data.syncedAt) {
+        const mins = Math.round((Date.now() - new Date(data.syncedAt)) / 60000);
+        const ago  = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.round(mins/60)}h ago`;
+        statusEl.textContent = `${_clients.length} clients · Last synced ${ago}`;
       }
     } catch (err) {
-      alert('Failed to import: ' + err.message);
+      alert('Failed to load clients: ' + err.message);
     } finally {
-      btn.disabled = false; refBtn.disabled = false;
-      btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">download</span> Import Clients';
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">group</span> Load Clients';
+    }
+  }
+
+  async function triggerSync() {
+    const btn = document.getElementById('sync-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span> Syncing...';
+
+    try {
+      const res  = await fetch(API + '/sync-clients', { method: 'POST', credentials: 'include' });
+      const data = await res.json();
+      document.getElementById('sync-status').textContent = data.message || 'Sync started...';
+      // Auto-reload client list after 20s
+      setTimeout(() => loadCachedClients(), 20000);
+    } catch {
+      alert('Failed to trigger sync');
+    } finally {
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">sync</span> Sync Clients';
+      }, 3000);
     }
   }
 
@@ -863,6 +948,133 @@
   }
 
   // ========================================================================
+  // Inbox
+  // ========================================================================
+  async function loadInbox() {
+    try {
+      const res = await fetch(API + '/inbox', { credentials: 'include' });
+      _inbox = await res.json();
+      renderInbox();
+      updateInboxBadge();
+    } catch {
+      document.getElementById('inbox-list').innerHTML = '<p class="text-sm text-error">Failed to load inbox</p>';
+    }
+  }
+
+  function renderInbox() {
+    const el     = document.getElementById('inbox-list');
+    const filter = document.getElementById('inbox-filter').value;
+
+    let msgs = _inbox;
+    if (filter === 'yes')   msgs = _inbox.filter(m => m.response === 'yes');
+    if (filter === 'no')    msgs = _inbox.filter(m => m.response === 'no');
+    if (filter === 'other') msgs = _inbox.filter(m => !m.isResponse);
+
+    if (msgs.length === 0) {
+      el.innerHTML = '<div class="glass-card rounded-xl p-8 text-center"><span class="material-symbols-outlined text-[40px] text-zinc-700 block mb-3">inbox</span><p class="text-sm text-on-surface-variant">No messages yet — replies from your campaigns will appear here</p></div>';
+      return;
+    }
+
+    el.innerHTML = msgs.map(m => {
+      const isYes   = m.response === 'yes';
+      const isNo    = m.response === 'no';
+      const border  = isYes ? 'border-l-4 border-l-green-500' : isNo ? 'border-l-4 border-l-red-500' : 'border-l-4 border-l-white/10';
+      const unread  = !m.read ? 'bg-white/[0.07]' : '';
+      const time    = new Date(m.receivedAt).toLocaleString();
+
+      const badge = isYes
+        ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/30">✓ YES</span>'
+        : isNo
+        ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/30">✗ NO</span>'
+        : '';
+
+      return `
+        <div class="glass-card rounded-xl p-4 cursor-pointer hover:bg-white/[0.07] transition-colors ${border} ${unread}"
+             onclick="markRead('${m.id}', this)">
+          <div class="flex items-start justify-between gap-3 flex-wrap">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1 flex-wrap">
+                <p class="text-sm font-semibold text-zinc-100">${esc(m.clientName || m.from)}</p>
+                ${badge}
+                ${!m.read ? '<span class="w-2 h-2 rounded-full bg-primary flex-shrink-0"></span>' : ''}
+              </div>
+              <p class="text-sm text-zinc-300">${esc(m.body)}</p>
+              ${m.clientName ? `<p class="text-xs text-zinc-600 mt-1">${esc(m.from)}</p>` : ''}
+              ${m.campaignId ? `<p class="text-xs text-zinc-600 mt-0.5">Campaign reply</p>` : ''}
+            </div>
+            <p class="text-xs text-zinc-600 flex-shrink-0">${time}</p>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function markRead(id, el) {
+    const msg = _inbox.find(m => m.id === id);
+    if (!msg || msg.read) return;
+    try {
+      await fetch(API + '/inbox/' + id + '/read', { method: 'POST', credentials: 'include' });
+      msg.read = true;
+      renderInbox();
+      updateInboxBadge();
+    } catch {}
+  }
+
+  async function markAllRead() {
+    try {
+      await fetch(API + '/inbox/mark-all-read', { method: 'POST', credentials: 'include' });
+      _inbox.forEach(m => m.read = true);
+      renderInbox();
+      updateInboxBadge();
+    } catch { alert('Failed to mark all read'); }
+  }
+
+  async function updateInboxBadge() {
+    try {
+      const res  = await fetch(API + '/inbox/unread-count', { credentials: 'include' });
+      const data = await res.json();
+      const badge = document.getElementById('inbox-badge');
+      if (data.count > 0) {
+        badge.textContent = data.count;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    } catch {}
+  }
+
+  // ========================================================================
+  // Notify Phone
+  // ========================================================================
+  async function loadNotifyPhone() {
+    try {
+      const res  = await fetch(API + '/notify-phone', { credentials: 'include' });
+      const data = await res.json();
+      if (data.notifyPhone) {
+        document.getElementById('notify-phone-input').value = data.notifyPhone;
+      }
+    } catch {}
+  }
+
+  async function saveNotifyPhone() {
+    const phone = document.getElementById('notify-phone-input').value.trim();
+    try {
+      const res = await fetch(API + '/notify-phone', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ phone }),
+      });
+      if (res.ok) {
+        const btn = document.querySelector('[onclick="saveNotifyPhone()"]');
+        const orig = btn.textContent;
+        btn.textContent = 'Saved ✓';
+        setTimeout(() => btn.textContent = orig, 2000);
+      }
+    } catch { alert('Failed to save'); }
+  }
+
+  // ========================================================================
   // Helpers
   // ========================================================================
   function esc(str) {
@@ -887,6 +1099,17 @@
       }
     } catch {}
   })();
+
+  // Poll inbox unread badge every 30s
+  updateInboxBadge();
+  setInterval(updateInboxBadge, 30000);
+
+  // Auto-refresh inbox list every 10s when inbox tab is visible
+  setInterval(() => {
+    if (!document.getElementById('tab-inbox').classList.contains('hidden')) {
+      loadInbox();
+    }
+  }, 10000);
 </script>
 
 <script>

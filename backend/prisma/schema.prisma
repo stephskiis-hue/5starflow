@@ -266,6 +266,7 @@ model TwilioCredential {
   accountSid  String
   authToken   String
   fromNumber  String
+  notifyPhone String?           // admin's personal mobile — gets SMS when client replies Y/N
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -424,19 +425,63 @@ model MarketingCampaign {
 
 // Per-recipient delivery log within a campaign.
 model MarketingMessage {
-  id             String            @id @default(cuid())
-  campaignId     String
-  campaign       MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  jobberClientId String
-  clientName     String
-  firstName      String
-  phone          String?
-  status         String            @default("pending")
-  messageSid     String?
-  error          String?
-  sentAt         DateTime?
-  createdAt      DateTime          @default(now())
+  id              String            @id @default(cuid())
+  campaignId      String
+  campaign        MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  jobberClientId  String
+  clientName      String
+  firstName       String
+  phone           String?
+  status          String            @default("pending")
+  messageSid      String?
+  error           String?
+  sentAt          DateTime?
+  replyBody       String?           // client's reply text (set when inbound SMS is matched)
+  replyReceivedAt DateTime?         // when the reply arrived
+  createdAt       DateTime          @default(now())
 
   @@index([campaignId])
   @@index([messageSid])
+}
+
+// ---------------------------------------------------------------------------
+// Cached Jobber Clients — populated by background sync service (jobberClientSync.js)
+// Replaces live-on-demand Jobber API calls in the audience builder.
+// ---------------------------------------------------------------------------
+model CachedJobberClient {
+  id             String   @id @default(cuid())
+  userId         String                          // portal User.id (matches JobberAccount.userId)
+  jobberClientId String                          // Jobber's own client GID
+  name           String
+  firstName      String
+  phone          String?
+  smsAllowed     Boolean  @default(false)
+  tags           String   @default("[]")         // JSON array stored as string
+  syncedAt       DateTime @default(now())
+
+  @@unique([userId, jobberClientId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Inbound SMS — every message received on the Twilio marketing number.
+// Linked to CachedJobberClient and the most recent campaign that texted them.
+// ---------------------------------------------------------------------------
+model InboundSMS {
+  id             String   @id @default(cuid())
+  userId         String                          // portal user whose Twilio number received this
+  from           String                          // E.164 sender phone
+  body           String                          // raw message text
+  messageSid     String   @unique               // Twilio MessageSid (dedup guard)
+  isResponse     Boolean  @default(false)        // true if body is Y/N/YES/NO
+  response       String?                         // normalized: "yes" | "no" | null
+  clientName     String?                         // matched from CachedJobberClient (or null)
+  jobberClientId String?                         // matched client ID (or null)
+  campaignId     String?                         // most recent campaign that texted this number
+  notified       Boolean  @default(false)        // has admin been notified via SMS?
+  read           Boolean  @default(false)        // has admin viewed in the Inbox tab?
+  receivedAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([from])
 }

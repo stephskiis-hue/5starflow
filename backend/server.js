@@ -19,11 +19,12 @@ const auditRouter       = require('./routes/websiteAudit');
 const leaderboardRouter = require('./routes/leaderboard');
 const marketingRouter   = require('./routes/marketing');
 const { requireAuth } = require('./middleware/requireAuth');
-const { startTokenRefreshScheduler } = require('./services/tokenManager');
-const { startDeliveryQueue }         = require('./services/deliveryQueue');
-const { startInvoicePoller }         = require('./services/invoicePoller');
-const { startWeatherScheduler }      = require('./services/weatherService');
-const { startSeoScheduler }          = require('./services/seoService');
+const { startTokenRefreshScheduler }      = require('./services/tokenManager');
+const { startDeliveryQueue }              = require('./services/deliveryQueue');
+const { startInvoicePoller }              = require('./services/invoicePoller');
+const { startWeatherScheduler }           = require('./services/weatherService');
+const { startSeoScheduler }               = require('./services/seoService');
+const { startJobberClientSyncScheduler }  = require('./services/jobberClientSync');
 
 const app = express();
 
@@ -115,6 +116,113 @@ app.post('/api/marketing/twilio-callback', express.urlencoded({ extended: false 
   res.sendStatus(204);
 });
 
+// Marketing inbound SMS webhook — Twilio posts here when a client replies to the marketing number
+// Must be public (no auth session) and return TwiML so Twilio doesn't retry
+app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), async (req, res) => {
+  // Always respond with empty TwiML first to prevent Twilio retries
+  res.set('Content-Type', 'text/xml');
+  res.send('<Response></Response>');
+
+  const { From, Body, MessageSid, To } = req.body || {};
+  if (!MessageSid || !From || !Body) return;
+
+  const prisma = require('./lib/prismaClient');
+  const { toE164 } = require('./services/smsService');
+  const twilio = require('twilio');
+
+  try {
+    // Deduplicate: Twilio can fire the webhook more than once
+    const existing = await prisma.inboundSMS.findUnique({ where: { messageSid: MessageSid } });
+    if (existing) return;
+
+    // Find which portal user owns the number that received this message
+    const cred = await prisma.twilioCredential.findFirst({ where: { fromNumber: To } });
+    if (!cred) {
+      console.warn(`[inbound-sms] No TwilioCredential found for To=${To}`);
+      return;
+    }
+    const userId = cred.userId;
+
+    // Normalize the sender's phone to E.164 for matching
+    const normalizedFrom = toE164(From) || From;
+
+    // Try to match a cached client by phone
+    const cachedClient = await prisma.cachedJobberClient.findFirst({
+      where: { userId, phone: normalizedFrom },
+    });
+
+    // Find the most recent campaign message sent to this number
+    const recentMessage = await prisma.marketingMessage.findFirst({
+      where:   { phone: normalizedFrom, campaign: { userId } },
+      orderBy: { sentAt: 'desc' },
+      include: { campaign: { select: { id: true, name: true } } },
+    });
+
+    // Parse Y/N response
+    const bodyUpper = Body.trim().toUpperCase();
+    const isResponse = ['Y', 'YES', 'N', 'NO'].includes(bodyUpper);
+    const response   = isResponse ? (['Y', 'YES'].includes(bodyUpper) ? 'yes' : 'no') : null;
+
+    // Store the inbound message
+    const inbound = await prisma.inboundSMS.create({
+      data: {
+        userId,
+        from:           normalizedFrom,
+        body:           Body.trim(),
+        messageSid:     MessageSid,
+        isResponse,
+        response,
+        clientName:     cachedClient?.name     || null,
+        jobberClientId: cachedClient?.jobberClientId || null,
+        campaignId:     recentMessage?.campaign?.id  || null,
+        notified:       false,
+        read:           false,
+      },
+    });
+
+    console.log(
+      `[inbound-sms] Received from ${normalizedFrom}` +
+      (cachedClient ? ` (${cachedClient.name})` : '') +
+      (isResponse   ? ` — response: ${response}` : '')
+    );
+
+    // Link reply back to the matching MarketingMessage record
+    if (recentMessage && isResponse) {
+      await prisma.marketingMessage.update({
+        where: { id: recentMessage.id },
+        data:  { replyBody: Body.trim(), replyReceivedAt: new Date() },
+      });
+    }
+
+    // Send admin notification SMS if this is a Y/N response and notifyPhone is set
+    if (isResponse && cred.notifyPhone) {
+      try {
+        const twilioClient = twilio(cred.accountSid, cred.authToken);
+        const clientLabel  = cachedClient?.name || normalizedFrom;
+        const campaignName = recentMessage?.campaign?.name || 'a campaign';
+        const responseWord = response === 'yes' ? 'YES ✓' : 'NO ✗';
+
+        await twilioClient.messages.create({
+          to:   cred.notifyPhone,
+          from: cred.fromNumber,
+          body: `5StarFlow: ${clientLabel} replied ${responseWord} to "${campaignName}". Phone: ${normalizedFrom}`,
+        });
+
+        await prisma.inboundSMS.update({
+          where: { id: inbound.id },
+          data:  { notified: true },
+        });
+
+        console.log(`[inbound-sms] Admin notified at ${cred.notifyPhone}`);
+      } catch (notifyErr) {
+        console.error('[inbound-sms] Admin SMS notification failed:', notifyErr.message);
+      }
+    }
+  } catch (err) {
+    console.error('[inbound-sms] Error processing inbound SMS:', err.message);
+  }
+});
+
 // Referral redirect — public, no auth required (clients click from their phones)
 // Sets hasPendingMultiplier=true for the referrer, then redirects to booking page.
 app.get('/r/:slug', async (req, res) => {
@@ -202,4 +310,5 @@ app.listen(PORT, () => {
   startInvoicePoller();
   startWeatherScheduler();
   startSeoScheduler();
+  startJobberClientSyncScheduler();
 });
