@@ -8,7 +8,8 @@ const JOBBER_API_VERSION = process.env.JOBBER_API_VERSION || '2026-03-10';
 // ---------------------------------------------------------------------------
 // Retry helpers
 // ---------------------------------------------------------------------------
-const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
+// 429 = rate limit — do NOT retry, let the caller's throttle guard handle backoff
+const RETRYABLE_STATUS = new Set([502, 503, 504]);
 const RETRYABLE_CODES  = new Set(['ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'ENOTFOUND']);
 const MAX_ATTEMPTS     = 3;
 const BACKOFF_MS       = [0, 2000, 4000]; // delay before attempt 1, 2, 3

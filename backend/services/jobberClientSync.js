@@ -95,7 +95,7 @@ async function syncAllAccounts() {
     } catch (err) {
       const isThrottled = /429|throttl/i.test(err.message);
       if (isThrottled) {
-        syncThrottledUntil = Date.now() + 120_000; // 2-minute cooldown
+        syncThrottledUntil = Date.now() + 600_000; // 10-minute cooldown
         console.warn(
           `[jobberClientSync] Jobber throttled — backing off 120s. ` +
           `Stopped after account ${account.id} (userId=${account.userId}).`
