@@ -22,6 +22,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Module-level throttle guard — set when Jobber returns 429
 let syncThrottledUntil = 0;
 
+// Module-level sync state — polled by GET /api/marketing/sync-status
+let syncState = { status: 'idle', startedAt: null, completedAt: null, synced: 0, error: null };
+
+function getSyncStatus() { return { ...syncState }; }
+
 // ---------------------------------------------------------------------------
 // Sync one account's clients into CachedJobberClient
 // ---------------------------------------------------------------------------
@@ -72,6 +77,7 @@ async function syncAllAccounts() {
     console.log(
       `[jobberClientSync] Throttle cooldown active — skipping (${remainingSeconds}s remaining)`
     );
+    syncState = { ...syncState, status: 'error', error: `Throttle cooldown — ${remainingSeconds}s remaining` };
     return;
   }
 
@@ -79,8 +85,11 @@ async function syncAllAccounts() {
 
   if (accounts.length === 0) {
     console.log('[jobberClientSync] No Jobber accounts connected — skipping sync');
+    syncState = { status: 'idle', startedAt: null, completedAt: null, synced: 0, error: null };
     return;
   }
+
+  syncState = { status: 'running', startedAt: new Date(), completedAt: null, synced: 0, error: null };
 
   let totalSynced = 0;
   let totalFailed = 0;
@@ -97,10 +106,11 @@ async function syncAllAccounts() {
       if (isThrottled) {
         syncThrottledUntil = Date.now() + 600_000; // 10-minute cooldown
         console.warn(
-          `[jobberClientSync] Jobber throttled — backing off 120s. ` +
+          `[jobberClientSync] Jobber throttled — backing off 600s. ` +
           `Stopped after account ${account.id} (userId=${account.userId}).`
         );
-        break; // stop iterating accounts; resume on next scheduled run
+        syncState = { ...syncState, status: 'error', completedAt: new Date(), synced: totalSynced, error: 'Jobber rate-limited — will retry in 10 minutes' };
+        return;
       }
       totalFailed++;
       console.error(
@@ -113,28 +123,30 @@ async function syncAllAccounts() {
   console.log(
     `[jobberClientSync] Sync complete — synced: ${totalSynced} clients, failed accounts: ${totalFailed}`
   );
+  syncState = { status: 'done', startedAt: syncState.startedAt, completedAt: new Date(), synced: totalSynced, error: totalFailed > 0 ? `${totalFailed} account(s) failed` : null };
 }
 
 // ---------------------------------------------------------------------------
 // Start the scheduler
 // ---------------------------------------------------------------------------
 function startJobberClientSyncScheduler() {
-  console.log('[jobberClientSync] Scheduler started (every 60 min)');
+  // Every 4 hours at :15 past the hour — clients change infrequently,
+  // and the :15 offset avoids overlap with invoicePoller which runs at :00.
+  console.log('[jobberClientSync] Scheduler started (every 4 hours at :15)');
 
-  // Hourly cron
-  cron.schedule('0 * * * *', () => {
+  cron.schedule('15 */4 * * *', () => {
     syncAllAccounts().catch((err) =>
       console.error('[jobberClientSync] Cron error:', err.message)
     );
   });
 
-  // Startup sync — 90s delay lets token refresh scheduler run first
-  // (avoids API burst on cold boot where multiple services start simultaneously)
+  // Startup sync — 3-minute delay lets invoicePoller (30s) and token manager
+  // finish their startup bursts before we hit the Jobber API.
   setTimeout(() => {
     syncAllAccounts().catch((err) =>
       console.error('[jobberClientSync] Startup sync error:', err.message)
     );
-  }, 90_000);
+  }, 180_000);
 }
 
-module.exports = { startJobberClientSyncScheduler, syncAllAccounts };
+module.exports = { startJobberClientSyncScheduler, syncAllAccounts, getSyncStatus };

@@ -163,7 +163,15 @@ async function getValidAccessToken(userId = null) {
  * @param {string|null} userId - portal User.id for multi-tenant account lookup
  * @returns {object} The `data` field of the GraphQL response
  */
-async function jobberGraphQL(query, variables = {}, userId = null) {
+/**
+ * @param {string} query
+ * @param {object} variables
+ * @param {string|null} userId
+ * @param {{ returnExtensions?: boolean }} opts
+ *   returnExtensions: when true, returns { data, extensions } so callers can
+ *   read extensions.cost.throttleStatus for adaptive rate-limit backoff.
+ */
+async function jobberGraphQL(query, variables = {}, userId = null, opts = {}) {
   const accessToken = await getValidAccessToken(userId);
 
   let res;
@@ -202,6 +210,9 @@ async function jobberGraphQL(query, variables = {}, userId = null) {
     throw new Error(`Jobber GraphQL error: ${msg}`);
   }
 
+  if (opts.returnExtensions) {
+    return { data: res.data.data, extensions: res.data.extensions ?? {} };
+  }
   return res.data.data;
 }
 

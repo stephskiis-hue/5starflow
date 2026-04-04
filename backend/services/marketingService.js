@@ -32,16 +32,18 @@ const DELAY_BETWEEN_MESSAGES   = 300;             // ms
 // ---------------------------------------------------------------------------
 // Jobber client fetch (same paginated query as weatherService.fetchAllClients)
 // ---------------------------------------------------------------------------
+// NOTE: `first:` is mandatory on ALL connections — Jobber assumes 100 nodes per
+// connection without it, making requestedQueryCost explode past the 10,000 limit.
+// With first:50 on clients and bounded nested connections this costs ~1,100 pts/page.
 const GET_ALL_CLIENTS = `
   query GetAllClients($cursor: String) {
-    clients(after: $cursor) {
+    clients(first: 50, after: $cursor) {
       nodes {
         id
         name
         firstName
-        emails { address primary }
-        phones { number primary smsAllowed }
-        tags { nodes { label } }
+        phones(first: 3) { number primary smsAllowed }
+        tags(first: 10) { nodes { label } }
       }
       pageInfo { hasNextPage endCursor }
     }
@@ -52,15 +54,36 @@ async function fetchAllJobberClients(userId) {
   const allClients = [];
   let cursor  = null;
   let hasNext = true;
+  // Estimated cost per page with the bounded query (~1,100 pts). Used for adaptive delay.
+  const EST_PAGE_COST = 1100;
 
   while (hasNext) {
-    const data     = await jobberGraphQL(GET_ALL_CLIENTS, { cursor }, userId);
+    const { data, extensions } = await jobberGraphQL(GET_ALL_CLIENTS, { cursor }, userId, { returnExtensions: true });
     const nodes    = data?.clients?.nodes    ?? [];
     const pageInfo = data?.clients?.pageInfo ?? {};
     allClients.push(...nodes);
     hasNext = pageInfo.hasNextPage;
     cursor  = pageInfo.endCursor ?? null;
-    if (hasNext) await sleep(parseInt(process.env.JOBBER_PAGE_DELAY_MS, 10) || 1500);
+
+    if (hasNext) {
+      // Adaptive delay: read throttleStatus so we never hit the 10,000 pt cap
+      const throttle = extensions?.cost?.throttleStatus;
+      if (throttle) {
+        const { currentlyAvailable, restoreRate, actualQueryCost } = throttle;
+        const nextCost = actualQueryCost || EST_PAGE_COST;
+        const safeThreshold = nextCost * 1.5;
+        if (currentlyAvailable < safeThreshold) {
+          // Sleep until we have enough points to safely run the next page
+          const waitMs = Math.ceil((safeThreshold - currentlyAvailable) / restoreRate * 1000) + 250;
+          console.log(`[fetchAllJobberClients] Throttle buffer low (${currentlyAvailable} pts) — waiting ${waitMs}ms`);
+          await sleep(waitMs);
+        } else {
+          await sleep(500); // plenty of points — fast path
+        }
+      } else {
+        await sleep(parseInt(process.env.JOBBER_PAGE_DELAY_MS, 10) || 1500); // fallback
+      }
+    }
   }
 
   return allClients.map((c) => {

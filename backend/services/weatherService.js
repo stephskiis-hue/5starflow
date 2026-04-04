@@ -12,16 +12,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // ---------------------------------------------------------------------------
 // Jobber GraphQL — fetch all clients with tags, phone, email (paginated)
 // ---------------------------------------------------------------------------
+// NOTE: `first:` is required on ALL connections — without it Jobber assumes 100
+// nodes per level, pushing requestedQueryCost past the 10,000 pt maximum.
 const GET_ALL_CLIENTS = `
   query GetAllClients($cursor: String) {
-    clients(after: $cursor) {
+    clients(first: 50, after: $cursor) {
       nodes {
         id
         name
         firstName
-        emails { address primary }
-        phones { number primary smsAllowed }
-        tags { nodes { label } }
+        emails(first: 2) { address primary }
+        phones(first: 3) { number primary smsAllowed }
+        tags(first: 10) { nodes { label } }
       }
       pageInfo { hasNextPage endCursor }
     }

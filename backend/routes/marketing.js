@@ -216,17 +216,27 @@ router.get('/jobber-clients', async (req, res) => {
   }
 });
 
-// POST /api/marketing/sync-clients — triggers a manual background sync
+// POST /api/marketing/sync-clients — triggers a manual background sync (fire-and-forget)
 router.post('/sync-clients', async (req, res) => {
   try {
     const { syncAllAccounts } = require('../services/jobberClientSync');
     syncAllAccounts().catch((err) =>
       console.error('[marketing] Manual sync error:', err.message)
     );
-    res.json({ message: 'Sync started — refresh clients in 15–30 seconds.' });
+    res.json({ message: 'Sync started.' });
   } catch (err) {
     console.error('[marketing] POST /sync-clients error:', err.message);
     res.status(500).json({ error: 'Failed to start sync' });
+  }
+});
+
+// GET /api/marketing/sync-status — poll sync progress (used by UI spinner)
+router.get('/sync-status', (req, res) => {
+  try {
+    const { getSyncStatus } = require('../services/jobberClientSync');
+    res.json(getSyncStatus());
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get sync status' });
   }
 });
 

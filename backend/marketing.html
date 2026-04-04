@@ -690,25 +690,53 @@
     }
   }
 
+  let _syncPollInterval = null;
+
   async function triggerSync() {
     const btn = document.getElementById('sync-btn');
     btn.disabled = true;
     btn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span> Syncing...';
+    document.getElementById('sync-status').textContent = 'Fetching clients from Jobber...';
 
     try {
-      const res  = await fetch(API + '/sync-clients', { method: 'POST', credentials: 'include' });
-      const data = await res.json();
-      document.getElementById('sync-status').textContent = data.message || 'Sync started...';
-      // Auto-reload client list after 20s
-      setTimeout(() => loadCachedClients(), 20000);
+      await fetch(API + '/sync-clients', { method: 'POST', credentials: 'include' });
     } catch {
-      alert('Failed to trigger sync');
-    } finally {
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">sync</span> Sync Clients';
-      }, 3000);
+      document.getElementById('sync-status').textContent = 'Failed to start sync';
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">sync</span> Sync Clients';
+      return;
     }
+
+    // Clear any existing poll
+    if (_syncPollInterval) clearInterval(_syncPollInterval);
+
+    // Poll every 3s — spinner stays even if user navigates between tabs
+    _syncPollInterval = setInterval(async () => {
+      try {
+        const res  = await fetch(API + '/sync-status', { credentials: 'include' });
+        const data = await res.json();
+
+        if (data.status === 'done') {
+          clearInterval(_syncPollInterval);
+          _syncPollInterval = null;
+          btn.disabled = false;
+          btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">sync</span> Sync Clients';
+          const msg = data.error ? `Synced ${data.synced} clients (${data.error})` : `${data.synced} clients synced ✓`;
+          document.getElementById('sync-status').textContent = msg;
+          loadCachedClients(); // refresh the table
+        } else if (data.status === 'error') {
+          clearInterval(_syncPollInterval);
+          _syncPollInterval = null;
+          btn.disabled = false;
+          btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">sync</span> Sync Clients';
+          document.getElementById('sync-status').textContent = `Sync failed: ${data.error || 'unknown error'}`;
+        }
+        // status === 'running' — keep spinning, update counter if available
+        if (data.status === 'running' && data.synced > 0) {
+          document.getElementById('sync-status').textContent = `Syncing... ${data.synced} clients so far`;
+        }
+      } catch { /* network blip — keep polling */ }
+    }, 3000);
   }
 
   function renderClientTable() {
