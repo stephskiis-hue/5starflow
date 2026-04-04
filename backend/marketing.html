@@ -65,10 +65,17 @@
       aside { display: none !important; }
       main { padding-left: 1rem !important; padding-right: 1rem !important; padding-bottom: 5rem !important; }
     }
-    .mobile-nav { display: none; }
+    .mobile-nav { display: none !important; }
     @media (max-width: 640px) {
-      .mobile-nav { display: flex; }
+      .mobile-nav { display: flex !important; }
     }
+    /* Mobile icon tab bar */
+    .mob-tab { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; min-height: 52px; border-radius: 14px; transition: background 0.15s; cursor: pointer; border: none; background: transparent; gap: 2px; padding: 6px 2px; }
+    .mob-tab.active { background: rgba(170,199,255,0.15); }
+    .mob-tab .mob-tab-icon { font-size: 22px; color: #8b91a0; transition: color 0.15s; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .mob-tab.active .mob-tab-icon { color: #aac7ff; font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .mob-tab .mob-tab-label { font-size: 9px; font-weight: 600; color: #8b91a0; letter-spacing: 0.03em; transition: color 0.15s; }
+    .mob-tab.active .mob-tab-label { color: #aac7ff; }
     .more-sheet { transform: translateY(100%); transition: transform 0.3s ease; }
     .more-sheet.open { transform: translateY(0); }
     .more-backdrop { opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
@@ -76,11 +83,13 @@
     .scrollbar-hide::-webkit-scrollbar { display: none; }
     .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     @media (max-width: 640px) {
-      #tab-inbox .inbox-panels { flex-direction: column; height: auto !important; min-height: auto !important; }
-      #tab-inbox .inbox-panels .conv-list-panel { width: 100% !important; height: 60vh; flex-shrink: 0; }
-      #tab-inbox .inbox-panels .thread-panel { display: none !important; width: 100% !important; height: 70vh; }
+      #tab-inbox .inbox-panels { flex-direction: column; height: auto !important; min-height: auto !important; gap: 0 !important; }
+      #tab-inbox .inbox-panels .conv-list-panel { width: 100% !important; height: calc(100vh - 260px); min-height: 400px; flex-shrink: 0; border-radius: 1rem; }
+      #tab-inbox .inbox-panels .thread-panel { display: none !important; width: 100% !important; height: calc(100vh - 200px); min-height: 500px; border-radius: 1rem; flex-direction: column; }
       #tab-inbox.thread-open .conv-list-panel { display: none !important; }
       #tab-inbox.thread-open .thread-panel { display: flex !important; }
+      #thread-messages { flex: 1; overflow-y: auto !important; min-height: 0; padding-bottom: 0.5rem; }
+      #tab-inbox .glass-card:last-child { position: relative; }
     }
   </style>
 </head>
@@ -167,13 +176,38 @@
       DRY RUN mode is active — no real SMS messages will be sent
     </div>
 
-    <!-- Tab Bar -->
-    <div class="flex gap-2 mb-8 overflow-x-auto sm:flex-wrap sm:overflow-visible scrollbar-hide">
-      <button onclick="switchTab('templates')" id="tab-btn-templates" class="tab-active px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200 flex-shrink-0">Templates</button>
-      <button onclick="switchTab('audiences')" id="tab-btn-audiences" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200 flex-shrink-0">Audiences</button>
-      <button onclick="switchTab('send')" id="tab-btn-send" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200 flex-shrink-0">Send Campaign</button>
-      <button onclick="switchTab('history')" id="tab-btn-history" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200 flex-shrink-0">History</button>
-      <button onclick="switchTab('inbox')" id="tab-btn-inbox" class="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200 flex-shrink-0">
+    <!-- Mobile Icon Tab Bar (visible on mobile only) -->
+    <div class="flex sm:hidden w-full mb-4 bg-surface-container rounded-2xl p-1 gap-0.5" id="mobile-tab-bar">
+      <button onclick="switchTab('templates')" id="mob-tab-templates" class="mob-tab active">
+        <span class="material-symbols-outlined mob-tab-icon">description</span>
+        <span class="mob-tab-label">Templates</span>
+      </button>
+      <button onclick="switchTab('audiences')" id="mob-tab-audiences" class="mob-tab">
+        <span class="material-symbols-outlined mob-tab-icon">group</span>
+        <span class="mob-tab-label">Audiences</span>
+      </button>
+      <button onclick="switchTab('send')" id="mob-tab-send" class="mob-tab">
+        <span class="material-symbols-outlined mob-tab-icon">send</span>
+        <span class="mob-tab-label">Send</span>
+      </button>
+      <button onclick="switchTab('history')" id="mob-tab-history" class="mob-tab">
+        <span class="material-symbols-outlined mob-tab-icon">history</span>
+        <span class="mob-tab-label">History</span>
+      </button>
+      <button onclick="switchTab('inbox')" id="mob-tab-inbox" class="mob-tab relative">
+        <span class="material-symbols-outlined mob-tab-icon">inbox</span>
+        <span class="mob-tab-label">Inbox</span>
+        <span id="mob-inbox-badge" class="hidden absolute top-1 right-2 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">!</span>
+      </button>
+    </div>
+
+    <!-- Desktop Tab Bar (hidden on mobile) -->
+    <div class="hidden sm:flex gap-2 mb-8 flex-wrap">
+      <button onclick="switchTab('templates')" id="tab-btn-templates" class="tab-active px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200">Templates</button>
+      <button onclick="switchTab('audiences')" id="tab-btn-audiences" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Audiences</button>
+      <button onclick="switchTab('send')" id="tab-btn-send" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Send Campaign</button>
+      <button onclick="switchTab('history')" id="tab-btn-history" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">History</button>
+      <button onclick="switchTab('inbox')" id="tab-btn-inbox" class="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">
         Inbox
         <span id="inbox-badge" class="hidden bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">0</span>
       </button>
@@ -367,7 +401,7 @@
       </div>
 
       <!-- Two-panel iMessage layout -->
-      <div class="inbox-panels flex gap-4" style="height: calc(100vh - 300px); min-height: 520px;">
+      <div class="inbox-panels flex gap-4" style="height: calc(100vh - 300px); min-height: 520px; --mobile-panel-h: calc(100vh - 280px);">
 
         <!-- Left panel: Conversation list -->
         <div class="conv-list-panel w-72 flex-shrink-0 glass-card rounded-xl flex flex-col overflow-hidden">
@@ -443,12 +477,18 @@
     const tabs = ['templates', 'audiences', 'send', 'history', 'inbox'];
     tabs.forEach(t => {
       document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+      // Desktop tab bar
       const btn = document.getElementById('tab-btn-' + t);
-      if (t === tab) {
-        btn.className = 'tab-active flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200';
-      } else {
-        btn.className = 'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200';
+      if (btn) {
+        if (t === tab) {
+          btn.className = 'tab-active flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200';
+        } else {
+          btn.className = 'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200';
+        }
       }
+      // Mobile icon tab bar
+      const mobBtn = document.getElementById('mob-tab-' + t);
+      if (mobBtn) mobBtn.classList.toggle('active', t === tab);
     });
 
     if (tab === 'templates') loadTemplates();
@@ -1212,12 +1252,15 @@
     try {
       const res  = await fetch(API + '/inbox/unread-count', { credentials: 'include' });
       const data = await res.json();
-      const badge = document.getElementById('inbox-badge');
+      const badge    = document.getElementById('inbox-badge');
+      const mobBadge = document.getElementById('mob-inbox-badge');
       if (data.count > 0) {
         badge.textContent = data.count;
         badge.classList.remove('hidden');
+        if (mobBadge) mobBadge.classList.remove('hidden');
       } else {
         badge.classList.add('hidden');
+        if (mobBadge) mobBadge.classList.add('hidden');
       }
     } catch {}
   }
@@ -1356,7 +1399,7 @@
       </button>
     </div>
   </div>
-  <nav class="mobile-nav fixed bottom-0 left-0 right-0 z-[60] bg-surface-container-low/95 backdrop-blur-xl border-t border-white/10 flex justify-around items-center" style="padding-bottom: env(safe-area-inset-bottom, 8px); height: calc(56px + env(safe-area-inset-bottom, 8px));" id="mobile-bottom-nav">
+  <nav class="mobile-nav fixed bottom-0 left-0 right-0 z-[60] bg-surface-container-low/95 backdrop-blur-xl border-t border-white/10 justify-around items-center" style="padding-bottom: env(safe-area-inset-bottom, 8px); height: calc(56px + env(safe-area-inset-bottom, 8px));" id="mobile-bottom-nav">
     <a href="/index.html" data-page="/index.html" class="mobile-nav-item flex flex-col items-center justify-center gap-0.5 min-w-[56px] min-h-[44px] py-1 text-zinc-500">
       <span class="material-symbols-outlined text-[22px]">home</span>
       <span class="text-[10px] font-medium">Home</span>

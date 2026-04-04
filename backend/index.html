@@ -65,9 +65,9 @@
       main { padding-left: 1rem !important; padding-right: 1rem !important; padding-bottom: 5rem !important; }
       .lb-grid { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     }
-    .mobile-nav { display: none; }
+    .mobile-nav { display: none !important; }
     @media (max-width: 640px) {
-      .mobile-nav { display: flex; }
+      .mobile-nav { display: flex !important; }
     }
     .more-sheet { transform: translateY(100%); transition: transform 0.3s ease; }
     .more-sheet.open { transform: translateY(0); }
@@ -1243,7 +1243,7 @@
       </button>
     </div>
   </div>
-  <nav class="mobile-nav fixed bottom-0 left-0 right-0 z-[60] bg-surface-container-low/95 backdrop-blur-xl border-t border-white/10 flex justify-around items-center" style="padding-bottom: env(safe-area-inset-bottom, 8px); height: calc(56px + env(safe-area-inset-bottom, 8px));" id="mobile-bottom-nav">
+  <nav class="mobile-nav fixed bottom-0 left-0 right-0 z-[60] bg-surface-container-low/95 backdrop-blur-xl border-t border-white/10 justify-around items-center" style="padding-bottom: env(safe-area-inset-bottom, 8px); height: calc(56px + env(safe-area-inset-bottom, 8px));" id="mobile-bottom-nav">
     <a href="/index.html" data-page="/index.html" class="mobile-nav-item flex flex-col items-center justify-center gap-0.5 min-w-[56px] min-h-[44px] py-1 text-zinc-500">
       <span class="material-symbols-outlined text-[22px]">home</span>
       <span class="text-[10px] font-medium">Home</span>
