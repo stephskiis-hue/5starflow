@@ -2,7 +2,7 @@
 <html class="dark" lang="en">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>5StarFlow — Command Center</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
@@ -62,8 +62,19 @@
     .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
     @media (max-width: 640px) {
       aside { display: none !important; }
-      main { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
+      main { padding-left: 1rem !important; padding-right: 1rem !important; padding-bottom: 5rem !important; }
+      .lb-grid { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     }
+    .mobile-nav { display: none; }
+    @media (max-width: 640px) {
+      .mobile-nav { display: flex; }
+    }
+    .more-sheet { transform: translateY(100%); transition: transform 0.3s ease; }
+    .more-sheet.open { transform: translateY(0); }
+    .more-backdrop { opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
+    .more-backdrop.open { opacity: 1; pointer-events: auto; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     /* --- Client Leaderboard --- */
     .lb-grid {
       display: grid;
@@ -221,11 +232,11 @@
     </header>
 
     <!-- Bento Grid -->
-    <div class="grid grid-cols-12 gap-6 pb-10">
+    <div class="grid grid-cols-12 gap-4 sm:gap-6 pb-10">
 
       <!-- Review Requests (Large) -->
-      <section class="col-span-12 lg:col-span-8 glass-card rounded-xl p-10 group hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 cursor-pointer" onclick="window.location='/review-dashboard.html'">
-        <div class="flex justify-between items-start mb-10">
+      <section class="col-span-12 lg:col-span-8 glass-card rounded-xl p-5 sm:p-10 group sm:hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 cursor-pointer" onclick="window.location='/review-dashboard.html'">
+        <div class="flex justify-between items-start mb-6 sm:mb-10">
           <div>
             <span class="text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-on-surface-variant mb-2 block">Customer Engagement</span>
             <h3 class="text-2xl font-bold text-zinc-100">Review Requests</h3>
@@ -237,9 +248,9 @@
             </span>
           </div>
         </div>
-        <div class="flex items-end gap-10 mb-10">
+        <div class="flex items-end gap-4 sm:gap-10 mb-6 sm:mb-10">
           <div class="flex flex-col">
-            <span class="text-7xl font-black text-white tracking-tighter" id="reviews-pending-count">—</span>
+            <span class="text-4xl sm:text-7xl font-black text-white tracking-tighter" id="reviews-pending-count">—</span>
             <span class="text-sm text-on-surface-variant mt-2" id="reviews-stat-label">pending requests</span>
           </div>
           <div class="flex-1 h-20 flex items-end gap-1 pb-2" id="reviews-bar-chart">
@@ -266,13 +277,13 @@
       </section>
 
       <!-- SEO Score -->
-      <section class="col-span-12 lg:col-span-4 glass-card rounded-xl p-10 group hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 flex flex-col justify-between cursor-pointer" onclick="window.location='/seo-dashboard.html'">
+      <section class="col-span-12 lg:col-span-4 glass-card rounded-xl p-5 sm:p-10 group sm:hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 flex flex-col justify-between cursor-pointer" onclick="window.location='/seo-dashboard.html'">
         <div>
           <span class="text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-on-surface-variant mb-2 block">Performance Audit</span>
           <h3 class="text-2xl font-bold text-zinc-100">SEO Score</h3>
         </div>
         <div class="py-8 flex flex-col items-center">
-          <div class="relative w-44 h-44 flex items-center justify-center">
+          <div class="relative w-32 h-32 sm:w-44 sm:h-44 flex items-center justify-center">
             <svg class="w-full h-full -rotate-90" viewBox="0 0 192 192">
               <circle class="text-white/5" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-width="8"/>
               <circle id="seo-circle" class="text-tertiary" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-dasharray="503" stroke-dashoffset="503" stroke-width="8" style="transition:stroke-dashoffset 0.8s ease; filter:drop-shadow(0 0 8px rgba(233,179,255,0.4));"/>
@@ -291,7 +302,7 @@
       </section>
 
       <!-- Jobber Integration -->
-      <section class="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-xl p-8 group hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 cursor-pointer" onclick="window.location='/connections.html'">
+      <section class="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-xl p-4 sm:p-8 group sm:hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 cursor-pointer" onclick="window.location='/connections.html'">
         <div class="flex justify-between items-start mb-8">
           <h3 class="text-xl font-bold text-zinc-100">Jobber</h3>
           <div class="px-3 py-1 rounded-full flex items-center gap-2 border" id="jobber-status-badge">
@@ -323,13 +334,13 @@
       </section>
 
       <!-- Website Traffic -->
-      <section class="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-xl p-8 group hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 cursor-pointer" onclick="window.open('https://analytics.google.com','_blank')">
+      <section class="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-xl p-4 sm:p-8 group sm:hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 cursor-pointer" onclick="window.open('https://analytics.google.com','_blank')">
         <div class="flex justify-between items-start mb-5">
           <h3 class="text-xl font-bold text-zinc-100">Website Traffic</h3>
           <span class="text-xs font-bold flex items-center gap-1" id="analytics-badge">—</span>
         </div>
         <div class="mb-6">
-          <span class="text-5xl font-black text-white tracking-tighter" id="analytics-visitors">—</span>
+          <span class="text-3xl sm:text-5xl font-black text-white tracking-tighter" id="analytics-visitors">—</span>
           <span class="text-xs text-on-surface-variant block mt-1" id="analytics-stat-label">visitors last 7 days</span>
         </div>
         <div class="grid grid-cols-2 gap-3 mb-5">
@@ -367,13 +378,13 @@
       </section>
 
       <!-- Traffic Sources -->
-      <section class="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-xl p-8 group hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500" id="traffic-sources-card">
+      <section class="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-xl p-4 sm:p-8 group sm:hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500" id="traffic-sources-card">
         <div class="flex justify-between items-start mb-5">
           <h3 class="text-xl font-bold text-zinc-100">Traffic Sources</h3>
           <span class="text-xs font-bold px-3 py-1 rounded-full border border-primary/20 bg-primary/10 text-primary" id="traffic-sources-badge">Last 7 days</span>
         </div>
         <div class="mb-5" id="traffic-sources-body">
-          <span class="text-5xl font-black text-white tracking-tighter" id="traffic-total-sessions">—</span>
+          <span class="text-3xl sm:text-5xl font-black text-white tracking-tighter" id="traffic-total-sessions">—</span>
           <span class="text-xs text-on-surface-variant block mt-1">total sessions</span>
           <div class="mt-4 space-y-2" id="traffic-channel-list">
             <div class="text-xs text-on-surface-variant">Loading...</div>
@@ -384,8 +395,24 @@
         </div>
       </section>
 
+      <!-- SMS Inbox -->
+      <section class="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-xl p-4 sm:p-8 group sm:hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 cursor-pointer flex flex-col justify-between" onclick="window.location='/marketing.html#inbox'" id="sms-inbox-card">
+        <div class="flex justify-between items-start mb-5">
+          <h3 class="text-xl font-bold text-zinc-100">SMS Inbox</h3>
+          <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter border bg-secondary/10 text-secondary border-secondary/20 hidden" id="sms-unread-badge">0 unread</span>
+        </div>
+        <div class="space-y-2" id="sms-inbox-list">
+          <div class="text-xs text-on-surface-variant">Loading...</div>
+        </div>
+        <div class="flex items-center gap-2 pt-4 mt-4 border-t border-white/5">
+          <span class="material-symbols-outlined text-[14px] text-primary">sms</span>
+          <span class="text-xs text-primary font-semibold">View all conversations</span>
+          <span class="material-symbols-outlined text-sm text-primary ml-auto">arrow_forward</span>
+        </div>
+      </section>
+
       <!-- Rain Alerts -->
-      <section class="col-span-12 lg:col-span-4 glass-card rounded-xl p-8 group hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 flex flex-col justify-between cursor-pointer" onclick="window.location='/weather-dashboard.html'">
+      <section class="col-span-12 lg:col-span-4 glass-card rounded-xl p-4 sm:p-8 group sm:hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 flex flex-col justify-between cursor-pointer" onclick="window.location='/weather-dashboard.html'">
         <div class="flex justify-between items-start">
           <h3 class="text-xl font-bold text-zinc-100">Rain Alerts</h3>
           <div class="px-3 py-1 rounded-full flex items-center gap-2 border border-primary/20 bg-primary/10">
@@ -456,6 +483,16 @@
   }
   updateClock();
   setInterval(updateClock, 30000);
+
+  // ── Time Ago ────────────────────────────────────────────────────────
+  function formatTimeAgo(date) {
+    const diff = (Date.now() - date.getTime()) / 1000;
+    if (diff < 60)    return 'just now';
+    if (diff < 3600)  return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
 
   // ── Auth ────────────────────────────────────────────────────────
   async function logout() {
@@ -867,6 +904,57 @@
     }).join('');
   }
 
+  function renderSmsInboxCard(conversations) {
+    const listEl  = document.getElementById('sms-inbox-list');
+    const badgeEl = document.getElementById('sms-unread-badge');
+    if (!listEl) return;
+
+    if (!conversations || !Array.isArray(conversations)) {
+      listEl.innerHTML = '<div class="text-xs text-on-surface-variant">Unable to load inbox</div>';
+      return;
+    }
+
+    if (conversations.length === 0) {
+      listEl.innerHTML = `<div class="text-center py-6">
+        <span class="material-symbols-outlined text-3xl text-on-surface-variant/50 mb-2 block">chat_bubble_outline</span>
+        <p class="text-xs text-on-surface-variant">No conversations yet</p>
+      </div>`;
+      return;
+    }
+
+    const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+    if (totalUnread > 0) {
+      badgeEl.textContent = totalUnread + ' unread';
+      badgeEl.classList.remove('hidden');
+    } else {
+      badgeEl.classList.add('hidden');
+    }
+
+    const top = conversations.slice(0, 4);
+    listEl.innerHTML = top.map(c => {
+      const name = c.clientName || c.phone || 'Unknown';
+      const initials = c.clientName
+        ? c.clientName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+        : '#';
+      const timeAgo = c.lastMessageAt ? formatTimeAgo(new Date(c.lastMessageAt)) : '';
+      const msg = c.lastMessage || 'No messages';
+      const unreadDot = c.unreadCount > 0
+        ? '<span class="w-5 h-5 rounded-full bg-secondary text-[10px] font-bold text-black flex items-center justify-center flex-shrink-0">' + c.unreadCount + '</span>'
+        : '';
+      return '<div class="flex items-start gap-3 p-3 bg-white/5 rounded-lg">' +
+        '<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-xs font-bold text-zinc-100 flex-shrink-0">' + initials + '</div>' +
+        '<div class="flex-1 min-w-0">' +
+          '<div class="flex items-center justify-between gap-2">' +
+            '<span class="text-sm font-semibold text-zinc-100 truncate">' + name + '</span>' +
+            '<span class="text-[10px] text-on-surface-variant flex-shrink-0">' + timeAgo + '</span>' +
+          '</div>' +
+          '<p class="text-xs text-on-surface-variant truncate mt-0.5">' + msg + '</p>' +
+        '</div>' +
+        unreadDot +
+      '</div>';
+    }).join('');
+  }
+
   function renderStatusStrip(status) {
     const strip = document.getElementById('status-strip');
     const chip = (dotClass, text) =>
@@ -887,7 +975,7 @@
   // ── Dashboard fetch ─────────────────────────────────────────────
   async function loadDashboard() {
     try {
-      const [statusRes, queueRes, weatherRes, seoRes, seoAuditsRes, analyticsRes, trafficRes, eventsRes] = await Promise.all([
+      const [statusRes, queueRes, weatherRes, seoRes, seoAuditsRes, analyticsRes, trafficRes, eventsRes, conversationsRes] = await Promise.all([
         fetch('/api/status'),
         fetch('/api/pending-reviews'),
         fetch('/api/weather/today').catch(() => null),
@@ -896,6 +984,7 @@
         fetch('/api/analytics/stats').catch(() => null),
         fetch('/api/seo/traffic-stats').catch(() => null),
         fetch('/api/analytics/events').catch(() => null),
+        fetch('/api/marketing/conversations').catch(() => null),
       ]);
 
       if (statusRes.status === 401) { window.location.href = '/login.html'; return; }
@@ -907,6 +996,7 @@
       const analytics    = analyticsRes ? await analyticsRes.json().catch(() => null)    : null;
       const trafficStats = trafficRes   ? await trafficRes.json().catch(() => null)      : null;
       const eventsData   = eventsRes    ? await eventsRes.json().catch(() => null)       : null;
+      const conversations = conversationsRes ? await conversationsRes.json().catch(() => null) : null;
 
       loadUserInfo(status);
       renderReviewCard(queue, status);
@@ -916,6 +1006,7 @@
       renderAnalyticsCard(analytics);
       renderTrafficSourcesCard(trafficStats);
       renderAnalyticsEvents(eventsData);
+      renderSmsInboxCard(Array.isArray(conversations) ? conversations : conversations?.conversations || []);
       renderStatusStrip(status);
     } catch (err) {
       console.error('Dashboard load error:', err);
@@ -1122,23 +1213,81 @@
   setInterval(loadLeaderboard, 60000);
 </script>
 
-<script>
-// ── Role-aware nav ────────────────────────────────────────────────
-(async function() {
-  try {
-    const res = await fetch('/api/admin/me', { credentials: 'include' });
-    if (!res.ok) return;
-    const me   = await res.json();
-    const role = me.role || 'client';
-    const roleEl = document.getElementById('user-role');
-    if (roleEl) roleEl.textContent = role === 'admin' ? 'Administrator' : 'Client';
-    if (role === 'admin') {
-      const link = document.getElementById('admin-nav-link');
-      if (link) link.classList.remove('hidden');
+  <!-- Mobile Bottom Nav -->
+  <div class="more-backdrop fixed inset-0 bg-black/60 z-[59]" id="more-backdrop" onclick="toggleMoreMenu()"></div>
+  <div class="more-sheet fixed bottom-16 left-4 right-4 bg-surface-container-high rounded-2xl border border-white/10 z-[61] p-2 pb-4" id="more-sheet">
+    <div class="grid grid-cols-3 gap-1">
+      <a href="/seo-dashboard.html" class="flex flex-col items-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors">
+        <span class="material-symbols-outlined text-[22px] text-zinc-400">search_check</span>
+        <span class="text-[10px] text-zinc-400 font-medium">SEO</span>
+      </a>
+      <a href="/website-audit.html" class="flex flex-col items-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors">
+        <span class="material-symbols-outlined text-[22px] text-zinc-400">speed</span>
+        <span class="text-[10px] text-zinc-400 font-medium">Audit</span>
+      </a>
+      <a href="/connections.html" class="flex flex-col items-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors">
+        <span class="material-symbols-outlined text-[22px] text-zinc-400">hub</span>
+        <span class="text-[10px] text-zinc-400 font-medium">Connections</span>
+      </a>
+      <a href="/message-settings.html" class="flex flex-col items-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors">
+        <span class="material-symbols-outlined text-[22px] text-zinc-400">edit_note</span>
+        <span class="text-[10px] text-zinc-400 font-medium">Templates</span>
+      </a>
+      <a href="/settings.html" class="flex flex-col items-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors">
+        <span class="material-symbols-outlined text-[22px] text-zinc-400">settings</span>
+        <span class="text-[10px] text-zinc-400 font-medium">Settings</span>
+      </a>
+      <button onclick="logout()" class="flex flex-col items-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors border-0 bg-transparent cursor-pointer">
+        <span class="material-symbols-outlined text-[22px] text-red-400">logout</span>
+        <span class="text-[10px] text-red-400 font-medium">Log Out</span>
+      </button>
+    </div>
+  </div>
+  <nav class="mobile-nav fixed bottom-0 left-0 right-0 z-[60] bg-surface-container-low/95 backdrop-blur-xl border-t border-white/10 flex justify-around items-center" style="padding-bottom: env(safe-area-inset-bottom, 8px); height: calc(56px + env(safe-area-inset-bottom, 8px));" id="mobile-bottom-nav">
+    <a href="/index.html" data-page="/index.html" class="mobile-nav-item flex flex-col items-center justify-center gap-0.5 min-w-[56px] min-h-[44px] py-1 text-zinc-500">
+      <span class="material-symbols-outlined text-[22px]">home</span>
+      <span class="text-[10px] font-medium">Home</span>
+    </a>
+    <a href="/review-dashboard.html" data-page="/review-dashboard.html" class="mobile-nav-item flex flex-col items-center justify-center gap-0.5 min-w-[56px] min-h-[44px] py-1 text-zinc-500">
+      <span class="material-symbols-outlined text-[22px]">rate_review</span>
+      <span class="text-[10px] font-medium">Reviews</span>
+    </a>
+    <a href="/weather-dashboard.html" data-page="/weather-dashboard.html" class="mobile-nav-item flex flex-col items-center justify-center gap-0.5 min-w-[56px] min-h-[44px] py-1 text-zinc-500">
+      <span class="material-symbols-outlined text-[22px]">thunderstorm</span>
+      <span class="text-[10px] font-medium">Weather</span>
+    </a>
+    <a href="/marketing.html" data-page="/marketing.html" class="mobile-nav-item flex flex-col items-center justify-center gap-0.5 min-w-[56px] min-h-[44px] py-1 text-zinc-500">
+      <span class="material-symbols-outlined text-[22px]">campaign</span>
+      <span class="text-[10px] font-medium">Marketing</span>
+    </a>
+    <button onclick="toggleMoreMenu()" class="mobile-nav-item flex flex-col items-center justify-center gap-0.5 min-w-[56px] min-h-[44px] py-1 text-zinc-500 border-0 bg-transparent cursor-pointer" id="more-nav-btn">
+      <span class="material-symbols-outlined text-[22px]">more_horiz</span>
+      <span class="text-[10px] font-medium">More</span>
+    </button>
+  </nav>
+
+  <script>
+    // Mobile nav active state
+    (function() {
+      const path = location.pathname;
+      document.querySelectorAll('.mobile-nav-item[data-page]').forEach(function(item) {
+        if (item.getAttribute('data-page') === path) {
+          item.classList.remove('text-zinc-500');
+          item.classList.add('text-primary');
+          var icon = item.querySelector('.material-symbols-outlined');
+          if (icon) icon.style.fontVariationSettings = "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24";
+        }
+      });
+    })();
+
+    function toggleMoreMenu() {
+      var sheet = document.getElementById('more-sheet');
+      var backdrop = document.getElementById('more-backdrop');
+      var isOpen = sheet.classList.contains('open');
+      sheet.classList.toggle('open', !isOpen);
+      backdrop.classList.toggle('open', !isOpen);
     }
-  } catch {}
-})();
-</script>
+  </script>
 
 </body>
 </html>
