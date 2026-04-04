@@ -1069,30 +1069,51 @@
     }
 
     el.innerHTML = _conversations.map(c => {
-      const isActive   = c.phone === _activePhone;
-      const initial    = (c.clientName || c.phone || '?').charAt(0).toUpperCase();
-      const name       = c.clientName || c.phone;
-      const preview    = (c.lastMessage || '').slice(0, 50);
-      const timeStr    = c.lastMessageAt ? timeAgo(c.lastMessageAt) : '';
-      const hasUnread  = c.unreadCount > 0;
+      const isActive    = c.phone === _activePhone;
+      const matched     = !!c.clientName;
+      const displayName = c.clientName || c.phone;
+      const initial     = displayName.charAt(0).toUpperCase();
+      const preview     = (c.lastMessage || '').slice(0, 55);
+      const timeStr     = c.lastMessageAt ? timeAgo(c.lastMessageAt) : '';
+      const hasUnread   = c.unreadCount > 0;
+      const phoneStr    = matched ? c.phone : '';
+
       const unreadBadge = hasUnread
-        ? `<span class="w-4 h-4 rounded-full bg-primary text-zinc-900 text-[9px] font-bold flex items-center justify-center flex-shrink-0">${c.unreadCount > 9 ? '9+' : c.unreadCount}</span>`
+        ? `<span class="w-5 h-5 rounded-full bg-primary text-zinc-900 text-[9px] font-bold flex items-center justify-center flex-shrink-0">${c.unreadCount > 9 ? '9+' : c.unreadCount}</span>`
         : '';
-      const dirArrow   = c.lastMessageDir === 'outbound' ? '<span class="text-zinc-700">↑ </span>' : '';
-      const activeClass = isActive
-        ? 'bg-white/10 border-l-2 border-primary'
-        : 'hover:bg-white/5 border-l-2 border-transparent';
+
+      const stopTag = c.optedOut
+        ? `<span class="ml-1 text-[8px] font-bold px-1 py-0.5 rounded bg-zinc-700/60 text-zinc-500 border border-zinc-600/30">STOP</span>`
+        : '';
+
+      const dirIcon = c.lastMessageDir === 'outbound'
+        ? `<span class="material-symbols-outlined text-[11px] text-zinc-600" style="font-variation-settings:'FILL' 0">arrow_upward</span>`
+        : `<span class="material-symbols-outlined text-[11px] text-zinc-500" style="font-variation-settings:'FILL' 0">arrow_downward</span>`;
+
+      const avatarBg  = matched ? 'bg-primary/20 border border-primary/25' : 'bg-surface-container-highest';
+      const avatarTxt = matched ? 'text-primary' : 'text-zinc-500';
+      const activeClass = isActive ? 'bg-white/10 border-l-2 border-primary' : 'hover:bg-white/5 border-l-2 border-transparent';
+
+      const phoneLine = matched
+        ? `<span class="text-[10px] text-zinc-600 font-mono">${esc(c.phone)}</span>`
+        : '';
+
+      const safePhone = c.phone.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
       return `<div class="px-3 py-3 cursor-pointer transition-all ${activeClass} flex items-center gap-3"
-                   onclick="openThread('${c.phone.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">
-        <div class="w-9 h-9 rounded-full bg-surface-container-highest flex items-center justify-center text-sm font-bold text-zinc-300 flex-shrink-0">${esc(initial)}</div>
+                   onclick="openThread('${safePhone}')">
+        <div class="w-9 h-9 rounded-full ${avatarBg} flex items-center justify-center text-sm font-bold ${avatarTxt} flex-shrink-0">${esc(initial)}</div>
         <div class="flex-1 min-w-0">
           <div class="flex items-center justify-between gap-1 mb-0.5">
-            <p class="text-sm ${hasUnread ? 'font-bold text-zinc-100' : 'font-medium text-zinc-300'} truncate">${esc(name)}</p>
-            <span class="text-[10px] text-zinc-600 flex-shrink-0">${timeStr}</span>
+            <div class="flex items-center gap-1.5 min-w-0">
+              <p class="text-sm ${hasUnread ? 'font-bold text-zinc-100' : 'font-medium text-zinc-200'} truncate">${esc(displayName)}</p>
+              ${stopTag}
+            </div>
+            <span class="text-[10px] text-zinc-600 flex-shrink-0 ml-1">${timeStr}</span>
           </div>
+          ${phoneLine ? `<div class="mb-0.5">${phoneLine}</div>` : ''}
           <div class="flex items-center justify-between gap-1">
-            <p class="text-xs text-zinc-500 truncate">${dirArrow}${esc(preview)}${c.optedOut ? ' · <span class="text-zinc-700">STOP</span>' : ''}</p>
+            <p class="text-xs text-zinc-500 truncate flex items-center gap-0.5">${dirIcon}${esc(preview)}</p>
             ${unreadBadge}
           </div>
         </div>
@@ -1110,9 +1131,12 @@
     const optTag = conv?.optedOut
       ? ' <span class="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700/50 text-zinc-500 border border-zinc-600/30">STOP</span>'
       : '';
-    document.getElementById('thread-header-content').innerHTML = `
-      <p class="text-sm font-bold text-zinc-100">${esc(name)}${optTag}</p>
-      <p class="text-xs text-zinc-500">${esc(phone)}</p>`;
+    const matched = !!conv?.clientName;
+    document.getElementById('thread-header-content').innerHTML = matched
+      ? `<p class="text-sm font-bold text-zinc-100">${esc(name)}${optTag}</p>
+         <p class="text-xs text-zinc-500 font-mono">${esc(phone)}</p>`
+      : `<p class="text-sm font-bold text-zinc-100 font-mono">${esc(phone)}${optTag}</p>
+         <p class="text-[10px] text-zinc-600">Unknown number</p>`;
 
     document.getElementById('thread-messages').innerHTML =
       '<p class="text-xs text-zinc-600 text-center pt-12">Loading...</p>';
