@@ -18,7 +18,6 @@ const analyticsRouter   = require('./routes/analytics');
 const auditRouter       = require('./routes/websiteAudit');
 const leaderboardRouter = require('./routes/leaderboard');
 const marketingRouter   = require('./routes/marketing');
-const campaignsRouter   = require('./routes/campaigns');
 const { requireAuth } = require('./middleware/requireAuth');
 const { startTokenRefreshScheduler }      = require('./services/tokenManager');
 const { startDeliveryQueue }              = require('./services/deliveryQueue');
@@ -235,29 +234,6 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
         }
       }
 
-      // 2) Persist SMS opt-out in CampaignClient (new Campaign Manager system)
-      // Prefer linking by jobberClientId when we have it, otherwise fall back to phone matching.
-      if (cachedClient?.jobberClientId) {
-        await prisma.campaignClient.updateMany({
-          where: { userId, jobberClientId: cachedClient.jobberClientId },
-          data:  { optedOut: true, optedOutAt: now },
-        }).catch(() => {});
-      } else if (from10) {
-        const campaignCandidates = await prisma.campaignClient.findMany({
-          where: { userId, primaryPhone: { not: null } },
-          select: { id: true, primaryPhone: true },
-        }).catch(() => []);
-        const matchIds = campaignCandidates
-          .filter((c) => last10(c.primaryPhone) === from10)
-          .map((c) => c.id);
-        if (matchIds.length > 0) {
-          await prisma.campaignClient.updateMany({
-            where: { userId, id: { in: matchIds } },
-            data:  { optedOut: true, optedOutAt: now },
-          }).catch(() => {});
-        }
-      }
-
       const label = cachedClient?.name || 'unknown';
       console.log(`[inbound-sms] Opt-out received from ${normalizedFrom} (${label}) — updated cached clients: ${updatedCount}`);
     }
@@ -379,7 +355,6 @@ app.use('/api/analytics', analyticsRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/leaderboard', leaderboardRouter);
 app.use('/api/marketing', marketingRouter);
-app.use('/api/campaigns', campaignsRouter);
 
 // ---------------------------------------------------------------------------
 // Error handler

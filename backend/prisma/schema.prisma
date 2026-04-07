@@ -20,9 +20,6 @@ model JobberAccount {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  campaignClients CampaignClient[]
-  campaigns       Campaign[]
-
   @@index([userId])
 }
 
@@ -58,8 +55,6 @@ model User {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
 
-  campaignClients CampaignClient[]
-  campaigns       Campaign[]
 }
 
 // Delay queue: invoices queued for review request, sent after REVIEW_DELAY_MINUTES.
@@ -492,78 +487,4 @@ model InboundSMS {
 
   @@index([userId])
   @@index([from])
-}
-
-// ---------------------------------------------------------------------------
-// Campaign Management System (v2)
-// Source of truth: JobberAccount + Jobber GraphQL
-// Campaign state: clients/campaigns/campaign_members (stored locally)
-// ---------------------------------------------------------------------------
-
-model CampaignClient {
-  id               String   @id @default(cuid())
-  userId           String
-  jobberAccountId  String
-  jobberClientId   String
-  fullName         String
-  primaryPhone     String?
-  primaryEmail     String?
-  smsAllowedFlag   Boolean?
-  smsConsentStatus String?
-  emailConsentStatus String?
-  isSmsEligible    Boolean  @default(false)
-  isEmailEligible  Boolean  @default(false)
-  tags             Json     @db.JsonB
-  optedOut         Boolean  @default(false)
-  optedOutAt       DateTime?
-  syncedAt         DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobberAccount JobberAccount @relation(fields: [jobberAccountId], references: [id], onDelete: Cascade)
-  members       CampaignMember[]
-
-  @@unique([jobberAccountId, jobberClientId])
-  @@index([userId])
-  @@index([jobberAccountId])
-  @@map("clients")
-}
-
-model Campaign {
-  id              String   @id @default(cuid())
-  userId          String
-  jobberAccountId String
-  name            String
-  type            String   // "SMS" | "EMAIL" (enforced in DB via CHECK constraint)
-  status          String   @default("draft") // draft|active|paused|complete|failed
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobberAccount JobberAccount @relation(fields: [jobberAccountId], references: [id], onDelete: Cascade)
-  members       CampaignMember[]
-
-  @@index([userId])
-  @@index([jobberAccountId])
-  @@unique([jobberAccountId, name, type])
-  @@map("campaigns")
-}
-
-model CampaignMember {
-  campaignId      String
-  clientId        String
-  status          String   @default("pending") // pending|sent|failed|skipped
-  channelOverride String?  // null|"SMS"|"EMAIL"
-  isRemoved       Boolean  @default(false)
-  sentAt          DateTime?
-  lastError       String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  campaign Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  client   CampaignClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  @@id([campaignId, clientId])
-  @@index([campaignId, status])
-  @@map("campaign_members")
 }

@@ -16,7 +16,7 @@ This file is meant to let a future session (or another device) jump back into th
 
 Backend entry: [`/backend/server.js`](./backend/server.js)
 
-## What Was Implemented / Changed (Campaign System + Jobber Fix)
+## What Was Implemented / Changed (Current State)
 
 ### 1. Jobber GraphQL schema fix (phones/emails)
 
@@ -27,47 +27,20 @@ Edits:
 - [`/backend/services/marketingService.js`](./backend/services/marketingService.js): changed `phones(first: ...)` to `phones { ... }`
 - [`/backend/services/weatherService.js`](./backend/services/weatherService.js): changed `phones(first: ...)`/`emails(first: ...)` to simple lists
 
-### 2. Campaign Management System (v2) tables (Prisma + migration)
+### 2. SMS Marketing improvements kept
 
-New Prisma models mapped to new snake_case tables:
+The extra standalone Campaign Manager was removed so `SMS Marketing` remains the only user-facing campaign system.
 
-- `CampaignClient` → `clients`
-- `Campaign` → `campaigns`
-- `CampaignMember` → `campaign_members`
+The following improvements were intentionally kept because they help the existing SMS Marketing flow:
 
-Schema: [`/backend/prisma/schema.prisma`](./backend/prisma/schema.prisma)
-
-Migration (Railway applies on deploy because `npm start` runs `prisma migrate deploy`):
-
-- [`/backend/prisma/migrations/20260407_add_campaign_system_v2/migration.sql`](./backend/prisma/migrations/20260407_add_campaign_system_v2/migration.sql)
-
-Important constraints:
-
-- `clients` unique: (`jobberAccountId`, `jobberClientId`)
-- `campaign_members` primary key: (`campaignId`, `clientId`)
-- `campaigns` unique: (`jobberAccountId`, `name`, `type`)
-- GIN index on `clients.tags` (jsonb) for fast tag filtering
-
-### 3. Consent-safe sync engine (Jobber → `clients` table)
-
-Files:
-
-- [`/backend/services/campaignSync.js`](./backend/services/campaignSync.js)
-- [`/backend/services/jobberSchema.js`](./backend/services/jobberSchema.js) (GraphQL introspection to discover consent fields)
-- [`/backend/services/campaignUtils.js`](./backend/services/campaignUtils.js) (primary contact + strict eligibility computation)
-
-Key behaviors:
-
-- Fetches Jobber clients in pages of 50.
-- Flattens `phones[]` + `emails[]` into `primaryPhone` / `primaryEmail`.
-- Reads Jobber throttle points (`extensions.cost.throttleStatus`) and waits when low.
-- Upserts into Postgres to avoid duplicates.
-- Strict opt-in allowlist (configurable):
-  - `SMS_OPT_IN_VALUES` (default `OPT_IN,OPTED_IN`)
-  - `EMAIL_OPT_IN_VALUES` (default `OPT_IN,OPTED_IN`)
-- Consent field discovery overrides (if needed):
-  - `JOBBER_SMS_CONSENT_FIELD` + `JOBBER_SMS_CONSENT_ON=client|phone`
-  - `JOBBER_EMAIL_CONSENT_FIELD` + `JOBBER_EMAIL_CONSENT_ON=client|email`
+- Jobber GraphQL list-field fix:
+  - [`/backend/services/marketingService.js`](./backend/services/marketingService.js)
+  - [`/backend/services/weatherService.js`](./backend/services/weatherService.js)
+- Safer Jobber client cache sync that preserves opt-outs and normalizes phone numbers:
+  - [`/backend/services/jobberClientSync.js`](./backend/services/jobberClientSync.js)
+- Better opt-out phone matching in the marketing routes and inbound SMS handling:
+  - [`/backend/routes/marketing.js`](./backend/routes/marketing.js)
+  - [`/backend/server.js`](./backend/server.js)
 
 ## Railway Notes
 
@@ -92,10 +65,6 @@ Recommended for safe testing:
 
 ## What To Do Next (Most Likely)
 
-- Add `/api/campaigns/*` routes + `campaigns.html` UI so you can:
-  - Sync Jobber → `clients`
-  - Create campaigns
-  - Bulk add by tag
-  - Toggle per-member channel override with eligibility enforcement
-- Ensure STOP/opt-out updates `clients.optedOut` too (not just `CachedJobberClient`).
-
+- Verify Railway env vars are set correctly for Jobber, Twilio, Gmail, and `DATABASE_URL`.
+- Confirm the existing `SMS Marketing` audience import and send flow works end-to-end on Railway.
+- If the removed Campaign Manager tables were already deployed to Railway Postgres, apply the rollback migration that drops them.
