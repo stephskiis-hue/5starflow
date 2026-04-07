@@ -21,8 +21,8 @@ const GET_ALL_CLIENTS = `
         id
         name
         firstName
-        emails(first: 2) { address primary }
-        phones(first: 3) { number primary smsAllowed }
+        emails { address primary }
+        phones { number primary smsAllowed }
         tags(first: 10) { nodes { label } }
       }
       pageInfo { hasNextPage endCursor }

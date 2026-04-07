@@ -18,6 +18,7 @@ const analyticsRouter   = require('./routes/analytics');
 const auditRouter       = require('./routes/websiteAudit');
 const leaderboardRouter = require('./routes/leaderboard');
 const marketingRouter   = require('./routes/marketing');
+const campaignsRouter   = require('./routes/campaigns');
 const { requireAuth } = require('./middleware/requireAuth');
 const { startTokenRefreshScheduler }      = require('./services/tokenManager');
 const { startDeliveryQueue }              = require('./services/deliveryQueue');
@@ -177,10 +178,20 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
     }
     const userId = cred.userId;
 
-    // Try to match a cached client by phone
-    const cachedClient = await prisma.cachedJobberClient.findFirst({
+    const last10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
+    const from10 = last10(normalizedFrom);
+
+    // Try to match a cached client by phone (exact E.164 first, then last-10 digits fallback)
+    let cachedClient = await prisma.cachedJobberClient.findFirst({
       where: { userId, phone: normalizedFrom },
     });
+    if (!cachedClient && from10) {
+      const candidates = await prisma.cachedJobberClient.findMany({
+        where: { userId, phone: { not: null } },
+        select: { id: true, name: true, firstName: true, phone: true, jobberClientId: true, optedOut: true },
+      });
+      cachedClient = candidates.find((c) => last10(c.phone) === from10) || null;
+    }
 
     // Find the most recent campaign message sent to this number
     const recentMessage = await prisma.marketingMessage.findFirst({
@@ -195,12 +206,60 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
     const STOP_WORDS = ['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'];
     const isOptOut = STOP_WORDS.includes(bodyUpper);
 
-    if (isOptOut && cachedClient) {
-      await prisma.cachedJobberClient.updateMany({
+    if (isOptOut) {
+      const now = new Date();
+
+      // 1) Persist SMS opt-out in CachedJobberClient (used by SMS Marketing system)
+      let updatedCount = 0;
+      const exact = await prisma.cachedJobberClient.updateMany({
         where: { userId, phone: normalizedFrom },
-        data:  { optedOut: true, optedOutAt: new Date() },
+        data:  { optedOut: true, optedOutAt: now },
       });
-      console.log(`[inbound-sms] Opt-out received from ${normalizedFrom} (${cachedClient.name || 'unknown'})`);
+      updatedCount += exact.count || 0;
+
+      if (updatedCount === 0 && from10) {
+        const candidates = await prisma.cachedJobberClient.findMany({
+          where: { userId, phone: { not: null } },
+          select: { id: true, phone: true },
+        });
+        const matchIds = candidates
+          .filter((c) => last10(c.phone) === from10)
+          .map((c) => c.id);
+
+        if (matchIds.length > 0) {
+          const fallback = await prisma.cachedJobberClient.updateMany({
+            where: { userId, id: { in: matchIds } },
+            data:  { optedOut: true, optedOutAt: now },
+          });
+          updatedCount += fallback.count || 0;
+        }
+      }
+
+      // 2) Persist SMS opt-out in CampaignClient (new Campaign Manager system)
+      // Prefer linking by jobberClientId when we have it, otherwise fall back to phone matching.
+      if (cachedClient?.jobberClientId) {
+        await prisma.campaignClient.updateMany({
+          where: { userId, jobberClientId: cachedClient.jobberClientId },
+          data:  { optedOut: true, optedOutAt: now },
+        }).catch(() => {});
+      } else if (from10) {
+        const campaignCandidates = await prisma.campaignClient.findMany({
+          where: { userId, primaryPhone: { not: null } },
+          select: { id: true, primaryPhone: true },
+        }).catch(() => []);
+        const matchIds = campaignCandidates
+          .filter((c) => last10(c.primaryPhone) === from10)
+          .map((c) => c.id);
+        if (matchIds.length > 0) {
+          await prisma.campaignClient.updateMany({
+            where: { userId, id: { in: matchIds } },
+            data:  { optedOut: true, optedOutAt: now },
+          }).catch(() => {});
+        }
+      }
+
+      const label = cachedClient?.name || 'unknown';
+      console.log(`[inbound-sms] Opt-out received from ${normalizedFrom} (${label}) — updated cached clients: ${updatedCount}`);
     }
 
     // Parse Y/N booking response
@@ -320,6 +379,7 @@ app.use('/api/analytics', analyticsRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/leaderboard', leaderboardRouter);
 app.use('/api/marketing', marketingRouter);
+app.use('/api/campaigns', campaignsRouter);
 
 // ---------------------------------------------------------------------------
 // Error handler

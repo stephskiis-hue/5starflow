@@ -16,6 +16,7 @@
 const cron  = require('node-cron');
 const prisma = require('../lib/prismaClient');
 const { fetchAllJobberClients } = require('./marketingService');
+const { toE164 } = require('./smsService');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -45,22 +46,50 @@ async function syncAccountClients(account) {
 
   const clients = await fetchAllJobberClients(userId);
 
-  // Full replace: delete stale rows then bulk-insert fresh data.
-  // This ensures clients removed from Jobber disappear from the cache.
-  await prisma.cachedJobberClient.deleteMany({ where: { userId } });
+  // Preserve opt-out state across syncs (critical for compliance).
+  const existing = await prisma.cachedJobberClient.findMany({
+    where: { userId },
+    select: { jobberClientId: true, optedOut: true, optedOutAt: true },
+  }).catch(() => []);
+  const optOutMap = new Map(existing.map((r) => [r.jobberClientId, { optedOut: r.optedOut === true, optedOutAt: r.optedOutAt || null }]));
 
-  if (clients.length > 0) {
-    await prisma.cachedJobberClient.createMany({
-      data: clients.map((c) => ({
-        userId,
-        jobberClientId: c.id,
-        name:           c.name,
-        firstName:      c.firstName,
-        phone:          c.phone   || null,
-        smsAllowed:     Boolean(c.smsAllowed),
-        tags:           JSON.stringify(c.tags || []),
-        syncedAt:       new Date(),
-      })),
+  const ids = clients.map((c) => c.id).filter(Boolean);
+
+  // Upsert all current clients
+  const upserts = clients.map((c) => {
+    const prev = optOutMap.get(c.id) || { optedOut: false, optedOutAt: null };
+    const normalizedPhone = c.phone ? toE164(c.phone) : null;
+
+    const data = {
+      userId,
+      jobberClientId: c.id,
+      name:           c.name,
+      firstName:      c.firstName,
+      phone:          normalizedPhone,
+      smsAllowed:     Boolean(c.smsAllowed),
+      tags:           JSON.stringify(c.tags || []),
+      syncedAt:       new Date(),
+      optedOut:       prev.optedOut,
+      optedOutAt:     prev.optedOutAt,
+    };
+
+    return prisma.cachedJobberClient.upsert({
+      where:  { userId_jobberClientId: { userId, jobberClientId: c.id } },
+      create: data,
+      update: data,
+    });
+  });
+
+  const CONCURRENCY = parseInt(process.env.SYNC_UPSERT_CONCURRENCY, 10) || 15;
+  for (let i = 0; i < upserts.length; i += CONCURRENCY) {
+    // eslint-disable-next-line no-await-in-loop
+    await Promise.all(upserts.slice(i, i + CONCURRENCY));
+  }
+
+  // Delete stale clients that no longer exist in Jobber
+  if (ids.length > 0) {
+    await prisma.cachedJobberClient.deleteMany({
+      where: { userId, jobberClientId: { notIn: ids } },
     });
   }
 

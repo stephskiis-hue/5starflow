@@ -42,7 +42,7 @@ const GET_ALL_CLIENTS = `
         id
         name
         firstName
-        phones(first: 3) { number primary smsAllowed }
+        phones { number primary smsAllowed }
         tags(first: 10) { nodes { label } }
       }
       pageInfo { hasNextPage endCursor }

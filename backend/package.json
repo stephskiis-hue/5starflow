@@ -8,7 +8,17 @@
     "dev": "nodemon server.js",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "railway:login": "railway login --browserless",
+    "railway:whoami": "railway whoami",
+    "railway:link": "railway link",
+    "railway:status": "railway status",
+    "railway:service:status": "railway service status",
+    "railway:logs": "railway logs",
+    "railway:logs:latest": "railway logs --latest -n 200",
+    "railway:http-logs": "railway logs --http --latest -n 200",
+    "railway:deploy": "railway up",
+    "railway:deploy:ci": "railway up --ci"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.79.0",
@@ -28,6 +38,7 @@
     "twilio": "^5.3.0"
   },
   "devDependencies": {
+    "@railway/cli": "^4.36.1",
     "nodemon": "^3.1.0",
     "prisma": "^5.22.0"
   }

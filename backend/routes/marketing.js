@@ -357,11 +357,12 @@ router.post('/campaigns/send', async (req, res) => {
       where:  { userId, optedOut: true },
       select: { phone: true },
     });
-    const optedOutPhones = new Set(optedOutRecords.map((r) => r.phone).filter(Boolean));
+    const last10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
+    const optedOutPhones = new Set(optedOutRecords.map((r) => last10(r.phone)).filter(Boolean));
 
     // Build message rows — mark skipped upfront for opted-out, no phone, or smsAllowed=false
     const messageRows = audience.contacts.map((c) => {
-      const isOptedOut = c.phone && optedOutPhones.has(c.phone);
+      const isOptedOut = c.phone && optedOutPhones.has(last10(c.phone));
       const canSend    = c.phone && c.smsAllowed && !isOptedOut;
       return {
         jobberClientId: c.jobberClientId,
