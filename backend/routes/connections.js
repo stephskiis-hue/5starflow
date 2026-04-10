@@ -132,7 +132,18 @@ router.get('/status', async (req, res) => {
       hasApiKey:  !!process.env.GOOGLE_API_KEY,
     };
 
-    res.json({ jobber, gmail, twilio, openweather, google, skyvern, pagespeed });
+    // ── Indeed ──────────────────────────────────────────────────────────────
+    const indeedSettings = await prisma.indeedSettings.findFirst({ where: { userId: req.user.userId } });
+    const indeedApplicantCount = await prisma.indeedApplicant.count({ where: { userId: req.user.userId } });
+    const indeedJobCount = await prisma.indeedJobPosting.count({ where: { userId: req.user.userId, isActive: true } });
+    const indeed = {
+      configured: !!(indeedSettings && (indeedSettings.webhookSecret || indeedSettings.notifyEmail)),
+      applicantCount: indeedApplicantCount,
+      jobCount: indeedJobCount,
+      webhookUrl: `${process.env.APP_URL || ''}/webhook/indeed`,
+    };
+
+    res.json({ jobber, gmail, twilio, openweather, google, skyvern, pagespeed, indeed });
   } catch (err) {
     console.error('[connections] /status error:', err.message);
     res.status(500).json({ error: err.message });

@@ -488,3 +488,79 @@ model InboundSMS {
   @@index([userId])
   @@index([from])
 }
+
+// ---------------------------------------------------------------------------
+// Indeed Manager — job applicant tracking
+// ---------------------------------------------------------------------------
+
+// Each job listing the user has posted on Indeed.
+model IndeedJobPosting {
+  id        String   @id @default(cuid())
+  userId    String?
+  title     String
+  location  String   @default("")
+  jobType   String   @default("full-time") // full-time | part-time | contract | seasonal
+  indeedUrl String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// One row per candidate application.
+model IndeedApplicant {
+  id                String   @id @default(cuid())
+  userId            String?
+  jobPostingId      String
+  name              String
+  email             String?
+  phone             String?
+  resumeUrl         String?
+  experienceYears   Float?
+  experienceSummary String?
+  source            String   @default("manual") // manual | csv | webhook | email
+  status            String   @default("new")    // new | reviewed | shortlisted | rejected | hired
+  appliedAt         DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([email, jobPostingId])
+  @@index([userId])
+  @@index([jobPostingId])
+  @@index([status])
+}
+
+// Timestamped notes/comments on applicants.
+model IndeedNote {
+  id          String   @id @default(cuid())
+  userId      String?
+  applicantId String
+  content     String
+  createdAt   DateTime @default(now())
+
+  @@index([applicantId])
+  @@index([userId])
+}
+
+// Per-user Indeed integration settings.
+model IndeedSettings {
+  id                String   @id @default(cuid())
+  userId            String?  @unique
+  webhookSecret     String?
+  indeedEmployerUrl String?
+  notifyEmail       String?  // email address that receives Indeed notifications
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Tracks which Indeed notification emails have already been processed (dedup).
+model IndeedEmailLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  messageId String   @unique // Gmail message ID — idempotency key
+  parsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}

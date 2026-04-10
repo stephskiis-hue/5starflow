@@ -96,4 +96,48 @@ router.post(
   }
 );
 
+/**
+ * POST /webhook/indeed
+ *
+ * Indeed Apply webhook — receives applicant data when someone applies.
+ * Validates signature if webhookSecret is configured, otherwise accepts all.
+ * Responds 200 immediately, processes async.
+ */
+router.post(
+  '/indeed',
+  express.json(),
+  async (req, res) => {
+    res.status(200).json({ received: true });
+
+    try {
+      const { processWebhookPayload } = require('../services/indeedService');
+
+      // Try to find a user with Indeed settings to scope the applicant
+      const settings = await prisma.indeedSettings.findFirst({
+        where: { webhookSecret: { not: null } },
+      });
+
+      // If a webhook secret is configured, verify signature
+      if (settings && settings.webhookSecret) {
+        const crypto = require('crypto');
+        const signature = req.headers['x-indeed-signature'] || req.headers['x-webhook-signature'] || '';
+        const body = JSON.stringify(req.body);
+        const expected = crypto.createHmac('sha256', settings.webhookSecret).update(body).digest('hex');
+        const sigBuf = Buffer.from(signature);
+        const expBuf = Buffer.from(expected);
+        if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+          console.warn('[webhook/indeed] Invalid signature — rejecting');
+          return;
+        }
+      }
+
+      const userId = settings?.userId || null;
+      await processWebhookPayload(req.body, userId);
+      console.log('[webhook/indeed] Applicant processed successfully');
+    } catch (err) {
+      console.error('[webhook/indeed] Processing error:', err.message);
+    }
+  }
+);
+
 module.exports = router;
