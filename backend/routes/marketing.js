@@ -526,6 +526,7 @@ router.get('/conversations', async (req, res) => {
 
       return {
         phone,
+        firstName:      client?.firstName      || null,
         clientName:     client?.name           || null,
         jobberClientId: client?.jobberClientId || null,
         optedOut:       client?.optedOut       || false,
@@ -595,6 +596,7 @@ router.get('/conversations/:phone', async (req, res) => {
 
     res.json({
       phone,
+      firstName:      client?.firstName      || null,
       clientName:     client?.name           || null,
       jobberClientId: client?.jobberClientId || null,
       optedOut:       client?.optedOut       || false,

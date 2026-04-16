@@ -1106,7 +1106,8 @@
       const matched     = !!c.clientName;
       const displayName = c.clientName || c.phone;
       const initial     = displayName.charAt(0).toUpperCase();
-      const preview     = (c.lastMessage || '').slice(0, 55);
+      const firstName   = c.firstName || c.clientName?.split(' ')[0] || '';
+      const preview     = (c.lastMessage || '').replace(/\{firstName\}/gi, firstName).slice(0, 55);
       const timeStr     = c.lastMessageAt ? timeAgo(c.lastMessageAt) : '';
       const hasUnread   = c.unreadCount > 0;
       const phoneStr    = matched ? c.phone : '';
@@ -1212,8 +1213,9 @@
   }
 
   function renderThread(data) {
-    const el   = document.getElementById('thread-messages');
-    const msgs = data.messages || [];
+    const el        = document.getElementById('thread-messages');
+    const msgs      = data.messages || [];
+    const firstName = data.firstName || data.clientName?.split(' ')[0] || '';
 
     if (msgs.length === 0) {
       el.innerHTML = '<div class="text-center pt-12 opacity-50"><p class="text-xs text-zinc-600">No messages yet — send one below</p></div>';
@@ -1259,7 +1261,7 @@
       if (isOut) {
         out += `<div class="flex justify-end mb-1">
           <div class="max-w-[72%] px-4 py-2.5 rounded-2xl rounded-tr-sm bg-primary/20 border border-primary/15">
-            <p class="text-sm text-zinc-100 whitespace-pre-wrap break-words">${esc(m.body)}</p>
+            <p class="text-sm text-zinc-100 whitespace-pre-wrap break-words">${esc(m.body.replace(/\{firstName\}/gi, firstName))}</p>
             ${deliveryNote}
           </div>
         </div>`;
