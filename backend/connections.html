@@ -74,10 +74,6 @@
         <span class="material-symbols-outlined text-[20px]">campaign</span>
         <span class="text-sm font-medium tracking-tight">SMS Marketing</span>
       </a>
-      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/indeed-manager.html">
-        <span class="material-symbols-outlined text-[20px]">work</span>
-        <span class="text-sm font-medium tracking-tight">Indeed Manager</span>
-      </a>
       <a class="flex items-center gap-3 px-4 py-3 text-zinc-100 rounded-xl relative before:absolute before:left-0 before:w-1 before:h-6 before:bg-secondary before:rounded-full hover:bg-white/5 transition-all duration-200" href="/connections.html">
         <span class="material-symbols-outlined text-[20px]">hub</span>
         <span class="text-sm font-medium tracking-tight">App Connections</span>
@@ -303,7 +299,6 @@
       renderOpenWeatherCard(data.openweather || {}),
       renderPageSpeedCard(data.pagespeed || {}),
       renderGoogleCard(data.google || {}),
-      renderIndeedCard(data.indeed || {}),
       renderSkyvernCard(data.skyvern || {}),
     ].join('');
   }
@@ -761,45 +756,6 @@
       result.textContent = err.message;
       result.style.color = '#f87171';
     }
-
-  function renderIndeedCard(ind) {
-    const ok = ind && ind.configured;
-    const count = ind ? ind.applicantCount || 0 : 0;
-    const jobCount = ind ? ind.jobCount || 0 : 0;
-    const webhookUrl = ind ? ind.webhookUrl || '—' : '—';
-    return `
-    <div class="glass-card rounded-xl p-6">
-      <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center mb-4">
-        <span class="material-symbols-outlined text-lg" style="color:#2557a7;">work</span>
-      </div>
-      <div class="flex items-start justify-between mb-4">
-        <div>
-          <h3 class="text-sm font-semibold text-zinc-100">Indeed</h3>
-          <p class="text-xs text-on-surface-variant mt-0.5">Job applicant tracking</p>
-        </div>
-        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium ${ok ? 'bg-secondary/10 text-secondary border border-secondary/20' : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'}">
-          ${ok ? 'Configured' : 'Not Set Up'}
-        </span>
-      </div>
-      <div class="text-xs text-on-surface-variant mb-4">
-        <span class="font-semibold">Required for:</span> Indeed Manager
-      </div>
-      <div class="space-y-2 mb-4">
-        <div class="flex items-center justify-between text-xs">
-          <span class="text-on-surface-variant">Applicants</span>
-          <span class="text-zinc-300">${count}</span>
-        </div>
-        <div class="flex items-center justify-between text-xs">
-          <span class="text-on-surface-variant">Active Jobs</span>
-          <span class="text-zinc-300">${jobCount}</span>
-        </div>
-        <div class="flex items-center justify-between text-xs">
-          <span class="text-on-surface-variant">Webhook URL</span>
-          <span class="text-zinc-300 font-mono text-[10px] break-all">${webhookUrl}</span>
-        </div>
-      </div>
-      <a href="/indeed-manager.html" class="w-full py-2 rounded-xl text-xs font-medium text-center bg-white/5 text-zinc-300 hover:bg-white/10 transition-colors block">Open Manager</a>
-    </div>`;
   }
 
   function renderSkyvernCard(s) {
