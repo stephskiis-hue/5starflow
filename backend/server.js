@@ -18,7 +18,6 @@ const analyticsRouter   = require('./routes/analytics');
 const auditRouter       = require('./routes/websiteAudit');
 const leaderboardRouter = require('./routes/leaderboard');
 const marketingRouter   = require('./routes/marketing');
-const indeedRouter      = require('./routes/indeed');
 const { requireAuth } = require('./middleware/requireAuth');
 const { startTokenRefreshScheduler }      = require('./services/tokenManager');
 const { startDeliveryQueue }              = require('./services/deliveryQueue');
@@ -356,7 +355,6 @@ app.use('/api/analytics', analyticsRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/leaderboard', leaderboardRouter);
 app.use('/api/marketing', marketingRouter);
-app.use('/api/indeed', indeedRouter);
 
 // ---------------------------------------------------------------------------
 // Error handler
@@ -385,7 +383,6 @@ app.listen(PORT, () => {
   console.log(`  Web Audit   : http://localhost:${PORT}/website-audit.html`);
   console.log(`  Marketing  : http://localhost:${PORT}/marketing.html`);
   console.log(`  Users       : http://localhost:${PORT}/admin.html`);
-  console.log(`  Indeed      : http://localhost:${PORT}/indeed-manager.html`);
   console.log(`  Health      : http://localhost:${PORT}/health`);
   console.log('==============================================');
   console.log('');
