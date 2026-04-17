@@ -18,6 +18,7 @@ const analyticsRouter   = require('./routes/analytics');
 const auditRouter       = require('./routes/websiteAudit');
 const leaderboardRouter = require('./routes/leaderboard');
 const marketingRouter   = require('./routes/marketing');
+const operatorRouter    = require('./routes/operator');
 const { requireAuth } = require('./middleware/requireAuth');
 const { startTokenRefreshScheduler }      = require('./services/tokenManager');
 const { startDeliveryQueue }              = require('./services/deliveryQueue');
@@ -25,6 +26,58 @@ const { startInvoicePoller }              = require('./services/invoicePoller');
 const { startWeatherScheduler }           = require('./services/weatherService');
 const { startSeoScheduler }               = require('./services/seoService');
 const { startJobberClientSyncScheduler }  = require('./services/jobberClientSync');
+const { startRetryWorker, resumeAllPending } = require('./services/marketingService');
+const { startOperatorProposalExpiry, isFromApprover, handleInboundFromSteph } = require('./services/operatorService');
+const logger = require('./lib/logger');
+
+// ---------------------------------------------------------------------------
+// Env validation — fail fast if critical config is missing. Twilio + DB are
+// required for SMS to work; Jobber is required for review-request flow.
+// ---------------------------------------------------------------------------
+function validateEnv() {
+  const required = ['DATABASE_URL', 'SESSION_SECRET'];
+  const missing = required.filter((k) => !process.env[k]);
+  if (missing.length > 0) {
+    console.error(`[startup] Missing required env vars: ${missing.join(', ')}`);
+    process.exit(1);
+  }
+
+  const warn = [];
+  if (!process.env.TWILIO_ACCOUNT_SID && !process.env.TWILIO_AUTH_TOKEN) {
+    warn.push('TWILIO_ACCOUNT_SID/AUTH_TOKEN (SMS will fail until per-user creds are set)');
+  }
+  if (!process.env.JOBBER_CLIENT_ID || !process.env.JOBBER_CLIENT_SECRET) {
+    warn.push('JOBBER_CLIENT_ID/JOBBER_CLIENT_SECRET (Jobber OAuth disabled)');
+  }
+  if (!process.env.APP_URL) {
+    warn.push('APP_URL (Twilio delivery callbacks disabled)');
+  }
+  warn.forEach((w) => console.warn(`[startup] WARN — missing ${w}`));
+}
+
+// ---------------------------------------------------------------------------
+// Process-level safety net — log + keep process alive so in-flight SMS dispatch
+// never gets killed by a background promise rejection.
+// ---------------------------------------------------------------------------
+process.on('unhandledRejection', (reason) => {
+  const msg = reason?.message || String(reason);
+  console.error('[process] unhandledRejection:', msg);
+  logger.error('server', 'Unhandled promise rejection', {
+    message: msg,
+    stack:   reason?.stack?.split('\n').slice(0, 10).join('\n'),
+  }).catch(() => {});
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[process] uncaughtException:', err.message);
+  // Record but don't exit — dispatch loop must survive transient blowups
+  logger.error('server', 'Uncaught exception', {
+    message: err.message,
+    stack:   err.stack?.split('\n').slice(0, 10).join('\n'),
+  }).catch(() => {});
+});
+
+validateEnv();
 
 const app = express();
 
@@ -86,6 +139,10 @@ app.use('/api/seo', seoRouter);
 // Gmail OAuth routes — callback must be public (Google redirects here without a session).
 // The /auth endpoint enforces its own requireAuth internally.
 app.use('/api/gmail', gmailRouter);
+
+// Operator API — Bearer OPERATOR_TOKEN auth, NOT session auth (hit by Claude /schedule cron).
+// Must be mounted BEFORE requireAuth so the scheduled runs don't get redirected to login.
+app.use('/api/operator', operatorRouter);
 
 // Portal login/logout/setup-user
 app.use('/auth', portalRouter);
@@ -268,6 +325,24 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
       (isResponse ? ` — response: ${response}` : '')
     );
 
+    // Operator branch — if this SMS is from Steph's approver phone, try to
+    // match it against an OperatorProposal (YES/NO <code>) or a slash command.
+    // Matching here means it's NOT a client reply, so we skip the rest.
+    let operatorHandled = false;
+    try {
+      const fromApprover = await isFromApprover({ userId, fromPhone: normalizedFrom });
+      if (fromApprover) {
+        const match = await handleInboundFromSteph({ userId, body: Body.trim() });
+        if (match.matched) {
+          operatorHandled = true;
+          console.log(`[inbound-sms] Operator match: type=${match.type} action=${match.action || match.command}`);
+        }
+      }
+    } catch (opErr) {
+      console.error('[inbound-sms] operator routing failed:', opErr.message);
+    }
+    if (operatorHandled) return;
+
     // Link reply back to the matching MarketingMessage record
     if (recentMessage && (isResponse || isOptOut)) {
       await prisma.marketingMessage.update({
@@ -393,4 +468,10 @@ app.listen(PORT, () => {
   startWeatherScheduler();
   startSeoScheduler();
   startJobberClientSyncScheduler();
+  startOperatorProposalExpiry();
+
+  // Bulletproof SMS workers — retry any transient-failed rows + resume anything left
+  // mid-flight when the server was last killed (Railway redeploy, crash, etc.).
+  startRetryWorker();
+  resumeAllPending().catch((err) => console.error('[startup] resumeAllPending failed:', err.message));
 });

@@ -216,6 +216,7 @@
         Inbox
         <span id="inbox-badge" class="hidden bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">0</span>
       </button>
+      <button onclick="switchTab('logs')" id="tab-btn-logs" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Logs</button>
     </div>
 
     <!-- ================================================================ -->
@@ -456,6 +457,46 @@
       </div>
     </section>
 
+    <!-- ================================================================ -->
+    <!-- TAB 6: Logs (AppLog viewer)                                      -->
+    <!-- ================================================================ -->
+    <section id="tab-logs" class="hidden">
+      <div class="glass-card rounded-xl p-5 mb-4">
+        <div class="flex flex-wrap items-end gap-3">
+          <div>
+            <label class="block text-[10px] text-on-surface-variant font-medium uppercase tracking-wider mb-1">Category</label>
+            <select id="log-filter-category" class="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-zinc-100">
+              <option value="">All</option>
+              <option value="sms">SMS</option>
+              <option value="campaign">Campaign</option>
+              <option value="email">Email</option>
+              <option value="webhook">Webhook</option>
+              <option value="jobber">Jobber</option>
+              <option value="server">Server</option>
+              <option value="weather">Weather</option>
+              <option value="seo">SEO</option>
+              <option value="auth">Auth</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[10px] text-on-surface-variant font-medium uppercase tracking-wider mb-1">Level</label>
+            <select id="log-filter-level" class="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-zinc-100">
+              <option value="">All</option>
+              <option value="info">Info</option>
+              <option value="warn">Warn</option>
+              <option value="error">Error</option>
+            </select>
+          </div>
+          <button id="log-refresh-btn" class="bg-primary/20 text-primary hover:bg-primary/30 rounded-lg px-4 py-2 text-sm font-semibold">Refresh</button>
+          <span id="log-count" class="text-xs text-on-surface-variant ml-auto"></span>
+        </div>
+      </div>
+
+      <div id="log-list" class="space-y-2">
+        <p class="text-sm text-on-surface-variant">Loading logs…</p>
+      </div>
+    </section>
+
   </main>
 
 <script>
@@ -479,7 +520,7 @@
   // Tabs
   // ========================================================================
   function switchTab(tab) {
-    const tabs = ['templates', 'audiences', 'send', 'history', 'inbox'];
+    const tabs = ['templates', 'audiences', 'send', 'history', 'inbox', 'logs'];
     tabs.forEach(t => {
       document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
       // Desktop tab bar
@@ -501,6 +542,7 @@
     if (tab === 'send')      loadSendTab();
     if (tab === 'history')   loadHistory();
     if (tab === 'inbox')     { loadConversations(); loadNotifyPhone(); }
+    if (tab === 'logs')      loadLogs();
   }
 
   // ========================================================================
@@ -1028,47 +1070,108 @@
 
     detail.innerHTML = '<p class="text-xs text-on-surface-variant">Loading...</p>';
     detail.classList.remove('hidden');
+    await renderCampaignDetail(id, detail);
+  }
 
+  async function renderCampaignDetail(id, detail) {
     try {
-      const res = await fetch(API + '/campaigns/' + id, { credentials: 'include' });
+      const res  = await fetch(API + '/campaigns/' + id, { credentials: 'include' });
       const data = await res.json();
       if (!res.ok) { detail.innerHTML = '<p class="text-xs text-error">Failed to load</p>'; return; }
 
-      const msgs = data.campaign?.messages || [];
-      if (msgs.length === 0) {
-        detail.innerHTML = '<p class="text-xs text-on-surface-variant">No messages in this campaign</p>';
-        return;
-      }
+      const msgs   = data.campaign?.messages || [];
+      const counts = data.counts || { pending:0, retrying:0, sent:0, failed:0, skipped:0, total: msgs.length };
 
       const statusColor = {
         sent: 'text-secondary', failed: 'text-red-400', skipped: 'text-zinc-500',
-        delivered: 'text-secondary', undelivered: 'text-red-400', pending: 'text-amber-400',
+        delivered: 'text-secondary', undelivered: 'text-red-400',
+        pending: 'text-amber-400', retrying: 'text-amber-400',
       };
 
-      detail.innerHTML = `
-        <div class="overflow-x-auto rounded-xl border border-white/10">
-          <table class="w-full text-xs">
-            <thead>
-              <tr class="text-left text-[10px] uppercase text-on-surface-variant tracking-wider border-b border-white/10">
-                <th class="px-3 py-2">Client</th>
-                <th class="px-3 py-2">Phone</th>
-                <th class="px-3 py-2">Status</th>
-                <th class="px-3 py-2">Error</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${msgs.map(m => `
-                <tr class="border-b border-white/5">
-                  <td class="px-3 py-2 text-zinc-200">${esc(m.clientName)}</td>
-                  <td class="px-3 py-2 text-zinc-400">${m.phone || '—'}</td>
-                  <td class="px-3 py-2 font-bold ${statusColor[m.status] || 'text-zinc-400'}">${m.status}</td>
-                  <td class="px-3 py-2 text-zinc-500">${m.error ? esc(m.error) : '—'}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
+      const canRetry  = counts.failed > 0;
+      const canResume = counts.pending > 0 || counts.retrying > 0;
+
+      const summary = `
+        <div class="flex flex-wrap gap-3 mb-4 text-xs">
+          <span class="px-3 py-1 rounded-full bg-secondary/10 text-secondary font-semibold">Sent ${counts.sent}</span>
+          <span class="px-3 py-1 rounded-full bg-red-500/10 text-red-400 font-semibold">Failed ${counts.failed}</span>
+          <span class="px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 font-semibold">Pending ${counts.pending}</span>
+          <span class="px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 font-semibold">Retrying ${counts.retrying}</span>
+          <span class="px-3 py-1 rounded-full bg-zinc-500/10 text-zinc-400 font-semibold">Skipped ${counts.skipped}</span>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-4">
+          ${canRetry  ? `<button type="button" data-retry-campaign="${id}" class="bg-red-500/15 text-red-300 hover:bg-red-500/25 rounded-lg px-3 py-1.5 text-xs font-semibold">Retry failed (${counts.failed})</button>` : ''}
+          ${canResume ? `<button type="button" data-resume-campaign="${id}" class="bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 rounded-lg px-3 py-1.5 text-xs font-semibold">Resume sending</button>` : ''}
         </div>
       `;
+
+      const rows = msgs.length === 0
+        ? '<p class="text-xs text-on-surface-variant">No messages in this campaign</p>'
+        : `
+          <div class="overflow-x-auto rounded-xl border border-white/10">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="text-left text-[10px] uppercase text-on-surface-variant tracking-wider border-b border-white/10">
+                  <th class="px-3 py-2">Client</th>
+                  <th class="px-3 py-2">Phone</th>
+                  <th class="px-3 py-2">Status</th>
+                  <th class="px-3 py-2">Attempts</th>
+                  <th class="px-3 py-2">Last Attempt</th>
+                  <th class="px-3 py-2">Error</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${msgs.map(m => `
+                  <tr class="border-b border-white/5">
+                    <td class="px-3 py-2 text-zinc-200">${esc(m.clientName || '')}</td>
+                    <td class="px-3 py-2 text-zinc-400">${m.phone || '—'}</td>
+                    <td class="px-3 py-2 font-bold ${statusColor[m.status] || 'text-zinc-400'}">${m.status}</td>
+                    <td class="px-3 py-2 text-zinc-400">${m.attempts ?? 0}</td>
+                    <td class="px-3 py-2 text-zinc-500">${m.lastAttemptAt ? new Date(m.lastAttemptAt).toLocaleString() : '—'}</td>
+                    <td class="px-3 py-2 text-zinc-500">${m.error ? esc(m.error) : '—'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+      detail.innerHTML = summary + rows;
+
+      // Wire up action buttons (delegate on detail)
+      detail.querySelectorAll('[data-retry-campaign]').forEach(btn => {
+        btn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          btn.disabled = true; btn.textContent = 'Queuing retry…';
+          try {
+            const r = await fetch(API + '/campaigns/' + id + '/retry-failed', { method: 'POST', credentials: 'include' });
+            const d = await r.json();
+            if (!r.ok) { alert(d.error || 'Retry failed'); return; }
+            alert(`Queued ${d.rowsReset} failed message(s) for retry. They will send again in the next minute.`);
+            await renderCampaignDetail(id, detail);
+          } catch (e) {
+            alert('Network error');
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+      detail.querySelectorAll('[data-resume-campaign]').forEach(btn => {
+        btn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          btn.disabled = true; btn.textContent = 'Resuming…';
+          try {
+            const r = await fetch(API + '/campaigns/' + id + '/resume', { method: 'POST', credentials: 'include' });
+            if (!r.ok) { const d = await r.json(); alert(d.error || 'Resume failed'); return; }
+            alert('Campaign resumed — pending messages will continue to send.');
+            await renderCampaignDetail(id, detail);
+          } catch (e) {
+            alert('Network error');
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
     } catch {
       detail.innerHTML = '<p class="text-xs text-error">Network error</p>';
     }
@@ -1428,6 +1531,70 @@
     }
   } catch {}
 })();
+
+  // ========================================================================
+  // Logs tab — structured AppLog viewer
+  // ========================================================================
+  async function loadLogs() {
+    const listEl = document.getElementById('log-list');
+    const cnt    = document.getElementById('log-count');
+    const cat    = document.getElementById('log-filter-category').value;
+    const lvl    = document.getElementById('log-filter-level').value;
+    listEl.innerHTML = '<p class="text-sm text-on-surface-variant">Loading logs…</p>';
+    try {
+      const qs = new URLSearchParams();
+      if (cat) qs.set('category', cat);
+      if (lvl) qs.set('level', lvl);
+      qs.set('limit', '300');
+      const res = await fetch(API + '/logs?' + qs.toString(), { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) { listEl.innerHTML = '<p class="text-sm text-error">Failed to load logs</p>'; return; }
+      const logs = data.logs || [];
+      cnt.textContent = logs.length + ' entries';
+
+      if (logs.length === 0) {
+        listEl.innerHTML = '<p class="text-sm text-on-surface-variant">No log entries match these filters.</p>';
+        return;
+      }
+
+      const levelColor = { info: 'text-zinc-300', warn: 'text-amber-400', error: 'text-red-400' };
+      const catBadge   = {
+        sms: 'bg-primary/20 text-primary',
+        campaign: 'bg-secondary/20 text-secondary',
+        webhook: 'bg-amber-500/20 text-amber-300',
+        jobber: 'bg-blue-500/20 text-blue-300',
+        server: 'bg-red-500/20 text-red-300',
+      };
+
+      listEl.innerHTML = logs.map(l => {
+        const ctxStr = l.context ? JSON.stringify(l.context) : '';
+        const ctxShort = ctxStr.length > 300 ? ctxStr.slice(0, 300) + '…' : ctxStr;
+        const badge = catBadge[l.category] || 'bg-white/10 text-zinc-300';
+        return `
+          <div class="glass-card rounded-xl p-3 flex gap-3 items-start">
+            <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider ${badge}">${esc(l.category)}</span>
+            <span class="text-[10px] font-bold uppercase ${levelColor[l.level] || 'text-zinc-400'} pt-0.5">${esc(l.level)}</span>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm text-zinc-200">${esc(l.message)}</div>
+              ${ctxShort ? `<pre class="text-[10px] text-zinc-500 mt-1 whitespace-pre-wrap break-words">${esc(ctxShort)}</pre>` : ''}
+              <div class="text-[10px] text-zinc-600 mt-1">${new Date(l.createdAt).toLocaleString()}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (e) {
+      listEl.innerHTML = '<p class="text-sm text-error">Network error</p>';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const refreshBtn = document.getElementById('log-refresh-btn');
+    if (refreshBtn) refreshBtn.addEventListener('click', loadLogs);
+    const cat = document.getElementById('log-filter-category');
+    const lvl = document.getElementById('log-filter-level');
+    if (cat) cat.addEventListener('change', loadLogs);
+    if (lvl) lvl.addEventListener('change', loadLogs);
+  });
 </script>
 
 <script>

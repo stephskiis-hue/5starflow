@@ -1,8 +1,9 @@
 const express = require('express');
 const router  = express.Router();
 const prisma  = require('../lib/prismaClient');
-const { dispatchCampaign, MAX_RECIPIENTS } = require('../services/marketingService');
+const { dispatchCampaign, resetFailedForRetry, MAX_RECIPIENTS } = require('../services/marketingService');
 const { toE164 } = require('../services/smsService');
+const logger = require('../lib/logger');
 
 // ---------------------------------------------------------------------------
 // Templates CRUD
@@ -307,7 +308,7 @@ router.get('/campaigns', async (req, res) => {
   }
 });
 
-// GET /api/marketing/campaigns/:id
+// GET /api/marketing/campaigns/:id — campaign + per-row messages + status counts
 router.get('/campaigns/:id', async (req, res) => {
   try {
     const campaign = await prisma.marketingCampaign.findFirst({
@@ -315,7 +316,24 @@ router.get('/campaigns/:id', async (req, res) => {
       include: { messages: { orderBy: { createdAt: 'asc' } } },
     });
     if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
-    res.json({ campaign });
+
+    // Roll up actual row counts — authoritative, always accurate even mid-retry
+    const grouped = await prisma.marketingMessage.groupBy({
+      by: ['status'],
+      where: { campaignId: campaign.id },
+      _count: { _all: true },
+    });
+    const c = Object.fromEntries(grouped.map((g) => [g.status, g._count._all]));
+    const counts = {
+      pending:  c.pending  || 0,
+      retrying: c.retrying || 0,
+      sent:     c.sent     || 0,
+      failed:   c.failed   || 0,
+      skipped:  c.skipped  || 0,
+    };
+    counts.total = counts.pending + counts.retrying + counts.sent + counts.failed + counts.skipped;
+
+    res.json({ campaign, counts });
   } catch (err) {
     console.error('[marketing] GET /campaigns/:id error:', err.message);
     res.status(500).json({ error: 'Failed to load campaign' });
@@ -360,15 +378,20 @@ router.post('/campaigns/send', async (req, res) => {
     const last10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
     const optedOutPhones = new Set(optedOutRecords.map((r) => last10(r.phone)).filter(Boolean));
 
-    // Build message rows — mark skipped upfront for opted-out, no phone, or smsAllowed=false
+    // Build message rows — mark skipped upfront for opted-out, no phone, or smsAllowed=false.
+    // Pre-resolve body per row so post-start template edits can't affect in-flight sends,
+    // and so the retry worker has everything it needs without re-reading the campaign.
     const messageRows = audience.contacts.map((c) => {
       const isOptedOut = c.phone && optedOutPhones.has(last10(c.phone));
       const canSend    = c.phone && c.smsAllowed && !isOptedOut;
+      const resolvedBody = (template.body || '').replace(/\{firstName\}/gi, c.firstName || 'there');
       return {
+        userId,                               // denormalized for cron retry worker
         jobberClientId: c.jobberClientId,
         clientName:     c.clientName,
         firstName:      c.firstName,
         phone:          c.phone,
+        body:           resolvedBody,
         status:         canSend ? 'pending' : 'skipped',
         error:          canSend    ? null
                        : isOptedOut ? 'Opted out (STOP received)'
@@ -475,54 +498,73 @@ router.post('/inbox/:id/read', async (req, res) => {
 // Conversations (iMessage-style threads — merges InboundSMS + MarketingMessage)
 // ---------------------------------------------------------------------------
 
-// GET /api/marketing/conversations — list all threads (one per unique phone)
+// GET /api/marketing/conversations — list all threads (one per unique phone).
+// Batched: one query per table, then aggregate in memory. Avoids the
+// per-phone N+1 that made this endpoint slow once inbox grew past ~50 clients.
 router.get('/conversations', async (req, res) => {
   try {
     const userId = req.user.userId;
 
-    // Phones from inbound messages
-    const inboundRows = await prisma.inboundSMS.findMany({
-      where:    { userId },
-      select:   { from: true },
-      distinct: ['from'],
-    });
-
-    // Phones from outbound campaign messages
-    const outboundRows = await prisma.marketingMessage.findMany({
-      where:    { phone: { not: null }, campaign: { userId } },
-      select:   { phone: true },
-      distinct: ['phone'],
-    });
-
-    // Union of all unique phones
-    const phoneSet = new Set([
-      ...inboundRows.map(r => r.from),
-      ...outboundRows.map(r => r.phone).filter(Boolean),
+    // Pull everything we need in 4 queries total (not 4 per phone).
+    const [inboundAll, outboundAll, cachedClients] = await Promise.all([
+      prisma.inboundSMS.findMany({
+        where:  { userId },
+        select: { from: true, receivedAt: true, body: true, read: true },
+        orderBy: { receivedAt: 'desc' },
+      }),
+      prisma.marketingMessage.findMany({
+        where: {
+          phone:    { not: null },
+          status:   { notIn: ['skipped', 'pending'] },
+          campaign: { userId },
+        },
+        orderBy: { sentAt: 'desc' },
+        select: {
+          phone: true,
+          body:  true,
+          sentAt: true,
+          campaign: { select: { name: true, messageBody: true } },
+        },
+      }),
+      prisma.cachedJobberClient.findMany({
+        where: { userId },
+        select: { phone: true, firstName: true, name: true, jobberClientId: true, optedOut: true },
+      }),
     ]);
 
-    // Build thread summary for each phone
-    const threads = await Promise.all([...phoneSet].map(async (phone) => {
-      const lastInbound  = await prisma.inboundSMS.findFirst({
-        where:   { userId, from: phone },
-        orderBy: { receivedAt: 'desc' },
-      });
-      const lastOutbound = await prisma.marketingMessage.findFirst({
-        where:   { phone, status: { notIn: ['skipped', 'pending'] }, campaign: { userId } },
-        orderBy: { sentAt: 'desc' },
-        include: { campaign: { select: { name: true, messageBody: true } } },
-      });
+    // Index by phone
+    const lastInboundByPhone  = new Map();
+    const unreadByPhone       = new Map();
+    for (const row of inboundAll) {
+      if (!lastInboundByPhone.has(row.from)) lastInboundByPhone.set(row.from, row);
+      if (!row.read) unreadByPhone.set(row.from, (unreadByPhone.get(row.from) || 0) + 1);
+    }
+
+    const lastOutboundByPhone = new Map();
+    for (const row of outboundAll) {
+      if (!lastOutboundByPhone.has(row.phone)) lastOutboundByPhone.set(row.phone, row);
+    }
+
+    const clientByPhone = new Map();
+    for (const c of cachedClients) {
+      if (c.phone) clientByPhone.set(c.phone, c);
+    }
+
+    const phoneSet = new Set([...lastInboundByPhone.keys(), ...lastOutboundByPhone.keys()]);
+
+    const threads = [...phoneSet].map((phone) => {
+      const lastInbound  = lastInboundByPhone.get(phone);
+      const lastOutbound = lastOutboundByPhone.get(phone);
+      const client       = clientByPhone.get(phone);
 
       const inAt  = lastInbound  ? new Date(lastInbound.receivedAt).getTime()  : 0;
       const outAt = lastOutbound ? new Date(lastOutbound.sentAt || 0).getTime() : 0;
       const lastMessageAt  = inAt > outAt ? lastInbound.receivedAt  : (lastOutbound?.sentAt || null);
-      const lastMessage    = inAt > outAt ? lastInbound.body        : (lastOutbound?.campaign?.messageBody || '');
+      // Prefer per-row resolved body on outbound; fall back to raw template for legacy rows
+      const lastMessage    = inAt > outAt
+        ? lastInbound.body
+        : (lastOutbound?.body || lastOutbound?.campaign?.messageBody || '');
       const lastMessageDir = inAt > outAt ? 'inbound' : 'outbound';
-
-      const unreadCount = await prisma.inboundSMS.count({
-        where: { userId, from: phone, read: false },
-      });
-
-      const client = await prisma.cachedJobberClient.findFirst({ where: { userId, phone } });
 
       return {
         phone,
@@ -533,9 +575,9 @@ router.get('/conversations', async (req, res) => {
         lastMessage:    (lastMessage || '').slice(0, 80),
         lastMessageAt,
         lastMessageDir,
-        unreadCount,
+        unreadCount:    unreadByPhone.get(phone) || 0,
       };
-    }));
+    });
 
     threads.sort((a, b) => {
       if (!a.lastMessageAt) return 1;
@@ -696,6 +738,119 @@ router.post('/conversations/:phone/read', async (req, res) => {
   } catch (err) {
     console.error('[marketing] POST /conversations/:phone/read error:', err.message);
     res.status(500).json({ error: 'Failed to mark read' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Campaign delivery log + retry — powers the per-recipient status UI
+// ---------------------------------------------------------------------------
+
+// GET /api/marketing/campaigns/:id/messages?status=failed&limit=100&offset=0
+router.get('/campaigns/:id/messages', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const campaign = await prisma.marketingCampaign.findFirst({
+      where: { id: req.params.id, userId },
+      select: { id: true },
+    });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+
+    const status = req.query.status; // optional filter
+    const limit  = Math.min(parseInt(req.query.limit, 10)  || 100, 500);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+
+    const where = { campaignId: campaign.id };
+    if (status) where.status = status;
+
+    const [messages, total] = await Promise.all([
+      prisma.marketingMessage.findMany({
+        where,
+        orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
+        take:    limit,
+        skip:    offset,
+        select: {
+          id: true, phone: true, clientName: true, firstName: true,
+          status: true, attempts: true, messageSid: true,
+          error: true, sentAt: true, lastAttemptAt: true, nextRetryAt: true,
+          replyBody: true, replyReceivedAt: true, createdAt: true,
+        },
+      }),
+      prisma.marketingMessage.count({ where }),
+    ]);
+
+    res.json({ messages, total, limit, offset });
+  } catch (err) {
+    console.error('[marketing] GET /campaigns/:id/messages error:', err.message);
+    res.status(500).json({ error: 'Failed to load messages' });
+  }
+});
+
+// POST /api/marketing/campaigns/:id/retry-failed — reset failed rows to retrying
+router.post('/campaigns/:id/retry-failed', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const campaign = await prisma.marketingCampaign.findFirst({
+      where: { id: req.params.id, userId },
+      select: { id: true },
+    });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+
+    const rowsReset = await resetFailedForRetry(campaign.id, userId);
+    res.json({ ok: true, rowsReset });
+  } catch (err) {
+    console.error('[marketing] POST /campaigns/:id/retry-failed error:', err.message);
+    res.status(500).json({ error: 'Failed to queue retry' });
+  }
+});
+
+// POST /api/marketing/campaigns/:id/resume — manually kick dispatch for a campaign
+router.post('/campaigns/:id/resume', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const campaign = await prisma.marketingCampaign.findFirst({
+      where: { id: req.params.id, userId },
+      select: { id: true },
+    });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+
+    dispatchCampaign(campaign.id, userId).catch((err) => {
+      console.error(`[marketing] resume dispatch error: ${err.message}`);
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[marketing] POST /campaigns/:id/resume error:', err.message);
+    res.status(500).json({ error: 'Failed to resume campaign' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// AppLog viewer — app-wide structured logs (sms / campaign / webhook / etc.)
+// ---------------------------------------------------------------------------
+
+// GET /api/marketing/logs?category=sms&level=error&limit=200
+router.get('/logs', async (req, res) => {
+  try {
+    const userId   = req.user.userId;
+    const category = req.query.category || null;
+    const level    = req.query.level    || null;
+    const limit    = Math.min(parseInt(req.query.limit, 10) || 200, 1000);
+
+    const where = {
+      OR: [{ userId }, { userId: null }], // include system-level rows that have no userId
+    };
+    if (category) where.category = category;
+    if (level)    where.level    = level;
+
+    const logs = await prisma.appLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take:    limit,
+      select: { id: true, userId: true, category: true, level: true, message: true, context: true, createdAt: true },
+    });
+    res.json({ logs });
+  } catch (err) {
+    console.error('[marketing] GET /logs error:', err.message);
+    res.status(500).json({ error: 'Failed to load logs' });
   }
 });
 
