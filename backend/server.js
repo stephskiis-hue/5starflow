@@ -295,6 +295,8 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
       console.log(`[inbound-sms] Opt-out received from ${normalizedFrom} (${label}) — updated cached clients: ${updatedCount}`);
 
       // Send confirmation SMS back to client
+      // Note: Twilio auto-replies to STOP and opts the number out immediately,
+      // so error 21610 (unsubscribed recipient) is expected and not an error.
       try {
         const twilioClient = twilio(cred.accountSid, cred.authToken);
         await twilioClient.messages.create({
@@ -304,7 +306,11 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
         });
         console.log(`[inbound-sms] Opt-out confirmation sent to ${normalizedFrom}`);
       } catch (smsErr) {
-        console.error(`[inbound-sms] Failed to send opt-out confirmation to ${normalizedFrom}:`, smsErr.message);
+        if (smsErr.code === 21610) {
+          console.log(`[inbound-sms] Opt-out confirmation skipped for ${normalizedFrom} — Twilio already sent auto-reply`);
+        } else {
+          console.error(`[inbound-sms] Failed to send opt-out confirmation to ${normalizedFrom}:`, smsErr.message);
+        }
       }
 
       // Tag the client in Jobber with "no-Texts"
@@ -319,7 +325,7 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
           }
         `;
         try {
-          const tagResult = await jobberGraphQL(NO_TEXTS_TAG, { clientId: cachedClient.jobberClientId, label: 'no-Texts' }, userId);
+          const tagResult = await jobberGraphQL(NO_TEXTS_TAG, { clientId: cachedClient.jobberClientId, label: 'no-Texts' }, null);
           const tagErrors = tagResult?.clientTagCreate?.errors;
           if (tagErrors?.length) {
             console.error(`[inbound-sms] Jobber tag errors for ${normalizedFrom}:`, tagErrors.map(e => e.message).join('; '));
