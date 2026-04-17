@@ -293,6 +293,43 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
 
       const label = cachedClient?.name || 'unknown';
       console.log(`[inbound-sms] Opt-out received from ${normalizedFrom} (${label}) — updated cached clients: ${updatedCount}`);
+
+      // Send confirmation SMS back to client
+      try {
+        const twilioClient = twilio(cred.accountSid, cred.authToken);
+        await twilioClient.messages.create({
+          to:   normalizedFrom,
+          from: cred.fromNumber,
+          body: "You've been removed from our automated messaging list. You won't receive any more texts from us.",
+        });
+        console.log(`[inbound-sms] Opt-out confirmation sent to ${normalizedFrom}`);
+      } catch (smsErr) {
+        console.error(`[inbound-sms] Failed to send opt-out confirmation to ${normalizedFrom}:`, smsErr.message);
+      }
+
+      // Tag the client in Jobber with "no-Texts"
+      if (cachedClient?.jobberClientId) {
+        const { jobberGraphQL } = require('./services/jobberClient');
+        const NO_TEXTS_TAG = `
+          mutation AddClientTag($clientId: EncodedId!, $label: String!) {
+            clientTagCreate(clientId: $clientId, label: $label) {
+              tag { id label }
+              errors { message path }
+            }
+          }
+        `;
+        try {
+          const tagResult = await jobberGraphQL(NO_TEXTS_TAG, { clientId: cachedClient.jobberClientId, label: 'no-Texts' }, userId);
+          const tagErrors = tagResult?.clientTagCreate?.errors;
+          if (tagErrors?.length) {
+            console.error(`[inbound-sms] Jobber tag errors for ${normalizedFrom}:`, tagErrors.map(e => e.message).join('; '));
+          } else {
+            console.log(`[inbound-sms] Jobber "no-Texts" tag applied to client ${cachedClient.jobberClientId}`);
+          }
+        } catch (tagErr) {
+          console.error(`[inbound-sms] Failed to apply Jobber tag for ${normalizedFrom}:`, tagErr.message);
+        }
+      }
     }
 
     // Parse Y/N booking response
