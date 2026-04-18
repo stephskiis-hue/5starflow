@@ -297,19 +297,23 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
       // Send confirmation SMS back to client
       // Note: Twilio auto-replies to STOP and opts the number out immediately,
       // so error 21610 (unsubscribed recipient) is expected and not an error.
-      try {
-        const twilioClient = twilio(cred.accountSid, cred.authToken);
-        await twilioClient.messages.create({
-          to:   normalizedFrom,
-          from: cred.fromNumber,
-          body: "You've been removed from our automated messaging list. You won't receive any more texts from us.",
-        });
-        console.log(`[inbound-sms] Opt-out confirmation sent to ${normalizedFrom}`);
-      } catch (smsErr) {
-        if (smsErr.code === 21610) {
-          console.log(`[inbound-sms] Opt-out confirmation skipped for ${normalizedFrom} — Twilio already sent auto-reply`);
-        } else {
-          console.error(`[inbound-sms] Failed to send opt-out confirmation to ${normalizedFrom}:`, smsErr.message);
+      if (process.env.DRY_RUN === 'true') {
+        console.log(`[inbound-sms] DRY RUN — would send opt-out confirmation to ${normalizedFrom}`);
+      } else {
+        try {
+          const twilioClient = twilio(cred.accountSid, cred.authToken);
+          await twilioClient.messages.create({
+            to:   normalizedFrom,
+            from: cred.fromNumber,
+            body: "You've been removed from our automated messaging list. You won't receive any more texts from us.",
+          });
+          console.log(`[inbound-sms] Opt-out confirmation sent to ${normalizedFrom}`);
+        } catch (smsErr) {
+          if (smsErr.code === 21610) {
+            console.log(`[inbound-sms] Opt-out confirmation skipped for ${normalizedFrom} — Twilio already sent auto-reply`);
+          } else {
+            console.error(`[inbound-sms] Failed to send opt-out confirmation to ${normalizedFrom}:`, smsErr.message);
+          }
         }
       }
 
