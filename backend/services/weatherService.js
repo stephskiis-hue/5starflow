@@ -153,10 +153,14 @@ async function fetchWeekVisits(userId, startDate, endDate) {
  */
 async function rescheduleJobberVisit(visitId, newStartAt, newEndAt, userId) {
   const d = new Date(newStartAt);
+  const localTime = d.toLocaleTimeString('en-GB', { timeZone: 'America/Winnipeg', hour12: false });
+  // Jobber "Anytime" visits come back as midnight local — preserve that by sending null,
+  // otherwise Jobber pins them to 12:00 AM with a 2-hour duration.
+  const isAnytime = localTime === '00:00:00';
   const vars = {
     id:        visitId,
     startDate: d.toLocaleDateString('en-CA', { timeZone: 'America/Winnipeg' }),
-    startTime: d.toLocaleTimeString('en-GB', { timeZone: 'America/Winnipeg', hour12: false }),
+    startTime: isAnytime ? null : localTime,
     timezone:  'Central Time (US & Canada)',
   };
 
