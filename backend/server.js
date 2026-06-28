@@ -81,6 +81,43 @@ validateEnv();
 
 const app = express();
 
+// Railway / ngrok sit in front of us — trust the first proxy hop so req.ip
+// reflects the real client (needed for per-IP rate limiting below).
+app.set('trust proxy', 1);
+
+// ---------------------------------------------------------------------------
+// Lightweight in-memory rate limiter (dependency-free).
+// Protects unauthenticated public endpoints (Twilio callbacks, inbound SMS,
+// referral redirect) from floods. Fixed window per IP. Single-instance scope —
+// fine for this deployment; swap for a shared store if we ever run multiple.
+// ---------------------------------------------------------------------------
+function rateLimit({ windowMs = 60_000, max = 60, name = 'public' } = {}) {
+  const hits = new Map(); // ip -> { count, resetAt }
+  const timer = setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of hits) if (v.resetAt <= now) hits.delete(k);
+  }, windowMs);
+  if (timer.unref) timer.unref(); // don't keep the process alive for cleanup
+  return (req, res, next) => {
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    const now = Date.now();
+    let rec = hits.get(ip);
+    if (!rec || rec.resetAt <= now) { rec = { count: 0, resetAt: now + windowMs }; hits.set(ip, rec); }
+    rec.count++;
+    if (rec.count > max) {
+      res.set('Retry-After', String(Math.ceil((rec.resetAt - now) / 1000)));
+      console.warn(`[ratelimit:${name}] ${ip} exceeded ${max}/${windowMs}ms`);
+      return res.status(429).send('Too many requests');
+    }
+    next();
+  };
+}
+
+// Twilio can legitimately burst (delivery callbacks for a campaign), so allow
+// more there; the referral link is human-clicked, so a tighter cap is fine.
+const twilioLimiter   = rateLimit({ windowMs: 60_000, max: 120, name: 'twilio' });
+const referralLimiter = rateLimit({ windowMs: 60_000, max: 30,  name: 'referral' });
+
 // ---------------------------------------------------------------------------
 // CORS — allow the static frontend and the local dashboard to call this API
 // ---------------------------------------------------------------------------
@@ -148,7 +185,7 @@ app.use('/api/operator', operatorRouter);
 app.use('/auth', portalRouter);
 
 // Twilio delivery status callback — public (Twilio posts here, no session)
-app.post('/api/weather/twilio-callback', express.urlencoded({ extended: false }), async (req, res) => {
+app.post('/api/weather/twilio-callback', twilioLimiter, express.urlencoded({ extended: false }), async (req, res) => {
   const { MessageSid, MessageStatus } = req.body || {};
   if (MessageSid && MessageStatus) {
     const prisma = require('./lib/prismaClient');
@@ -161,7 +198,7 @@ app.post('/api/weather/twilio-callback', express.urlencoded({ extended: false })
 });
 
 // Marketing Twilio delivery status callback — public (Twilio posts here, no session)
-app.post('/api/marketing/twilio-callback', express.urlencoded({ extended: false }), async (req, res) => {
+app.post('/api/marketing/twilio-callback', twilioLimiter, express.urlencoded({ extended: false }), async (req, res) => {
   const { MessageSid, MessageStatus } = req.body || {};
   if (MessageSid && MessageStatus) {
     const p = require('./lib/prismaClient');
@@ -175,7 +212,7 @@ app.post('/api/marketing/twilio-callback', express.urlencoded({ extended: false 
 
 // Marketing inbound SMS webhook — Twilio posts here when a client replies to the marketing number
 // Must be public (no auth session) and return TwiML so Twilio doesn't retry
-app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), async (req, res) => {
+app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ extended: false }), async (req, res) => {
   // Always respond with empty TwiML first to prevent Twilio retries
   res.set('Content-Type', 'text/xml');
   res.send('<Response></Response>');
@@ -429,7 +466,7 @@ app.post('/api/marketing/inbound-sms', express.urlencoded({ extended: false }), 
 
 // Referral redirect — public, no auth required (clients click from their phones)
 // Sets hasPendingMultiplier=true for the referrer, then redirects to booking page.
-app.get('/r/:slug', async (req, res) => {
+app.get('/r/:slug', referralLimiter, async (req, res) => {
   try {
     const prisma = require('./lib/prismaClient');
     await prisma.loyaltyClient.updateMany({

@@ -2,6 +2,30 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../lib/prismaClient');
 
+// ---------------------------------------------------------------------------
+// Multi-tenant scoping helpers
+//
+// The app is single-tenant today but built for multi-tenancy. These helpers
+// scope every data read to the logged-in user's Jobber account. To avoid
+// breaking a single-tenant deployment where the sole account may not yet be
+// linked to a portal user, they fall back to the lone account ONLY when
+// exactly one account exists — that can never leak across tenants because
+// there is only one. The moment a second account is added, scoping is strict.
+// ---------------------------------------------------------------------------
+
+/** Resolve the JobberAccount for this request (or null). Single-tenant safe. */
+async function getUserAccount(req) {
+  const owned = await prisma.jobberAccount.findFirst({ where: { userId: req.user.userId } });
+  if (owned) return owned;
+  const total = await prisma.jobberAccount.count();
+  return total === 1 ? prisma.jobberAccount.findFirst() : null;
+}
+
+/** True when this is a single-tenant deployment (≤1 Jobber account). */
+async function isSingleTenant() {
+  return (await prisma.jobberAccount.count()) <= 1;
+}
+
 /**
  * GET /api/status
  * Returns the current Jobber connection state.
@@ -13,9 +37,7 @@ const prisma = require('../lib/prismaClient');
  */
 router.get('/status', async (req, res) => {
   try {
-    const account =
-      await prisma.jobberAccount.findFirst({ where: { userId: req.user.userId } }) ??
-      await prisma.jobberAccount.findFirst();
+    const account = await getUserAccount(req);
 
     if (!account) {
       return res.json({ connected: false, userEmail: req.user.email });
@@ -56,7 +78,17 @@ router.get('/token-logs', async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
 
+    // Scope to this user's Jobber account so logs from other tenants aren't exposed.
+    // Single-tenant: show all (one tenant, includes legacy rows with null accountId).
+    let where = {};
+    if (!(await isSingleTenant())) {
+      const account = await getUserAccount(req);
+      if (!account) return res.json({ logs: [], count: 0 });
+      where = { accountId: account.accountId };
+    }
+
     const logs = await prisma.tokenRefreshLog.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
@@ -75,8 +107,18 @@ router.get('/token-logs', async (req, res) => {
  */
 router.get('/review-stats', async (req, res) => {
   try {
-    const total = await prisma.reviewSent.count();
+    // Scope to this user's Jobber account so other tenants' review history isn't exposed.
+    // Single-tenant: show all (one tenant, includes legacy rows with null accountId).
+    let where = {};
+    if (!(await isSingleTenant())) {
+      const account = await getUserAccount(req);
+      if (!account) return res.json({ total: 0, recent: [] });
+      where = { accountId: account.accountId };
+    }
+
+    const total = await prisma.reviewSent.count({ where });
     const recent = await prisma.reviewSent.findMany({
+      where,
       orderBy: { sentAt: 'desc' },
       take: 20,
     });
@@ -107,6 +149,12 @@ router.get('/pending-reviews', async (req, res) => {
       req.query.processed === 'true'  ? { processed: true }  :
       req.query.processed === 'false' ? { processed: false } :
       {};
+
+    // Scope to this user when multi-tenant so one tenant can't read another's
+    // client names / phones / emails. Single-tenant shows all (one owner).
+    if (!(await isSingleTenant())) {
+      where.userId = req.user.userId;
+    }
 
     const rows = await prisma.pendingReview.findMany({
       where,
@@ -161,6 +209,10 @@ router.delete('/pending-reviews/:id', async (req, res) => {
 
     if (!row) {
       return res.status(404).json({ error: 'Review not found' });
+    }
+    // Ownership check (enforced once multi-tenant — can't cancel another tenant's review).
+    if (!(await isSingleTenant()) && row.userId && row.userId !== req.user.userId) {
+      return res.status(403).json({ error: 'Not authorized to cancel this review' });
     }
     if (row.processed) {
       return res.status(400).json({ error: 'Cannot cancel — review has already been sent' });
@@ -500,9 +552,7 @@ router.get('/setup-status', async (req, res) => {
   let jobberConnected    = false;
   let webhookRegistered  = false;
   try {
-    const account =
-      await prisma.jobberAccount.findFirst({ where: { userId: req.user.userId } }) ??
-      await prisma.jobberAccount.findFirst();
+    const account = await getUserAccount(req);
     jobberConnected = !!account;
 
     // Check locally first; fall back to querying Jobber if webhookId not yet stored
@@ -517,8 +567,8 @@ router.get('/setup-status', async (req, res) => {
           const match = nodes.find((w) => w.topic === 'INVOICE_UPDATE');
           if (match) {
             webhookRegistered = true;
-            // Backfill so future checks are instant
-            await prisma.jobberAccount.updateMany({ data: { webhookId: match.id } });
+            // Backfill so future checks are instant — scope to THIS account only
+            await prisma.jobberAccount.update({ where: { id: account.id }, data: { webhookId: match.id } });
           }
         } catch {
           webhookRegistered = false;
@@ -550,6 +600,12 @@ router.post('/register-webhook', async (req, res) => {
   try {
     const { jobberGraphQL } = require('../services/jobberClient');
 
+    // Resolve THIS user's account so we only ever write its webhookId (never all rows).
+    const account = await getUserAccount(req);
+    if (!account) {
+      return res.status(404).json({ success: false, error: 'No Jobber account connected' });
+    }
+
     // Derive webhook URL from JOBBER_REDIRECT_URI (replace /auth/callback suffix)
     const redirectUri  = process.env.JOBBER_REDIRECT_URI || '';
     const webhookUrl   = redirectUri.replace(/\/auth\/callback$/, '/webhook/jobber');
@@ -579,14 +635,14 @@ router.post('/register-webhook', async (req, res) => {
         const listData = await gql(`{ webhookEndpoints { nodes { id topic } } }`);
         const existing = (listData?.webhookEndpoints?.nodes || []).find((w) => w.topic === 'INVOICE_UPDATE');
         if (existing) {
-          await prisma.jobberAccount.updateMany({ data: { webhookId: existing.id } });
+          await prisma.jobberAccount.update({ where: { id: account.id }, data: { webhookId: existing.id } });
           console.log(`[status] Webhook already existed — id: ${existing.id}`);
           return res.json({ success: true, webhookId: existing.id, topic: existing.topic });
         }
         // List query worked but no match found — still confirmed by Jobber
       } catch { /* list query failed */ }
       // Jobber confirmed it exists — store sentinel and succeed
-      await prisma.jobberAccount.updateMany({ data: { webhookId: 'registered' } });
+      await prisma.jobberAccount.update({ where: { id: account.id }, data: { webhookId: 'registered' } });
       console.log('[status] Webhook already existed (sentinel stored)');
       return res.json({ success: true, webhookId: 'registered', topic: 'INVOICE_UPDATE' });
     }
@@ -599,8 +655,8 @@ router.post('/register-webhook', async (req, res) => {
     const webhook = result?.webhookEndpoint;
     console.log(`[status] Webhook registered — id: ${webhook?.id}, url: ${webhook?.url}, topic: ${webhook?.topic}`);
 
-    // Persist the webhook ID so setup-status can check it locally
-    await prisma.jobberAccount.updateMany({ data: { webhookId: webhook?.id } });
+    // Persist the webhook ID so setup-status can check it locally — scope to THIS account
+    await prisma.jobberAccount.update({ where: { id: account.id }, data: { webhookId: webhook?.id } });
 
     // Also register CLIENT_UPDATE webhook (for tag-removal detection)
     try {
@@ -655,9 +711,7 @@ router.get('/inspect-invoice-type', async (req, res) => {
  */
 router.post('/force-refresh', async (req, res) => {
   try {
-    const account =
-      await prisma.jobberAccount.findFirst({ where: { userId: req.user.userId } }) ??
-      await prisma.jobberAccount.findFirst();
+    const account = await getUserAccount(req);
     if (!account) {
       return res.status(404).json({ error: 'No Jobber account connected' });
     }
