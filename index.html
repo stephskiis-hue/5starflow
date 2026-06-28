@@ -621,7 +621,6 @@
             <div class="block-icon">📅</div>
             <h3>Book a Free 15-Min Call</h3>
             <p>Not sure which plan is right for you? Jump on a quick call and we'll figure it out together. No pressure, no sales pitch — just honest advice.</p>
-            <!-- TODO: Replace href with real Calendly link -->
             <a href="mailto:hello@5starflow.com?subject=I'd%20like%20to%20book%20a%20call" class="btn btn-outline" style="width:100%">Book a Call →</a>
             <p class="capture-note" style="margin-top:0.75rem">Usually available within 1–2 business days.</p>
             <p style="text-align:center;margin-top:1rem;font-size:var(--text-sm);color:var(--color-text-muted)">Already decided? <a href="pricing.html" style="color:var(--color-primary);font-weight:600;text-decoration:underline;text-underline-offset:3px">Go straight to pricing →</a></p>
@@ -633,7 +632,7 @@
             <p>Drop your email and we'll send you a short breakdown of how each automation works, with real examples. No fluff, no sales sequence — just the information to make the right call.</p>
             <form class="capture-form" name="email-capture" method="POST" data-netlify="true">
               <input type="hidden" name="form-name" value="email-capture" />
-              <input type="email" name="email" class="capture-input" placeholder="your@email.com" required />
+              <input type="email" name="email" class="capture-input" placeholder="your@email.com" aria-label="Email address" required />
               <button type="submit" class="btn btn-primary" style="width:100%">Send Me the Breakdown</button>
             </form>
             <p class="capture-note" style="margin-top:0.5rem">Unsubscribe anytime. We respect your inbox.</p>
