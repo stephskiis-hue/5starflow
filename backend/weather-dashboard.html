@@ -62,11 +62,14 @@
     .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
     .mob-menu-btn { display: none; }
     .mob-sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 54; backdrop-filter: blur(2px); }
+    .history-detail-name { font-weight: 600; color: #e5e2e1; min-width: 100px; flex-shrink: 0; }
+    .history-detail-row { display: flex; gap: 0.5rem; align-items: flex-start; flex-wrap: wrap; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
     @media (max-width: 640px) {
       .mob-menu-btn { display: flex; }
       aside { transform: translateX(-110%) !important; transition: transform 0.3s cubic-bezier(0.4,0,0.2,1) !important; z-index: 56 !important; }
       aside.mob-open { transform: translateX(0) !important; }
-      main { padding-left: 1rem !important; padding-right: 1rem !important; padding-bottom: 2rem !important; }
+      main { padding-left: 1rem !important; padding-right: 1rem !important; padding-bottom: 2rem !important; padding-top: 1.5rem !important; }
+      .history-detail-name { max-width: 120px; word-break: break-word; }
     }
   </style>
 </head>
@@ -149,13 +152,13 @@
         <span class="material-symbols-outlined text-[22px]">menu</span>
       </button>
       <div>
-        <h2 class="text-2xl font-black text-zinc-100 tracking-tight">Rain Alerts</h2>
+        <h2 class="text-xl sm:text-2xl font-black text-zinc-100 tracking-tight">Rain Alerts</h2>
         <p class="text-sm text-on-surface-variant mt-1">Weather monitoring and schedule protection</p>
       </div>
     </div>
 
     <!-- Today Stats Grid -->
-    <div class="grid grid-cols-4 gap-4 mb-8" id="today-stats">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8" id="today-stats">
       <div class="glass-card rounded-xl p-6">
         <div class="text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">Today's Rain Probability</div>
         <div class="text-3xl font-black text-white" id="today-pop">—</div>
@@ -184,7 +187,7 @@
 
     <!-- 7-Day Visit Calendar -->
     <div class="glass-card rounded-xl p-6 mb-8" id="calendar-card">
-      <div class="flex justify-between items-center mb-4">
+      <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
         <h3 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">7-Day Visit Calendar</h3>
         <div class="flex items-center gap-2">
           <span class="text-xs text-on-surface-variant" id="calendar-status">Loading...</span>
@@ -193,7 +196,7 @@
           </button>
         </div>
       </div>
-      <div class="grid grid-cols-7 gap-3" id="calendar-grid">
+      <div class="flex gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-7" id="calendar-grid">
         <div class="text-sm text-on-surface-variant col-span-7">Loading calendar...</div>
       </div>
 
@@ -210,7 +213,7 @@
 
         <!-- Reschedule controls -->
         <div class="mt-6 pt-6 border-t border-white/5">
-          <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label class="block text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">Move to Date</label>
               <select class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50" id="cal-reschedule-select" onchange="updateCalMessagePreview()">
@@ -262,7 +265,7 @@
 
         <!-- Reschedule controls -->
         <div class="pt-6 border-t border-white/5">
-          <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label class="block text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">Reschedule To</label>
               <select class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50" id="reschedule-select" onchange="updateMessagePreview()">
@@ -300,7 +303,7 @@
     <!-- Settings -->
     <div class="glass-card rounded-xl p-8 mb-8">
       <h3 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-6">Settings</h3>
-      <div class="grid grid-cols-2 gap-4 mb-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div>
           <label class="block text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">City</label>
           <input type="text" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50" id="setting-city" placeholder="Winnipeg" />
@@ -315,9 +318,9 @@
         <div>
           <label class="block text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-2">Business Hours</label>
           <div class="flex gap-2 items-center">
-            <input type="number" class="w-16 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50" id="setting-start" min="0" max="23" />
+            <input type="number" inputmode="numeric" class="w-16 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50" id="setting-start" min="0" max="23" />
             <span class="text-sm text-on-surface-variant">to</span>
-            <input type="number" class="w-16 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50" id="setting-end" min="0" max="23" />
+            <input type="number" inputmode="numeric" class="w-16 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50" id="setting-end" min="0" max="23" />
           </div>
         </div>
         <div>
@@ -527,29 +530,23 @@
       return;
     }
 
-    const rows = affectedClients.map((c) => {
+    const cards = affectedClients.map((c) => {
       const checked = selectedClientIds.has(c.id) ? 'checked' : '';
       const smsTag = c.phone && c.smsAllowed ? `<span class="bg-secondary/10 text-secondary border border-secondary/20 rounded-full px-2.5 py-0.5 text-xs">SMS</span>` : `<span class="bg-gray-500/10 text-zinc-400 border border-zinc-500/20 rounded-full px-2.5 py-0.5 text-xs">No SMS</span>`;
       const emailTag = c.email ? `<span class="bg-primary/10 text-primary border border-primary/20 rounded-full px-2.5 py-0.5 text-xs">Email</span>` : `<span class="bg-gray-500/10 text-zinc-400 border border-zinc-500/20 rounded-full px-2.5 py-0.5 text-xs">No Email</span>`;
-      return `<tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
-        <td class="px-4 py-3"><input type="checkbox" ${checked} onchange="toggleClient('${escHtml(c.id)}', this.checked)" /></td>
-        <td class="px-4 py-3 text-zinc-100 font-semibold">${escHtml(c.name)}</td>
-        <td class="px-4 py-3 text-on-surface-variant">${escHtml(c.phone || '—')}</td>
-        <td class="px-4 py-3 text-on-surface-variant">${escHtml(c.email || '—')}</td>
-        <td class="px-4 py-3 flex gap-2">${smsTag} ${emailTag}</td>
-      </tr>`;
+      return `<div class="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10 hover:bg-white/[0.07] transition-colors">
+        <label class="flex items-center p-2 -m-2 cursor-pointer flex-shrink-0">
+          <input type="checkbox" ${checked} onchange="toggleClient('${escHtml(c.id)}', this.checked)" />
+        </label>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-semibold text-zinc-100 truncate">${escHtml(c.name)}</div>
+          <div class="text-xs text-on-surface-variant truncate">${escHtml(c.phone || '—')} · ${escHtml(c.email || '—')}</div>
+        </div>
+        <div class="flex gap-1 flex-wrap flex-shrink-0">${smsTag} ${emailTag}</div>
+      </div>`;
     }).join('');
 
-    container.innerHTML = `<table class="w-full text-sm">
-      <thead><tr class="border-b border-white/5">
-        <th class="px-4 py-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left w-8"></th>
-        <th class="px-4 py-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Client</th>
-        <th class="px-4 py-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Phone</th>
-        <th class="px-4 py-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Email</th>
-        <th class="px-4 py-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Channels</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+    container.innerHTML = `<div class="space-y-2">${cards}</div>`;
 
     updateSelectedCount();
   }
@@ -731,36 +728,30 @@
         return;
       }
 
-      const rows = records.map((r) => {
+      const cards = records.map((r) => {
         const from = new Date(r.originalDate + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
         const to = new Date(r.newDate + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
         const when = new Date(r.notifiedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-        return `<tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors cursor-pointer" onclick="toggleHistoryDetail('${escHtml(r.id)}')">
-          <td class="px-6 py-4 text-zinc-100">${escHtml(r.originalDay.charAt(0).toUpperCase() + r.originalDay.slice(1))}</td>
-          <td class="px-6 py-4 text-on-surface-variant">${escHtml(from)} → ${escHtml(to)}</td>
-          <td class="px-6 py-4"><span class="bg-primary/10 text-primary border border-primary/20 rounded-full px-2.5 py-0.5 text-xs">${r.clientCount} clients</span></td>
-          <td class="px-6 py-4 flex gap-2"><span class="bg-secondary/10 text-secondary border border-secondary/20 rounded-full px-2.5 py-0.5 text-xs">SMS: ${r.smsCount}</span> <span class="bg-primary/10 text-primary border border-primary/20 rounded-full px-2.5 py-0.5 text-xs">Email: ${r.emailCount}</span></td>
-          <td class="px-6 py-4 text-on-surface-variant text-xs">${when}</td>
-          <td class="px-6 py-4 text-on-surface-variant text-xs">▼</td>
-        </tr>
-        <tr id="detail-${escHtml(r.id)}" style="display:none;">
-          <td colspan="6" class="px-6 py-4 bg-white/[0.02]">
+        return `<div class="border-b border-white/5 hover:bg-white/[0.03] transition-colors cursor-pointer px-4 py-4" onclick="toggleHistoryDetail('${escHtml(r.id)}')">
+          <div class="flex items-center justify-between gap-2 flex-wrap">
+            <div>
+              <span class="text-sm font-semibold text-zinc-100">${escHtml(r.originalDay.charAt(0).toUpperCase() + r.originalDay.slice(1))}</span>
+              <span class="text-xs text-on-surface-variant ml-2">${escHtml(from)} → ${escHtml(to)}</span>
+            </div>
+            <span class="text-xs text-on-surface-variant">${when} <span class="ml-1">▼</span></span>
+          </div>
+          <div class="flex gap-2 mt-2 flex-wrap">
+            <span class="bg-primary/10 text-primary border border-primary/20 rounded-full px-2.5 py-0.5 text-xs">${r.clientCount} clients</span>
+            <span class="bg-secondary/10 text-secondary border border-secondary/20 rounded-full px-2.5 py-0.5 text-xs">SMS: ${r.smsCount}</span>
+            <span class="bg-primary/10 text-primary border border-primary/20 rounded-full px-2.5 py-0.5 text-xs">Email: ${r.emailCount}</span>
+          </div>
+          <div id="detail-${escHtml(r.id)}" style="display:none;" class="mt-3 pt-3 border-t border-white/5">
             <div id="detail-inner-${escHtml(r.id)}" class="text-sm">Loading...</div>
-          </td>
-        </tr>`;
+          </div>
+        </div>`;
       }).join('');
 
-      el.innerHTML = `<table class="w-full text-sm">
-        <thead><tr class="border-b border-white/5">
-          <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Day</th>
-          <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Dates</th>
-          <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Clients</th>
-          <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">Sent</th>
-          <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left">When</th>
-          <th class="px-6 py-4 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold text-left"></th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+      el.innerHTML = `<div>${cards}</div>`;
     } catch (err) {
       document.getElementById('history-container').innerHTML = '<div class="text-sm text-on-surface-variant">Could not load history</div>';
     }
@@ -771,7 +762,7 @@
     const inner = document.getElementById(`detail-inner-${id}`);
     if (!row) return;
     const open = row.style.display !== 'none';
-    row.style.display = open ? 'none' : 'table-row';
+    row.style.display = open ? 'none' : 'block';
     if (!open) {
       try {
         const res = await fetch(`${API}/api/weather/history/${id}`);
@@ -794,9 +785,9 @@
               ${e.error ? `<span style="color:#f87171;"> — ${escHtml(e.error)}</span>` : ''}
             </span>`
           ).join('');
-          return `<div style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;gap:0.5rem;align-items:center;">
-            <span style="width:160px;font-weight:600;color:#e5e2e1;">${escHtml(name)}</span>
-            <span>${cols}</span>
+          return `<div class="history-detail-row">
+            <span class="history-detail-name">${escHtml(name)}</span>
+            <span style="flex:1;">${cols}</span>
           </div>`;
         }).join('');
       } catch (e) {
@@ -846,7 +837,7 @@
       const visitCount = d.visits?.length || 0;
       const dayLabel = isToday ? 'Today' : (d.dayName || d.date.slice(5)).slice(0, 3).toUpperCase();
 
-      return `<div class="glass-card rounded-xl p-4 text-center cursor-pointer border border-white/10 hover:border-white/20 transition-all${rainyCls}${activeCls}" onclick="selectCalDay('${d.date}')">
+      return `<div class="glass-card rounded-xl p-4 text-center cursor-pointer border border-white/10 hover:border-white/20 transition-all flex-shrink-0 min-w-[82px] sm:min-w-0${rainyCls}${activeCls}" onclick="selectCalDay('${d.date}')">
         <div class="text-xs text-on-surface-variant uppercase tracking-widest font-semibold mb-1">${dayLabel}</div>
         <div class="text-xs text-on-surface-variant mb-2">${d.date.slice(5)}</div>
         <div class="w-full h-1 bg-white/10 rounded-full overflow-hidden mb-2">
@@ -913,13 +904,15 @@
       const smsTag = v.phone && v.smsAllowed ? `<span class="bg-secondary/10 text-secondary border border-secondary/20 rounded-full px-2.5 py-0.5 text-xs">SMS</span>` : `<span class="bg-gray-500/10 text-zinc-400 border border-zinc-500/20 rounded-full px-2.5 py-0.5 text-xs">No SMS</span>`;
       const emailTag = v.email ? `<span class="bg-primary/10 text-primary border border-primary/20 rounded-full px-2.5 py-0.5 text-xs">Email</span>` : `<span class="bg-gray-500/10 text-zinc-400 border border-zinc-500/20 rounded-full px-2.5 py-0.5 text-xs">No Email</span>`;
       const riskBadge = dayRainProb >= 0.6 ? `<span class="bg-red-500/10 text-red-400 border border-red-500/20 rounded-full px-2.5 py-0.5 text-xs">⚠ High Risk</span>` : dayRainProb >= 0.35 ? `<span class="bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 rounded-full px-2.5 py-0.5 text-xs">⚡ Watch</span>` : '';
-      return `<li class="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
-        <input type="checkbox" ${checked} onchange="toggleCalVisit('${escHtml(v.id)}', this.checked)" />
-        <div class="flex-1">
+      return `<li class="flex items-start gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
+        <label class="flex items-center p-2 -m-2 cursor-pointer flex-shrink-0 mt-0.5">
+          <input type="checkbox" ${checked} onchange="toggleCalVisit('${escHtml(v.id)}', this.checked)" />
+        </label>
+        <div class="flex-1 min-w-0">
           <div class="text-sm font-semibold text-zinc-100">${escHtml(v.clientName || v.title)} ${riskBadge}</div>
           <div class="text-xs text-on-surface-variant">${escHtml(v.title)}${timeStr ? ' · ' + timeStr : ''}${v.address ? ' · ' + escHtml(v.address) : ''}</div>
         </div>
-        <div class="flex gap-1">${smsTag} ${emailTag}</div>
+        <div class="flex gap-1 flex-wrap flex-shrink-0">${smsTag} ${emailTag}</div>
       </li>`;
     }).join('');
     updateCalSelectedCount();
