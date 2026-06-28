@@ -497,6 +497,7 @@ model InboundSMS {
   messageSid     String   @unique               // Twilio MessageSid (dedup guard)
   isResponse     Boolean  @default(false)        // true if body is Y/N/YES/NO
   response       String?                         // normalized: "yes" | "no" | null
+  sentiment      String?                         // "promoter" | "neutral" | "detractor" (rule-based, client replies only)
   clientName     String?                         // matched from CachedJobberClient (or null)
   jobberClientId String?                         // matched client ID (or null)
   campaignId     String?                         // most recent campaign that texted this number

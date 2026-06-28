@@ -509,7 +509,7 @@ router.get('/conversations', async (req, res) => {
     const [inboundAll, outboundAll, cachedClients] = await Promise.all([
       prisma.inboundSMS.findMany({
         where:  { userId },
-        select: { from: true, receivedAt: true, body: true, read: true },
+        select: { from: true, receivedAt: true, body: true, read: true, sentiment: true },
         orderBy: { receivedAt: 'desc' },
       }),
       prisma.marketingMessage.findMany({
@@ -575,6 +575,7 @@ router.get('/conversations', async (req, res) => {
         lastMessage:    (lastMessage || '').slice(0, 80),
         lastMessageAt,
         lastMessageDir,
+        sentiment:      lastMessageDir === 'inbound' ? (lastInbound?.sentiment || null) : null,
         unreadCount:    unreadByPhone.get(phone) || 0,
       };
     });
@@ -617,6 +618,7 @@ router.get('/conversations/:phone', async (req, res) => {
         timestamp:    m.receivedAt,
         status:       'received',
         response:     m.response,
+        sentiment:    m.sentiment || null,
         campaignName: null,
         read:         m.read,
       })),

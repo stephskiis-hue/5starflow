@@ -435,6 +435,33 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
     }
     if (operatorHandled) return;
 
+    // Sentiment tagging — classify genuine client replies (skip opt-outs) so
+    // promoters/detractors can be segmented for loyalty + upsell. Tags the client
+    // in Jobber as "sentiment:<value>" for non-neutral replies.
+    if (!isOptOut) {
+      try {
+        const { classifySentiment } = require('./lib/sentiment');
+        const sentiment = classifySentiment(Body);
+        await prisma.inboundSMS.update({ where: { id: inbound.id }, data: { sentiment } });
+
+        if (sentiment !== 'neutral' && cachedClient?.jobberClientId) {
+          const { jobberGraphQL } = require('./services/jobberClient');
+          const SENTIMENT_TAG = `
+            mutation AddClientTag($clientId: EncodedId!, $label: String!) {
+              clientTagCreate(clientId: $clientId, label: $label) {
+                tag { id label }
+                errors { message path }
+              }
+            }`;
+          await jobberGraphQL(SENTIMENT_TAG, { clientId: cachedClient.jobberClientId, label: `sentiment:${sentiment}` }, userId)
+            .catch((e) => console.warn('[inbound-sms] sentiment tag failed:', e.message));
+          console.log(`[inbound-sms] sentiment=${sentiment} for ${cachedClient.name}`);
+        }
+      } catch (sErr) {
+        console.warn('[inbound-sms] sentiment classification failed:', sErr.message);
+      }
+    }
+
     // Link reply back to the matching MarketingMessage record
     if (recentMessage && (isResponse || isOptOut)) {
       await prisma.marketingMessage.update({

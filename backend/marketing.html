@@ -1194,6 +1194,18 @@
     }
   }
 
+  // Sentiment UI helpers (rule-based classification from the backend).
+  function sentimentChip(s) {
+    if (s === 'promoter')  return '<span class="inline-block align-middle ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/25" title="Positive reply">😊 Promoter</span>';
+    if (s === 'detractor') return '<span class="inline-block align-middle ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/25" title="Unhappy reply — follow up">⚠ Unhappy</span>';
+    return '';
+  }
+  function sentimentDot(s) {
+    if (s === 'promoter')  return '<span class="inline-block w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" title="Positive reply"></span>';
+    if (s === 'detractor') return '<span class="inline-block w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" title="Unhappy reply"></span>';
+    return '';
+  }
+
   function renderConversationList() {
     const el = document.getElementById('conversation-list');
     if (_conversations.length === 0) {
@@ -1244,6 +1256,7 @@
           <div class="flex items-center justify-between gap-1 mb-0.5">
             <div class="flex items-center gap-1.5 min-w-0">
               <p class="text-sm ${hasUnread ? 'font-bold text-zinc-100' : 'font-medium text-zinc-200'} truncate">${esc(displayName)}</p>
+              ${sentimentDot(c.sentiment)}
               ${stopTag}
             </div>
             <span class="text-[10px] text-zinc-600 flex-shrink-0 ml-1">${timeStr}</span>
@@ -1355,6 +1368,7 @@
         if (m.response === 'yes')    badge = '<span class="inline-block align-middle ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/25">✓ YES</span>';
         else if (m.response === 'no') badge = '<span class="inline-block align-middle ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/25">✗ NO</span>';
         else if (m.response === 'optout') badge = '<span class="inline-block align-middle ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-zinc-700/60 text-zinc-500 border border-zinc-600/40">STOP</span>';
+        if (m.sentiment) badge += sentimentChip(m.sentiment);
       }
 
       const deliveryNote = isOut && m.status && m.status !== 'sent' && m.status !== 'delivered'
