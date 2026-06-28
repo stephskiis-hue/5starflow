@@ -201,6 +201,60 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+// Map common abbreviations / typos to canonical weekday names.
+const WEEKDAY_ALIASES = {
+  sun: 'sunday', mon: 'monday', tue: 'tuesday', tues: 'tuesday', wed: 'wednesday',
+  weds: 'wednesday', thu: 'thursday', thur: 'thursday', thurs: 'thursday',
+  fri: 'friday', sat: 'saturday',
+};
+
+/**
+ * Resolve a weekday name (e.g. "wednesday") to the soonest FUTURE date (YYYY-MM-DD)
+ * matching that weekday, in Winnipeg local time. Always at least tomorrow.
+ */
+function nextWeekdayDate(dayName, from = new Date()) {
+  const target = WEEKDAYS.indexOf(String(dayName || '').toLowerCase());
+  if (target < 0) return null;
+  // Walk forward 1..7 days until the weekday matches.
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(from);
+    d.setDate(from.getDate() + i);
+    if (d.getDay() === target) return toDateString(d);
+  }
+  return null;
+}
+
+/**
+ * Parse an owner's free-text reply to a rain recommendation.
+ * Examples: "yes wednesday", "Y thurs", "yes", "no", "nope".
+ * Returns { intent: 'yes'|'no'|null, day: 'wednesday'|null }.
+ */
+function parseRainReply(body) {
+  const text = String(body || '').toLowerCase().trim();
+  if (!text) return { intent: null, day: null };
+
+  let intent = null;
+  if (/\b(yes|yep|yeah|yup|ya|sure|ok|okay|y)\b/.test(text)) intent = 'yes';
+  if (/\b(no|nope|nah|n|keep|cancel)\b/.test(text)) intent = 'no'; // explicit no wins
+  if (/\b(no|nope|nah|n|keep|cancel)\b/.test(text) && !/\b(yes|yep|yeah|yup|ya|sure|ok|okay|y)\b/.test(text)) intent = 'no';
+
+  // Find a weekday anywhere in the text (full name or alias).
+  let day = null;
+  for (const w of WEEKDAYS) { if (text.includes(w)) { day = w; break; } }
+  if (!day) {
+    for (const [alias, full] of Object.entries(WEEKDAY_ALIASES)) {
+      if (new RegExp(`\\b${alias}\\b`).test(text)) { day = full; break; }
+    }
+  }
+  if (!day && /\btomorrow\b/.test(text)) {
+    day = WEEKDAYS[new Date(Date.now() + 86400000).getDay()];
+  }
+
+  return { intent, day };
+}
+
 /**
  * Normalize phone to E.164 for Twilio.
  */
@@ -559,6 +613,177 @@ async function batchNotify({ clients, newDate, newDateLabel, customMessage, user
 }
 
 // ---------------------------------------------------------------------------
+// Autonomous rain reschedule (owner-approved via SMS)
+// ---------------------------------------------------------------------------
+
+/**
+ * Execute an approved rain_reschedule OperatorProposal: move each visit in Jobber
+ * to payload.targetDate (preserving time-of-day + duration), notify each client,
+ * and write RainReschedule + RainMessage audit rows. Mirrors the manual
+ * POST /api/weather/reschedule-visits path.
+ *
+ * @param {object} proposal - OperatorProposal row; payload = { date, targetDate, visits:[...] }
+ * @returns {{ moved:number, smsCount:number, emailCount:number, errors:Array, newDateLabel:string, targetDate:string }}
+ */
+async function executeRainReschedule(proposal) {
+  const userId     = proposal.userId;
+  const payload    = proposal.payload || {};
+  const targetDate = payload.targetDate;
+  const visits     = Array.isArray(payload.visits) ? payload.visits : [];
+
+  if (!targetDate || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+    throw new Error('rain_reschedule payload missing valid targetDate');
+  }
+  if (visits.length === 0) {
+    return { moved: 0, smsCount: 0, emailCount: 0, errors: [], newDateLabel: formatDate(targetDate), targetDate };
+  }
+
+  const newDateLabel = formatDate(targetDate);
+  let moved = 0, smsCount = 0, emailCount = 0;
+  const errors = [];
+  const messageLog = [];
+
+  let rescheduleLog = null;
+  try {
+    rescheduleLog = await prisma.rainReschedule.create({
+      data: {
+        originalDay:  getDayTag(),
+        originalDate: payload.date || toDateString(),
+        newDate:      targetDate,
+        clientCount:  visits.length,
+        smsCount:     0,
+        emailCount:   0,
+        message:      `Auto-rescheduled to ${newDateLabel} (owner approved via SMS)`,
+        userId,
+      },
+    });
+  } catch (logErr) {
+    console.warn('[weatherService] Failed to create auto-reschedule log:', logErr.message);
+  }
+
+  for (const visit of visits) {
+    const { id: visitId, clientId, startAt, endAt, firstName, clientName, phone, smsAllowed, email } = visit;
+    const name = firstName || clientName || 'there';
+
+    const timeOfDay  = startAt ? startAt.slice(11) : '08:00:00Z';
+    const newStartAt = `${targetDate}T${timeOfDay}`;
+    let newEndAt = null;
+    if (endAt && startAt) {
+      const duration = new Date(endAt).getTime() - new Date(startAt).getTime();
+      newEndAt = new Date(new Date(newStartAt).getTime() + duration).toISOString();
+    }
+
+    try {
+      await rescheduleJobberVisit(visitId, newStartAt, newEndAt, userId);
+      moved++;
+    } catch (err) {
+      console.error(`[weatherService] auto-reschedule Jobber move failed for ${visitId}:`, err.message);
+      errors.push({ visitId, clientName, step: 'jobber', error: err.message });
+      continue;
+    }
+
+    let smsSent = false;
+    if (phone && smsAllowed) {
+      try {
+        const sid = await sendRainSMS(phone, name, newDateLabel, null, userId);
+        smsCount++; smsSent = true;
+        messageLog.push({ rescheduleId: rescheduleLog?.id, visitId, clientId: clientId || visitId, clientName: name, channel: 'sms', status: 'sent', messageSid: sid, userId });
+      } catch (err) {
+        errors.push({ visitId, clientName, step: 'sms', error: err.message });
+        messageLog.push({ rescheduleId: rescheduleLog?.id, visitId, clientId: clientId || visitId, clientName: name, channel: 'sms', status: 'failed', error: err.message, userId });
+      }
+    }
+    if (!smsSent && email) {
+      try {
+        await sendRainEmail(email, name, newDateLabel, null, userId);
+        emailCount++;
+        messageLog.push({ rescheduleId: rescheduleLog?.id, visitId, clientId: clientId || visitId, clientName: name, channel: 'email', status: 'sent', userId });
+      } catch (err) {
+        errors.push({ visitId, clientName, step: 'email', error: err.message });
+        messageLog.push({ rescheduleId: rescheduleLog?.id, visitId, clientId: clientId || visitId, clientName: name, channel: 'email', status: 'failed', error: err.message, userId });
+      }
+    }
+  }
+
+  if (rescheduleLog) {
+    try {
+      await prisma.rainReschedule.update({
+        where: { id: rescheduleLog.id },
+        data:  { clientCount: moved, smsCount, emailCount },
+      });
+      const rows = messageLog.filter((m) => m.rescheduleId);
+      if (rows.length) await prisma.rainMessage.createMany({ data: rows });
+    } catch (logErr) {
+      console.warn('[weatherService] Failed to update auto-reschedule log:', logErr.message);
+    }
+  }
+
+  console.log(`[weatherService] Auto-reschedule complete — moved:${moved} SMS:${smsCount} Email:${emailCount} errors:${errors.length}`);
+  return { moved, smsCount, emailCount, errors, newDateLabel, targetDate };
+}
+
+/**
+ * Handle an inbound SMS from the owner's approver phone that may be a reply to a
+ * pending rain recommendation. Parses "YES <day>" / "NO" in free text, resolves
+ * the day to a date, executes the reschedule, and texts the owner the outcome.
+ *
+ * @returns {{ matched:boolean }} matched:true means this SMS was a rain reply
+ *   (caller should stop further routing).
+ */
+async function handleRainReply({ userId, body }) {
+  const op = require('./operatorService');
+
+  // Find the newest pending, non-expired rain proposal for this user.
+  const proposal = await prisma.operatorProposal.findFirst({
+    where: { userId, category: 'rain_reschedule', status: 'pending', expiresAt: { gt: new Date() } },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!proposal) return { matched: false };
+
+  const { intent, day } = parseRainReply(body);
+  // A bare day name ("Wednesday") while a recommendation is pending = approve to that day.
+  const effectiveIntent = intent || (day ? 'yes' : null);
+  if (!effectiveIntent) return { matched: false }; // not a yes/no/day — let other handlers try
+
+  if (effectiveIntent === 'no') {
+    await prisma.operatorProposal.update({
+      where: { id: proposal.id },
+      data:  { status: 'declined', respondedAt: new Date(), respondedVia: 'sms' },
+    });
+    await op.notifyOwner(userId, '👍 No problem — your jobs stay as scheduled.');
+    return { matched: true };
+  }
+
+  // effectiveIntent === 'yes' — need a target day
+  const targetDate = day ? nextWeekdayDate(day) : (proposal.payload?.targetDate || null);
+  if (!targetDate) {
+    await op.notifyOwner(userId, 'Which day should I move them to? Reply e.g. "YES Wednesday".');
+    return { matched: true }; // leave proposal pending for a follow-up reply
+  }
+
+  // Record approval + chosen date, then execute.
+  await prisma.operatorProposal.update({
+    where: { id: proposal.id },
+    data:  {
+      status: 'approved',
+      respondedAt: new Date(),
+      respondedVia: 'sms',
+      payload: { ...(proposal.payload || {}), targetDate },
+    },
+  });
+
+  const exec = await op.executeProposal(proposal.id);
+  const r = exec?.result || {};
+  if (exec?.ok) {
+    const errNote = r.errors?.length ? ` · ${r.errors.length} error(s)` : '';
+    await op.notifyOwner(userId, `✅ Done — moved ${r.moved} job(s) to ${r.newDateLabel}. SMS ${r.smsCount} · Email ${r.emailCount}${errNote}`);
+  } else {
+    await op.notifyOwner(userId, `⚠️ Reschedule hit a problem: ${exec?.error || 'unknown error'}`);
+  }
+  return { matched: true };
+}
+
+// ---------------------------------------------------------------------------
 // Morning cron
 // ---------------------------------------------------------------------------
 
@@ -584,12 +809,68 @@ async function runMorningCheckForUser(userId) {
 
     if (result.rainExpected) {
       console.log(`[weatherService][user:${userId}] *** RAIN ALERT *** ${result.summary}`);
+      // Proactively recommend a reschedule to the owner via SMS (they approve with a day).
+      await maybeRecommendReschedule(userId, result).catch((err) =>
+        console.error(`[weatherService][user:${userId}] recommend reschedule failed:`, err.message)
+      );
     } else {
       console.log(`[weatherService][user:${userId}] No rain expected. ${result.summary}`);
     }
   } catch (err) {
     console.error(`[weatherService][user:${userId}] Morning check failed:`, err.message);
   }
+}
+
+/**
+ * When rain is expected and the owner has jobs booked today, create an
+ * approval-required OperatorProposal and text the owner a recommendation:
+ *   "🌧️ Rain 80% today — 5 jobs booked. Reply YES + a day (e.g. YES Wednesday) …"
+ * Guarded to one proposal per user per day so repeated checks/redeploys don't spam.
+ */
+async function maybeRecommendReschedule(userId, result) {
+  if (!userId) return; // anonymous check — no owner to attribute/approve
+
+  const op       = require('./operatorService');
+  const todayStr = toDateString();
+
+  // Don't create a duplicate for today.
+  const existing = await prisma.operatorProposal.findFirst({
+    where: {
+      userId,
+      category: 'rain_reschedule',
+      payload:  { path: ['date'], equals: todayStr },
+      status:   { in: ['pending', 'approved', 'executed'] },
+    },
+  });
+  if (existing) {
+    console.log(`[weatherService][user:${userId}] rain proposal already exists for ${todayStr} — skipping`);
+    return;
+  }
+
+  // Which jobs are booked today?
+  const visits = await fetchWeekVisits(userId, todayStr, todayStr);
+  if (!visits.length) {
+    console.log(`[weatherService][user:${userId}] rain expected but no jobs booked today — no recommendation`);
+    return;
+  }
+
+  const pct = result.maxPopPct ?? Math.round((result.maxPop || 0) * 100);
+  const summary = `Rain ${pct}% today — ${visits.length} job${visits.length !== 1 ? 's' : ''} booked.`;
+
+  const proposal = await op.createProposal({
+    userId,
+    category: 'rain_reschedule',
+    tier:     'approval_required',
+    summary,
+    payload:  { date: todayStr, visits, rainPct: pct },
+    ttlHours: 12,
+  });
+
+  await op.notifyOwner(
+    userId,
+    `🌧️ ${summary} Reply "YES <day>" to move them (e.g. YES Wednesday), or NO to keep them.`
+  );
+  console.log(`[weatherService][user:${userId}] rain recommendation sent (proposal ${proposal.shortCode})`);
 }
 
 /**
@@ -652,4 +933,9 @@ module.exports = {
   getSettings,
   runMorningCheck,
   startWeatherScheduler,
+  // Owner-in-the-loop rain rescheduling
+  nextWeekdayDate,
+  parseRainReply,
+  executeRainReschedule,
+  handleRainReply,
 };

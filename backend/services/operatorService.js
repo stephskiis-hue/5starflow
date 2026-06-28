@@ -162,6 +162,36 @@ async function sendProposalSms(proposalId) {
 }
 
 /**
+ * Send a plain (non-approval) SMS to the owner's approver phone.
+ * Used for confirmations like "✅ Done — moved 5 jobs". Respects DRY_RUN and
+ * no-ops gracefully when no approver phone / Twilio creds are configured.
+ *
+ * @param {string} userId
+ * @param {string} message
+ */
+async function notifyOwner(userId, message) {
+  const creds   = await getTwilioCreds(userId);
+  const credRow = await prisma.twilioCredential.findUnique({ where: { userId } }).catch(() => null);
+  const toRaw   = credRow?.notifyPhone || process.env.OPERATOR_APPROVER_PHONE;
+
+  if (!toRaw) {
+    console.warn(`[operator] notifyOwner: no approver phone for user ${userId} — skipping`);
+    return { ok: false, skipped: true };
+  }
+  if (process.env.DRY_RUN === 'true') {
+    console.log(`[operator] DRY RUN — would notify owner ${toE164(toRaw)}: "${message}"`);
+    return { ok: true, dryRun: true };
+  }
+  if (!creds.accountSid || !creds.authToken) {
+    console.warn(`[operator] notifyOwner: Twilio creds missing for user ${userId}`);
+    return { ok: false };
+  }
+
+  const client = twilio(creds.accountSid, creds.authToken);
+  return sendSmsSafely({ to: toE164(toRaw), from: creds.fromNumber, body: message, client, userId });
+}
+
+/**
  * List pending, non-expired proposals for a user.
  * Used by scheduled Midday Ops run to pick up approvals.
  */
@@ -277,6 +307,13 @@ async function executeProposal(proposalId) {
       }
       case 'review_response': {
         result = await zapier.post('gbp', { ...pl, kind: 'review_reply' }, { userId: proposal.userId, proposalId });
+        break;
+      }
+      case 'rain_reschedule': {
+        // Move rained-out visits in Jobber + notify clients. Lazy require avoids
+        // a circular dependency (weatherService → operatorService).
+        const { executeRainReschedule } = require('./weatherService');
+        result = await executeRainReschedule(proposal);
         break;
       }
       case 'ad':
@@ -426,6 +463,7 @@ async function isFromApprover({ userId, fromPhone }) {
 module.exports = {
   createProposal,
   sendProposalSms,
+  notifyOwner,
   listPendingForUser,
   listApprovedUnexecuted,
   matchInboundResponse,

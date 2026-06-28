@@ -23,7 +23,7 @@ const { requireAuth } = require('./middleware/requireAuth');
 const { startTokenRefreshScheduler }      = require('./services/tokenManager');
 const { startDeliveryQueue }              = require('./services/deliveryQueue');
 const { startInvoicePoller }              = require('./services/invoicePoller');
-const { startWeatherScheduler }           = require('./services/weatherService');
+const { startWeatherScheduler, handleRainReply } = require('./services/weatherService');
 const { startSeoScheduler }               = require('./services/seoService');
 const { startJobberClientSyncScheduler }  = require('./services/jobberClientSync');
 const { startRetryWorker, resumeAllPending } = require('./services/marketingService');
@@ -416,10 +416,18 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
     try {
       const fromApprover = await isFromApprover({ userId, fromPhone: normalizedFrom });
       if (fromApprover) {
-        const match = await handleInboundFromSteph({ userId, body: Body.trim() });
-        if (match.matched) {
+        // Rain recommendation reply first ("YES Wednesday" / "NO") — natural language,
+        // no shortcode needed. Falls through to the generic YES/NO <code> + slash handler.
+        const rain = await handleRainReply({ userId, body: Body.trim() });
+        if (rain.matched) {
           operatorHandled = true;
-          console.log(`[inbound-sms] Operator match: type=${match.type} action=${match.action || match.command}`);
+          console.log('[inbound-sms] Rain reply handled for approver');
+        } else {
+          const match = await handleInboundFromSteph({ userId, body: Body.trim() });
+          if (match.matched) {
+            operatorHandled = true;
+            console.log(`[inbound-sms] Operator match: type=${match.type} action=${match.action || match.command}`);
+          }
         }
       }
     } catch (opErr) {
