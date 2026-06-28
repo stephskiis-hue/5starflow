@@ -34,7 +34,10 @@
       .mob-menu-btn { display: flex; }
       aside { transform: translateX(-110%) !important; transition: transform 0.3s cubic-bezier(0.4,0,0.2,1) !important; z-index: 56 !important; }
       aside.mob-open { transform: translateX(0) !important; }
-      main { padding-left: 1rem !important; padding-right: 1rem !important; padding-bottom: 2rem !important; }
+      main { padding-left: 1rem !important; padding-right: 1rem !important; padding-bottom: 2rem !important; padding-top: 1.5rem !important; }
+      /* Wide data tables scroll horizontally instead of squishing on mobile */
+      table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      table th, table td { white-space: nowrap; }
     }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
     .pulsing { animation: pulse 1.5s ease-in-out infinite; }
@@ -135,7 +138,7 @@
     </div>
 
     <!-- Summary Stat Boxes -->
-    <div class="grid grid-cols-4 gap-4 mb-8">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
       <div class="glass-card rounded-xl p-6">
         <div class="text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-semibold">Pending</div>
         <div class="text-xl font-bold text-zinc-100 mt-2" id="stat-pending">—</div>

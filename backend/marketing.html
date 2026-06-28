@@ -69,6 +69,9 @@
       aside { transform: translateX(-110%) !important; transition: transform 0.3s cubic-bezier(0.4,0,0.2,1) !important; z-index: 56 !important; }
       aside.mob-open { transform: translateX(0) !important; }
       main { padding-left: 1rem !important; padding-right: 1rem !important; padding-bottom: 2rem !important; }
+      /* Wide data tables scroll horizontally instead of squishing on mobile */
+      table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      table th, table td { white-space: nowrap; }
     }
     /* Mobile icon tab bar */
     .mob-tab { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; min-height: 52px; border-radius: 14px; transition: background 0.15s; cursor: pointer; border: none; background: transparent; gap: 2px; padding: 6px 2px; }

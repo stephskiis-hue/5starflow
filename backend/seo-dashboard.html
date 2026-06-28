@@ -77,7 +77,10 @@
       .mob-menu-btn { display: flex; }
       aside { transform: translateX(-110%) !important; transition: transform 0.3s cubic-bezier(0.4,0,0.2,1) !important; z-index: 56 !important; }
       aside.mob-open { transform: translateX(0) !important; }
-      main { padding-left: 1rem !important; padding-right: 1rem !important; padding-bottom: 2rem !important; }
+      main { padding-left: 1rem !important; padding-right: 1rem !important; padding-bottom: 2rem !important; padding-top: 1.5rem !important; }
+      /* Wide data tables scroll horizontally instead of squishing on mobile */
+      table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      table th, table td { white-space: nowrap; }
     }
   </style>
 </head>
@@ -188,7 +191,7 @@
     </div>
 
     <!-- ── Step 2: Tier Selector ─────────────────────────────────── -->
-    <div class="grid grid-cols-3 gap-5 mb-8" id="tier-grid">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8" id="tier-grid">
 
       <!-- Card 1: Free -->
       <div class="glass-card rounded-xl p-6 border border-white/10 tier-card flex flex-col" id="tier-free">
@@ -376,7 +379,7 @@
               <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Competitor URLs (one per line)</label>
               <textarea id="s-competitorUrls" placeholder="https://competitor1.com&#10;https://competitor2.com" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-primary/50 min-h-24"></textarea>
             </div>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-2">
                 <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Google Search Console Property</label>
                 <input type="text" id="s-siteProperty" placeholder="sc-domain:nobsyardwork.com" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-primary/50" />
@@ -404,7 +407,7 @@
                     <option value="ftp">FTP Upload</option>
                   </select>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-2">
                     <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Branch / Remote Path</label>
                     <input type="text" id="s-deployPath" placeholder="main or /public_html" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-primary/50" />
@@ -414,7 +417,7 @@
                     <input type="text" id="s-deployHost" placeholder="https://github.com/user/repo.git or ftp.host.com" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-primary/50" />
                   </div>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-2" id="deploy-user-group">
                     <label class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">FTP Username</label>
                     <input type="text" id="s-deployUser" placeholder="ftpuser" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-primary/50" />
