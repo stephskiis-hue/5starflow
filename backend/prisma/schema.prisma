@@ -444,13 +444,27 @@ model MarketingMessage {
   firstName       String
   phone           String?
   body            String            @default("")  // resolved message body ({firstName} replaced)
-  status          String            @default("pending") // pending | sent | failed | retrying | skipped
+  segments        Int               @default(1)   // SMS segments this body costs (see calculateSegments)
+  encoding        String?           // "GSM-7" | "UCS-2" — what forced the segment count
+
+  // --- Dispatch state: OUR lifecycle, written only by the dispatcher/retry worker ---
+  // pending | queued | failed | retrying | skipped
+  //   queued = Twilio ACCEPTED the API call and returned a SID. It is NOT delivered.
+  //   Legacy rows may still carry "sent", which means exactly the same thing.
+  status          String            @default("pending")
   attempts        Int               @default(0)
   messageSid      String?
   error           String?
-  sentAt          DateTime?
+  sentAt          DateTime?         // when Twilio accepted the API call (NOT delivery time)
   lastAttemptAt   DateTime?
   nextRetryAt     DateTime?
+
+  // --- Delivery state: TWILIO's lifecycle, written only by the status callback ---
+  // null (no receipt yet) | queued | sending | sent | delivered | undelivered | failed
+  deliveryStatus   String?
+  deliveredAt      DateTime?        // set when deliveryStatus first becomes "delivered"
+  carrierErrorCode String?          // Twilio ErrorCode from the receipt (e.g. 30007 carrier filtered)
+
   replyBody       String?           // client's reply text (set when inbound SMS is matched)
   replyReceivedAt DateTime?         // when the reply arrived
   createdAt       DateTime          @default(now())
@@ -461,6 +475,7 @@ model MarketingMessage {
   @@index([status, nextRetryAt])
   @@index([userId, status])
   @@index([phone, status])
+  @@index([campaignId, deliveryStatus])
 }
 
 // ---------------------------------------------------------------------------

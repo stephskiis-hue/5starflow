@@ -29,6 +29,125 @@ const PERMANENT_TWILIO_CODES = new Set([
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// ---------------------------------------------------------------------------
+// SMS segmentation / cost
+//
+// This is the single biggest driver of an SMS bill and it is invisible unless
+// you measure it. SMS bodies are encoded one of two ways:
+//
+//   GSM-7  — the standard 7-bit alphabet. 160 chars per segment (153 when the
+//            message spans multiple segments, because 7 bytes go to the header).
+//   UCS-2  — UTF-16. Used the moment the body contains ONE character outside
+//            GSM-7. Only 70 chars per segment (67 when multipart).
+//
+// So a single emoji — or a single curly apostrophe (’ instead of ') — more than
+// doubles the cost of every message in a campaign. Twilio bills per segment, so
+// a 270-char body is 2 segments as plain text and 4 segments with one emoji.
+// Segments also govern throughput: a long code sends ~1 segment/second.
+// ---------------------------------------------------------------------------
+
+// GSM 03.38 basic character set — each counts as 1 character.
+const GSM7_BASIC = new Set(
+  ('@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?' +
+   '¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà').split('')
+);
+
+// GSM 03.38 extension table — each of these costs 2 characters (escape + char).
+const GSM7_EXTENDED = new Set(['^', '{', '}', '\\', '[', '~', ']', '|', '€']);
+
+const GSM7_SINGLE = 160, GSM7_MULTI = 153;
+const UCS2_SINGLE = 70,  UCS2_MULTI = 67;
+
+/**
+ * Work out how many SMS segments a body costs, and why.
+ *
+ * @param {string} body
+ * @returns {{segments:number, encoding:'GSM-7'|'UCS-2', characters:number,
+ *            charsPerSegment:number, remaining:number, nonGsmChars:string[]}}
+ *   nonGsmChars — the specific characters that forced UCS-2, so the UI can say
+ *   "remove these three characters and halve your bill".
+ */
+function calculateSegments(body) {
+  const text = String(body ?? '');
+
+  // Which characters (if any) knock us out of GSM-7?
+  const nonGsm = [];
+  for (const ch of text) {              // iterate by code point, not code unit
+    if (!GSM7_BASIC.has(ch) && !GSM7_EXTENDED.has(ch) && !nonGsm.includes(ch)) {
+      nonGsm.push(ch);
+    }
+  }
+  const isGsm7 = nonGsm.length === 0;
+
+  let characters;
+  if (isGsm7) {
+    // Extended-table characters occupy two slots each.
+    characters = 0;
+    for (const ch of text) characters += GSM7_EXTENDED.has(ch) ? 2 : 1;
+  } else {
+    // UCS-2 is billed in UTF-16 code units, so an astral-plane emoji costs 2.
+    characters = text.length;
+  }
+
+  const single = isGsm7 ? GSM7_SINGLE : UCS2_SINGLE;
+  const multi  = isGsm7 ? GSM7_MULTI  : UCS2_MULTI;
+
+  let segments, charsPerSegment;
+  if (characters === 0) {
+    segments = 0; charsPerSegment = single;
+  } else if (characters <= single) {
+    segments = 1; charsPerSegment = single;
+  } else {
+    segments = Math.ceil(characters / multi); charsPerSegment = multi;
+  }
+
+  return {
+    segments,
+    encoding: isGsm7 ? 'GSM-7' : 'UCS-2',
+    characters,
+    charsPerSegment,
+    remaining: Math.max(0, segments * charsPerSegment - characters),
+    nonGsmChars: nonGsm,
+  };
+}
+
+/**
+ * Rewrite a body into the GSM-7 alphabet so it bills at 160/153 chars per
+ * segment instead of 70/67. Substitutes the common offenders that word
+ * processors and phone keyboards insert silently, then drops anything still
+ * unrepresentable (emoji, most symbols).
+ *
+ * Used to show "your message costs N segments, but M as plain text" — and to
+ * power a one-click cleanup in the composer.
+ */
+const GSM7_SUBSTITUTIONS = [
+  [/[‘’‚‛′]/g, "'"],   // curly / slanted single quotes
+  [/[“”„‟″]/g, '"'],   // curly double quotes
+  [/[–—―]/g, '-'],               // en / em dash
+  [/…/g, '...'],                            // ellipsis
+  [/[   ]/g, ' '],               // non-breaking spaces
+  [/[•·]/g, '-'],                      // bullets
+  [/™/g, 'TM'],
+  [/®/g, '(R)'],
+  [/©/g, '(C)'],
+  [/[≤]/g, '<='],
+  [/[≥]/g, '>='],
+];
+
+function stripToGsm7(body) {
+  let text = String(body ?? '');
+  for (const [pattern, replacement] of GSM7_SUBSTITUTIONS) {
+    text = text.replace(pattern, replacement);
+  }
+  // Drop whatever is still outside GSM-7 (emoji, remaining symbols).
+  let out = '';
+  for (const ch of text) {
+    if (GSM7_BASIC.has(ch) || GSM7_EXTENDED.has(ch)) out += ch;
+  }
+  // Collapse whitespace left behind by removed emoji.
+  return out.replace(/[ \t]{2,}/g, ' ').replace(/ +\n/g, '\n').trim();
+}
+
 /**
  * Load Twilio credentials for a user from DB.
  * Falls back to env vars if no DB credential found (local dev).
@@ -209,6 +328,8 @@ async function sendReviewSMS(rawPhone, firstName, userId) {
 
 module.exports = {
   sendReviewSMS,
+  calculateSegments,
+  stripToGsm7,
   sendSmsSafely,
   classifyTwilioError,
   getTwilioCreds,

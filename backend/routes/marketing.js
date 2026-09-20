@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const prisma  = require('../lib/prismaClient');
 const { dispatchCampaign, resetFailedForRetry, MAX_RECIPIENTS } = require('../services/marketingService');
-const { toE164 } = require('../services/smsService');
+const { toE164, calculateSegments, stripToGsm7 } = require('../services/smsService');
 const logger = require('../lib/logger');
 
 // ---------------------------------------------------------------------------
@@ -327,13 +327,40 @@ router.get('/campaigns/:id', async (req, res) => {
     const counts = {
       pending:  c.pending  || 0,
       retrying: c.retrying || 0,
-      sent:     c.sent     || 0,
+      // queued = accepted by Twilio. 'sent' is the legacy spelling of the same
+      // thing on rows written before delivery tracking existed.
+      sent:     (c.queued || 0) + (c.sent || 0),
       failed:   c.failed   || 0,
       skipped:  c.skipped  || 0,
     };
     counts.total = counts.pending + counts.retrying + counts.sent + counts.failed + counts.skipped;
 
-    res.json({ campaign, counts });
+    // Delivery receipts — what actually reached a handset. Tracked separately
+    // because they arrive asynchronously, long after dispatch finishes.
+    const deliveryGrouped = await prisma.marketingMessage.groupBy({
+      by: ['deliveryStatus'],
+      where: { campaignId: campaign.id },
+      _count: { _all: true },
+    });
+    const d = Object.fromEntries(
+      deliveryGrouped.filter((g) => g.deliveryStatus).map((g) => [g.deliveryStatus, g._count._all])
+    );
+    const delivery = {
+      delivered:   d.delivered   || 0,
+      undelivered: (d.undelivered || 0) + (d.failed || 0),
+      inFlight:    (d.queued || 0) + (d.sending || 0) + (d.sent || 0),
+    };
+    // Accepted by Twilio but no receipt of any kind yet.
+    delivery.awaitingReceipt = Math.max(
+      0, counts.sent - delivery.delivered - delivery.undelivered - delivery.inFlight
+    );
+
+    const segAgg = await prisma.marketingMessage.aggregate({
+      where:  { campaignId: campaign.id, status: { notIn: ['skipped'] } },
+      _sum:   { segments: true },
+    });
+
+    res.json({ campaign, counts, delivery, totalSegments: segAgg._sum.segments || 0 });
   } catch (err) {
     console.error('[marketing] GET /campaigns/:id error:', err.message);
     res.status(500).json({ error: 'Failed to load campaign' });
@@ -385,6 +412,9 @@ router.post('/campaigns/send', async (req, res) => {
       const isOptedOut = c.phone && optedOutPhones.has(last10(c.phone));
       const canSend    = c.phone && c.smsAllowed && !isOptedOut;
       const resolvedBody = (template.body || '').replace(/\{firstName\}/gi, c.firstName || 'there');
+      // Segments are computed per row because {firstName} substitution changes
+      // the length — and can tip a body over a segment boundary for some clients.
+      const seg = calculateSegments(resolvedBody);
       return {
         userId,                               // denormalized for cron retry worker
         jobberClientId: c.jobberClientId,
@@ -392,6 +422,8 @@ router.post('/campaigns/send', async (req, res) => {
         firstName:      c.firstName,
         phone:          c.phone,
         body:           resolvedBody,
+        segments:       seg.segments,
+        encoding:       seg.encoding,
         status:         canSend ? 'pending' : 'skipped',
         error:          canSend    ? null
                        : isOptedOut ? 'Opted out (STOP received)'
@@ -401,6 +433,23 @@ router.post('/campaigns/send', async (req, res) => {
     });
 
     const skippedCount = messageRows.filter((m) => m.status === 'skipped').length;
+
+    // Cost + throughput estimate for the rows we will actually send. Logged so a
+    // surprising bill or a slow-draining campaign is explainable after the fact.
+    const sendable      = messageRows.filter((m) => m.status === 'pending');
+    const totalSegments = sendable.reduce((sum, m) => sum + m.segments, 0);
+    const encoding      = sendable.some((m) => m.encoding === 'UCS-2') ? 'UCS-2' : 'GSM-7';
+    const segsPerSecond = Math.max(0.1, parseFloat(process.env.SMS_SEGMENTS_PER_SECOND) || 1);
+    const estimate = {
+      recipients:       sendable.length,
+      totalSegments,
+      encoding,
+      // What the same campaign would cost stripped back to plain GSM-7 text.
+      // The gap between these two numbers is what emoji and curly quotes cost.
+      gsm7Segments:     sendable.reduce(
+        (sum, m) => sum + calculateSegments(stripToGsm7(m.body)).segments, 0),
+      estimatedMinutes: Math.ceil(totalSegments / segsPerSecond / 60),
+    };
 
     // Create campaign + all message rows in a transaction
     const campaign = await prisma.marketingCampaign.create({
@@ -417,12 +466,16 @@ router.post('/campaigns/send', async (req, res) => {
       },
     });
 
+    await logger.info('campaign', 'Campaign queued for dispatch', {
+      campaignId: campaign.id, name: campaign.name, skippedCount, ...estimate,
+    }, userId);
+
     // Fire-and-forget dispatch — don't block the HTTP response
     dispatchCampaign(campaign.id, userId).catch((err) => {
       console.error(`[marketing] Async dispatch failed for campaign ${campaign.id}:`, err.message);
     });
 
-    res.json({ campaignId: campaign.id, totalRecipients: messageRows.length, skippedCount });
+    res.json({ campaignId: campaign.id, totalRecipients: messageRows.length, skippedCount, estimate });
   } catch (err) {
     console.error('[marketing] POST /campaigns/send error:', err.message);
     res.status(500).json({ error: 'Failed to create campaign' });
@@ -515,7 +568,7 @@ router.get('/conversations', async (req, res) => {
       prisma.marketingMessage.findMany({
         where: {
           phone:    { not: null },
-          status:   { notIn: ['skipped', 'pending'] },
+          status:   { notIn: ['skipped', 'pending'] },   // includes queued/sent/failed/retrying
           campaign: { userId },
         },
         orderBy: { sentAt: 'desc' },
@@ -681,7 +734,7 @@ router.post('/conversations/:phone/send', async (req, res) => {
     });
 
     let messageSid = null;
-    let status     = 'sent';
+    let status     = 'queued';   // accepted by Twilio; delivery confirmed via callback
     let error      = null;
 
     if (process.env.DRY_RUN === 'true') {
@@ -700,13 +753,19 @@ router.post('/conversations/:phone/send', async (req, res) => {
 
     const client = await prisma.cachedJobberClient.findFirst({ where: { userId, phone } });
 
+    const directSeg = calculateSegments(message.trim());
+
     const msg = await prisma.marketingMessage.create({
       data: {
         campaignId:     campaign.id,
+        userId,
         jobberClientId: client?.jobberClientId || 'direct',
         clientName:     client?.name           || phone,
         firstName:      client?.firstName      || '',
         phone,
+        body:           message.trim(),
+        segments:       directSeg.segments,
+        encoding:       directSeg.encoding,
         status,
         messageSid,
         error,
@@ -717,7 +776,7 @@ router.post('/conversations/:phone/send', async (req, res) => {
     // Update campaign sentCount/failedCount
     await prisma.marketingCampaign.update({
       where: { id: campaign.id },
-      data:  status === 'sent' ? { sentCount: 1 } : { failedCount: 1 },
+      data:  status === 'queued' ? { sentCount: 1 } : { failedCount: 1 },
     });
 
     res.json({ ok: true, messageId: msg.id, status, error });
