@@ -39,7 +39,7 @@
 const twilio = require('twilio');
 const prisma = require('../lib/prismaClient');
 const logger = require('../lib/logger');
-const { getTwilioCreds, toE164, sendSmsSafely, calculateSegments } = require('./smsService');
+const { getTwilioCreds, toE164, sendSmsSafely, calculateSegments, senderParams } = require('./smsService');
 const { jobberGraphQL } = require('./jobberClient');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -59,8 +59,12 @@ const CAMPAIGN_TIMEOUT_MS       = 10 * 60 * 1000; // 10 minutes per dispatch pas
 //
 // We pace by SEGMENTS, not messages, because that is what the carrier meters. A
 // 4-segment emoji message occupies the number for ~4 seconds on a long code.
-const SEGMENTS_PER_SECOND       = Math.max(0.1, parseFloat(process.env.SMS_SEGMENTS_PER_SECOND) || 1);
-const MS_PER_SEGMENT            = Math.round(1000 / SEGMENTS_PER_SECOND);
+// A bare long code: pace to what the carrier will actually accept.
+const SEGMENTS_PER_SECOND        = Math.max(0.1, parseFloat(process.env.SMS_SEGMENTS_PER_SECOND) || 1);
+// A Messaging Service queues and paces across its own sender pool, so holding
+// back on our side just makes the campaign slower for no benefit. Still not
+// unbounded — a modest gap keeps us clear of Twilio's per-request rate limits.
+const MS_SEGMENTS_PER_SECOND     = Math.max(0.1, parseFloat(process.env.SMS_MESSAGING_SERVICE_SEGMENTS_PER_SECOND) || 10);
 const MIN_DELAY_BETWEEN_MESSAGES = parseInt(process.env.SMS_MIN_DELAY_MS, 10) || 0;
 const MAX_ATTEMPTS              = 5;               // after this many transient failures, flip to 'failed'
 // Exponential backoff schedule (milliseconds) — index = attempt number already made
@@ -82,8 +86,10 @@ const inFlight = new Set();
 const ACCEPTED_STATUSES = ['queued', 'sent'];
 
 // How long to wait after handing Twilio a message of `segments` segments.
-const paceFor = (segments) =>
-  Math.max(MIN_DELAY_BETWEEN_MESSAGES, Math.max(1, segments || 1) * MS_PER_SEGMENT);
+const rateFor  = (creds) => (creds?.messagingServiceSid ? MS_SEGMENTS_PER_SECOND : SEGMENTS_PER_SECOND);
+const paceFor  = (segments, creds) =>
+  Math.max(MIN_DELAY_BETWEEN_MESSAGES,
+           Math.round(Math.max(1, segments || 1) * 1000 / rateFor(creds)));
 
 // ---------------------------------------------------------------------------
 // Jobber client fetch (unchanged from previous revision)
@@ -221,7 +227,7 @@ async function sendOneMessage({ msg, creds, twilioClient, statusCallbackUrl, isD
   // Real send — use hardened helper
   const result = await sendSmsSafely({
     to:            phone,
-    from:          creds.fromNumber,
+    ...senderParams(creds),
     body,
     client:        twilioClient,
     userId:        fresh.userId,
@@ -339,15 +345,17 @@ async function dispatchCampaign(campaignId, userId) {
       _count: { _all: true },
     });
     const totalSegments = queuedWork._sum.segments || queuedWork._count._all || 0;
+    const rate = rateFor(creds);
     await logger.info('campaign', 'Dispatch started', {
       campaignId, userId, dryRun: isDryRun,
       toSend:            queuedWork._count._all,
       totalSegments,
-      segmentsPerSecond: SEGMENTS_PER_SECOND,
+      segmentsPerSecond: rate,
       // Rough wall-clock estimate so a slow campaign looks slow on purpose,
       // rather than looking like the app hung.
-      estimatedMinutes:  Math.ceil(totalSegments / SEGMENTS_PER_SECOND / 60),
-      fromNumber:        creds.fromNumber,
+      estimatedMinutes:  Math.ceil(totalSegments / rate / 60),
+      sender:            creds.messagingServiceSid || creds.fromNumber,
+      senderType:        creds.messagingServiceSid ? 'messaging-service' : 'single-number',
     }, userId);
 
     // Process in small batches so that a long-running dispatch doesn't hold one huge in-memory list
@@ -379,8 +387,8 @@ async function dispatchCampaign(campaignId, userId) {
         if (result.ok)                consecutiveFailures = 0;
         else if (!result.skipped)     consecutiveFailures++;
 
-        // Pace to the sending number's real throughput (see SEGMENTS_PER_SECOND).
-        await sleep(paceFor(result.segments));
+        // Pace to the sender's real throughput (see SEGMENTS_PER_SECOND).
+        await sleep(paceFor(result.segments, creds));
 
         if (Date.now() - startTime > CAMPAIGN_TIMEOUT_MS) break;
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) break;
@@ -417,7 +425,7 @@ async function finalizeCampaignStatus(campaignId, userId, abortReason, processed
   const counts = Object.fromEntries(groupedRows.map((r) => [r.status, r._count._all]));
   // "Accepted by Twilio" = queued (+ legacy 'sent' rows written before delivery
   // tracking existed). This is what `sentCount` has always really meant.
-  const sentCount    = (counts.queued || 0) + (counts.sent || 0);
+  const sentCount    = ACCEPTED_STATUSES.reduce((n, st) => n + (counts[st] || 0), 0);
   const failedCount  = counts.failed   || 0;
   const skippedCount = counts.skipped  || 0;
   const pendingCount = counts.pending  || 0;
@@ -509,7 +517,7 @@ async function retryWorkerTick() {
         const r = await sendOneMessage({
           msg, creds, twilioClient, statusCallbackUrl, isDryRun,
         });
-        await sleep(paceFor(r.segments));
+        await sleep(paceFor(r.segments, creds));
       }
     }
 

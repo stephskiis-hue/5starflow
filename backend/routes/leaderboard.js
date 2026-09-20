@@ -3,7 +3,7 @@ const twilio   = require('twilio');
 const nodemailer = require('nodemailer');
 const router   = express.Router();
 const prisma   = require('../lib/prismaClient');
-const { getTwilioCreds, toE164 } = require('../services/smsService');
+const { getTwilioCreds, toE164, senderParams } = require('../services/smsService');
 const { getGmailCreds, ensureFreshToken } = require('../services/emailService');
 const { getStatusTier } = require('../services/loyaltyService');
 const { jobberGraphQL } = require('../services/jobberClient');
@@ -120,7 +120,7 @@ router.post('/reward', async (req, res) => {
 
       const creds  = await getTwilioCreds(userId);
       const client = twilio(creds.accountSid, creds.authToken);
-      await client.messages.create({ body: msg, from: creds.fromNumber, to: toE164(phone) });
+      await client.messages.create({ body: msg, ...senderParams(creds), to: toE164(phone) });
 
     } else if (channel === 'email') {
       const emails = clientData.emails || [];

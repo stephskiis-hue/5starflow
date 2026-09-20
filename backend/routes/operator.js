@@ -28,7 +28,7 @@ const prisma  = require('../lib/prismaClient');
 const logger  = require('../lib/logger');
 const op      = require('../services/operatorService');
 const { jobberGraphQL } = require('../services/jobberClient');
-const { sendSmsSafely, toE164, getTwilioCreds } = require('../services/smsService');
+const { sendSmsSafely, toE164, getTwilioCreds, senderParams } = require('../services/smsService');
 const twilio  = require('twilio');
 
 // ---------------------------------------------------------------------------
@@ -301,7 +301,7 @@ router.post('/send-pending-sms', async (req, res) => {
   }
 
   const client = twilio(creds.accountSid, creds.authToken);
-  const result = await sendSmsSafely({ to, from: creds.fromNumber, body, client, userId });
+  const result = await sendSmsSafely({ to, ...senderParams(creds), body, client, userId });
 
   if (result.ok) {
     await prisma.operatorProposal.updateMany({

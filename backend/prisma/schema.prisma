@@ -270,6 +270,11 @@ model TwilioCredential {
   accountSid  String
   authToken   String
   fromNumber  String
+  // Optional Twilio Messaging Service SID (MG...). When set it is used INSTEAD of
+  // fromNumber: Twilio then picks a sender from the service's pool, so throughput
+  // scales with the number of senders instead of being capped at one long code's
+  // ~1 segment/sec, and Twilio manages the send queue itself.
+  messagingServiceSid String?
   notifyPhone String?           // admin's personal mobile — gets SMS when client replies Y/N
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

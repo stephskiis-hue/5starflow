@@ -156,7 +156,12 @@ async function getTwilioCreds(userId) {
   if (userId) {
     const cred = await prisma.twilioCredential.findUnique({ where: { userId } });
     if (cred) {
-      return { accountSid: cred.accountSid, authToken: cred.authToken, fromNumber: cred.fromNumber };
+      return {
+        accountSid:          cred.accountSid,
+        authToken:           cred.authToken,
+        fromNumber:          cred.fromNumber,
+        messagingServiceSid: cred.messagingServiceSid || process.env.TWILIO_MESSAGING_SERVICE_SID || null,
+      };
     }
   }
   // Fallback to env vars
@@ -164,7 +169,26 @@ async function getTwilioCreds(userId) {
     accountSid: process.env.TWILIO_ACCOUNT_SID,
     authToken:  process.env.TWILIO_AUTH_TOKEN,
     fromNumber: process.env.TWILIO_FROM_NUMBER || '+14314509814',
+    messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID || null,
   };
+}
+
+/**
+ * Decide which sender Twilio should use for a message.
+ *
+ * A Messaging Service (MG...) takes precedence over a bare from-number, and the
+ * two are mutually exclusive in the Twilio API — passing both is an error. With
+ * a Messaging Service, Twilio picks a sender from the pool, so throughput scales
+ * with the pool size rather than being capped at one long code's ~1 segment per
+ * second, and Twilio manages the outbound queue itself.
+ *
+ * Every send path goes through this so a Messaging Service, once configured,
+ * applies everywhere — campaigns, review requests, rain alerts, direct replies.
+ */
+function senderParams(creds) {
+  return creds?.messagingServiceSid
+    ? { messagingServiceSid: creds.messagingServiceSid }
+    : { from: creds?.fromNumber };
 }
 
 /**
@@ -223,7 +247,7 @@ function classifyTwilioError(err) {
  *
  * @returns {Promise<{ok:boolean, sid?:string, errorCode?:string|number, errorMessage?:string, permanent?:boolean, durationMs:number, attempts:number}>}
  */
-async function sendSmsSafely({ to, from, body, client, userId, statusCallback, inFnRetries = 2 }) {
+async function sendSmsSafely({ to, from, messagingServiceSid, body, client, userId, statusCallback, inFnRetries = 2 }) {
   const start = Date.now();
   let   lastErr = null;
   let   attempt = 0;
@@ -231,13 +255,16 @@ async function sendSmsSafely({ to, from, body, client, userId, statusCallback, i
   while (attempt <= inFnRetries) {
     attempt++;
     try {
-      const params = { body, from, to };
+      // `from` and `messagingServiceSid` are mutually exclusive in the Twilio API.
+      const params = messagingServiceSid
+        ? { body, messagingServiceSid, to }
+        : { body, from, to };
       if (statusCallback) params.statusCallback = statusCallback;
       const result = await client.messages.create(params);
 
       const durationMs = Date.now() - start;
       await logger.info('sms', 'Twilio send OK', {
-        to, from, sid: result.sid, attempt, durationMs,
+        to, from: messagingServiceSid || from, sid: result.sid, attempt, durationMs,
       }, userId);
 
       return { ok: true, sid: result.sid, attempts: attempt, durationMs };
@@ -246,7 +273,7 @@ async function sendSmsSafely({ to, from, body, client, userId, statusCallback, i
       const { permanent, errorCode, errorMessage } = classifyTwilioError(err);
 
       await logger.warn('sms', `Twilio send attempt ${attempt} failed${permanent ? ' (permanent)' : ' (transient)'}`, {
-        to, from, attempt, errorCode, errorMessage, permanent,
+        to, from: messagingServiceSid || from, attempt, errorCode, errorMessage, permanent,
       }, userId);
 
       if (permanent) {
@@ -312,7 +339,7 @@ async function sendReviewSMS(rawPhone, firstName, userId) {
   const client = twilio(creds.accountSid, creds.authToken);
   const result = await sendSmsSafely({
     to,
-    from: creds.fromNumber,
+    ...senderParams(creds),
     body,
     client,
     userId,
@@ -330,6 +357,7 @@ module.exports = {
   sendReviewSMS,
   calculateSegments,
   stripToGsm7,
+  senderParams,
   sendSmsSafely,
   classifyTwilioError,
   getTwilioCreds,

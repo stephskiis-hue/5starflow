@@ -15,6 +15,7 @@ const {
   sendSmsSafely,
   toE164,
   getTwilioCreds,
+  senderParams,
 } = require('./smsService');
 const twilio = require('twilio');
 const zapier = require('./zapierClient');
@@ -142,7 +143,7 @@ async function sendProposalSms(proposalId) {
   const client = twilio(creds.accountSid, creds.authToken);
   const result = await sendSmsSafely({
     to,
-    from:   creds.fromNumber,
+    ...senderParams(creds),
     body,
     client,
     userId: proposal.userId,
@@ -188,7 +189,7 @@ async function notifyOwner(userId, message) {
   }
 
   const client = twilio(creds.accountSid, creds.authToken);
-  return sendSmsSafely({ to: toE164(toRaw), from: creds.fromNumber, body: message, client, userId });
+  return sendSmsSafely({ to: toE164(toRaw), ...senderParams(creds), body: message, client, userId });
 }
 
 /**

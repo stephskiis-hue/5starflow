@@ -1,8 +1,8 @@
 const express = require('express');
 const router  = express.Router();
 const prisma  = require('../lib/prismaClient');
-const { dispatchCampaign, resetFailedForRetry, MAX_RECIPIENTS } = require('../services/marketingService');
-const { toE164, calculateSegments, stripToGsm7 } = require('../services/smsService');
+const { dispatchCampaign, resetFailedForRetry, MAX_RECIPIENTS, ACCEPTED_STATUSES } = require('../services/marketingService');
+const { toE164, calculateSegments, stripToGsm7, senderParams } = require('../services/smsService');
 const logger = require('../lib/logger');
 
 // ---------------------------------------------------------------------------
@@ -329,7 +329,7 @@ router.get('/campaigns/:id', async (req, res) => {
       retrying: c.retrying || 0,
       // queued = accepted by Twilio. 'sent' is the legacy spelling of the same
       // thing on rows written before delivery tracking existed.
-      sent:     (c.queued || 0) + (c.sent || 0),
+      sent:     ACCEPTED_STATUSES.reduce((n, st) => n + (c[st] || 0), 0),
       failed:   c.failed   || 0,
       skipped:  c.skipped  || 0,
     };
@@ -743,7 +743,11 @@ router.post('/conversations/:phone/send', async (req, res) => {
       try {
         const twilio = require('twilio');
         const tc     = twilio(cred.accountSid, cred.authToken);
-        const sent   = await tc.messages.create({ to: phone, from: cred.fromNumber, body: message.trim() });
+        const params = { to: phone, ...senderParams(cred), body: message.trim() };
+        // Ask for a delivery receipt like campaign sends do, so a direct reply
+        // that the carrier drops doesn't sit in the thread looking delivered.
+        if (process.env.APP_URL) params.statusCallback = `${process.env.APP_URL}/api/marketing/twilio-callback`;
+        const sent   = await tc.messages.create(params);
         messageSid   = sent.sid;
       } catch (twilioErr) {
         error  = twilioErr.message;

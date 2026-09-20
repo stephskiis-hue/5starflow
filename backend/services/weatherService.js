@@ -4,7 +4,7 @@ const nodemailer = require('nodemailer');
 const twilio  = require('twilio');
 const prisma  = require('../lib/prismaClient');
 const { jobberGraphQL } = require('./jobberClient');
-const { getTwilioCreds } = require('./smsService');
+const { getTwilioCreds, senderParams } = require('./smsService');
 const { getGmailCreds, ensureFreshToken } = require('./emailService');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -483,7 +483,7 @@ async function sendRainSMS(phone, firstName, newDateLabel, customMessage, userId
   if (!creds.accountSid || !creds.authToken) throw new Error('Twilio credentials not configured');
 
   const client = twilio(creds.accountSid, creds.authToken);
-  const params = { body, from: creds.fromNumber, to };
+  const params = { body, ...senderParams(creds), to };
   if (process.env.APP_URL) {
     params.statusCallback = `${process.env.APP_URL}/api/weather/twilio-callback`;
   }
