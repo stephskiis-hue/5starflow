@@ -7,7 +7,7 @@
 - Website: https://nobsyardwork.com
 - Service area: Winnipeg, MB and surrounding area <!-- TODO: list neighbourhoods/towns you cover -->
 - Booking / quote method: TODO (e.g. "text 204-XXX-XXXX" or "quote form on nobsyardwork.com")
-- Google review link: TODO
+- Google review link: https://g.page/r/CSu2cqDYFOxDEAE/review
 
 ## Services
 - TODO: e.g. lawn mowing, spring/fall cleanup, hedge trimming, landscaping, snow removal
