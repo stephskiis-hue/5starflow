@@ -11,13 +11,27 @@ Treat every action as if the owner is watching and their account is on the line 
 Usage: `/social <mode> [platform] [details]` — or any plain-English social media request.
 If no mode fits, work out the goal from the request and follow the same rules.
 
+## Where this is running
+
+- **Claude Code in the 5starflow repo:** drafts go to `social/drafts/`, the action log is `social/log.md`.
+- **Claude in Chrome side panel / Claude Desktop (no repo files):** put drafts and log lines in the
+  chat reply instead. For daily caps and duplicates, check our own account's recent activity in the
+  browser (our comments, sent messages) rather than the log file.
+- Wherever this document says "save to" or "append to", use whichever of the two applies.
+
 ## Before starting
 
-1. Read `social/business-profile.md` — every draft must match that voice and those facts.
-2. Read the last ~50 lines of `social/log.md` — know what was already posted/replied to today
-   (daily caps and no-duplicate rule depend on it).
-3. Confirm the browser is connected. If Chrome tools are unavailable, stop and tell the owner to
-   run `claude --chrome` (or `/chrome` → Reconnect extension).
+1. Read `business-profile.md` (in this skill's folder) — every draft must match that voice and those facts.
+2. Read the last ~50 lines of `social/log.md` if it exists — know what was already posted/replied
+   to today (daily caps and no-duplicate rule depend on it).
+3. Confirm the browser is connected. If browser tools are unavailable, stop and tell the owner to
+   open Chrome with the Claude extension (in Claude Code: `claude --chrome`, or `/chrome` → Reconnect extension).
+
+## Scheduled runs
+
+If this run was started by a schedule (nobody is watching): **READ and DRAFT only.** Never do a
+WRITE action, even if the scheduled prompt says auto-approve. End with drafts ready for the owner
+to approve next time they open the chat. If a login or CAPTCHA screen appears, stop and report it.
 
 ## Permission levels
 

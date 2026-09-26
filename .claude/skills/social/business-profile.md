@@ -1,6 +1,6 @@
 # Business Profile — used for every social media draft
 
-> Fill in or fix anything marked TODO. Claude reads this before every `/social` run.
+> Fill in or fix anything marked TODO. Claude reads this before every `/social` run. It travels inside the skill, so it also works in the Chrome extension / Claude Desktop.
 
 ## Basics
 - Business name: No BS Yard Work <!-- TODO: confirm exact name -->

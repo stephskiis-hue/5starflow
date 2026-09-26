@@ -169,5 +169,6 @@ SLACK_WEBHOOK_URL                 # optional Slack notifications
 Browser-based social media work (Instagram, Facebook, Google Business, etc.) runs through Claude Code + the Claude in Chrome extension on the owner's computer — no API key, uses the logged-in Chrome.
 - Start: `cd ~/5starflow && claude --chrome` (or `claude remote-control` to drive it from the phone app)
 - Playbook: `.claude/skills/social/SKILL.md` — invoke with `/social <mode>` (find-leads, draft-replies, post, inbox, competitor-check, content-calendar)
-- Business facts + voice: `social/business-profile.md` · drafts: `social/drafts/` · action log: `social/log.md`
+- Business facts + voice: `.claude/skills/social/business-profile.md` · drafts: `social/drafts/` · action log: `social/log.md`
 - Posting, commenting, DMs, likes and follows always need the owner's approval; account settings are never touched.
+- Chat + schedules: upload the `.claude/skills/social/` folder as a skill in Claude (zip it), then use it from the Claude in Chrome side panel; schedule via the clock icon. Scheduled runs are draft-only.
