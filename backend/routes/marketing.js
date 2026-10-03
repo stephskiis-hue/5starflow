@@ -1,7 +1,10 @@
 const express = require('express');
 const router  = express.Router();
 const prisma  = require('../lib/prismaClient');
-const { dispatchCampaign, resetFailedForRetry, MAX_RECIPIENTS } = require('../services/marketingService');
+const {
+  dispatchCampaign, resetFailedForRetry, MAX_RECIPIENTS,
+  buildRecipientPlan, estimateSegments, segmentCost,
+} = require('../services/marketingService');
 const { toE164 } = require('../services/smsService');
 const logger = require('../lib/logger');
 
@@ -207,6 +210,7 @@ router.get('/jobber-clients', async (req, res) => {
         firstName:  c.firstName,
         phone:      c.phone,
         smsAllowed: c.smsAllowed,
+        optedOut:   c.optedOut,
         tags:       JSON.parse(c.tags || '[]'),
       })),
       syncedAt: cached[0].syncedAt,
@@ -340,10 +344,64 @@ router.get('/campaigns/:id', async (req, res) => {
   }
 });
 
+const resolveBody = (tpl, firstName) => (tpl || '').replace(/\{firstName\}/gi, firstName || 'there');
+
+// POST /api/marketing/campaigns/preview — who would be texted + SMS cost estimate
+router.post('/campaigns/preview', async (req, res) => {
+  try {
+    const { templateId, audienceListId, skipReplied, skipNo, skipCampaignIds } = req.body;
+    const userId = req.user.userId;
+    if (!templateId || !audienceListId) {
+      return res.status(400).json({ error: 'templateId and audienceListId are required' });
+    }
+
+    const template = await prisma.marketingTemplate.findFirst({ where: { id: templateId, userId } });
+    if (!template) return res.status(404).json({ error: 'Template not found' });
+
+    const audience = await prisma.audienceList.findFirst({
+      where:   { id: audienceListId, userId },
+      include: { contacts: { orderBy: { clientName: 'asc' } } },
+    });
+    if (!audience) return res.status(404).json({ error: 'Audience not found' });
+
+    const plan = await buildRecipientPlan(userId, audience.contacts, {
+      skipReplied: Boolean(skipReplied),
+      skipNo:      Boolean(skipNo),
+      skipCampaignIds: Array.isArray(skipCampaignIds) ? skipCampaignIds : [],
+    });
+
+    const recipients = plan.map(({ contact: c, willSend, skipReason }) => ({
+      contactId:      c.id,
+      jobberClientId: c.jobberClientId,
+      clientName:     c.clientName,
+      phone:          c.phone,
+      willSend,
+      skipReason,
+      hardSkip:       !c.phone || !c.smsAllowed || skipReason === 'Opted out (STOP received)',
+      segments:       estimateSegments(resolveBody(template.body, c.firstName)).segments,
+    }));
+
+    const sample = estimateSegments(resolveBody(template.body, 'Michael'));
+    res.json({
+      recipients,
+      cost: {
+        encoding:        sample.encoding,
+        length:          sample.length,
+        offendingChars:  sample.offendingChars,
+        segmentsPerMessage: sample.segments,
+        perSegment:      segmentCost(),
+      },
+    });
+  } catch (err) {
+    console.error('[marketing] POST /campaigns/preview error:', err.message);
+    res.status(500).json({ error: 'Failed to build preview' });
+  }
+});
+
 // POST /api/marketing/campaigns/send — create + dispatch async
 router.post('/campaigns/send', async (req, res) => {
   try {
-    const { name, templateId, audienceListId } = req.body;
+    const { name, templateId, audienceListId, skipReplied, skipNo, skipCampaignIds, excludeContactIds } = req.body;
     const userId = req.user.userId;
 
     if (!name || !templateId || !audienceListId) {
@@ -370,33 +428,31 @@ router.post('/campaigns/send', async (req, res) => {
       return res.status(400).json({ error: `Audience exceeds ${MAX_RECIPIENTS} recipient safety limit` });
     }
 
-    // Load opted-out phones so we can skip them
-    const optedOutRecords = await prisma.cachedJobberClient.findMany({
-      where:  { userId, optedOut: true },
-      select: { phone: true },
+    // Hard rules (no phone, SMS not allowed, STOP) are always enforced server-side.
+    // The user's final review selection arrives as excludeContactIds; the skip-rule
+    // flags are only used to label why those contacts were excluded.
+    const hardPlan  = await buildRecipientPlan(userId, audience.contacts);
+    const labelPlan = await buildRecipientPlan(userId, audience.contacts, {
+      skipReplied: Boolean(skipReplied),
+      skipNo:      Boolean(skipNo),
+      skipCampaignIds: Array.isArray(skipCampaignIds) ? skipCampaignIds : [],
     });
-    const last10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
-    const optedOutPhones = new Set(optedOutRecords.map((r) => last10(r.phone)).filter(Boolean));
+    const labelById = new Map(labelPlan.map((p) => [p.contact.id, p.skipReason]));
+    const excluded  = new Set(Array.isArray(excludeContactIds) ? excludeContactIds : []);
 
-    // Build message rows — mark skipped upfront for opted-out, no phone, or smsAllowed=false.
     // Pre-resolve body per row so post-start template edits can't affect in-flight sends,
     // and so the retry worker has everything it needs without re-reading the campaign.
-    const messageRows = audience.contacts.map((c) => {
-      const isOptedOut = c.phone && optedOutPhones.has(last10(c.phone));
-      const canSend    = c.phone && c.smsAllowed && !isOptedOut;
-      const resolvedBody = (template.body || '').replace(/\{firstName\}/gi, c.firstName || 'there');
+    const messageRows = hardPlan.map(({ contact: c, skipReason: hardReason }) => {
+      const reason = hardReason || (excluded.has(c.id) ? (labelById.get(c.id) || 'Manually skipped') : null);
       return {
         userId,                               // denormalized for cron retry worker
         jobberClientId: c.jobberClientId,
         clientName:     c.clientName,
         firstName:      c.firstName,
         phone:          c.phone,
-        body:           resolvedBody,
-        status:         canSend ? 'pending' : 'skipped',
-        error:          canSend    ? null
-                       : isOptedOut ? 'Opted out (STOP received)'
-                       : !c.phone  ? 'No phone number'
-                       : 'SMS not allowed',
+        body:           resolveBody(template.body, c.firstName),
+        status:         reason ? 'skipped' : 'pending',
+        error:          reason,
       };
     });
 

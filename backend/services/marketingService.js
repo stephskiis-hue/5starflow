@@ -523,7 +523,90 @@ async function resetFailedForRetry(campaignId, userId) {
   return result.count;
 }
 
+// ---------------------------------------------------------------------------
+// Recipient plan + SMS cost estimate
+// ---------------------------------------------------------------------------
+const last10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
+
+const GSM7_BASIC = '@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà';
+const GSM7_EXT   = '^{}\\[~]|€\f';
+
+// Returns { encoding, segments, length, offendingChars }
+function estimateSegments(body) {
+  const text = String(body || '');
+  const chars = Array.from(text);
+  const offending = [...new Set(chars.filter((ch) => !GSM7_BASIC.includes(ch) && !GSM7_EXT.includes(ch)))];
+  const unicode = offending.length > 0;
+  const length = unicode
+    ? text.length // UCS-2 counts UTF-16 units (emoji = 2)
+    : chars.reduce((n, ch) => n + (GSM7_EXT.includes(ch) ? 2 : 1), 0);
+  const single = unicode ? 70 : 160;
+  const multi  = unicode ? 67 : 153;
+  const segments = length === 0 ? 0 : length <= single ? 1 : Math.ceil(length / multi);
+  return { encoding: unicode ? 'UCS-2' : 'GSM-7', segments, length, offendingChars: offending };
+}
+
+function segmentCost() {
+  const v = parseFloat(process.env.SMS_COST_PER_SEGMENT);
+  return Number.isFinite(v) && v > 0 ? v : 0.0083;
+}
+
+/**
+ * Decide, per audience contact, whether they will be texted.
+ * opts: { skipReplied, skipNo, skipCampaignIds[] }
+ * Returns [{ contact, willSend, skipReason }]  (reasons from hard rules are not overridable)
+ */
+async function buildRecipientPlan(userId, contacts, opts = {}) {
+  const { skipReplied = false, skipNo = false, skipCampaignIds = [] } = opts;
+
+  const optedOut = await prisma.cachedJobberClient.findMany({
+    where: { userId, optedOut: true }, select: { phone: true },
+  });
+  const optedOutSet = new Set(optedOut.map((r) => last10(r.phone)).filter(Boolean));
+
+  let repliedSet = new Set();
+  let noSet = new Set();
+  if (skipReplied || skipNo) {
+    const inbound = await prisma.inboundSMS.findMany({
+      where: { userId }, select: { from: true, response: true },
+    });
+    for (const m of inbound) {
+      const p = last10(m.from);
+      if (!p) continue;
+      repliedSet.add(p);
+      if (m.response === 'no') noSet.add(p);
+    }
+  }
+
+  const pastMap = new Map(); // last10 -> campaign name
+  if (skipCampaignIds.length) {
+    const past = await prisma.marketingMessage.findMany({
+      where:  { userId, status: 'sent', campaignId: { in: skipCampaignIds } },
+      select: { phone: true, campaign: { select: { name: true } } },
+    });
+    for (const m of past) {
+      const p = last10(m.phone);
+      if (p && !pastMap.has(p)) pastMap.set(p, m.campaign?.name || 'previous campaign');
+    }
+  }
+
+  return contacts.map((contact) => {
+    const p = last10(contact.phone);
+    let skipReason = null;
+    if (!contact.phone)                     skipReason = 'No phone number';
+    else if (!contact.smsAllowed)           skipReason = 'SMS not allowed';
+    else if (optedOutSet.has(p))            skipReason = 'Opted out (STOP received)';
+    else if (skipNo && noSet.has(p))        skipReason = 'Replied NO';
+    else if (skipReplied && repliedSet.has(p)) skipReason = 'Replied';
+    else if (pastMap.has(p))                skipReason = `Already texted in "${pastMap.get(p)}"`;
+    return { contact, willSend: !skipReason, skipReason };
+  });
+}
+
 module.exports = {
+  buildRecipientPlan,
+  estimateSegments,
+  segmentCost,
   fetchAllJobberClients,
   dispatchCampaign,
   resumeAllPending,

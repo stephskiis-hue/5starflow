@@ -348,6 +348,41 @@
             <p id="audience-preview" class="hidden mt-2 text-xs text-on-surface-variant"></p>
           </div>
 
+          <!-- Skip rules -->
+          <div>
+            <label class="block text-xs text-on-surface-variant font-medium uppercase tracking-wider mb-2">Skip Rules</label>
+            <div class="space-y-2 text-sm text-zinc-200">
+              <label class="flex items-center gap-2"><input id="skip-no" type="checkbox" checked onchange="refreshReview()"> Skip anyone who replied NO</label>
+              <label class="flex items-center gap-2"><input id="skip-replied" type="checkbox" checked onchange="refreshReview()"> Skip anyone who has replied to us</label>
+              <div>
+                <p class="text-xs text-on-surface-variant mb-1">Also skip people already texted in (hold Ctrl/Cmd to pick several):</p>
+                <select id="skip-campaigns" multiple size="4" onchange="refreshReview()" class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-primary/50"></select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recipient review + cost -->
+          <div id="review-panel" class="hidden">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <p id="review-counts" class="text-sm font-semibold text-zinc-100"></p>
+              <div class="flex items-center gap-2 text-xs">
+                <select id="review-filter" onchange="renderReview()" class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-zinc-100">
+                  <option value="all">All</option>
+                  <option value="send">Will send</option>
+                  <option value="skip">Skipped</option>
+                </select>
+                <button type="button" onclick="reviewSelectAll(true)" class="text-secondary hover:underline">Select all</button>
+                <button type="button" onclick="reviewSelectAll(false)" class="text-secondary hover:underline">None</button>
+              </div>
+            </div>
+            <div class="max-h-80 overflow-y-auto rounded-xl border border-white/10">
+              <table class="w-full text-sm">
+                <tbody id="review-body"></tbody>
+              </table>
+            </div>
+            <div id="cost-panel" class="mt-3 p-4 rounded-xl bg-white/5 border border-white/10 text-sm text-zinc-300 space-y-1"></div>
+          </div>
+
           <!-- Send Button -->
           <button onclick="sendCampaign()" id="send-btn" class="bg-secondary text-zinc-900 rounded-xl px-6 py-3 text-sm font-bold hover:bg-secondary/90 transition-colors flex items-center gap-2">
             <span class="material-symbols-outlined text-[18px]">send</span>
@@ -899,6 +934,8 @@
       sel.innerHTML = '<option value="">-- Choose an audience --</option>' +
         _audiences.map(a => `<option value="${a.id}">${esc(a.name)} (${a._count?.contacts || '?'} contacts)</option>`).join('');
     } catch {}
+
+    loadPastCampaigns();
   }
 
   function previewTemplate() {
@@ -911,6 +948,106 @@
     } else {
       el.classList.add('hidden');
     }
+    refreshReview();
+  }
+
+  // ---- Recipient review + cost estimate ----
+  let _review = null;          // { recipients, cost }
+  let _reviewKey = '';
+
+  async function loadPastCampaigns() {
+    try {
+      const res = await fetch(API + '/campaigns', { credentials: 'include' });
+      const data = await res.json();
+      const past = (data.campaigns || []).filter(c => c.audienceListId !== 'direct' && (c.sentCount || 0) > 0);
+      document.getElementById('skip-campaigns').innerHTML = past.map(c =>
+        `<option value="${c.id}">${esc(c.name)} — ${new Date(c.createdAt).toLocaleDateString()} (${c.sentCount} sent)</option>`
+      ).join('');
+    } catch {}
+  }
+
+  function selectedSkipCampaigns() {
+    return Array.from(document.getElementById('skip-campaigns').selectedOptions).map(o => o.value);
+  }
+
+  async function refreshReview() {
+    const templateId = document.getElementById('campaign-template').value;
+    const audienceListId = document.getElementById('campaign-audience').value;
+    const panel = document.getElementById('review-panel');
+    if (!templateId || !audienceListId) { panel.classList.add('hidden'); _review = null; return; }
+
+    const payload = {
+      templateId, audienceListId,
+      skipReplied: document.getElementById('skip-replied').checked,
+      skipNo: document.getElementById('skip-no').checked,
+      skipCampaignIds: selectedSkipCampaigns(),
+    };
+    const key = JSON.stringify(payload);
+    _reviewKey = key;
+    try {
+      const res = await fetch(API + '/campaigns/preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (key !== _reviewKey) return; // a newer request superseded this one
+      if (!res.ok) { panel.classList.add('hidden'); return; }
+      _review = data;
+      _review.recipients.forEach(r => { r.checked = r.willSend; });
+      panel.classList.remove('hidden');
+      renderReview();
+    } catch {
+      panel.classList.add('hidden');
+    }
+  }
+
+  function reviewSelectAll(on) {
+    if (!_review) return;
+    _review.recipients.forEach(r => { if (!r.hardSkip) r.checked = on; });
+    renderReview();
+  }
+
+  function toggleRecipient(i) {
+    const r = _review.recipients[i];
+    if (r.hardSkip) return;
+    r.checked = !r.checked;
+    renderReview();
+  }
+
+  function renderReview() {
+    if (!_review) return;
+    const filter = document.getElementById('review-filter').value;
+    const rows = _review.recipients;
+    const sending = rows.filter(r => r.checked);
+    document.getElementById('review-counts').textContent =
+      `${sending.length} will send · ${rows.length - sending.length} skipped (of ${rows.length})`;
+
+    document.getElementById('review-body').innerHTML = rows.map((r, i) => {
+      if (filter === 'send' && !r.checked) return '';
+      if (filter === 'skip' && r.checked) return '';
+      const reason = r.checked ? '' : (r.skipReason || 'Manually skipped');
+      return `<tr class="border-b border-white/5 ${r.checked ? '' : 'opacity-60'}">
+        <td class="px-3 py-2 w-8"><input type="checkbox" ${r.checked ? 'checked' : ''} ${r.hardSkip ? 'disabled' : ''} onchange="toggleRecipient(${i})"></td>
+        <td class="px-3 py-2 text-zinc-100">${esc(r.clientName)}</td>
+        <td class="px-3 py-2 text-on-surface-variant">${esc(r.phone || '')}</td>
+        <td class="px-3 py-2 text-xs text-amber-300">${esc(reason)}</td>
+      </tr>`;
+    }).join('');
+
+    const c = _review.cost;
+    const totalSegments = sending.reduce((n, r) => n + r.segments, 0);
+    const cost = totalSegments * c.perSegment;
+    const unicode = c.encoding === 'UCS-2';
+    let tip = '';
+    if (unicode) {
+      tip = `<p class="text-amber-300">Special characters (${esc(c.offendingChars.join(' '))}) force Unicode: only 70 chars per segment instead of 160. Removing them could cut your cost.</p>`;
+    } else if (c.segmentsPerMessage > 1 && c.length <= 160 * (c.segmentsPerMessage - 1) + 20) {
+      tip = `<p class="text-amber-300">You're only slightly over ${c.segmentsPerMessage > 2 ? 'a segment limit' : '160 characters'}. Trimming a few words would save a segment per text.</p>`;
+    }
+    document.getElementById('cost-panel').innerHTML = `
+      <p>Message length: <b>${c.length}</b> chars · Encoding: <b class="${unicode ? 'text-amber-300' : ''}">${c.encoding}</b> · <b>${c.segmentsPerMessage}</b> segment${c.segmentsPerMessage === 1 ? '' : 's'} per text</p>
+      <p>Total segments: <b>${totalSegments}</b> · Estimated cost: <b class="text-secondary">$${cost.toFixed(2)}</b> <span class="text-xs">(~$${c.perSegment}/segment; carrier fees extra)</span></p>
+      ${tip}`;
   }
 
   async function previewAudience() {
@@ -932,6 +1069,7 @@
     } catch {
       el.classList.add('hidden');
     }
+    refreshReview();
   }
 
   async function sendCampaign() {
@@ -944,10 +1082,14 @@
     if (!audienceListId) return alert('Select an audience');
 
     const tpl = _templates.find(t => t.id === templateId);
-    const aud = _audiences.find(a => a.id === audienceListId);
-    const count = aud?._count?.contacts || '?';
+    if (!_review) return alert('Wait for the recipient review to load');
 
-    if (!confirm(`Send "${tpl?.name}" to ${count} contacts?\n\nThis cannot be undone.`)) return;
+    const sending = _review.recipients.filter(r => r.checked);
+    const segs = sending.reduce((n, r) => n + r.segments, 0);
+    const estCost = (segs * _review.cost.perSegment).toFixed(2);
+    if (sending.length === 0) return alert('No recipients selected');
+
+    if (!confirm(`Send "${tpl?.name}" to ${sending.length} contacts?\n${segs} segments — est. $${estCost}\n\nThis cannot be undone.`)) return;
 
     const btn = document.getElementById('send-btn');
     btn.disabled = true;
@@ -958,7 +1100,13 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ name, templateId, audienceListId }),
+        body: JSON.stringify({
+          name, templateId, audienceListId,
+          skipReplied: document.getElementById('skip-replied').checked,
+          skipNo: document.getElementById('skip-no').checked,
+          skipCampaignIds: selectedSkipCampaigns(),
+          excludeContactIds: _review.recipients.filter(r => !r.checked).map(r => r.contactId),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
