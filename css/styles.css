@@ -1895,3 +1895,113 @@ h2 {
   .testimonial-inline-cta { flex-direction: column; gap: 1rem; }
   .testimonial-inline-cta .btn { width: 100%; text-align: center; }
 }
+
+/* --- Motion Sequence --- */
+:root {
+  --motion-ease:       cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-dur:        400ms;
+  --motion-dur-cta:    300ms;
+  --motion-dur-hover:  220ms;
+  --motion-dur-press:  90ms;
+  --motion-rise:       12px;
+  --motion-stagger:    80ms;
+  --motion-delay-sub:  200ms;
+  --motion-delay-cta:  400ms;
+  --motion-delay-card: 600ms;
+  --motion-lift-card:  -4px;
+  --motion-lift-cta:   -2px;
+  --motion-ring:       var(--color-accent);
+}
+
+/* Keyframes omit `to` so each element settles on its own resting opacity */
+@keyframes m-fade-up {
+  from { opacity: 0; translate: 0 var(--motion-rise); }
+}
+@keyframes m-fade {
+  from { opacity: 0; }
+}
+@keyframes m-scale-in {
+  from { opacity: 0; scale: 0.96; }
+}
+
+/* Pre-state: hidden only when JS can run, so no-JS visitors see content */
+@media (scripting: enabled) {
+  [data-motion-seq]:not(.is-in) [data-motion] { opacity: 0; }
+}
+
+[data-motion-seq].is-in [data-motion] {
+  animation: m-fade-up var(--motion-dur) var(--motion-ease) both;
+}
+[data-motion-seq].is-in [data-motion="sub"] {
+  animation-name: m-fade;
+  animation-delay: var(--motion-delay-sub);
+}
+[data-motion-seq].is-in [data-motion="cta"] {
+  animation-name: m-scale-in;
+  animation-duration: var(--motion-dur-cta);
+  animation-delay: var(--motion-delay-cta);
+}
+[data-motion-seq].is-in [data-motion="card"] {
+  animation-delay: calc(var(--motion-delay-card) + var(--m-i, 0) * var(--motion-stagger));
+}
+
+/* Interaction states: entrance animates `translate`/`scale`, interaction
+   animates `transform`, so the two compose instead of fighting */
+[data-motion="cta"] {
+  transition: background 0.2s, color 0.2s, border-color 0.2s,
+              transform var(--motion-dur-hover) var(--motion-ease);
+}
+[data-motion="card"] {
+  position: relative;
+  transition: transform var(--motion-dur-hover) var(--motion-ease);
+}
+[data-motion="card"]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-dur-hover) var(--motion-ease);
+}
+
+@media (hover: hover) {
+  [data-motion="cta"]:hover  { transform: translateY(var(--motion-lift-cta)); }
+  [data-motion="card"]:hover { transform: translateY(var(--motion-lift-card)); }
+  [data-motion="card"]:hover::after { opacity: 1; }
+}
+
+[data-motion="cta"]:active,
+[data-motion="card"]:active {
+  transform: translateY(0) scale(0.98);
+  transition-duration: var(--motion-dur-press);
+}
+
+[data-motion="cta"]:focus-visible,
+[data-motion="card"]:focus-visible {
+  outline: 2px solid var(--motion-ring);
+  outline-offset: 3px;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --motion-rise:      8px;
+    --motion-lift-card: -2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-motion-seq].is-in [data-motion] {
+    animation-name: m-fade;
+    animation-duration: 200ms;
+    animation-delay: 0ms;
+  }
+  [data-motion="cta"],
+  [data-motion="card"],
+  [data-motion="card"]::after { transition: none; }
+  [data-motion="cta"]:hover,
+  [data-motion="card"]:hover,
+  [data-motion="cta"]:active,
+  [data-motion="card"]:active { transform: none; }
+}

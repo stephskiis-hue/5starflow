@@ -155,6 +155,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   /* ----------------------------------------------------------
+     5b. MOTION SEQUENCE  (headline → sub → CTA → cards, plays once)
+  ---------------------------------------------------------- */
+  const motionSeqs = document.querySelectorAll('[data-motion-seq]');
+
+  motionSeqs.forEach(seq => {
+    const groups = new Map();
+    seq.querySelectorAll('[data-motion="card"]').forEach(card => {
+      const i = groups.get(card.parentElement) || 0;
+      card.style.setProperty('--m-i', i);
+      groups.set(card.parentElement, i + 1);
+    });
+  });
+
+  if ('IntersectionObserver' in window) {
+    const motionObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-in');
+          motionObserver.unobserve(entry.target);
+        }
+      });
+    }, {
+      threshold: 0.2,
+      rootMargin: '0px 0px -10% 0px'
+    });
+
+    motionSeqs.forEach(seq => motionObserver.observe(seq));
+  } else {
+    motionSeqs.forEach(seq => seq.classList.add('is-in'));
+  }
+
+
+  /* ----------------------------------------------------------
      6. ACTIVE NAV LINK  (highlight based on scroll position)
   ---------------------------------------------------------- */
   const sections   = document.querySelectorAll('main section[id]');
