@@ -128,3 +128,12 @@ test('digest: nothing needed means no text; otherwise one short summary', () => 
   assert.match(msg, /1 customer waiting 4h\+/);
   assert.ok(msg.length < 200);
 });
+
+const { extractPrices, classifyService, stats } = require('../ai/learning/pricing');
+test('pricing: amounts, services and stats', () => {
+  assert.deepEqual(extractPrices('Fall cleanup would be $220, plus $15 for bags'), [220]);   // <20 ignored as noise
+  assert.deepEqual(extractPrices('about $1,200 for the sod'), [1200]);
+  assert.equal(classifyService('how much for aeration?'), 'aeration');
+  assert.equal(classifyService('snow removal monthly'), 'snow');
+  assert.deepEqual(stats([200, 240, 220]), { count: 3, min: 200, median: 220, max: 240 });
+});

@@ -10,6 +10,7 @@ const { seedRegistry } = require('./registry');
 const { heartbeatTick, pruneOld } = require('./heartbeat');
 const { smsMonitorTick, reconcileTwilioTick } = require('./smsMonitor');
 const { digestTick } = require('./digest');
+const { pricingTick } = require('./learning/pricing');
 
 // Lazy requires: services pull in ai/runner, so requiring them at module load would be circular.
 const RUNNABLE = {
@@ -17,6 +18,7 @@ const RUNNABLE = {
   'jobber-client-sync':         { risk: 'safe',     fn: () => require('../services/jobberClientSync').clientSyncTick() },
   'jobber-invoice-poller':      { risk: 'queues',   fn: () => require('../services/invoicePoller').pollTick() },
   'operator-proposal-expiry':   { risk: 'safe',     fn: async () => { const n = await require('../services/operatorService').expirePendingProposals(); return { items_found: n }; } },
+  'pricing-learner':            { risk: 'safe',     fn: (ctx) => pricingTick(ctx) },
   'routine-heartbeat':          { risk: 'safe',     fn: (ctx) => heartbeatTick(ctx) },
   'sms-monitor':                { risk: 'safe',     fn: (ctx) => smsMonitorTick(ctx) },
   'owner-daily-digest':         { risk: 'texts-owner', fn: (ctx) => digestTick(ctx) },
@@ -44,6 +46,7 @@ async function startAiOs() {
     cron.schedule('*/10 * * * *', sms);
     setTimeout(sms, 150_000);
     cron.schedule('0 17 * * *', () => runRoutine('owner-daily-digest', (ctx) => digestTick(ctx), { quiet: true }), { timezone: 'America/Winnipeg' });
+    cron.schedule('15 2 * * *', () => runRoutine('pricing-learner', (ctx) => pricingTick(ctx), { quiet: true }), { timezone: 'America/Winnipeg' });
     const recon = () => runRoutine('comm-ledger-reconcile', (ctx) => reconcileTwilioTick(ctx), { quiet: true });
     cron.schedule('40 * * * *', recon);
     setTimeout(recon, 120_000);

@@ -36,6 +36,8 @@ const BACKEND = [
     purpose: 'Adds texts sent from our number outside the app (Twilio console or other tools) to the ledger so answered threads are not shown as waiting.', expectedEveryMinutes: 240, config: { quiet: true, files: ['ai/smsMonitor.js'] } },
   { slug: 'owner-daily-digest', name: 'Daily summary text to the owner', agent: 'orchestrator', schedule: 'Daily 5:00 pm', category: 'inbox',
     purpose: 'The only text sent to the owner: one daily summary of money questions held, customers waiting 4h+ and failing routines (nothing if nothing needs them).', expectedEveryMinutes: 2160, config: { quiet: true, files: ['ai/digest.js'] } },
+  { slug: 'pricing-learner', name: 'Price learner', agent: 'research', schedule: 'Daily 2:15 am', category: 'learning', learningEnabled: true,
+    purpose: 'Learns what the business actually charges from the owner\'s own texts (min / median / max per service) so replies can eventually quote it.', expectedEveryMinutes: 2160, config: { quiet: true, files: ['ai/learning/pricing.js'] } },
   { slug: 'routine-heartbeat', name: 'Routine heartbeat', agent: 'system', schedule: 'Every 15 min', category: 'ai-os',
     purpose: 'Flags any routine that should have reported but has gone quiet (e.g. a Claude routine blocked by the plan limit).', expectedEveryMinutes: 60, config: { quiet: true, files: ['ai/heartbeat.js'] } },
 ];
@@ -63,6 +65,8 @@ const EXTERNAL = [
     purpose: 'Researches a timely topic, writes copy, renders on-brand graphics with the design system, QA-checks and queues posts. Prompt: ai/prompts/night-studio.md' },
   { slug: 'ext-inbox-watch', name: 'Inbox Watch (SMS + Gmail)', agent: 'communication', kind: 'claude_cloud', schedule: '3x daily (8:00, 13:00, 18:00 Winnipeg)', category: 'inbox', autonomy: 'draft', enabled: false,
     purpose: 'Triages unanswered texts and emails, drafts replies as tasks, records hidden operational info. Prompt: ai/prompts/inbox-watch.md' },
+  { slug: 'ext-social-mac', name: 'Social shifts (Claude app on the Mac, MSI Chrome)', agent: 'social', kind: 'claude_desktop', schedule: '6:15 am and 7:30 pm Winnipeg', category: 'social', autonomy: 'execute', expectedEveryMinutes: 780,
+    purpose: 'Publishes the queue, replies to comments and DMs, posts in groups and records metrics through Claude in Chrome (Browser 2), within server-enforced daily caps.' },
   { slug: 'ext-social-daily', externalId: 'trig_01JL7wxcDHNL3wRYrY8yiGMY', name: 'No-Bs social media daily (Claude in Chrome)', agent: 'social', kind: 'claude_desktop', schedule: 'Daily 7:45 am Winnipeg (MSI PC)', category: 'social', autonomy: 'execute', enabled: false,
     purpose: 'Facebook + Instagram inbox, leads, groups, stories and weekly content using Claude in Chrome.' },
 ];

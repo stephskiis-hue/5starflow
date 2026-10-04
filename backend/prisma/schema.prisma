@@ -744,6 +744,9 @@ model ContentAsset {
   source        String   @default("upload")                  // upload | render | import
   notes         String?
   contentItemId String?                                      // set for rendered graphics
+  quality       Int?                                         // 1-5 curator score; renders only use >= 3
+  private       Boolean  @default(false)                     // faces, plates, house numbers: never used on posts
+  pairKey       String?                                      // groups before/after candidates (same job + day)
   createdAt     DateTime @default(now())
 
   @@unique([userId, sha256])
