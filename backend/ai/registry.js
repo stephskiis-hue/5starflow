@@ -67,6 +67,8 @@ const EXTERNAL = [
     purpose: 'Triages unanswered texts and emails, drafts replies as tasks, records hidden operational info. Prompt: ai/prompts/inbox-watch.md' },
   { slug: 'ext-social-mac', name: 'Social shifts (Claude app on the Mac, MSI Chrome)', agent: 'social', kind: 'claude_desktop', schedule: '6:15 am and 7:30 pm Winnipeg', category: 'social', autonomy: 'execute', expectedEveryMinutes: 780,
     purpose: 'Publishes the queue, replies to comments and DMs, posts in groups and records metrics through Claude in Chrome (Browser 2), within server-enforced daily caps.' },
+  { slug: 'ext-request-inbox', name: 'Request Inbox (owner requests)', agent: 'orchestrator', kind: 'claude_desktop', schedule: 'Event-gated: MSI script checks every 10 min, starts Claude only when a request is pending', category: 'ops', autonomy: 'execute',
+    purpose: 'Claims requests typed on the dashboard home page, does the work (Claude in Chrome on the MSI), and reports the result back. Unmonitored by the heartbeat on purpose: it only runs when there is work. Prompt: ai/prompts/request-inbox.md' },
   { slug: 'ext-social-daily', externalId: 'trig_01JL7wxcDHNL3wRYrY8yiGMY', name: 'No-Bs social media daily (Claude in Chrome)', agent: 'social', kind: 'claude_desktop', schedule: 'Daily 7:45 am Winnipeg (MSI PC)', category: 'social', autonomy: 'execute', enabled: false,
     purpose: 'Facebook + Instagram inbox, leads, groups, stories and weekly content using Claude in Chrome.' },
 ];

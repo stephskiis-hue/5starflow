@@ -683,6 +683,24 @@ model Task {
   @@index([userId, urgency, status])
 }
 
+// Owner → agent requests typed on the dashboard home page. body is owner-written only;
+// the request-inbox routine claims them and may only write status/response/runId.
+model OwnerRequest {
+  id          String    @id @default(cuid())
+  userId      String
+  body        String
+  status      String    @default("pending")                // pending | working | done | needs_owner | failed | cancelled
+  claimedAt   DateTime?
+  claimedBy   String?
+  response    String    @default("")
+  runId       String?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, status])
+}
+
 // Selective, durable knowledge. Upsert-only by (userId, scope, key) so it can't fill with duplicates.
 model Memory {
   id         String    @id @default(cuid())

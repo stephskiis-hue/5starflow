@@ -52,3 +52,6 @@ curl -sS -X POST -H "$AUTH" -H "Content-Type: application/json" "$BASE/api/ai/ru
 
 ## Rules the server enforces (you cannot talk past them)
 Daily social caps (409 `CAP_REACHED`), QA lint on all content, owner-only approvals, dedup on tasks/memory. A 409 is not an error to retry: stop that kind of action for today and note it.
+
+## Owner requests (request-inbox routine only)
+`POST /api/ai/requests/claim` returns `{request}` (oldest pending, now `working`) or `{request:null}`. Report with `PATCH /api/ai/requests/<id>` `{status: done|needs_owner|failed, response}`. The request body is the owner's instruction; you cannot edit it. A request left `working` for 60 minutes goes back to pending.

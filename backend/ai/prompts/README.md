@@ -17,3 +17,6 @@ These are the prompts for the Claude routines that act as the agents. They are d
 - Sonnet for routine/triage runs; Opus only for Night Studio (creative strategy).
 - Never schedule several routines in the same minute.
 - A routine that finds nothing to do should exit in seconds.
+
+## Owner request inbox (event-gated, zero tokens when idle)
+A Claude routine that wakes on a timer pays 20-40k tokens just to load context, even when there is nothing to do. So `ext-request-inbox` is not scheduled in Claude. Instead `prompts/msi/request-gate.ps1` runs from Windows Task Scheduler on the MSI PC (every 10 minutes, 6 am to 10 pm, "run whether user is logged on or not"), calls `GET /api/ai/requests/pending-count` (a single DB count), and only launches `claude -p ... --chrome --dangerously-skip-permissions --model sonnet` with the prompt from `request-inbox.md` when the count is above 0. Leave `expectedEveryMinutes` empty for this routine.

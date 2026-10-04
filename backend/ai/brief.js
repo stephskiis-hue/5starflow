@@ -24,7 +24,7 @@ function localNow() {
 const MEMORY_SCOPES = (agent) => ['rule', 'business', 'brand', agent ? `agent:${agent}` : null, agent === 'social' ? 'channel:facebook' : null].filter(Boolean);
 
 async function buildBrief(userId, { agent } = {}) {
-  const [tasks, approvals, approvalCount, openCount, urgentCount, routines, unanswered, memory] = await Promise.all([
+  const [tasks, approvals, approvalCount, openCount, urgentCount, routines, unanswered, memory, requestCount, recentRequests] = await Promise.all([
     listTasks(userId, { status: 'open', limit: 40 }),
     prisma.operatorProposal.findMany({ where: { userId, status: 'pending', expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' }, take: 10 }),
     prisma.operatorProposal.count({ where: { userId, status: 'pending', expiresAt: { gt: new Date() } } }),
@@ -33,6 +33,8 @@ async function buildBrief(userId, { agent } = {}) {
     prisma.routine.findMany({ where: { userId }, select: { slug: true, name: true, agent: true, kind: true, enabled: true, lastStatus: true, lastRunAt: true, lastSummary: true, consecutiveFailures: true } }),
     getUnansweredSms(userId, { sinceDays: 7, limit: 200 }),
     prisma.memory.findMany({ where: { userId, scope: { in: MEMORY_SCOPES(agent) } }, orderBy: [{ confidence: 'desc' }, { updatedAt: 'desc' }], take: 25, select: { scope: true, key: true, value: true } }),
+    prisma.ownerRequest.count({ where: { userId, status: 'pending' } }),
+    prisma.ownerRequest.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 5, select: { id: true, status: true, body: true, createdAt: true } }),
   ]);
 
   const mine = agent ? tasks.filter((t) => !t.agent || t.agent === agent) : tasks;
@@ -59,6 +61,10 @@ async function buildBrief(userId, { agent } = {}) {
       unansweredSms: unanswered.length,
       oldestWaitingMinutes: unanswered[0]?.waitingMinutes || 0,
       items: unanswered.slice(0, 5).map((u) => ({ phone: u.phone, name: u.clientName, minutes: u.waitingMinutes, last: u.lastMessage.slice(0, 120) })),
+    },
+    requests: {
+      pending: requestCount,
+      recent: recentRequests.map((r) => ({ id: r.id, status: r.status, body: r.body.slice(0, 160), at: r.createdAt })),
     },
     memory,
     openTaskStates: OPEN_TASK_STATES,

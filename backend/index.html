@@ -257,6 +257,21 @@
         <p class="text-sm text-zinc-400 mt-4 hidden" id="ai-brief-top"></p>
       </section>
 
+      <!-- Requests: owner types what they want done; the request-inbox routine acts on it -->
+      <section id="requests-card" class="hidden col-span-12 glass-card rounded-xl p-5 sm:p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="material-symbols-outlined text-primary">edit_note</span>
+          <h3 class="text-lg font-bold text-zinc-100">Requests</h3>
+          <span class="text-xs text-zinc-500 hidden sm:inline">Add anything you want done. It gets picked up automatically.</span>
+        </div>
+        <textarea id="req-input" rows="3" maxlength="4000" placeholder="What do you want done?" class="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-primary resize-y"></textarea>
+        <div class="flex items-center justify-between gap-3 mt-3">
+          <span id="req-msg" class="text-xs text-zinc-500"></span>
+          <button id="req-send" type="button" class="px-5 py-2 rounded-full bg-primary text-black text-sm font-bold hover:opacity-90 transition-opacity">Send request</button>
+        </div>
+        <div id="req-list" class="mt-4 space-y-2"></div>
+      </section>
+
       <!-- Review Requests (Large) -->
       <section class="col-span-12 lg:col-span-8 glass-card rounded-xl p-5 sm:p-10 group sm:hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 cursor-pointer" onclick="window.location='/review-dashboard.html'">
         <div class="flex justify-between items-start mb-6 sm:mb-10">
@@ -1267,6 +1282,63 @@
       if (b.dryRun) document.getElementById('ai-brief-dry').classList.remove('hidden');
       document.getElementById('ai-brief-card').classList.remove('hidden');
     } catch {}
+  })();
+
+  // ---- Requests card ----
+  (function initRequests() {
+    const card = document.getElementById('requests-card');
+    const input = document.getElementById('req-input');
+    const msg = document.getElementById('req-msg');
+    const list = document.getElementById('req-list');
+    const chips = {
+      pending: ['Waiting', 'bg-white/10 text-zinc-300'],
+      working: ['Working', 'bg-blue-500/10 text-blue-300'],
+      done: ['Done', 'bg-emerald-500/10 text-emerald-300'],
+      needs_owner: ['Needs you', 'bg-amber-500/10 text-amber-300'],
+      failed: ['Failed', 'bg-red-500/10 text-red-300'],
+      cancelled: ['Cancelled', 'bg-white/5 text-zinc-500'],
+    };
+    async function load() {
+      try {
+        const res = await fetch('/api/ai/requests?limit=10', { credentials: 'include' });
+        if (!res.ok) return;
+        const rows = await res.json();
+        list.innerHTML = rows.map(r => {
+          const [label, cls] = chips[r.status] || [r.status, 'bg-white/10 text-zinc-300'];
+          return '<div class="rounded-xl bg-white/5 px-4 py-3">'
+            + '<div class="flex items-center justify-between gap-2 mb-1">'
+            + '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ' + cls + '">' + esc(label) + '</span>'
+            + '<span class="flex items-center gap-2 text-[11px] text-zinc-500">' + esc(new Date(r.createdAt).toLocaleString())
+            + (r.status === 'pending' ? '<button type="button" data-cancel="' + esc(r.id) + '" class="text-zinc-400 hover:text-red-300" aria-label="Cancel request">✕</button>' : '') + '</span></div>'
+            + '<p class="text-sm text-zinc-100 whitespace-pre-wrap break-words">' + esc(r.body) + '</p>'
+            + (r.response ? '<p class="text-sm text-zinc-400 mt-2 whitespace-pre-wrap break-words">' + esc(r.response) + '</p>' : '')
+            + '</div>';
+        }).join('');
+        card.classList.remove('hidden');
+      } catch {}
+    }
+    async function send() {
+      const body = input.value.trim();
+      if (!body) return;
+      msg.textContent = 'Sending...';
+      try {
+        const res = await fetch('/api/ai/requests', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }) });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not save');
+        input.value = '';
+        msg.textContent = 'Saved. It will be picked up shortly.';
+        load();
+      } catch (e) { msg.textContent = e.message; }
+    }
+    document.getElementById('req-send').addEventListener('click', send);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } });
+    list.addEventListener('click', async e => {
+      const id = e.target.getAttribute && e.target.getAttribute('data-cancel');
+      if (!id) return;
+      await fetch('/api/ai/requests/' + encodeURIComponent(id), { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'cancelled' }) });
+      load();
+    });
+    load();
+    setInterval(load, 30000);
   })();
 </script>
 

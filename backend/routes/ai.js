@@ -19,6 +19,7 @@ const { resolveOwnerId } = require('../ai/owner');
 const { recordExternalRun, runRoutine } = require('../ai/runner');
 const { recordActivity } = require('../ai/ledger');
 const { createTask, updateTask, listTasks } = require('../ai/tasks');
+const requests = require('../ai/requests');
 const { saveMemory, searchMemory } = require('../ai/memory');
 const { buildBrief } = require('../ai/brief');
 const { getUnansweredSms, getCustomerContext } = require('../ai/comms');
@@ -73,12 +74,13 @@ const int = (v, d, max = 200) => Math.min(Math.max(parseInt(v, 10) || d, 1), max
 // --------------------------------------------------------------------------- status + brief
 router.get('/status', async (req, res) => {
   const { userId } = req.ai;
-  const [routines, openTasks, pending] = await Promise.all([
+  const [routines, openTasks, pending, pendingRequests] = await Promise.all([
     prisma.routine.count({ where: { userId } }),
     prisma.task.count({ where: { userId, status: { in: ['NEW', 'IN_PROGRESS', 'WAITING', 'APPROVAL'] } } }),
     prisma.operatorProposal.count({ where: { userId, status: 'pending' } }),
+    prisma.ownerRequest.count({ where: { userId, status: 'pending' } }),
   ]);
-  res.json({ ok: true, actor: req.ai.actor, dryRun: process.env.DRY_RUN === 'true', routines, openTasks, pendingApprovals: pending });
+  res.json({ ok: true, actor: req.ai.actor, dryRun: process.env.DRY_RUN === 'true', routines, openTasks, pendingApprovals: pending, pendingRequests });
 });
 
 router.get('/brief', async (req, res) => {
@@ -168,6 +170,46 @@ router.patch('/tasks/:id', async (req, res) => {
   const task = await updateTask(req.ai.userId, req.params.id, req.body || {});
   if (!task) return res.status(404).json({ error: 'Task not found' });
   res.json(task);
+});
+
+// --------------------------------------------------------------------------- owner requests
+// The owner types requests on the home page; the request-inbox routine claims, acts, reports.
+router.get('/requests/pending-count', async (req, res) => {
+  res.json({ pending: await requests.pendingCount(req.ai.userId) });
+});
+
+router.get('/requests', async (req, res) => {
+  res.json(await requests.listRequests(req.ai.userId, { status: req.query.status, limit: int(req.query.limit, 20, 100) }));
+});
+
+router.post('/requests', ownerOnly, async (req, res) => {
+  try {
+    const r = await requests.createRequest(req.ai.userId, req.body?.body);
+    await recordActivity(req.ai.userId, { agent: 'orchestrator', action: 'owner request added', summary: r.body.slice(0, 300), source: 'owner', result: 'pending' });
+    res.status(201).json(r);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+router.post('/requests/claim', async (req, res) => {
+  if (req.ai.actor !== 'agent') return res.status(403).json({ error: 'Only routines claim requests' });
+  res.json({ request: await requests.claimNext(req.ai.userId, req.body?.slug || 'ext-request-inbox') });
+});
+
+router.patch('/requests/:id', async (req, res) => {
+  const { userId } = req.ai;
+  if (req.ai.actor === 'owner') {
+    if (req.body?.status !== 'cancelled') return res.status(400).json({ error: 'The owner can only cancel a request' });
+    if (!(await requests.cancelRequest(userId, req.params.id))) return res.status(409).json({ error: 'Only a pending request can be cancelled' });
+    return res.json({ ok: true });
+  }
+  try {
+    const r = await requests.reportRequest(userId, req.params.id, req.body || {});
+    if (!r) return res.status(404).json({ error: 'Request not found (or cancelled)' });
+    if (r.status !== 'working') {
+      await recordActivity(userId, { agent: req.ai.agent || 'orchestrator', routineSlug: r.claimedBy, runId: r.runId, action: `owner request ${r.status}`, summary: `${r.body.slice(0, 150)} → ${r.response.slice(0, 300)}`, source: 'owner', result: r.status });
+    }
+    res.json(r);
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 // --------------------------------------------------------------------------- memory
