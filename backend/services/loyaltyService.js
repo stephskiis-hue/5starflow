@@ -148,6 +148,7 @@ async function awardPoints(jobberClientId, clientName, phone, userId) {
       return;
     }
     const message = await client.messages.create({ body: msg, ...senderParams(creds), to });
+    require('../lib/commLedger').logComm(userId, { direction: 'out', phone: to, body: msg, source: 'loyalty', providerId: message.sid, status: 'queued' });
     console.log(`[loyaltyService] Loyalty SMS sent to ${to} | SID: ${message.sid}`);
   } catch (err) {
     console.error(`[loyaltyService] Failed to send loyalty SMS to ${record.displayName}:`, err.message);

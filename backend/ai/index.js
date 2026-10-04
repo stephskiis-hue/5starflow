@@ -8,6 +8,7 @@ const { runRoutine } = require('./runner');
 const { resolveOwnerId } = require('./owner');
 const { seedRegistry } = require('./registry');
 const { heartbeatTick, pruneOld } = require('./heartbeat');
+const { smsMonitorTick, reconcileTwilioTick } = require('./smsMonitor');
 
 // Lazy requires: services pull in ai/runner, so requiring them at module load would be circular.
 const RUNNABLE = {
@@ -16,6 +17,8 @@ const RUNNABLE = {
   'jobber-invoice-poller':      { risk: 'queues',   fn: () => require('../services/invoicePoller').pollTick() },
   'operator-proposal-expiry':   { risk: 'safe',     fn: async () => { const n = await require('../services/operatorService').expirePendingProposals(); return { items_found: n }; } },
   'routine-heartbeat':          { risk: 'safe',     fn: (ctx) => heartbeatTick(ctx) },
+  'sms-monitor':                { risk: 'texts-owner', fn: (ctx) => smsMonitorTick(ctx) },
+  'comm-ledger-reconcile':      { risk: 'safe',     fn: (ctx) => reconcileTwilioTick(ctx) },
   'review-delivery-queue':      { risk: 'sends',    fn: () => require('../services/deliveryQueue').processPendingReviews() },
   'weather-morning-rain-check': { risk: 'texts-owner', fn: () => require('../services/weatherService').morningCheckTick() },
   'seo-weekly-audit':           { risk: 'spends',   fn: async () => { await require('../services/seoService').runWeeklyAudit(); return { summary: 'Audit started' }; } },
@@ -35,6 +38,16 @@ async function startAiOs() {
     const beat = () => runRoutine('routine-heartbeat', (ctx) => heartbeatTick(ctx), { quiet: true });
     cron.schedule('*/15 * * * *', beat);
     setTimeout(beat, 90_000); // grace after boot so freshly-started schedulers can report first
+    const sms = () => runRoutine('sms-monitor', (ctx) => smsMonitorTick(ctx), { quiet: true });
+    cron.schedule('*/10 * * * *', sms);
+    setTimeout(sms, 150_000);
+    const recon = () => runRoutine('comm-ledger-reconcile', (ctx) => reconcileTwilioTick(ctx), { quiet: true });
+    cron.schedule('40 * * * *', recon);
+    setTimeout(recon, 120_000);
+    // first boot after the ledger shipped: import existing inbound + sent history once
+    require('../lib/prismaClient').commMessage.count({ where: { userId } })
+      .then((n) => (n === 0 ? require('../lib/commLedger').backfillComm(userId).then((k) => console.log(`[ai] Comm ledger backfilled (${k} messages)`)) : null))
+      .catch((e) => console.warn('[ai] ledger backfill failed:', e.message));
     cron.schedule('20 3 * * *', async () => {
       const r = await pruneOld(userId).catch((e) => ({ error: e.message }));
       console.log('[ai] housekeeping', JSON.stringify(r));

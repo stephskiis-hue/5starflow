@@ -492,6 +492,7 @@ async function sendRainSMS(phone, firstName, newDateLabel, customMessage, userId
     params.statusCallback = `${process.env.APP_URL}/api/weather/twilio-callback`;
   }
   const msg = await client.messages.create(params);
+  require('../lib/commLedger').logComm(userId, { direction: 'out', phone: to, body, source: 'rain', providerId: msg.sid, status: 'queued' });
 
   console.log(`[weatherService] Rain SMS sent to ${to} | SID: ${msg.sid}`);
   return msg.sid;

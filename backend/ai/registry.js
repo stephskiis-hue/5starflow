@@ -30,6 +30,10 @@ const BACKEND = [
     purpose: 'Expires approval requests the owner never answered.', expectedEveryMinutes: 60, config: { quiet: true, files: ['services/operatorService.js'] } },
   { slug: 'marketing-sms-retry-worker', name: 'SMS retry + stalled-campaign sweep', agent: 'communication', schedule: 'Every minute', category: 'sms',
     purpose: 'Re-sends transiently failed campaign texts and resumes campaigns that stalled mid-send.', expectedEveryMinutes: 15, config: { quiet: true, files: ['services/marketingService.js'] } },
+  { slug: 'sms-monitor', name: 'Customer-waiting monitor (SMS)', agent: 'communication', schedule: 'Every 10 min', category: 'inbox',
+    purpose: 'Finds customers whose last text has no human reply, keeps one task per conversation, escalates with age and texts the owner once.', expectedEveryMinutes: 60, config: { quiet: true, files: ['ai/smsMonitor.js'] } },
+  { slug: 'comm-ledger-reconcile', name: 'Twilio log reconcile', agent: 'communication', schedule: 'Hourly', category: 'inbox',
+    purpose: 'Adds texts sent from our number outside the app (Twilio console or other tools) to the ledger so answered threads are not shown as waiting.', expectedEveryMinutes: 240, config: { quiet: true, files: ['ai/smsMonitor.js'] } },
   { slug: 'routine-heartbeat', name: 'Routine heartbeat', agent: 'system', schedule: 'Every 15 min', category: 'ai-os',
     purpose: 'Flags any routine that should have reported but has gone quiet (e.g. a Claude routine blocked by the plan limit).', expectedEveryMinutes: 60, config: { quiet: true, files: ['ai/heartbeat.js'] } },
 ];
@@ -53,6 +57,10 @@ const EXTERNAL = [
     purpose: 'Past-due, draft and conflicting invoices plus payments received this week.' },
   { slug: 'ext-weekly-email-review', externalId: 'trig_01LSHEhwqm2UrmKyePzVXaAG', name: 'Weekly Email Review', agent: 'communication', kind: 'claude_cloud', schedule: 'Sat 12:00 UTC', category: 'inbox', autonomy: 'execute',
     purpose: 'Finds overlooked client emails in Inbox and Spam, labels them and rescues genuine ones from Spam.' },
+  { slug: 'ext-night-studio', name: 'Night Studio (content + design)', agent: 'content', kind: 'claude_cloud', schedule: 'Daily 1:00 am Winnipeg', category: 'content', autonomy: 'execute', enabled: false, researchEnabled: true,
+    purpose: 'Researches a timely topic, writes copy, renders on-brand graphics with the design system, QA-checks and queues posts. Prompt: ai/prompts/night-studio.md' },
+  { slug: 'ext-inbox-watch', name: 'Inbox Watch (SMS + Gmail)', agent: 'communication', kind: 'claude_cloud', schedule: '3x daily (8:00, 13:00, 18:00 Winnipeg)', category: 'inbox', autonomy: 'draft', enabled: false,
+    purpose: 'Triages unanswered texts and emails, drafts replies as tasks, records hidden operational info. Prompt: ai/prompts/inbox-watch.md' },
   { slug: 'ext-social-daily', externalId: 'trig_01JL7wxcDHNL3wRYrY8yiGMY', name: 'No-Bs social media daily (Claude in Chrome)', agent: 'social', kind: 'claude_desktop', schedule: 'Daily 7:45 am Winnipeg (MSI PC)', category: 'social', autonomy: 'execute', enabled: false,
     purpose: 'Facebook + Instagram inbox, leads, groups, stories and weekly content using Claude in Chrome.' },
 ];

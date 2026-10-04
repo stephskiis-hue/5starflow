@@ -368,11 +368,12 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
       } else {
         try {
           const twilioClient = twilio(cred.accountSid, cred.authToken);
-          await twilioClient.messages.create({
+          const stopMsg = await twilioClient.messages.create({
             to:   normalizedFrom,
             from: cred.fromNumber,
             body: "You've been removed from our automated messaging list. You won't receive any more texts from us.",
           });
+          require('./lib/commLedger').logComm(userId, { direction: 'out', phone: normalizedFrom, body: stopMsg.body || 'Opt-out confirmation', source: 'optout', providerId: stopMsg.sid });
           console.log(`[inbound-sms] Opt-out confirmation sent to ${normalizedFrom}`);
         } catch (smsErr) {
           if (smsErr.code === 21610) {
@@ -429,6 +430,11 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
         notified:       false,
         read:           false,
       },
+    });
+
+    require('./lib/commLedger').logComm(userId, {
+      direction: 'in', phone: normalizedFrom, body: Body.trim(), source: 'inbound', sourceId: inbound.id, providerId: MessageSid,
+      jobberClientId: cachedClient?.jobberClientId, clientName: cachedClient?.name,
     });
 
     console.log(

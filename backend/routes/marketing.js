@@ -814,6 +814,9 @@ router.post('/conversations/:phone/send', async (req, res) => {
     }
 
     const client = await prisma.cachedJobberClient.findFirst({ where: { userId, phone } });
+    if (status !== 'failed' && status !== 'skipped') {
+      require('../lib/commLedger').logComm(userId, { direction: 'out', phone, body: message.trim(), source: 'manual', providerId: messageSid, jobberClientId: client?.jobberClientId, clientName: client?.name, status });
+    }
 
     const directSeg = calculateSegments(message.trim());
 

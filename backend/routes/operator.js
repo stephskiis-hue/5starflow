@@ -311,7 +311,7 @@ router.post('/send-pending-sms', async (req, res) => {
   }
 
   const client = twilio(creds.accountSid, creds.authToken);
-  const result = await sendSmsSafely({ to, ...senderParams(creds), body, client, userId });
+  const result = await sendSmsSafely({ to, ...senderParams(creds), body, client, userId, source: 'operator' });
 
   if (result.ok) {
     await prisma.operatorProposal.updateMany({

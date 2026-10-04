@@ -827,3 +827,30 @@ model SocialAction {
   @@index([userId, platform, kind, createdAt])
   @@index([userId, createdAt])
 }
+
+// ---------------------------------------------------------------------------
+// Communication ledger (M3) — every SMS in and out, with WHO sent it. "Waiting on No-Bs" is computed
+// from this: only a human reply (source manual/owner) answers a customer; campaigns, review requests,
+// rain notices and loyalty texts are automated and do not.
+// ---------------------------------------------------------------------------
+model CommMessage {
+  id             String   @id @default(cuid())
+  userId         String
+  channel        String   @default("sms")               // sms | email
+  direction      String                                  // in | out
+  phone          String?                                 // E.164
+  phoneKey       String?                                 // last 10 digits, for joins
+  email          String?
+  jobberClientId String?
+  clientName     String?
+  body           String   @default("")
+  source         String   @default("system")             // inbound | campaign | review | rain | loyalty | reward | optout | operator | manual | owner | system
+  sourceId       String?                                 // InboundSMS.id, MarketingMessage.id, Twilio sid ...
+  providerId     String?                                 // Twilio MessageSid
+  status         String?
+  at             DateTime @default(now())
+
+  @@unique([userId, channel, direction, providerId])
+  @@index([userId, phoneKey, at])
+  @@index([userId, direction, at])
+}

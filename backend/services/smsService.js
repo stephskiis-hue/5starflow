@@ -247,7 +247,7 @@ function classifyTwilioError(err) {
  *
  * @returns {Promise<{ok:boolean, sid?:string, errorCode?:string|number, errorMessage?:string, permanent?:boolean, durationMs:number, attempts:number}>}
  */
-async function sendSmsSafely({ to, from, messagingServiceSid, body, client, userId, statusCallback, inFnRetries = 2 }) {
+async function sendSmsSafely({ to, from, messagingServiceSid, body, client, userId, statusCallback, inFnRetries = 2, source = 'system' }) {
   const start = Date.now();
   let   lastErr = null;
   let   attempt = 0;
@@ -266,6 +266,9 @@ async function sendSmsSafely({ to, from, messagingServiceSid, body, client, user
       await logger.info('sms', 'Twilio send OK', {
         to, from: messagingServiceSid || from, sid: result.sid, attempt, durationMs,
       }, userId);
+
+      // customer-facing sends go in the communication ledger (owner notifications are not conversations)
+      if (source !== 'operator') require('../lib/commLedger').logComm(userId, { direction: 'out', phone: to, body, source, providerId: result.sid, status: 'queued' });
 
       return { ok: true, sid: result.sid, attempts: attempt, durationMs };
     } catch (err) {
@@ -372,6 +375,7 @@ async function sendReviewSMS(rawPhone, firstName, userId) {
     body,
     client,
     userId,
+    source: 'review',
   });
 
   if (!result.ok) {

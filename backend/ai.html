@@ -343,11 +343,11 @@
     const rows = await api('/inbox/unanswered-sms');
     setBadge('badge-inbox', rows.length);
     $('tab-inbox').innerHTML = `
-      <div class="glass-card rounded-xl p-5 mb-4"><p class="text-sm text-zinc-300"><b>Waiting on No-Bs.</b> Customers whose last text has no reply after it. Replies sent from your own phone or Jobber are not visible here yet, so a thread may already be handled.</p></div>
+      <div class="glass-card rounded-xl p-5 mb-4"><p class="text-sm text-zinc-300"><b>Waiting on No-Bs.</b> Customers whose last text has no human reply after it (automated campaigns, review requests and rain notices do not count as replies). Replies from your personal phone or Jobber are not visible here, so a thread may already be handled.</p></div>
       ${rows.length ? rows.map((r) => `<div class="glass-card rounded-xl p-4 mb-3 flex items-start gap-4">
         <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 flex-wrap"><p class="text-sm font-semibold text-zinc-100">${esc(r.clientName || r.phone)}</p>${r.clientName ? `<span class="text-xs text-zinc-500">${esc(r.phone)}</span>` : '<span class="badge b-warn">unmatched</span>'}${r.sentiment && r.sentiment !== 'neutral' ? `<span class="badge ${r.sentiment === 'promoter' ? 'b-ok' : 'b-bad'}">${esc(r.sentiment)}</span>` : ''}</div>
-          <p class="text-sm text-zinc-300 mt-1 break-words">${esc(r.lastMessage)}</p>
+          <div class="flex items-center gap-2 flex-wrap"><p class="text-sm font-semibold text-zinc-100">${esc(r.clientName || r.phone)}</p>${r.clientName ? `<span class="text-xs text-zinc-500">${esc(r.phone)}</span>` : '<span class="badge b-warn">unmatched</span>'}<span class="badge ${r.state === 'ESCALATION_REQUIRED' ? 'b-bad' : r.state === 'FOLLOW_UP_REQUIRED' ? 'b-warn' : 'b-normal'}">${esc(String(r.state || '').replace(/_/g, ' ').toLowerCase())}</span>${r.sentiment && r.sentiment !== 'neutral' ? `<span class="badge ${r.sentiment === 'promoter' ? 'b-ok' : 'b-bad'}">${esc(r.sentiment)}</span>` : ''}</div>
+          <p class="text-sm text-zinc-300 mt-1 break-words">${esc(r.lastMessage)}</p>${r.reason ? `<p class="text-xs text-zinc-500 mt-1">${esc(r.reason)}</p>` : ''}
         </div>
         <div class="text-right flex-none"><p class="text-xs font-bold ${r.waitingMinutes > 240 ? 'text-red-300' : 'text-amber-300'}">waiting ${esc(waitLabel(r.waitingMinutes))}</p>
         <a class="btn inline-block mt-2" href="/marketing.html#inbox">Reply</a></div></div>`).join('') : empty('mark_email_read', 'Nobody is waiting on a reply', 'Every recent text has an answer after it.')}`;

@@ -121,7 +121,8 @@ router.post('/reward', async (req, res) => {
       if (await isOptedOut(userId, phone)) return res.status(409).json({ error: 'Client opted out of texts (STOP)' });
       const creds  = await getTwilioCreds(userId);
       const client = twilio(creds.accountSid, creds.authToken);
-      await client.messages.create({ body: msg, ...senderParams(creds), to: toE164(phone) });
+      const sent = await client.messages.create({ body: msg, ...senderParams(creds), to: toE164(phone) });
+      require('../lib/commLedger').logComm(userId, { direction: 'out', phone: toE164(phone), body: msg, source: 'reward', providerId: sent.sid, status: 'queued' });
 
     } else if (channel === 'email') {
       const emails = clientData.emails || [];

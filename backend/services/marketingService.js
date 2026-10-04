@@ -233,6 +233,7 @@ async function sendOneMessage({ msg, creds, twilioClient, statusCallbackUrl, isD
     client:        twilioClient,
     userId:        fresh.userId,
     statusCallback: statusCallbackUrl,
+    source:        'campaign',
   });
 
   if (result.ok) {

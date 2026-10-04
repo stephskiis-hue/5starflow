@@ -148,6 +148,7 @@ async function sendProposalSms(proposalId) {
     body,
     client,
     userId: proposal.userId,
+    source: 'operator',
   });
 
   if (result.ok) {
@@ -190,7 +191,7 @@ async function notifyOwner(userId, message) {
   }
 
   const client = twilio(creds.accountSid, creds.authToken);
-  return sendSmsSafely({ to: toE164(toRaw), ...senderParams(creds), body: message, client, userId });
+  return sendSmsSafely({ to: toE164(toRaw), ...senderParams(creds), body: message, client, userId, source: 'operator' });
 }
 
 /**
