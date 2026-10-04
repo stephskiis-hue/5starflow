@@ -346,7 +346,14 @@ router.get('/seo-data', async (req, res) => {
   const userId = req.operatorUserId;
   const out = { seoSettings: null, latestAudit: null, recentPageSpeed: [], recentAuditPages: [] };
   try {
-    out.seoSettings = await prisma.seoSettings.findUnique({ where: { userId } });
+    // Never hand credentials to the agent: deploy password and Google OAuth tokens stay server-side.
+    out.seoSettings = await prisma.seoSettings.findUnique({
+      where: { userId },
+      select: {
+        siteUrl: true, competitorUrls: true, deployType: true, deployBranch: true,
+        siteProperty: true, ga4PropertyId: true, auditEnabled: true, deepAnalysis: true,
+      },
+    });
     out.latestAudit = await prisma.seoAudit.findFirst({
       where: { userId }, orderBy: { runAt: 'desc' },
     });
@@ -485,6 +492,9 @@ router.post('/apply-site-changes/:id', async (req, res) => {
   if (!proposal)                  return res.status(404).json({ error: 'Proposal not found' });
   if (proposal.userId !== userId) return res.status(403).json({ error: 'Proposal belongs to a different user' });
   if (proposal.category !== 'seo') return res.status(400).json({ error: 'apply-site-changes is only valid for category=seo proposals' });
+  if (!['approved', 'executed'].includes(proposal.status)) {
+    return res.status(409).json({ error: `Proposal is ${proposal.status}, not approved` });
+  }
 
   // We piggy-back on the existing SeoChange table rather than invent a new one.
   // A lightweight SeoProposal anchor is created if not already present — keeps

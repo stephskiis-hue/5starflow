@@ -108,9 +108,9 @@ async function fetchAllClients(userId) {
  * Returns visits with client contact info for SMS/email.
  */
 async function fetchWeekVisits(userId, startDate, endDate) {
-  // Use Winnipeg CDT (UTC-5) for boundary times so a job at 8 AM local is never missed
-  const start = new Date(startDate + 'T00:00:00-05:00').toISOString();
-  const end   = new Date(endDate   + 'T23:59:59-05:00').toISOString();
+  // Day boundaries in Winnipeg local time (DST-aware) so a job at 8 AM local is never missed
+  const start = new Date(startDate + 'T00:00:00' + tzOffsetFor(startDate)).toISOString();
+  const end   = new Date(endDate   + 'T23:59:59' + tzOffsetFor(endDate)).toISOString();
 
   const allNodes = [];
   let cursor  = null;
@@ -185,12 +185,32 @@ function getDayTag(date = new Date()) {
   return date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 }
 
+const BUSINESS_TZ = process.env.BUSINESS_TZ || 'America/Winnipeg';
+
+const _dateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: BUSINESS_TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+const _hourFmt = new Intl.DateTimeFormat('en-GB', { timeZone: BUSINESS_TZ, hour: '2-digit', hourCycle: 'h23' });
+
 /**
- * Converts a date string or Date to "YYYY-MM-DD" in local time.
+ * Converts a date string or Date to "YYYY-MM-DD" in the business timezone (Winnipeg).
+ * (Was UTC, which flipped to "tomorrow" every evening and broke the morning check.)
  */
 function toDateString(date = new Date()) {
   const d = date instanceof Date ? date : new Date(date);
-  return d.toISOString().slice(0, 10);
+  return _dateFmt.format(d);
+}
+
+/** Hour of day (0-23) in the business timezone. */
+function localHour(date) {
+  return parseInt(_hourFmt.format(date), 10);
+}
+
+/** UTC offset like "-05:00" / "-06:00" for a YYYY-MM-DD in the business timezone (DST-aware). */
+function tzOffsetFor(dateStr) {
+  const noon = new Date(`${dateStr}T18:00:00Z`);
+  const part = new Intl.DateTimeFormat('en-US', { timeZone: BUSINESS_TZ, timeZoneName: 'longOffset' })
+    .formatToParts(noon).find((p) => p.type === 'timeZoneName')?.value || 'GMT-06:00';
+  const m = part.match(/GMT([+-]\d{2}):?(\d{2})?/);
+  return m ? `${m[1]}:${m[2] || '00'}` : '-06:00';
 }
 
 /**
@@ -362,15 +382,15 @@ async function checkRainToday(settings) {
   // Filter to today's entries within business hours
   const todayEntries = forecastList.filter((entry) => {
     const d = new Date(entry.dt * 1000);
-    const dateStr = d.toISOString().slice(0, 10);
-    const hour    = d.getUTCHours(); // OWM timestamps are UTC
+    const dateStr = toDateString(d);
+    const hour    = localHour(d); // OWM timestamps are UTC — compare in business-local time
     return dateStr === todayStr && hour >= startH && hour <= endH;
   });
 
   if (todayEntries.length === 0) {
     // No entries for today in business hours — use any today entries
     const anyToday = forecastList.filter((e) =>
-      new Date(e.dt * 1000).toISOString().slice(0, 10) === todayStr
+      toDateString(new Date(e.dt * 1000)) === todayStr
     );
     todayEntries.push(...anyToday);
   }
@@ -908,15 +928,18 @@ function startWeatherScheduler() {
     runMorningCheck().catch((err) =>
       console.error('[weatherService] Scheduler error:', err.message)
     );
-  });
+  }, { timezone: BUSINESS_TZ });
 
-  // Run immediately on startup (non-blocking)
-  runMorningCheck().catch((err) =>
-    console.error('[weatherService] Startup check error:', err.message)
-  );
+  // Catch-up on startup ONLY if today's check never ran — redeploys must not re-propose
+  // a reschedule the owner already declined or let expire.
+  prisma.weatherCheck.findFirst({ where: { date: toDateString() } })
+    .then((done) => (done ? null : runMorningCheck()))
+    .catch((err) => console.error('[weatherService] Startup check error:', err.message));
 }
 
 module.exports = {
+  tzOffsetFor,
+  localHour,
   getForecast,
   buildDaySummaries,
   checkRainToday,

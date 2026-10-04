@@ -29,6 +29,7 @@ const { startJobberClientSyncScheduler }  = require('./services/jobberClientSync
 const { startRetryWorker, resumeAllPending } = require('./services/marketingService');
 const { startOperatorProposalExpiry, isFromApprover, handleInboundFromSteph } = require('./services/operatorService');
 const logger = require('./lib/logger');
+const { validateTwilioSignature } = require('./lib/twilioSignature');
 
 // ---------------------------------------------------------------------------
 // Env validation — fail fast if critical config is missing. Twilio + DB are
@@ -185,7 +186,7 @@ app.use('/api/operator', operatorRouter);
 app.use('/auth', portalRouter);
 
 // Twilio delivery status callback — public (Twilio posts here, no session)
-app.post('/api/weather/twilio-callback', twilioLimiter, express.urlencoded({ extended: false }), async (req, res) => {
+app.post('/api/weather/twilio-callback', twilioLimiter, express.urlencoded({ extended: false }), validateTwilioSignature, async (req, res) => {
   const { MessageSid, MessageStatus } = req.body || {};
   if (MessageSid && MessageStatus) {
     const prisma = require('./lib/prismaClient');
@@ -205,7 +206,7 @@ app.post('/api/weather/twilio-callback', twilioLimiter, express.urlencoded({ ext
 // different things, and receipts arrive out of order — a late "queued" receipt
 // used to regress an already-dispatched row into a state no counter recognised,
 // silently dropping it from every campaign total.
-app.post('/api/marketing/twilio-callback', twilioLimiter, express.urlencoded({ extended: false }), async (req, res) => {
+app.post('/api/marketing/twilio-callback', twilioLimiter, express.urlencoded({ extended: false }), validateTwilioSignature, async (req, res) => {
   const { MessageSid, MessageStatus, ErrorCode } = req.body || {};
   if (MessageSid && MessageStatus) {
     const p = require('./lib/prismaClient');
@@ -232,7 +233,7 @@ app.post('/api/marketing/twilio-callback', twilioLimiter, express.urlencoded({ e
 
 // Marketing inbound SMS webhook — Twilio posts here when a client replies to the marketing number
 // Must be public (no auth session) and return TwiML so Twilio doesn't retry
-app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ extended: false }), async (req, res) => {
+app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ extended: false }), validateTwilioSignature, async (req, res) => {
   // Always respond with empty TwiML first to prevent Twilio retries
   res.set('Content-Type', 'text/xml');
   res.send('<Response></Response>');
@@ -553,8 +554,11 @@ app.get('/', (req, res) => {
 // ---------------------------------------------------------------------------
 app.use(requireAuth);
 
-// Serve dashboard and other static files (protected)
-app.use(express.static(__dirname));
+// Serve dashboard pages (protected). Only top-level *.html is exposed — never server.js,
+// routes/, services/, prisma/ or other source that lives in this directory.
+const serveDashboardPage = express.static(__dirname, { index: false, dotfiles: 'deny' });
+app.use((req, res, next) => (/^\/[A-Za-z0-9_-]+\.html$/.test(req.path) ? serveDashboardPage(req, res, next) : next()));
+app.use('/public-ai', express.static(path.join(__dirname, 'public-ai')));
 app.use('/images', express.static(path.join(__dirname, 'images')));
 
 // Protected API routes

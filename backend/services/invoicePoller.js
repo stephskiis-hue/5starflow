@@ -21,7 +21,7 @@ let throttledUntil = 0;
 // ---------------------------------------------------------------------------
 const POLL_INVOICES = `
   query PollInvoices($cursor: String) {
-    invoices(after: $cursor) {
+    invoices(first: 50, after: $cursor) {
       nodes {
         id
         invoiceNumber
@@ -31,7 +31,7 @@ const POLL_INVOICES = `
           name
           emails { address primary }
           phones { number primary smsAllowed }
-          tags { nodes { label } }
+          tags(first: 10) { nodes { label } }
         }
       }
       pageInfo {
@@ -155,7 +155,10 @@ function startInvoicePoller() {
   const intervalMinutes = parseInt(process.env.POLL_INTERVAL_MINUTES, 10) || 120;
   const validIntervals = [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60, 120, 240, 1440];
   const cronInterval = validIntervals.includes(intervalMinutes) ? intervalMinutes : 120;
-  const cronPattern = cronInterval === 60 ? '0 * * * *' : `*/${cronInterval} * * * *`;
+  // node-cron collapses a minute step >59 to minute 0, so '*/120' ran hourly — express long intervals in hours.
+  const cronPattern = cronInterval === 1440 ? '0 0 * * *'
+                    : cronInterval >= 60    ? `0 */${cronInterval / 60} * * *`
+                    : `*/${cronInterval} * * * *`;
 
   console.log(`[invoicePoller] Starting invoice poller (every ${cronInterval} min)`);
 
@@ -163,7 +166,7 @@ function startInvoicePoller() {
     await pollPaidInvoices().catch((err) => {
       console.error('[invoicePoller] Scheduled poll error:', err.message);
     });
-  });
+  }, { timezone: 'America/Winnipeg' });
 
   // Delayed startup poll — wait 30s for server to fully initialize
   setTimeout(() => {

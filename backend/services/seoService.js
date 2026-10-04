@@ -836,8 +836,8 @@ async function runWeeklyAudit(userId = null, tier = 'pro-plus') {
 function startSeoScheduler() {
   cron.schedule('0 8 * * 0', () => {
     console.log('[seoService] Weekly cron triggered');
-    runWeeklyAudit();
-  });
+    runWeeklyAudit().catch((err) => console.error('[seoService] Weekly audit error:', err.message));
+  }, { timezone: 'America/Winnipeg' });
   console.log('[seoService] Weekly audit scheduled — Sundays at 8:00 AM');
 }
 

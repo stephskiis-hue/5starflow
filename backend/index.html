@@ -490,6 +490,8 @@
   setInterval(updateClock, 30000);
 
   // ── Time Ago ────────────────────────────────────────────────────────
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
   function formatTimeAgo(date) {
     const diff = (Date.now() - date.getTime()) / 1000;
     if (diff < 60)    return 'just now';
@@ -563,7 +565,7 @@
         return `<div class="flex items-center justify-between p-3 bg-white/5 rounded-lg">
           <div class="flex items-center gap-3">
             <div class="w-2 h-2 rounded-full ${dotColor}"></div>
-            <span class="text-sm font-medium truncate max-w-[120px]">${name}</span>
+            <span class="text-sm font-medium truncate max-w-[120px]">${esc(name)}</span>
           </div>
           <span class="text-xs text-on-surface-variant flex-shrink-0">${time}</span>
         </div>`;
@@ -846,7 +848,7 @@
 
     // Rebuild options
     select.innerHTML = '<option value="">Select event to track…</option>'
-      + data.events.map(e => `<option value="${e.name}">${e.name}</option>`).join('');
+      + data.events.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join('');
 
     // Auto-select first event matching "call", else first event
     const phoneEvent = data.events.find(e => /call/i.test(e.name));
@@ -947,13 +949,13 @@
         ? '<span class="w-5 h-5 rounded-full bg-secondary text-[10px] font-bold text-black flex items-center justify-center flex-shrink-0">' + c.unreadCount + '</span>'
         : '';
       return '<div class="flex items-start gap-3 p-3 bg-white/5 rounded-lg">' +
-        '<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-xs font-bold text-zinc-100 flex-shrink-0">' + initials + '</div>' +
+        '<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-xs font-bold text-zinc-100 flex-shrink-0">' + esc(initials) + '</div>' +
         '<div class="flex-1 min-w-0">' +
           '<div class="flex items-center justify-between gap-2">' +
-            '<span class="text-sm font-semibold text-zinc-100 truncate">' + name + '</span>' +
+            '<span class="text-sm font-semibold text-zinc-100 truncate">' + esc(name) + '</span>' +
             '<span class="text-[10px] text-on-surface-variant flex-shrink-0">' + timeAgo + '</span>' +
           '</div>' +
-          '<p class="text-xs text-on-surface-variant truncate mt-0.5">' + msg + '</p>' +
+          '<p class="text-xs text-on-surface-variant truncate mt-0.5">' + esc(msg) + '</p>' +
         '</div>' +
         unreadDot +
       '</div>';

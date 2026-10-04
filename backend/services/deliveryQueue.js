@@ -36,7 +36,21 @@ const ADD_CLIENT_TAG = `
 /**
  * Find all PendingReview rows whose scheduledAt has passed and send them.
  */
+let reviewTickRunning = false;
+
 async function processPendingReviews() {
+  // The cron fires every minute; a slow tick (Jobber/Twilio latency) must not overlap itself
+  // or the same review can be sent twice before ReviewSent is written.
+  if (reviewTickRunning) return;
+  reviewTickRunning = true;
+  try {
+    await processPendingReviewsOnce();
+  } finally {
+    reviewTickRunning = false;
+  }
+}
+
+async function processPendingReviewsOnce() {
   const now = new Date();
 
   const pending = await prisma.pendingReview.findMany({
@@ -109,6 +123,26 @@ async function processOneReview(row) {
     }
   } else {
     console.warn(`${tag} No contact method available — marking processed`);
+    await markProcessed(id);
+    return;
+  }
+
+  // --- A failed send must NOT be recorded as sent (the client would be suppressed forever) ---
+  if (!smsSent && !emailSent) {
+    const ageMs = Date.now() - new Date(row.createdAt).getTime();
+    if (ageMs > 24 * 60 * 60 * 1000) {
+      console.error(`${tag} Giving up after 24h of failed sends — marking processed WITHOUT review-sent tag`);
+      await markProcessed(id);
+    } else {
+      await prisma.pendingReview.update({ where: { id }, data: { scheduledAt: new Date(Date.now() + 15 * 60 * 1000) } });
+      console.warn(`${tag} Send failed — will retry in 15 min`);
+    }
+    return;
+  }
+
+  // DRY_RUN: no real message went out, so don't tag the client in Jobber or write the dedup row.
+  if (process.env.DRY_RUN === 'true') {
+    console.log(`${tag} DRY RUN — skipping Jobber tag + ReviewSent record`);
     await markProcessed(id);
     return;
   }
