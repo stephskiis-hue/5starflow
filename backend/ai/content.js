@@ -3,6 +3,7 @@
  * Deterministic parts live here; the creative parts (what to say, which photo) are the Claude routines'.
  */
 const prisma = require('../lib/prismaClient');
+const { Prisma } = require('@prisma/client');
 const { renderPost, RenderError } = require('./design/renderer');
 const { lintContent } = require('./design/qa');
 const { LAYOUTS } = require('./design/layouts');
@@ -61,6 +62,8 @@ async function createContent(userId, c) {
 async function renderContent(userId, id, { autopilot = false, photos: photoOverride } = {}) {
   const item = await prisma.contentItem.findFirst({ where: { id, userId } });
   if (!item) throw Object.assign(new Error('content item not found'), { code: 'NOT_FOUND' });
+  // a rejected or already-published item must not be revived (or re-queued for autopilot) by a stray render call
+  if (['rejected', 'published', 'failed'].includes(item.status)) throw Object.assign(new Error(`cannot render an item that is ${item.status}`), { code: 'BAD_STATE' });
   const qa = lintItem(item);
   if (!qa.ok) {
     const row = await prisma.contentItem.update({ where: { id }, data: { qa, status: 'qa_failed' } });
@@ -73,7 +76,11 @@ async function renderContent(userId, id, { autopilot = false, photos: photoOverr
   for (let i = 0; i < slides.length; i++) {
     const { layout, slots } = slides[i];
     const refs = {};
-    for (const [k, v] of Object.entries({ ...(slots || {}), ...(photoOverride || {}) })) if (typeof v === 'string' && v.startsWith('vault:')) refs[k] = v;
+    const photoSlots = new Set([...(LAYOUTS[layout]?.photos || []), 'photo', 'before', 'after']);
+    for (const [k, v] of Object.entries({ ...(slots || {}), ...(photoOverride || {}) })) {
+      if (typeof v === 'string' && v.startsWith('vault:')) refs[k] = v;
+      else if (photoSlots.has(k) && typeof v === 'string' && v.trim()) throw Object.assign(new Error(`photo "${k}" must be "vault:<assetId>" (got "${v.slice(0, 40)}")`), { code: 'INVALID_PHOTO' });
+    }
     const photos = await resolvePhotos(userId, refs);
     const clean = slots || {};   // photo slots keep their "vault:<id>" value so the required-slot check passes; pixels come from `photos`
     // tiles may carry per-tile photo refs: { photo: "vault:id" }
@@ -89,7 +96,9 @@ async function renderContent(userId, id, { autopilot = false, photos: photoOverr
     assetIds.push(asset.id);
   }
 
-  const status = autopilot && qa.warnings.every((w) => !/overflow/i.test(w)) ? 'queued' : 'rendered';
+  // Autopilot only queues CLEAN items. Any warning (missing phone in the caption, too many words, overflow...) goes to the owner.
+  // An already-approved item stays approved after a re-render.
+  const status = item.status === 'approved' ? 'approved' : autopilot && qa.warnings.length === 0 ? 'queued' : 'rendered';
   const row = await prisma.contentItem.update({ where: { id }, data: { assetIds, qa, status } });
   await recordActivity(userId, { agent: 'design', action: 'rendered graphic', summary: `${item.title} (${slides.length} slide${slides.length > 1 ? 's' : ''})`, result: 'ok', source: 'design-system', runId: null });
   return { item: out(row), qa, rendered: assetIds.length };
@@ -111,24 +120,40 @@ async function transition(userId, id, action, extra = {}) {
   return out(await prisma.contentItem.update({ where: { id }, data: { status: 'rejected', note: String(extra.note || '').slice(0, 500) || null } }));
 }
 
-/** Posts ready to go out now: owner-approved, or QA-passed 'queued' items when autopilot is on. */
+/** Posts ready to go out now on `platform`: owner-approved, or QA-passed 'queued' items when autopilot is on. */
 async function publishQueue(userId, { platform, autopilot, limit = 10 } = {}) {
   const statuses = autopilot ? ['approved', 'queued'] : ['approved'];
-  const rows = await prisma.contentItem.findMany({
-    where: { userId, status: { in: statuses }, OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }] },
-    orderBy: [{ scheduledFor: 'asc' }, { createdAt: 'asc' }], take: Math.min(limit, 30),
-  });
-  return rows.map(out).filter((r) => !platform || r.platforms.includes(platform));
+  const where = { userId, status: { in: statuses }, OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }] };
+  if (platform) where.platforms = { contains: `"${platform}"` };
+  const rows = await prisma.contentItem.findMany({ where, orderBy: [{ scheduledFor: 'asc' }, { createdAt: 'asc' }], take: 60 });
+  // an item with a caption for Facebook AND Instagram stays in the queue for a platform until it was posted THERE
+  return rows.map(out).filter((r) => !platform || !(r.publishedOn || {})[platform]).slice(0, Math.min(limit, 30));
 }
 
+/**
+ * Record that `platform` published the item. The item only becomes 'published' once every platform it targets has
+ * posted. The daily cap is checked FIRST (recordAction throws CapError) so a capped post is never marked live.
+ */
 async function markPublished(userId, id, { platform, postUrl, groupId }) {
   const item = await prisma.contentItem.findFirst({ where: { id, userId } });
   if (!item) throw Object.assign(new Error('content item not found'), { code: 'NOT_FOUND' });
   if (!['approved', 'queued'].includes(item.status)) throw Object.assign(new Error(`item is ${item.status}, not publishable`), { code: 'BAD_STATE' });
+  const platforms = parse(item.platforms, []);
+  const target = platform || platforms[0] || 'facebook';
+  const done = { ...(item.publishedOn || {}) };
+  if (done[target]) throw Object.assign(new Error(`already published on ${target}`), { code: 'BAD_STATE' });
+
   const kind = item.format === 'story' ? 'story' : item.format === 'group_post' || groupId ? 'group_post' : 'page_post';
-  // enforces the daily cap; throws CapError (409) if exhausted
-  await recordAction(userId, { platform: platform || 'facebook', kind, contentItemId: id, groupId: groupId || item.groupId, target: postUrl, summary: item.title, url: postUrl });
-  return out(await prisma.contentItem.update({ where: { id }, data: { status: 'published', publishedAt: new Date(), postUrl: postUrl || null } }));
+  const apiPlatform = target === 'instagram' ? 'instagram' : 'facebook';   // groups live on Facebook
+  await recordAction(userId, { platform: apiPlatform, kind, contentItemId: id, groupId: groupId || item.groupId, target: postUrl, summary: item.title, url: postUrl });
+
+  done[target] = { postUrl: postUrl || null, at: new Date().toISOString() };
+  const targets = platforms.filter((p) => p !== 'group');
+  const allDone = (targets.length ? targets : [target]).every((p) => done[p]);
+  return out(await prisma.contentItem.update({
+    where: { id },
+    data: { publishedOn: done, postUrl: item.postUrl || postUrl || null, ...(allDone ? { status: 'published', publishedAt: new Date() } : {}) },
+  }));
 }
 
 async function recordMetrics(userId, id, metrics) {

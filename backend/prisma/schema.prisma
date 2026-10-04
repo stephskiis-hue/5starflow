@@ -773,6 +773,7 @@ model ContentItem {
   approvedAt    DateTime?
   publishedAt   DateTime?
   postUrl       String?
+  publishedOn   Json?                                        // { facebook: { postUrl, at }, instagram: { ... } } — one entry per platform actually posted
   metrics       Json?                                        // { reach, reactions, comments, shares, leads, capturedAt }
   note          String?                                      // owner's edit/reject note, fed back to the Content Director
   createdAt     DateTime  @default(now())

@@ -37,13 +37,15 @@ function lintContent({ slots = {}, caption = '', layout, platform } = {}) {
     errors.push('Emoji on the graphic itself (brand rule: none on graphics).');
   }
 
+  // Any phone-looking number that is not ours is an error (a typo'd number on a post costs real leads).
+  for (const m of all.matchAll(/\b\d{3}[-. ]\d{3}[-. ]\d{4}\b/g)) {
+    if (m[0].replace(/\D/g, '') !== PHONE.replace(/\D/g, '')) { errors.push(`Wrong phone number "${m[0]}". It must be ${PHONE}.`); break; }
+  }
+
   // Phone must be on the graphic footer (templates add it) — and in the caption unless it is a story/cover.
   const needsPhoneInCaption = platform && !['story'].includes(platform);
   if (caption && needsPhoneInCaption && !caption.includes(PHONE) && platform !== 'group_no_phone') {
     warnings.push(`Caption does not include ${PHONE}.`);
-  }
-  if (graphicText && graphicText.includes('204') && !graphicText.includes(PHONE) && /\d{3}-\d{3}-\d{4}/.test(graphicText)) {
-    errors.push(`Wrong phone number on the graphic. It must be ${PHONE}.`);
   }
 
   if (graphicText && words(graphicText) > 46) warnings.push(`Graphic has ${words(graphicText)} words (target under about 40).`);

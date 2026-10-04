@@ -24,7 +24,7 @@ const { saveMemory } = require('./memory');
 const FAILURE_TASK_THRESHOLD = 3;
 const DEFAULT_MAX_RUNTIME_MIN = 20;
 
-const inflight = new Set();
+const inflight = new Map(); // slug -> start time (a wedged tick must not disable the routine forever)
 const routineIdCache = new Map(); // `${userId}:${slug}` -> routine id
 
 async function ensureRoutine(userId, slug, defaults = {}) {
@@ -63,14 +63,18 @@ async function runRoutine(slug, tick, opts = {}) {
   };
   if (!userId) return bare();
 
-  if (inflight.has(slug)) return { ok: true, skipped: 'already-running' };
-  inflight.add(slug);
+  const running = inflight.get(slug);
+  if (running && Date.now() - running < (opts.maxRuntimeMinutes || DEFAULT_MAX_RUNTIME_MIN) * 60000) return { ok: true, skipped: 'already-running' };
+  if (running) console.warn(`[ai.runner:${slug}] previous run exceeded its time limit — starting a new one`);
+  inflight.set(slug, Date.now());
 
   const t0 = Date.now();
   let routineId, runId = null, routine;
   try {
     routineId = await ensureRoutine(userId, slug, opts.defaults);
     routine = await prisma.routine.findUnique({ where: { id: routineId } });
+    // The dashboard's Pause switch is real: a paused routine does not run on its schedule (manual runs still work).
+    if (routine && routine.enabled === false && trigger !== 'manual') return { ok: true, skipped: 'paused' };
     const quiet = opts.quiet ?? routine?.config?.quiet ?? false;
     const maxMin = routine?.config?.maxRuntimeMinutes || opts.maxRuntimeMinutes || DEFAULT_MAX_RUNTIME_MIN;
 

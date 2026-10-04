@@ -125,7 +125,7 @@ async function refreshExpiringGmailTokens() {
         client_secret: process.env.GOOGLE_CLIENT_SECRET,
         refresh_token: cred.refreshToken,
         grant_type:    'refresh_token',
-      });
+      }, { timeout: 20000 });
 
       const { access_token, expires_in } = resp.data;
       const tokenExpiry = new Date(Date.now() + (expires_in || 3600) * 1000);
@@ -170,7 +170,7 @@ async function refreshExpiringSeoGoogleTokens() {
         client_secret: process.env.GOOGLE_CLIENT_SECRET,
         refresh_token: s.googleRefreshToken,
         grant_type:    'refresh_token',
-      });
+      }, { timeout: 20000 });
 
       const { access_token, expires_in } = resp.data;
       const googleTokenExpiry = new Date(Date.now() + (expires_in || 3600) * 1000);

@@ -290,6 +290,9 @@
   $('tab-bar').addEventListener('click', (e) => { const b = e.target.closest('button[data-tab]'); if (b) switchTab(b.dataset.tab); });
 
   async function load(tab, quiet) {
+    // the 20s background refresh must not wipe half-typed text, a chosen file or an open form
+    if (quiet && ['memory', 'vault'].includes(tab)) return;
+    if (quiet && tab === 'content' && [...document.querySelectorAll('#tab-content [data-sched]')].some((i) => i.value)) return;
     try {
       showErr('');
       await ({ home: loadHome, inbox: loadInbox, tasks: loadTasks, approvals: loadApprovals, content: loadContent, social: loadSocial, vault: loadVault, routines: loadRoutines, agents: loadAgents, activity: loadActivity, memory: loadMemory }[tab])(quiet);
@@ -426,6 +429,7 @@
   function contentCard(c) {
     const imgs = (c.assetIds || []).map((id) => `<img loading="lazy" src="${API}/assets/${esc(id)}" alt="" class="rounded-lg w-40 flex-none border border-white/10">`).join('');
     const open = ['rendered', 'queued', 'qa_failed', 'draft'].includes(c.status);
+    const canReject = open || c.status === 'approved';
     return `<div class="glass-card rounded-xl p-4 mb-4" data-content="${esc(c.id)}">
       <div class="flex gap-4 flex-wrap sm:flex-nowrap">
         <div class="flex gap-2 overflow-x-auto max-w-full sm:max-w-[360px] flex-none">${imgs || '<div class="w-40 h-52 rounded-lg bg-white/5 flex items-center justify-center text-xs text-zinc-500">not rendered</div>'}</div>
@@ -443,7 +447,7 @@
             <button class="btn" data-cact="schedule">Approve + schedule</button>
             <button class="btn" data-cact="render">Re-render</button>
             <button class="btn" data-cact="edit">Edit caption</button>
-            <button class="btn btn-no" data-cact="reject">Reject</button></div>` : ''}
+            <button class="btn btn-no" data-cact="reject">Reject</button></div>` : canReject ? '<div class="flex gap-2 mt-3"><button class="btn btn-no" data-cact="reject">Reject (pull from queue)</button></div>' : ''}
         </div>
       </div></div>`;
   }
@@ -484,7 +488,7 @@
   // ---------------------------------------------------------------- VAULT
   const VAULT_TAGS = ['PATIOS', 'SOD', 'LAWNS', 'FALL', 'SNOW', 'COMMERCIAL', 'CREW', 'EQUIPMENT', 'BEFORE', 'AFTER', 'LANDSCAPING', 'DRAINAGE'];
   async function loadVault() {
-    const q = new URLSearchParams({ limit: '120' }); if (state.vaultTag) q.set('tag', state.vaultTag);
+    const q = new URLSearchParams({ limit: '120', kind: 'photo' }); if (state.vaultTag) q.set('tag', state.vaultTag);
     const rows = await api('/assets?' + q);
     $('tab-vault').innerHTML = `
       <div class="glass-card rounded-xl p-4 mb-4">
@@ -501,12 +505,14 @@
     if (d && confirm('Delete this photo? Posts already rendered from it keep their graphics.')) { try { await api('/assets/' + d.closest('[data-asset]').dataset.asset, { method: 'DELETE' }); loadVault(); } catch (err) { toast(err.message); } }
     if (e.target.id === 'v-upload') {
       const files = [...$('v-files').files]; if (!files.length) return toast('Choose one or more photos');
-      const tags = $('v-tags').value.split(',').map((x) => x.trim()).filter(Boolean); const st = $('v-status'); let ok = 0, dup = 0;
+      const tags = $('v-tags').value.split(',').map((x) => x.trim()).filter(Boolean); const st = $('v-status'); let ok = 0, dup = 0; const errs = [];
       for (const [i, f] of files.entries()) {
         st.textContent = `Uploading ${i + 1} of ${files.length}…`;
-        try { const r = await api('/assets', { method: 'POST', body: { name: f.name, base64: await fileToB64(f), tags } }); r.duplicate ? dup++ : ok++; } catch (err) { st.textContent = f.name + ': ' + err.message; }
+        try { const r = await api('/assets', { method: 'POST', body: { name: f.name, base64: await fileToB64(f), tags } }); r.duplicate ? dup++ : ok++; } catch (err) { errs.push(f.name + ': ' + err.message); }
       }
-      toast(`${ok} added${dup ? `, ${dup} already in the vault` : ''}`); loadVault();
+      toast(`${ok} added${dup ? `, ${dup} already in the vault` : ''}${errs.length ? `, ${errs.length} failed` : ''}`);
+      await loadVault();
+      if (errs.length) $('v-status').textContent = errs.join(' · ');
     }
   });
 

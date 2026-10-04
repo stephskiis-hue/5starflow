@@ -46,13 +46,16 @@ function assets() {
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // escape first, THEN apply the two markup conventions, so slot text can never inject HTML
-const textHtml = (s) => esc(s).replace(/\[\[(.+?)\]\]/g, '<span>$1</span>').replace(/\r?\n/g, '<br>');
+// ([^\]]+? cannot backtrack across a long run of '[' the way .+? could)
+const textHtml = (s) => esc(s).replace(/\[\[([^\]]{1,200}?)\]\]/g, '<span>$1</span>').replace(/\r?\n/g, '<br>');
+const MAX_TEXT = 600;      // generous for any layout; anything longer cannot fit a 1080px post anyway
+const MAX_ITEMS = 12;
 
 class RenderError extends Error {
   constructor(code, message, details) { super(message); this.code = code; this.details = details; }
 }
 
-function validate(layout, slots, size) {
+function validate(layout, slots, size, photos = {}) {
   const spec = LAYOUTS[layout];
   if (!spec) throw new RenderError('UNKNOWN_LAYOUT', `Unknown layout "${layout}". Valid: ${Object.keys(LAYOUTS).join(', ')}`);
   if (spec.sizes.length === 1) size = spec.sizes[0];            // story-only layouts ignore the default size
@@ -62,6 +65,19 @@ function validate(layout, slots, size) {
     return v == null || (typeof v === 'string' && !v.trim()) || (Array.isArray(v) && v.length === 0);
   });
   if (missing.length) throw new RenderError('MISSING_SLOTS', `${layout} needs: ${missing.join(', ')}`, { missing });
+  // a "required photo" must resolve to an actual image, not just a non-empty string
+  const noPhoto = (spec.photoRequired || []).filter((k) => !photos[k]);
+  if (noPhoto.length) throw new RenderError('MISSING_PHOTO', `${layout} needs a real photo for: ${noPhoto.join(', ')} (use "vault:<assetId>")`, { missing: noPhoto });
+  for (const [k, v] of Object.entries(slots)) {
+    if (typeof v === 'string' && v.length > MAX_TEXT) throw new RenderError('TEXT_TOO_LONG', `"${k}" is ${v.length} characters (max ${MAX_TEXT}). Shorten it.`);
+    if (Array.isArray(v)) {
+      if (v.length > MAX_ITEMS) throw new RenderError('BAD_LIST', `"${k}" has too many items`);
+      for (const it of v) {
+        const t = typeof it === 'string' ? it : JSON.stringify(it);
+        if (t.length > MAX_TEXT) throw new RenderError('TEXT_TOO_LONG', `an item in "${k}" is too long`);
+      }
+    }
+  }
   for (const [k, [min, max]] of Object.entries(spec.lists || {})) {
     const n = Array.isArray(slots[k]) ? slots[k].length : 0;
     if (n < min || n > max) throw new RenderError('BAD_LIST', `"${k}" needs ${min === max ? min : `${min}-${max}`} item(s), got ${n}`);
@@ -71,7 +87,7 @@ function validate(layout, slots, size) {
 
 /** Fill the template. `photos` maps slot name → data URI (already resolved by the caller). */
 function buildHtml(layout, slots, size, photos = {}) {
-  const spec = validate(layout, slots, size);
+  const spec = validate(layout, slots, size, photos);
   if (spec.sizes.length === 1) size = spec.sizes[0];
   const { css, logos } = assets();
   let html = read('layouts', `${layout}.html`)

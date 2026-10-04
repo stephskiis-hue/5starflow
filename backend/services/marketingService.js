@@ -576,7 +576,8 @@ async function sweepStalledCampaigns() {
         campaignId: camp.id, name: camp.name, pendingRows: remaining,
       }, camp.userId);
 
-      await dispatchCampaign(camp.id, camp.userId).catch(() => {});
+      // fire-and-forget: a resumed pass can run 10 minutes and must not starve the retry worker's mutex
+      dispatchCampaign(camp.id, camp.userId).catch(() => {});
     }
   } catch (err) {
     await logger.error('campaign', 'Stalled campaign sweep crashed', { message: err.message });
@@ -715,7 +716,7 @@ async function buildRecipientPlan(userId, contacts, opts = {}) {
   const pastMap = new Map(); // last10 -> campaign name
   if (skipCampaignIds.length) {
     const past = await prisma.marketingMessage.findMany({
-      where:  { userId, status: 'sent', campaignId: { in: skipCampaignIds } },
+      where:  { userId, status: { in: ACCEPTED_STATUSES }, campaignId: { in: skipCampaignIds } },
       select: { phone: true, campaign: { select: { name: true } } },
     });
     for (const m of past) {

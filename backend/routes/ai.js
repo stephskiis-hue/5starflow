@@ -28,6 +28,7 @@ const op = require('../services/operatorService');
 const vault = require('../ai/vault');
 const content = require('../ai/content');
 const social = require('../ai/social');
+const { Prisma } = require('@prisma/client');
 const { renderPost, RenderError } = require('../ai/design/renderer');
 const { describeLayouts } = require('../ai/design/layouts');
 const { lintContent } = require('../ai/design/qa');
@@ -173,8 +174,20 @@ router.get('/memory', async (req, res) => {
 });
 
 router.post('/memory', async (req, res) => {
-  try { res.status(201).json(await saveMemory(req.ai.userId, { agent: req.ai.agent, ...req.body })); }
-  catch (e) { res.status(e.code === 'INVALID_MEMORY' ? 422 : 400).json({ error: e.message }); }
+  try {
+    const b = { ...req.body };
+    if (req.ai.actor === 'agent') {
+      // Agents read untrusted text (customer SMS, email, Facebook). They may add learnings, but not redefine the
+      // owner's rules, forge provenance, or overwrite what the owner wrote.
+      if (['rule', 'brand'].includes(b.scope)) return res.status(403).json({ error: `Only the owner can write "${b.scope}" memory` });
+      const existing = await prisma.memory.findUnique({ where: { userId_scope_key: { userId: req.ai.userId, scope: String(b.scope), key: String(b.key) } } });
+      if (existing && existing.source === 'owner') return res.status(403).json({ error: 'This memory was written by the owner and cannot be changed by an agent' });
+      b.source = `agent:${req.ai.agent || 'unknown'}`;
+      b.agent = req.ai.agent || null;
+      b.confidence = Math.min(Number(b.confidence ?? 0.8), 0.9);
+    } else { b.source = 'owner'; }
+    res.status(201).json(await saveMemory(req.ai.userId, b));
+  } catch (e) { res.status(e.code === 'INVALID_MEMORY' ? 422 : 400).json({ error: e.message }); }
 });
 
 router.delete('/memory/:id', ownerOnly, async (req, res) => {
@@ -327,8 +340,8 @@ router.patch('/content/:id', async (req, res) => {
   if (b.slots && typeof b.slots === 'object') data.slots = b.slots;
   if (Array.isArray(b.platforms)) data.platforms = JSON.stringify(b.platforms);
   if (b.scheduledFor !== undefined) data.scheduledFor = b.scheduledFor ? new Date(b.scheduledFor) : null;
-  if (Object.keys(data).some((k) => ['slots', 'layout', 'caption', 'captionIg'].includes(k))) { data.status = 'draft'; data.assetIds = null; data.qa = null; } // edited → must re-render + re-QA
-  const r = await prisma.contentItem.updateMany({ where: { id: req.params.id, userId: req.ai.userId }, data });
+  if (Object.keys(data).some((k) => ['slots', 'layout', 'caption', 'captionIg'].includes(k))) { data.status = 'draft'; data.assetIds = Prisma.DbNull; data.qa = Prisma.DbNull; } // edited → must re-render + re-QA (Json null needs DbNull)
+  const r = await prisma.contentItem.updateMany({ where: { id: req.params.id, userId: req.ai.userId, status: { notIn: ['published'] } }, data });
   res.status(r.count ? 200 : 404).json({ ok: !!r.count });
 });
 

@@ -218,16 +218,21 @@ app.post('/api/marketing/twilio-callback', twilioLimiter, express.urlencoded({ e
   const { MessageSid, MessageStatus, ErrorCode } = req.body || {};
   if (MessageSid && MessageStatus) {
     const p = require('./lib/prismaClient');
+    // Receipts can arrive out of order; only ever move forward (queued < sending < sent < terminal).
+    const RANK = { accepted: 0, scheduled: 0, queued: 1, sending: 2, sent: 3, delivered: 4, read: 4, undelivered: 4, failed: 4 };
     const data = {
       deliveryStatus:   MessageStatus,
       carrierErrorCode: ErrorCode ? String(ErrorCode) : null,
     };
     if (MessageStatus === 'delivered') data.deliveredAt = new Date();
 
-    await p.marketingMessage.updateMany({
-      where: { messageSid: MessageSid },
-      data,
-    }).catch(err => console.warn('[marketing-twilio-callback] DB update failed:', err.message));
+    try {
+      const cur = await p.marketingMessage.findFirst({ where: { messageSid: MessageSid }, select: { id: true, deliveryStatus: true } });
+      const behind = cur && cur.deliveryStatus && (RANK[cur.deliveryStatus] ?? 0) > (RANK[MessageStatus] ?? 0);
+      if (cur && !behind) await p.marketingMessage.update({ where: { id: cur.id }, data });
+      // the communication ledger tracks delivery so a carrier-rejected reply doesn't count as an answer
+      await p.commMessage.updateMany({ where: { providerId: MessageSid, direction: 'out' }, data: { status: MessageStatus } });
+    } catch (err) { console.warn('[marketing-twilio-callback] DB update failed:', err.message); }
 
     // Carrier-level rejections are the failures that actually matter to the user
     // (30007 carrier filtering, 30034 unregistered A2P, 30003 unreachable handset)
@@ -299,6 +304,11 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
       cred = { ...cred, fromNumber: fixed };
     }
     const userId = cred.userId;
+    // the credential that signed this request must belong to the same tenant we resolved from `To`
+    if (req.twilioUserId && req.twilioUserId !== userId) {
+      console.warn(`[inbound-sms] signature verified for a different tenant than To=${To} resolves to — dropping`);
+      return;
+    }
 
     const last10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
     const from10 = last10(normalizedFrom);

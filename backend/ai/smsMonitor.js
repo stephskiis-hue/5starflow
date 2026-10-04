@@ -17,6 +17,8 @@ const waitLabel = (m) => (m < 60 ? `${m} min` : m < 1440 ? `${Math.round(m / 60)
 
 function urgencyFor(c) {
   let u = c.urgency;
+  // "we asked something days ago" is a nudge, not an emergency: never escalate it by age
+  if (c.state === 'FOLLOW_UP_REQUIRED') return 'normal';
   if (c.waitingMinutes > 24 * 60) u = 'urgent';
   else if (c.waitingMinutes > 120 && URGENCY_RANK[u] < URGENCY_RANK.high) u = 'high';
   return u;
@@ -24,8 +26,11 @@ function urgencyFor(c) {
 
 async function smsMonitorTick({ userId }) {
   const convs = await getConversationStates(userId, { sinceDays: 14 });
-  const waiting = convs.filter((c) => NEEDS_US.has(c.state) && c.waitingMinutes >= CREATE_AFTER_MIN);
-  const waitingKeys = new Set(waiting.map((c) => `sms:${c.phoneKey}`));
+  const needing = convs.filter((c) => NEEDS_US.has(c.state));
+  const waiting = needing.filter((c) => c.waitingMinutes >= CREATE_AFTER_MIN);
+  // Tasks stay open for EVERY conversation still waiting on us — including a fresh follow-up text that is only
+  // minutes old (it must not be mistaken for "answered" just because it's below the raise-a-task threshold).
+  const waitingKeys = new Set(needing.map((c) => `sms:${c.phoneKey}`));
   let created = 0; let updated = 0; let notified = 0;
 
   for (const c of waiting) {
@@ -56,7 +61,8 @@ async function smsMonitorTick({ userId }) {
     // one SMS to the owner per conversation episode, only when it has waited a while and it's waking hours
     const task = await prisma.task.findUnique({ where: { userId_dedupKey: { userId, dedupKey } } });
     const ctx = task?.context || {};
-    if (task && !ctx.notifiedAt && c.waitingMinutes >= NOTIFY_AFTER_MIN && business() && URGENCY_RANK[urgencyFor(c)] >= URGENCY_RANK.high) {
+    const taskOpen = task && ['NEW', 'IN_PROGRESS', 'WAITING', 'APPROVAL'].includes(task.status);   // done/dismissed = the owner has it
+    if (taskOpen && c.state !== 'FOLLOW_UP_REQUIRED' && !ctx.notifiedAt && c.waitingMinutes >= NOTIFY_AFTER_MIN && business() && URGENCY_RANK[urgencyFor(c)] >= URGENCY_RANK.high) {
       const msg = `5StarFlow: ${who} texted ${waitLabel(c.waitingMinutes)} ago and is still waiting: "${String(c.lastMessage).slice(0, 90)}". Reply from the Inbox.`;
       const r = await require('../services/operatorService').notifyOwner(userId, msg).catch((e) => ({ ok: false, error: e.message }));
       if (r && (r.ok || r.dryRun)) {

@@ -21,7 +21,7 @@ const RUNNABLE = {
   'comm-ledger-reconcile':      { risk: 'safe',     fn: (ctx) => reconcileTwilioTick(ctx) },
   'review-delivery-queue':      { risk: 'sends',    fn: () => require('../services/deliveryQueue').processPendingReviews() },
   'weather-morning-rain-check': { risk: 'texts-owner', fn: () => require('../services/weatherService').morningCheckTick() },
-  'seo-weekly-audit':           { risk: 'spends',   fn: async () => { await require('../services/seoService').runWeeklyAudit(); return { summary: 'Audit started' }; } },
+  'seo-weekly-audit':           { risk: 'spends',   fn: async () => { const r = await require('../services/seoService').runWeeklyAudit(); if (r?.error) throw new Error(`SEO audit failed: ${r.error}`); return r || { skipped: true, summary: 'Audit did not run' }; } },
 };
 
 let started = false;

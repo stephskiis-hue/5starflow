@@ -380,7 +380,7 @@ async function sendReviewSMS(rawPhone, firstName, userId) {
 
   if (!result.ok) {
     const tag = result.permanent ? 'permanent' : 'transient';
-    throw new Error(`Twilio send failed (${tag}, code ${result.errorCode}): ${result.errorMessage}`);
+    throw Object.assign(new Error(`Twilio send failed (${tag}, code ${result.errorCode}): ${result.errorMessage}`), { permanent: !!result.permanent });
   }
 
   return result.sid;

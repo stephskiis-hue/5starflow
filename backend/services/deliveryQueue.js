@@ -113,6 +113,7 @@ async function processOneReview(row) {
 
   let smsSent = false;
   let emailSent = false;
+  let smsPermanentFail = false;
 
   // --- Exclusive channel selection ---
   // phone + smsAllowed → SMS only
@@ -129,6 +130,7 @@ async function processOneReview(row) {
         return 'skipped';
       }
       console.error(`${tag} SMS failed (${phone}):`, err.message);
+      smsPermanentFail = !!err.permanent;
     }
   } else if (email) {
     try {
@@ -141,6 +143,19 @@ async function processOneReview(row) {
     console.warn(`${tag} No contact method available — marking processed`);
     await markProcessed(id);
     return 'skipped';
+  }
+
+  // A permanently undeliverable number (invalid, landline) will never work: try email once, otherwise stop retrying.
+  if (!smsSent && !emailSent && smsPermanentFail) {
+    if (email) {
+      try { await sendReviewEmail(email, firstName, userId); emailSent = true; }
+      catch (err) { console.error(`${tag} Email fallback failed (${email}):`, err.message); }
+    }
+    if (!emailSent) {
+      console.error(`${tag} SMS number is permanently undeliverable and no email worked — marking processed WITHOUT review-sent tag`);
+      await markProcessed(id);
+      return 'skipped';
+    }
   }
 
   // --- A failed send must NOT be recorded as sent (the client would be suppressed forever) ---

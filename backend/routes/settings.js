@@ -107,6 +107,15 @@ router.post('/twilio', async (req, res) => {
   if (!accountSid || !authToken || !fromNumber) {
     return res.status(400).json({ error: 'accountSid, authToken, and fromNumber are required' });
   }
+  if (!/^AC[0-9a-fA-F]{32}$/.test(String(accountSid).trim())) {
+    return res.status(400).json({ error: 'Account SID must look like AC followed by 32 hex characters' });
+  }
+  // One Twilio account / number belongs to one tenant: webhooks are routed (and verified) by it.
+  const digits = (v) => String(v || '').replace(/\D/g, '').slice(-10);
+  const others = await prisma.twilioCredential.findMany({ where: { userId: { not: req.user.userId } }, select: { accountSid: true, fromNumber: true } });
+  if (others.some((o) => o.accountSid === String(accountSid).trim() || digits(o.fromNumber) === digits(fromNumber))) {
+    return res.status(409).json({ error: 'That Twilio account or phone number is already connected to another user' });
+  }
 
   // Optional. Blank clears it and sends fall back to fromNumber.
   const msSid = (messagingServiceSid || '').trim() || null;

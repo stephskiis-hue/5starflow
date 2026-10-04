@@ -77,8 +77,8 @@ async function listTasks(userId, { status, urgency, limit = 50 } = {}) {
   if (status === 'open') where.status = { in: OPEN_TASK_STATES };
   else if (status) where.status = status;
   if (urgency) where.urgency = urgency;
-  const rows = await prisma.task.findMany({ where, take: Math.min(limit, 200), orderBy: [{ updatedAt: 'desc' }] });
-  return rows.sort((a, b) => (URGENCY_RANK[b.urgency] - URGENCY_RANK[a.urgency]) || (b.updatedAt - a.updatedAt));
+  const rows = await prisma.task.findMany({ where, take: 500, orderBy: [{ updatedAt: 'desc' }] });
+  return rows.sort((a, b) => (URGENCY_RANK[b.urgency] - URGENCY_RANK[a.urgency]) || (b.updatedAt - a.updatedAt)).slice(0, Math.min(limit, 200));
 }
 
 module.exports = { createTask, updateTask, completeByDedupKey, listTasks, URGENCY_RANK };

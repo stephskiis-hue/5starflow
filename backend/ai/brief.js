@@ -24,11 +24,14 @@ function localNow() {
 const MEMORY_SCOPES = (agent) => ['rule', 'business', 'brand', agent ? `agent:${agent}` : null, agent === 'social' ? 'channel:facebook' : null].filter(Boolean);
 
 async function buildBrief(userId, { agent } = {}) {
-  const [tasks, approvals, routines, unanswered, memory] = await Promise.all([
+  const [tasks, approvals, approvalCount, openCount, urgentCount, routines, unanswered, memory] = await Promise.all([
     listTasks(userId, { status: 'open', limit: 40 }),
     prisma.operatorProposal.findMany({ where: { userId, status: 'pending', expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' }, take: 10 }),
+    prisma.operatorProposal.count({ where: { userId, status: 'pending', expiresAt: { gt: new Date() } } }),
+    prisma.task.count({ where: { userId, status: { in: OPEN_TASK_STATES } } }),
+    prisma.task.count({ where: { userId, status: { in: OPEN_TASK_STATES }, urgency: { in: ['high', 'urgent'] } } }),
     prisma.routine.findMany({ where: { userId }, select: { slug: true, name: true, agent: true, kind: true, enabled: true, lastStatus: true, lastRunAt: true, lastSummary: true, consecutiveFailures: true } }),
-    getUnansweredSms(userId, { sinceDays: 7, limit: 10 }),
+    getUnansweredSms(userId, { sinceDays: 7, limit: 200 }),
     prisma.memory.findMany({ where: { userId, scope: { in: MEMORY_SCOPES(agent) } }, orderBy: [{ confidence: 'desc' }, { updatedAt: 'desc' }], take: 25, select: { scope: true, key: true, value: true } }),
   ]);
 
@@ -40,12 +43,12 @@ async function buildBrief(userId, { agent } = {}) {
     dryRun: process.env.DRY_RUN === 'true',
     agent: agent || null,
     tasks: {
-      open: tasks.length,
-      urgent: tasks.filter((t) => t.urgency === 'urgent' || t.urgency === 'high').length,
+      open: openCount,
+      urgent: urgentCount,
       top: mine.slice(0, 12).map((t) => ({ id: t.id, title: t.title, urgency: t.urgency, status: t.status, customer: t.customerName, flagged: t.timesFlagged, agent: t.agent })),
     },
     approvals: {
-      pending: approvals.length,
+      pending: approvalCount,
       items: approvals.map((a) => ({ id: a.id, code: a.shortCode, category: a.category, summary: a.summary, expiresAt: a.expiresAt })),
     },
     routines: {

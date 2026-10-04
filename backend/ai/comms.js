@@ -13,6 +13,7 @@ const last10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
 const HUMAN = new Set(['manual', 'owner']);
 const ACK = /^(thanks?( you)?( so much)?|thx|ty|ok(ay)?|k|great|perfect|awesome|sounds good|got it|will do|👍|🙏)[\s.!,]*$/i;
 const PRAISE = /\b(thank(s| you)|appreciate\w*|amazing|great job|awesome|fantastic|love(d)? (it|the)|looks great|well done)\b/i;
+const REQUESTISH = /\b(please|instead|can you|could you|would you|need|want|when|reschedul\w*|move|change|cancel|call me|text me|monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|next week|doesn'?t work|won'?t work|unable)\b/i;
 const COMPLAINT = /\b(refund|lawyer|sue|suing|damag\w*|complain\w*|unacceptable|disappointed|terrible|horrible|angry|furious|ruined|never again|report you|bbb)\b/i;
 const URGENT = /\b(today|asap|urgent|emergency|right away|immediately|flood\w*|tree (is )?down|leak\w*)\b/i;
 const QUOTE_REQ = /\b(quote|estimate|how much|price|pricing|cost|availab\w*|book|schedule|can you (come|do)|do you (do|offer))\b/i;
@@ -30,8 +31,8 @@ function classifyConversation(msgs, now = Date.now()) {
   const lastIn = ins[ins.length - 1];
   if (!lastIn) return { state: 'RESOLVED', urgency: 'low', reason: 'no inbound messages', waitingMinutes: 0 };
 
-  const humanOutAfter = sorted.find((m) => m.direction === 'out' && HUMAN.has(m.source) && m.at > lastIn.at);
-  const lastHumanOut = [...sorted].reverse().find((m) => m.direction === 'out' && HUMAN.has(m.source));
+  const delivered = (m) => !['failed', 'undelivered', 'canceled'].includes(String(m.status || '').toLowerCase());
+  const humanOutAfter = sorted.find((m) => m.direction === 'out' && HUMAN.has(m.source) && delivered(m) && m.at > lastIn.at);
   const body = lastIn.body.trim();
   const waitingMinutes = Math.round((now - lastIn.at.getTime()) / 60000);
 
@@ -49,13 +50,15 @@ function classifyConversation(msgs, now = Date.now()) {
 
   if (lastIn.sentiment === 'neutral' || !lastIn.sentiment) { /* fallthrough */ }
   // praise / thanks with no question or request needs no reply (a good moment for a review request, not a task)
-  if (!complaint && !/\?/.test(body) && !QUOTE_REQ.test(body) && (lastIn.sentiment === 'promoter' || PRAISE.test(body))) {
+  if (!complaint && !/\?/.test(body) && !QUOTE_REQ.test(body) && !REQUESTISH.test(body) && body.split(/\s+/).length <= 20 && (lastIn.sentiment === 'promoter' || PRAISE.test(body))) {
     return { state: 'RESOLVED', urgency: 'low', reason: 'thanks or praise, nothing to answer', waitingMinutes, lastIn, lastMessage: body };
   }
   if (ACK.test(body) && !complaint) return { state: 'RESOLVED', urgency: 'low', reason: 'acknowledgement, nothing to answer', waitingMinutes, lastIn, lastMessage: body };
-  if (/^(y|yes|n|no)$/i.test(body) && lastIn.source === 'inbound') {
-    // a Y/N answer to a campaign: the owner is notified separately; it still wants a human look if it's a YES
-    if (/^n/i.test(body)) return { state: 'RESOLVED', urgency: 'low', reason: 'declined a campaign', waitingMinutes, lastIn, lastMessage: body };
+  if (/^(n|no)$/i.test(body)) {
+    // "NO" only closes a thread when it answers an AUTOMATED message (campaign / review request). After a human
+    // question it is an answer the owner has to read.
+    const prevOut = [...sorted].reverse().find((m) => m.direction === 'out' && m.at < lastIn.at);
+    if (prevOut && !HUMAN.has(prevOut.source)) return { state: 'RESOLVED', urgency: 'low', reason: 'declined an automated message', waitingMinutes, lastIn, lastMessage: body };
   }
 
   if (complaint || (lastIn.sentiment === 'detractor')) return { state: 'ESCALATION_REQUIRED', urgency: 'urgent', reason: complaint ? 'complaint language' : 'negative sentiment', waitingMinutes, lastIn, lastMessage: body };
@@ -117,15 +120,15 @@ async function getCustomerContext(userId, { jobberClientId, phone, email, q } = 
 
   const phoneKey = client?.phone || phone || null;
   const l10 = last10(phoneKey);
-  const clientId = client?.jobberClientId || jobberClientId || null;
+  // ReviewSent has no tenant column: only look it up for a client that THIS tenant owns (never a caller-supplied id)
+  const clientId = client?.jobberClientId || null;
 
   if (!client && !phoneKey && !email) {
     return { found: false, hint: 'Pass jobberClientId, phone, email or q (name fragment).' };
   }
 
-  const [inbound, outbound, review, pending, loyalty, rain, tasks, memory] = await Promise.all([
-    l10 ? prisma.inboundSMS.findMany({ where: { userId, from: { endsWith: l10 } }, orderBy: { receivedAt: 'desc' }, take: 15 }) : [],
-    l10 ? prisma.marketingMessage.findMany({ where: { userId, phone: { endsWith: l10 }, status: { not: 'skipped' } }, orderBy: { createdAt: 'desc' }, take: 15, select: { body: true, status: true, deliveryStatus: true, sentAt: true, createdAt: true, campaign: { select: { name: true } } } }) : [],
+  const [ledger, review, pending, loyalty, rain, tasks, memory] = await Promise.all([
+    l10 ? prisma.commMessage.findMany({ where: { userId, channel: 'sms', phoneKey: l10 }, orderBy: { at: 'desc' }, take: 40 }) : [],
     clientId ? prisma.reviewSent.findUnique({ where: { clientId } }) : null,
     clientId || email ? prisma.pendingReview.findMany({ where: { userId, OR: [clientId ? { clientId } : undefined, email ? { email } : undefined].filter(Boolean) }, orderBy: { createdAt: 'desc' }, take: 5 }) : [],
     clientId ? prisma.loyaltyClient.findFirst({ where: { userId, jobberClientId: clientId } }) : null,
@@ -134,20 +137,14 @@ async function getCustomerContext(userId, { jobberClientId, phone, email, q } = 
     clientId ? prisma.memory.findMany({ where: { userId, scope: `customer:${clientId}` }, take: 20 }) : [],
   ]);
 
-  // merge both directions into one timeline, newest first
-  const timeline = [
-    ...inbound.map((m) => ({ dir: 'in', at: m.receivedAt, body: m.body, sentiment: m.sentiment })),
-    ...outbound.map((m) => ({ dir: 'out', at: m.sentAt || m.createdAt, body: m.body, status: m.deliveryStatus || m.status, campaign: m.campaign?.name })),
-  ].sort((a, b) => b.at - a.at).slice(0, 20);
-
-  const lastIn = inbound[0]?.receivedAt;
-  const lastOut = outbound.find((m) => m.status !== 'failed');
-  const lastOutAt = lastOut ? (lastOut.sentAt || lastOut.createdAt) : null;
+  // one timeline from the ledger (both directions, with WHO sent each outbound text)
+  const timeline = ledger.slice(0, 20).map((m) => ({ dir: m.direction === 'in' ? 'in' : 'out', at: m.at, body: m.body, source: m.source, status: m.status }));
+  const conv = ledger.length ? classifyConversation(ledger.map((m) => ({ ...m, sentiment: null }))) : null;
 
   return {
     found: !!client || timeline.length > 0,
     customer: client ? { jobberClientId: client.jobberClientId, name: client.name, firstName: client.firstName, phone: client.phone, smsAllowed: client.smsAllowed, optedOut: client.optedOut, tags: safeJson(client.tags) } : { phone: phoneKey },
-    sms: { waitingOnUs: !!lastIn && (!lastOutAt || lastIn > lastOutAt), lastInboundAt: lastIn || null, lastOutboundAt: lastOutAt, timeline },
+    sms: { state: conv?.state || null, reason: conv?.reason || null, waitingOnUs: conv ? NEEDS_US.has(conv.state) : false, waitingMinutes: conv?.waitingMinutes || 0, timeline },
     reviews: { sent: !!review, sentAt: review?.sentAt || null, queued: pending.map((p) => ({ invoiceId: p.invoiceId, processed: p.processed, channel: p.channel, scheduledAt: p.scheduledAt })) },
     loyalty: loyalty ? { points: loyalty.totalPoints, optedOut: loyalty.optedOut } : null,
     rainNotices: rain.map((r) => ({ at: r.sentAt, channel: r.channel, status: r.status })),

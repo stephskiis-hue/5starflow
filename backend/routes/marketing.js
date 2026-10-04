@@ -775,6 +775,10 @@ router.post('/conversations/:phone/send', async (req, res) => {
     if (!cred) return res.status(400).json({ error: 'No Twilio credentials configured' });
 
     // Each direct send gets its own campaign row so messageBody is preserved per-message
+    if (await isOptedOut(userId, phone)) {
+      return res.status(409).json({ error: 'This client opted out (STOP). You cannot text them.' });
+    }
+
     const campaign = await prisma.marketingCampaign.create({
       data: {
         userId,
@@ -792,10 +796,7 @@ router.post('/conversations/:phone/send', async (req, res) => {
     let status     = 'queued';   // accepted by Twilio; delivery confirmed via callback
     let error      = null;
 
-    if (await isOptedOut(userId, phone)) {
-      error  = 'Recipient opted out (STOP) — not sent';
-      status = 'skipped';
-    } else if (process.env.DRY_RUN === 'true') {
+    if (process.env.DRY_RUN === 'true') {
       messageSid = 'DRY_RUN_' + Date.now();
     } else {
       try {
@@ -814,7 +815,7 @@ router.post('/conversations/:phone/send', async (req, res) => {
     }
 
     const client = await prisma.cachedJobberClient.findFirst({ where: { userId, phone } });
-    if (status !== 'failed' && status !== 'skipped') {
+    if (status !== 'failed' && status !== 'skipped' && !String(messageSid).startsWith('DRY_RUN')) {
       require('../lib/commLedger').logComm(userId, { direction: 'out', phone, body: message.trim(), source: 'manual', providerId: messageSid, jobberClientId: client?.jobberClientId, clientName: client?.name, status });
     }
 

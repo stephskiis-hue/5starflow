@@ -41,14 +41,20 @@ async function recordAction(userId, a) {
   if (!a.kind || (!DAILY_CAPS[a.kind] && !UNCAPPED.has(a.kind))) throw Object.assign(new Error(`unknown kind "${a.kind}"`), { code: 'INVALID_ACTION' });
   const status = ['done', 'failed', 'skipped'].includes(a.status) ? a.status : 'done';
 
+  const data = { userId, platform, kind: a.kind, status, target: (a.target || '').slice(0, 200) || null, groupId: a.groupId || null, contentItemId: a.contentItemId || null, summary: (a.summary || '').slice(0, 500), url: (a.url || '').slice(0, 500) || null };
+  let row;
   if (status === 'done' && DAILY_CAPS[a.kind]) {
+    // count-then-insert under a transaction-scoped advisory lock so two parallel calls can't both slip under the cap
     const { start, end } = dayBounds();
-    const used = await prisma.socialAction.count({ where: { userId, platform, kind: a.kind, status: 'done', createdAt: { gte: start, lt: end } } });
-    if (used >= DAILY_CAPS[a.kind]) throw new CapError(a.kind, platform, DAILY_CAPS[a.kind]);
+    row = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`social:${userId}:${platform}:${a.kind}`}))`;
+      const used = await tx.socialAction.count({ where: { userId, platform, kind: a.kind, status: 'done', createdAt: { gte: start, lt: end } } });
+      if (used >= DAILY_CAPS[a.kind]) throw new CapError(a.kind, platform, DAILY_CAPS[a.kind]);
+      return tx.socialAction.create({ data });
+    });
+  } else {
+    row = await prisma.socialAction.create({ data });
   }
-  const row = await prisma.socialAction.create({
-    data: { userId, platform, kind: a.kind, status, target: (a.target || '').slice(0, 200) || null, groupId: a.groupId || null, contentItemId: a.contentItemId || null, summary: (a.summary || '').slice(0, 500), url: (a.url || '').slice(0, 500) || null },
-  });
   if (a.kind === 'group_post' && a.groupId && status === 'done') {
     await prisma.socialGroup.updateMany({ where: { id: a.groupId, userId }, data: { lastPostedAt: new Date(), postsCount: { increment: 1 } } });
   }

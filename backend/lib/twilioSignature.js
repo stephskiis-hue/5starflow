@@ -6,28 +6,31 @@
  * this check anyone who knows the URL can forge a text "from" the owner's phone.
  *
  * Must run AFTER express.urlencoded() so req.body holds the signed form params.
- * The auth token is per-user (TwilioCredential) with an env fallback, so we accept the request
- * if any configured token validates it. Fails closed when no token is configured at all.
- * Local dev escape hatch: TWILIO_SKIP_SIGNATURE=true.
+ *
+ * Multi-tenant rule: the token that verifies a request must belong to the account the request is
+ * ABOUT (matched by the body's AccountSid or the To/From number). Accepting "any tenant's token"
+ * would let one portal user store a made-up token and forge webhooks aimed at another tenant.
+ * On success `req.twilioUserId` is the tenant whose credential verified it (null = env token);
+ * handlers that resolve a tenant themselves (inbound-sms looks it up by `To`) must check they agree.
+ * Fails closed when nothing matches. Local dev escape hatch: TWILIO_SKIP_SIGNATURE=true.
  */
 const twilio = require('twilio');
 const prisma = require('./prismaClient');
+
+const last10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
 
 function publicUrl(req) {
   const base = (process.env.APP_URL || '').replace(/\/+$/, '');
   return base ? `${base}${req.originalUrl}` : `${req.protocol}://${req.get('host')}${req.originalUrl}`;
 }
 
-async function candidateTokens() {
-  const tokens = new Set();
-  if (process.env.TWILIO_AUTH_TOKEN) tokens.add(process.env.TWILIO_AUTH_TOKEN);
-  try {
-    const rows = await prisma.twilioCredential.findMany({ select: { authToken: true } });
-    rows.forEach((r) => r.authToken && tokens.add(r.authToken));
-  } catch (err) {
+async function matchingCredentials(body) {
+  const numbers = new Set([last10(body.To), last10(body.From)].filter((n) => n.length === 10));
+  const rows = await prisma.twilioCredential.findMany({ select: { userId: true, accountSid: true, authToken: true, fromNumber: true } }).catch((err) => {
     console.warn('[twilio-signature] credential lookup failed:', err.message);
-  }
-  return [...tokens];
+    return [];
+  });
+  return rows.filter((r) => r.authToken && ((body.AccountSid && r.accountSid === body.AccountSid) || numbers.has(last10(r.fromNumber))));
 }
 
 async function validateTwilioSignature(req, res, next) {
@@ -39,13 +42,20 @@ async function validateTwilioSignature(req, res, next) {
     return res.status(403).send('Forbidden');
   }
 
-  const tokens = await candidateTokens();
+  const body = req.body || {};
   const url = publicUrl(req);
-  const ok = tokens.some((t) => twilio.validateRequest(t, signature, url, req.body || {}));
-  if (!ok) {
+  const candidates = (await matchingCredentials(body)).map((c) => ({ userId: c.userId, token: c.authToken }));
+  // single-tenant env fallback: only for requests addressed to the env account
+  if (process.env.TWILIO_AUTH_TOKEN && (!process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_ACCOUNT_SID === body.AccountSid)) {
+    candidates.push({ userId: null, token: process.env.TWILIO_AUTH_TOKEN });
+  }
+
+  const hit = candidates.find((c) => twilio.validateRequest(c.token, signature, url, body));
+  if (!hit) {
     console.warn(`[twilio-signature] INVALID signature on ${req.originalUrl} from ${req.ip}`);
     return res.status(403).send('Forbidden');
   }
+  req.twilioUserId = hit.userId;
   next();
 }
 

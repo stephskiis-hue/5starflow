@@ -188,7 +188,7 @@ async function rescheduleJobberVisit(visitId, newStartAt, newEndAt, userId) {
  * Returns "monday", "tuesday", etc. for a given Date (default today).
  */
 function getDayTag(date = new Date()) {
-  return date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  return date.toLocaleDateString('en-US', { weekday: 'long', timeZone: BUSINESS_TZ }).toLowerCase();
 }
 
 const { BUSINESS_TZ, toDateString, localHour, tzOffsetFor } = require('../lib/tz');
@@ -217,11 +217,12 @@ const WEEKDAY_ALIASES = {
 function nextWeekdayDate(dayName, from = new Date()) {
   const target = WEEKDAYS.indexOf(String(dayName || '').toLowerCase());
   if (target < 0) return null;
-  // Walk forward 1..7 days until the weekday matches.
+  // Walk forward 1..7 days in business-local calendar days until the weekday matches.
+  const base = toDateString(from);                       // YYYY-MM-DD in Winnipeg
   for (let i = 1; i <= 7; i++) {
-    const d = new Date(from);
-    d.setDate(from.getDate() + i);
-    if (d.getDay() === target) return toDateString(d);
+    const d = new Date(`${base}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + i);
+    if (d.getUTCDay() === target) return d.toISOString().slice(0, 10);
   }
   return null;
 }
@@ -249,7 +250,7 @@ function parseRainReply(body) {
     }
   }
   if (!day && /\btomorrow\b/.test(text)) {
-    day = WEEKDAYS[new Date(Date.now() + 86400000).getDay()];
+    day = getDayTag(new Date(Date.now() + 86400000));
   }
 
   return { intent, day };
@@ -907,7 +908,13 @@ async function runMorningCheck() {
 async function morningCheckTick() {
   await runMorningCheck();
   const rows = await prisma.weatherCheck.findMany({ where: { date: toDateString() }, orderBy: { checkedAt: 'desc' }, take: 5 });
-  if (rows.length === 0) throw new Error('Morning check produced no result (check OPENWEATHER_API_KEY / forecast errors in the logs)');
+  if (rows.length === 0) {
+    // "disabled by the owner" is a normal state, not a failure
+    const enabled = await prisma.weatherSettings.count({ where: { checkEnabled: true } });
+    const any     = await prisma.weatherSettings.count();
+    if (any > 0 && enabled === 0) return { skipped: true, summary: 'Daily rain check is turned off' };
+    throw new Error('Morning check produced no result (check OPENWEATHER_API_KEY / forecast errors in the logs)');
+  }
   const rain = rows.filter((r) => r.rainExpected);
   return {
     items_found: rows.length,
