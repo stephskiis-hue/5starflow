@@ -112,6 +112,11 @@ async function processOneReview(row) {
       await sendReviewSMS(phone, firstName, userId);
       smsSent = true;
     } catch (err) {
+      if (err.skip) {
+        console.log(`${tag} SKIP: ${err.message} — marking processed`);
+        await markProcessed(id);
+        return;
+      }
       console.error(`${tag} SMS failed (${phone}):`, err.message);
     }
   } else if (email) {

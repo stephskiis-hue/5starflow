@@ -376,7 +376,7 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
       }
 
       // Tag the client in Jobber with "no-Texts"
-      if (cachedClient?.jobberClientId) {
+      if (cachedClient?.jobberClientId && process.env.DRY_RUN !== 'true') {
         const { jobberGraphQL } = require('./services/jobberClient');
         const NO_TEXTS_TAG = `
           mutation AddClientTag($clientId: EncodedId!, $label: String!) {
@@ -387,7 +387,7 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
           }
         `;
         try {
-          const tagResult = await jobberGraphQL(NO_TEXTS_TAG, { clientId: cachedClient.jobberClientId, label: 'no-Texts' }, null);
+          const tagResult = await jobberGraphQL(NO_TEXTS_TAG, { clientId: cachedClient.jobberClientId, label: 'no-Texts' }, userId);
           const tagErrors = tagResult?.clientTagCreate?.errors;
           if (tagErrors?.length) {
             console.error(`[inbound-sms] Jobber tag errors for ${normalizedFrom}:`, tagErrors.map(e => e.message).join('; '));
@@ -439,15 +439,25 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
       if (fromApprover) {
         // Rain recommendation reply first ("YES Wednesday" / "NO") — natural language,
         // no shortcode needed. Falls through to the generic YES/NO <code> + slash handler.
-        const rain = await handleRainReply({ userId, body: Body.trim() });
-        if (rain.matched) {
+        // Explicit "YES 0012" codes and "/slash" commands always win; only free-text replies
+        // ("YES Wednesday", "NO") fall through to the rain grammar. Otherwise a pending rain
+        // proposal swallowed code approvals and turned "/post Saturday" into a reschedule.
+        const explicit = /^\s*(?:(?:yes|y|no|n)\s+\d{1,4}\b|\/)/i.test(Body);
+        const match = explicit ? await handleInboundFromSteph({ userId, body: Body.trim() }) : { matched: false };
+        if (match.matched) {
           operatorHandled = true;
-          console.log('[inbound-sms] Rain reply handled for approver');
+          console.log(`[inbound-sms] Operator match: type=${match.type} action=${match.action || match.command}`);
         } else {
-          const match = await handleInboundFromSteph({ userId, body: Body.trim() });
-          if (match.matched) {
+          const rain = await handleRainReply({ userId, body: Body.trim() });
+          if (rain.matched) {
             operatorHandled = true;
-            console.log(`[inbound-sms] Operator match: type=${match.type} action=${match.action || match.command}`);
+            console.log('[inbound-sms] Rain reply handled for approver');
+          } else if (!explicit) {
+            const m2 = await handleInboundFromSteph({ userId, body: Body.trim() });
+            if (m2.matched) {
+              operatorHandled = true;
+              console.log(`[inbound-sms] Operator match: type=${m2.type} action=${m2.action || m2.command}`);
+            }
           }
         }
       }
@@ -465,7 +475,7 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
         const sentiment = classifySentiment(Body);
         await prisma.inboundSMS.update({ where: { id: inbound.id }, data: { sentiment } });
 
-        if (sentiment !== 'neutral' && cachedClient?.jobberClientId) {
+        if (sentiment !== 'neutral' && cachedClient?.jobberClientId && process.env.DRY_RUN !== 'true') {
           const { jobberGraphQL } = require('./services/jobberClient');
           const SENTIMENT_TAG = `
             mutation AddClientTag($clientId: EncodedId!, $label: String!) {
@@ -492,7 +502,7 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
     }
 
     // Send admin SMS notification for Y/N responses (not for opt-outs or general messages)
-    if (isResponse && cred.notifyPhone) {
+    if (isResponse && cred.notifyPhone && process.env.DRY_RUN !== 'true') {
       try {
         const twilioClient = twilio(cred.accountSid, cred.authToken);
         const clientLabel  = cachedClient?.name || normalizedFrom;

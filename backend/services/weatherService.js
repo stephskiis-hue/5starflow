@@ -4,7 +4,7 @@ const nodemailer = require('nodemailer');
 const twilio  = require('twilio');
 const prisma  = require('../lib/prismaClient');
 const { jobberGraphQL } = require('./jobberClient');
-const { getTwilioCreds, senderParams } = require('./smsService');
+const { getTwilioCreds, senderParams, isOptedOut } = require('./smsService');
 const { getGmailCreds, ensureFreshToken } = require('./emailService');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -163,6 +163,11 @@ async function rescheduleJobberVisit(visitId, newStartAt, newEndAt, userId) {
     startTime: isAnytime ? null : localTime,
     timezone:  'Central Time (US & Canada)',
   };
+
+  if (process.env.DRY_RUN === 'true') {
+    console.log('[reschedule] DRY RUN — would move visit', JSON.stringify(vars));
+    return { id: visitId, dryRun: true };
+  }
 
   console.log('[reschedule] vars:', JSON.stringify(vars));
   const data   = await jobberGraphQL(EDIT_VISIT_SCHEDULE_MUTATION, vars, userId);
@@ -494,6 +499,10 @@ async function sendRainSMS(phone, firstName, newDateLabel, customMessage, userId
     body = template.replace(/\{firstName\}/g, name).replace(/\{newDate\}/g, newDateLabel);
   }
 
+  if (await isOptedOut(userId, to)) {
+    throw new Error(`Recipient ${to} opted out (STOP) — rain SMS not sent`);
+  }
+
   if (process.env.DRY_RUN === 'true') {
     console.log(`[weatherService] DRY RUN — would send rain SMS to ${to}: "${body.slice(0, 80)}..."`);
     return 'dry-run';
@@ -576,9 +585,10 @@ async function sendRainEmail(to, firstName, newDateLabel, customMessage, userId)
 /**
  * Tag a Jobber client with "rain-rescheduled" so they won't be double-notified.
  */
-async function addRainTag(clientId) {
+async function addRainTag(clientId, userId = null) {
+  if (process.env.DRY_RUN === 'true') return; // tagging a real client is a real Jobber write
   try {
-    await jobberGraphQL(ADD_CLIENT_TAG, { clientId, label: 'rain-rescheduled' });
+    await jobberGraphQL(ADD_CLIENT_TAG, { clientId, label: 'rain-rescheduled' }, userId);
   } catch (err) {
     console.warn(`[weatherService] Could not add rain tag to ${clientId}:`, err.message);
   }
@@ -625,7 +635,7 @@ async function batchNotify({ clients, newDate, newDateLabel, customMessage, user
     }
 
     // Tag client in Jobber so we don't double-notify
-    await addRainTag(id);
+    await addRainTag(id, userId);
     await sleep(300);
   }
 

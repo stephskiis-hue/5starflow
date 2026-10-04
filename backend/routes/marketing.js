@@ -5,7 +5,7 @@ const {
   dispatchCampaign, resetFailedForRetry, MAX_RECIPIENTS, ACCEPTED_STATUSES,
   buildRecipientPlan, estimateSegments, segmentCost,
 } = require('../services/marketingService');
-const { toE164, calculateSegments, stripToGsm7, senderParams } = require('../services/smsService');
+const { toE164, calculateSegments, stripToGsm7, senderParams, isOptedOut } = require('../services/smsService');
 const logger = require('../lib/logger');
 
 // ---------------------------------------------------------------------------
@@ -793,7 +793,10 @@ router.post('/conversations/:phone/send', async (req, res) => {
     let status     = 'queued';   // accepted by Twilio; delivery confirmed via callback
     let error      = null;
 
-    if (process.env.DRY_RUN === 'true') {
+    if (await isOptedOut(userId, phone)) {
+      error  = 'Recipient opted out (STOP) — not sent';
+      status = 'skipped';
+    } else if (process.env.DRY_RUN === 'true') {
       messageSid = 'DRY_RUN_' + Date.now();
     } else {
       try {

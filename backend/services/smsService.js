@@ -307,6 +307,27 @@ async function sendSmsSafely({ to, from, messagingServiceSid, body, client, user
 }
 
 /**
+ * True when this phone belongs to a client who texted STOP (CachedJobberClient.optedOut).
+ * Matches on the last 10 digits so "+14315551234" and "(431) 555-1234" are the same person.
+ * Call this before ANY customer-facing SMS — review, rain, loyalty, reward, direct reply.
+ * (Twilio blocks sends to STOPped numbers at the carrier, but we still shouldn't try.)
+ */
+async function isOptedOut(userId, rawPhone) {
+  const last10 = String(rawPhone || '').replace(/\D/g, '').slice(-10);
+  if (last10.length < 10) return false;
+  try {
+    const hit = await prisma.cachedJobberClient.findFirst({
+      where: { optedOut: true, phone: { endsWith: last10 }, ...(userId ? { userId } : {}) },
+      select: { id: true },
+    });
+    return !!hit;
+  } catch (err) {
+    console.warn('[smsService] opt-out lookup failed (treating as not opted out):', err.message);
+    return false;
+  }
+}
+
+/**
  * Send the review request SMS via Twilio.
  * Message matches the Zapier Path A template exactly.
  *
@@ -318,13 +339,21 @@ async function sendSmsSafely({ to, from, messagingServiceSid, body, client, user
 async function sendReviewSMS(rawPhone, firstName, userId) {
   const to = toE164(rawPhone);
 
+  if (await isOptedOut(userId, to)) {
+    const err = new Error(`Recipient ${to} opted out (STOP) — not sending review request`);
+    err.skip = true;
+    throw err;
+  }
+
   const msgSettings = userId
     ? await prisma.messageSettings.findUnique({ where: { userId } }).catch(() => null)
     : null;
-  const template = msgSettings?.smsTemplate || DEFAULT_SMS_TEMPLATE;
+  // The settings UI saves smsBody with {{firstName}} / {{reviewLink}}; accept both brace styles.
+  const template = msgSettings?.smsBody || DEFAULT_SMS_TEMPLATE;
+  const reviewLink = msgSettings?.reviewLink || REVIEW_LINK;
   const body = template
-    .replace('{firstName}', firstName)
-    .replace('{reviewLink}', REVIEW_LINK);
+    .replace(/\{\{?firstName\}?\}/g, firstName)
+    .replace(/\{\{?reviewLink\}?\}/g, reviewLink);
 
   if (process.env.DRY_RUN === 'true') {
     console.log(`[smsService] DRY RUN — would send SMS to ${to}: "${body.slice(0, 80)}..."`);
@@ -355,6 +384,7 @@ async function sendReviewSMS(rawPhone, firstName, userId) {
 
 module.exports = {
   sendReviewSMS,
+  isOptedOut,
   calculateSegments,
   stripToGsm7,
   senderParams,
