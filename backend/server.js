@@ -648,6 +648,14 @@ app.listen(PORT, () => {
   startOperatorProposalExpiry();
   startAiOs();
 
+  // ADMIN_EMAILS=a@x.com,b@y.com — promote these portal accounts to admin at boot (set it in Railway; users must sign in again)
+  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+  if (adminEmails.length) {
+    require('./lib/prismaClient').user.updateMany({ where: { email: { in: adminEmails }, role: { not: 'admin' } }, data: { role: 'admin' } })
+      .then((r) => r.count && console.log(`[startup] Promoted ${r.count} account(s) to admin via ADMIN_EMAILS`))
+      .catch((e) => console.warn('[startup] ADMIN_EMAILS promotion failed:', e.message));
+  }
+
   // Bulletproof SMS workers — retry any transient-failed rows + resume anything left
   // mid-flight when the server was last killed (Railway redeploy, crash, etc.).
   startRetryWorker();

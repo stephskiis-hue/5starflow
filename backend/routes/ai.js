@@ -53,16 +53,17 @@ async function aiAuth(req, res, next) {
     if (!safeEq(m[1], expected)) return res.status(401).json({ error: 'Invalid bearer token' });
     const userId = await resolveOwnerId();
     if (!userId) return res.status(503).json({ error: 'No owner user configured (set OPERATOR_USER_ID)' });
-    req.ai = { userId, actor: 'agent', agent: AGENTS.includes(req.get('x-agent')) ? req.get('x-agent') : null };
+    req.ai = { userId, actor: 'agent', admin: false, agent: AGENTS.includes(req.get('x-agent')) ? req.get('x-agent') : null };
     return next();
   }
   const payload = verifyToken(getTokenFromCookies(req.cookies));
   if (!payload) return res.status(401).json({ error: 'Not authenticated' });
-  if ((payload.role || 'client') !== 'admin') return res.status(403).json({ error: 'Admin access required' });
-  req.ai = { userId: payload.userId, actor: 'owner', agent: null };
+  req.ai = { userId: payload.userId, actor: 'owner', agent: null, admin: payload.role === 'admin' };
   next();
 }
 const ownerOnly = (req, res, next) => (req.ai.actor === 'owner' ? next() : res.status(403).json({ error: 'Owner session required' }));
+// routines run shared, business-wide jobs (sends, syncs): administrators only
+const adminOnly = (req, res, next) => (req.ai.admin ? next() : res.status(403).json({ error: 'Administrator access required' }));
 
 router.use(aiAuth);
 router.use(express.json({ limit: '20mb' }));      // assets arrive as base64
@@ -98,7 +99,7 @@ router.get('/routines/:slug', async (req, res) => {
   res.json({ routine: { ...routine, runnable: !!RUNNABLE[routine.slug] }, runs });
 });
 
-router.patch('/routines/:slug', ownerOnly, async (req, res) => {
+router.patch('/routines/:slug', ownerOnly, adminOnly, async (req, res) => {
   const { enabled, autonomy, expectedEveryMinutes, approvalRequired, learningEnabled, researchEnabled } = req.body || {};
   const data = {};
   if (typeof enabled === 'boolean') data.enabled = enabled;
@@ -113,6 +114,7 @@ router.patch('/routines/:slug', ownerOnly, async (req, res) => {
 
 // "Run now": the same function the cron calls, through the same mutex/ledger. Agents may only trigger safe ones.
 router.post('/routines/:slug/run', async (req, res) => {
+  if (req.ai.actor === 'owner' && !req.ai.admin) return res.status(403).json({ error: 'Administrator access required' });
   const def = RUNNABLE[req.params.slug];
   if (!def) return res.status(400).json({ error: 'This routine cannot be run from here (it is a Claude routine or event-driven)' });
   if (req.ai.actor !== 'owner' && def.risk !== 'safe') return res.status(403).json({ error: `"${req.params.slug}" has side effects (${def.risk}); only the owner can run it` });

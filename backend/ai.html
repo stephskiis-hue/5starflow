@@ -619,11 +619,7 @@
       const me = await res.json();
       $('user-email').textContent = me.email || ''; $('user-avatar').textContent = (me.email || '?').charAt(0).toUpperCase();
       $('user-role').textContent = me.role === 'admin' ? 'Administrator' : 'Client';
-      if (me.role !== 'admin') {
-        document.querySelector('main').innerHTML = '<div class="glass-card rounded-xl p-10 text-center mt-10"><p class="text-zinc-200 font-semibold">AI Command is available to administrators.</p></div>';
-        return;
-      }
-      $('admin-nav-link').classList.remove('hidden');
+      if (me.role === 'admin') $('admin-nav-link').classList.remove('hidden');
     } catch {}
     switchTab(location.hash.slice(1) || 'home', false);
   })();
