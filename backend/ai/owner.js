@@ -7,6 +7,11 @@ let cached = null;
 async function resolveOwnerId() {
   if (cached) return cached;
   if (process.env.OPERATOR_USER_ID) return (cached = process.env.OPERATOR_USER_ID);
+  const emails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+  if (emails.length) {
+    const u = await prisma.user.findFirst({ where: { email: { in: emails }, isActive: true }, select: { id: true } });
+    if (u) return (cached = u.id);
+  }
   const admin = await prisma.user.findFirst({ where: { role: 'admin', isActive: true }, orderBy: { createdAt: 'asc' }, select: { id: true } });
   if (admin) cached = admin.id;
   return cached;
