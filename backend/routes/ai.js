@@ -184,8 +184,8 @@ router.get('/requests', async (req, res) => {
 
 router.post('/requests', ownerOnly, async (req, res) => {
   try {
-    const r = await requests.createRequest(req.ai.userId, req.body?.body);
-    await recordActivity(req.ai.userId, { agent: 'orchestrator', action: 'owner request added', summary: r.body.slice(0, 300), source: 'owner', result: 'pending' });
+    const r = await requests.createRequest(req.ai.userId, req.body?.body, req.body?.attachments);
+    await recordActivity(req.ai.userId, { agent: 'orchestrator', action: 'owner request added', summary: (r.body || '(photo/video only)').slice(0, 300), source: 'owner', result: 'pending' });
     res.status(201).json(r);
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -193,6 +193,16 @@ router.post('/requests', ownerOnly, async (req, res) => {
 router.post('/requests/claim', async (req, res) => {
   if (req.ai.actor !== 'agent') return res.status(403).json({ error: 'Only routines claim requests' });
   res.json({ request: await requests.claimNext(req.ai.userId, req.body?.slug || 'ext-request-inbox') });
+});
+
+// After posting: log it so metrics can be tracked (does not touch the daily caps: record those via /social/actions first).
+router.post('/requests/:id/posted', async (req, res) => {
+  if (req.ai.actor !== 'agent') return res.status(403).json({ error: 'Only routines log posts' });
+  try {
+    const item = await requests.recordPost(req.ai.userId, req.params.id, req.body || {});
+    if (!item) return res.status(404).json({ error: 'Request not found' });
+    res.json({ ok: true, contentItemId: item.id });
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 router.patch('/requests/:id', async (req, res) => {
@@ -307,7 +317,7 @@ const parseBase64 = (b64) => Buffer.from(String(b64 || '').replace(/^data:[^;]+;
 router.post('/assets', async (req, res) => {
   try {
     const { asset, duplicate } = await vault.saveAsset(req.ai.userId, {
-      kind: ['photo', 'graphic', 'reference', 'screenshot', 'logo'].includes(req.body?.kind) ? req.body.kind : 'photo',
+      kind: ['photo', 'graphic', 'reference', 'screenshot', 'logo', 'video'].includes(req.body?.kind) ? req.body.kind : 'photo',
       name: req.body?.name, buffer: parseBase64(req.body?.base64), tags: req.body?.tags, notes: req.body?.notes, source: req.ai.actor === 'agent' ? 'import' : 'upload',
     });
     res.status(duplicate ? 200 : 201).json({ asset: { ...asset, tags: JSON.parse(asset.tags || '[]') }, duplicate });

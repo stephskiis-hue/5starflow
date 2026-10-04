@@ -10,16 +10,32 @@ const STALE_CLAIM_MINUTES = 60;
 const BODY_MAX = 4000;
 const RESPONSE_MAX = 4000;
 
-async function createRequest(userId, body) {
+const MAX_ATTACHMENTS = 6;
+
+// Attach vault assets (uploaded through POST /assets) to a request. Unknown ids are rejected.
+async function createRequest(userId, body, attachments = []) {
   const text = String(body || '').trim();
-  if (!text) throw new Error('Request is empty');
-  return prisma.ownerRequest.create({ data: { userId, body: clip(text, BODY_MAX) } });
+  const ids = [...new Set((Array.isArray(attachments) ? attachments : []).map(String))].slice(0, MAX_ATTACHMENTS);
+  if (!text && !ids.length) throw new Error('Request is empty');
+  if (ids.length) {
+    const found = await prisma.contentAsset.count({ where: { userId, id: { in: ids } } });
+    if (found !== ids.length) throw new Error('One of the attached files was not found');
+  }
+  return prisma.ownerRequest.create({ data: { userId, body: clip(text, BODY_MAX), attachments: ids.length ? ids : undefined } });
+}
+
+// Rows carry asset ids; the routine and the dashboard need name/type to show or download them.
+async function withAttachments(userId, rows) {
+  const ids = [...new Set(rows.flatMap((r) => (Array.isArray(r.attachments) ? r.attachments : [])))];
+  const assets = ids.length ? await prisma.contentAsset.findMany({ where: { userId, id: { in: ids } }, select: { id: true, name: true, mime: true, kind: true, size: true, private: true } }) : [];
+  const byId = Object.fromEntries(assets.map((a) => [a.id, a]));
+  return rows.map((r) => ({ ...r, attachments: (Array.isArray(r.attachments) ? r.attachments : []).map((id) => byId[id]).filter(Boolean) }));
 }
 
 async function listRequests(userId, { status, limit = 20 } = {}) {
   const where = { userId };
   if (status && REQUEST_STATES.includes(status)) where.status = status;
-  return prisma.ownerRequest.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit });
+  return withAttachments(userId, await prisma.ownerRequest.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit }));
 }
 
 // A run that crashed mid-request leaves it "working"; after an hour it is fair game again.
@@ -47,7 +63,7 @@ async function claimNext(userId, slug) {
       where: { id: next.id, status: 'pending' },
       data: { status: 'working', claimedAt: new Date(), claimedBy: clip(slug || 'agent', 80) },
     });
-    if (res.count) return prisma.ownerRequest.findUnique({ where: { id: next.id } });
+    if (res.count) return (await withAttachments(userId, [await prisma.ownerRequest.findUnique({ where: { id: next.id } })]))[0];
   }
   return null;
 }
@@ -70,4 +86,24 @@ async function cancelRequest(userId, id) {
   return res.count > 0;
 }
 
-module.exports = { REQUEST_STATES, createRequest, listRequests, pendingCount, claimNext, reportRequest, cancelRequest };
+// After the routine posts a request's photo/video, log it as a published ContentItem so reach/leads can be
+// tracked like any other post. One item per request; a second platform updates the same item.
+async function recordPost(userId, id, { platform, postUrl, caption, captionIg } = {}) {
+  if (!['facebook', 'instagram'].includes(platform)) throw new Error('platform must be facebook or instagram');
+  const req = await prisma.ownerRequest.findFirst({ where: { id, userId } });
+  if (!req) return null;
+  const source = `request:${id}`;
+  const at = new Date().toISOString();
+  const existing = await prisma.contentItem.findFirst({ where: { userId, source } });
+  const publishedOn = { ...(existing?.publishedOn || {}), [platform]: { postUrl: postUrl || null, at } };
+  const platforms = Object.keys(publishedOn);
+  const data = {
+    platforms: JSON.stringify(platforms), publishedOn, status: 'published', publishedAt: existing?.publishedAt || new Date(),
+    postUrl: existing?.postUrl || postUrl || null,
+    ...(caption ? { caption: clip(caption, 5000) } : {}), ...(captionIg ? { captionIg: clip(captionIg, 2500) } : {}),
+  };
+  if (existing) return prisma.contentItem.update({ where: { id: existing.id }, data });
+  return prisma.contentItem.create({ data: { userId, source, format: 'post', title: clip(req.body || caption || 'Owner post', 160), assetIds: Array.isArray(req.attachments) ? req.attachments : undefined, grounding: 'Owner request with the owner\'s own media', ...data } });
+}
+
+module.exports = { REQUEST_STATES, createRequest, listRequests, pendingCount, claimNext, recordPost, reportRequest, cancelRequest };

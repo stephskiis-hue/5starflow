@@ -689,6 +689,7 @@ model OwnerRequest {
   id          String    @id @default(cuid())
   userId      String
   body        String
+  attachments Json?                                           // vault ContentAsset ids (photos/videos) the owner attached
   status      String    @default("pending")                // pending | working | done | needs_owner | failed | cancelled
   claimedAt   DateTime?
   claimedBy   String?

@@ -6,7 +6,8 @@ const crypto = require('crypto');
 const prisma = require('../lib/prismaClient');
 
 const MAX_BYTES = 15 * 1024 * 1024;
-const MIMES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const MAX_VIDEO_BYTES = 12 * 1024 * 1024;   // clips live in Postgres and travel as base64 JSON; keep them small
+const MIMES = new Set(['image/png', 'image/jpeg', 'image/webp', 'video/mp4', 'video/quicktime']);
 
 // filename/notes keyword → vault tag (the "PATIOS / SOD / FALL / BEFORE ..." scheme from the brief)
 const TAG_RULES = [
@@ -43,13 +44,18 @@ function dimensions(buf, mime) {
 }
 
 const sniff = (b) => (b.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ? 'image/png'
-  : b[0] === 0xff && b[1] === 0xd8 ? 'image/jpeg' : b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP' ? 'image/webp' : null);
+  : b[0] === 0xff && b[1] === 0xd8 ? 'image/jpeg' : b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP' ? 'image/webp'
+  : b.toString('ascii', 4, 8) === 'ftyp' ? (b.toString('ascii', 8, 12) === 'qt  ' ? 'video/quicktime' : 'video/mp4') : null);
 
 async function saveAsset(userId, { kind = 'photo', name, buffer, tags = [], source = 'upload', notes = null, contentItemId = null }) {
   if (!Buffer.isBuffer(buffer) || !buffer.length) throw Object.assign(new Error('empty file'), { code: 'INVALID_ASSET' });
   if (buffer.length > MAX_BYTES) throw Object.assign(new Error(`file too large (max ${MAX_BYTES / 1048576} MB)`), { code: 'INVALID_ASSET' });
   const mime = sniff(buffer);                       // trust the bytes, not the client's claim
-  if (!mime || !MIMES.has(mime)) throw Object.assign(new Error('only PNG, JPEG or WebP images are accepted'), { code: 'INVALID_ASSET' });
+  if (!mime || !MIMES.has(mime)) throw Object.assign(new Error('only PNG, JPEG or WebP images, or MP4/MOV clips, are accepted'), { code: 'INVALID_ASSET' });
+  if (mime.startsWith('video/')) {
+    if (buffer.length > MAX_VIDEO_BYTES) throw Object.assign(new Error(`video too large (max ${MAX_VIDEO_BYTES / 1048576} MB)`), { code: 'INVALID_ASSET' });
+    kind = 'video';
+  }
 
   const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
   const existing = await prisma.contentAsset.findUnique({ where: { userId_sha256: { userId, sha256 } }, select: assetSelect });
