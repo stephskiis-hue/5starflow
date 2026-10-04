@@ -83,6 +83,7 @@ router.get('/credentials', async (req, res) => {
         configured:  true,
         accountSid:  twilio.accountSid.slice(0, 8) + '...',
         fromNumber:  twilio.fromNumber,
+        messagingServiceSid: twilio.messagingServiceSid || '',
         updatedAt:   twilio.updatedAt,
       } : { configured: false },
       gmail: gmail && gmail.accessToken ? {
@@ -101,17 +102,23 @@ router.get('/credentials', async (req, res) => {
 
 // POST /api/settings/twilio — upsert Twilio credentials for current user
 router.post('/twilio', async (req, res) => {
-  const { accountSid, authToken, fromNumber } = req.body || {};
+  const { accountSid, authToken, fromNumber, messagingServiceSid } = req.body || {};
 
   if (!accountSid || !authToken || !fromNumber) {
     return res.status(400).json({ error: 'accountSid, authToken, and fromNumber are required' });
   }
 
+  // Optional. Blank clears it and sends fall back to fromNumber.
+  const msSid = (messagingServiceSid || '').trim() || null;
+  if (msSid && !/^MG[0-9a-fA-F]{32}$/.test(msSid)) {
+    return res.status(400).json({ error: 'Messaging Service SID must look like MG followed by 32 hex characters' });
+  }
+
   try {
     const cred = await prisma.twilioCredential.upsert({
       where:  { userId: req.user.userId },
-      update: { accountSid, authToken, fromNumber },
-      create: { userId: req.user.userId, accountSid, authToken, fromNumber },
+      update: { accountSid, authToken, fromNumber, messagingServiceSid: msSid },
+      create: { userId: req.user.userId, accountSid, authToken, fromNumber, messagingServiceSid: msSid },
     });
 
     await prisma.connectionVerification.upsert({
@@ -126,6 +133,7 @@ router.post('/twilio', async (req, res) => {
         configured:  true,
         accountSid:  cred.accountSid.slice(0, 8) + '...',
         fromNumber:  cred.fromNumber,
+        messagingServiceSid: cred.messagingServiceSid || '',
         updatedAt:   cred.updatedAt,
       },
     });

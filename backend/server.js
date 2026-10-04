@@ -198,14 +198,34 @@ app.post('/api/weather/twilio-callback', twilioLimiter, express.urlencoded({ ext
 });
 
 // Marketing Twilio delivery status callback — public (Twilio posts here, no session)
+//
+// This writes ONLY to deliveryStatus. It must never touch `status`, which is the
+// dispatcher's own state machine: Twilio's MessageStatus vocabulary (queued /
+// sending / sent / delivered / undelivered / failed) overlaps ours but means
+// different things, and receipts arrive out of order — a late "queued" receipt
+// used to regress an already-dispatched row into a state no counter recognised,
+// silently dropping it from every campaign total.
 app.post('/api/marketing/twilio-callback', twilioLimiter, express.urlencoded({ extended: false }), async (req, res) => {
-  const { MessageSid, MessageStatus } = req.body || {};
+  const { MessageSid, MessageStatus, ErrorCode } = req.body || {};
   if (MessageSid && MessageStatus) {
     const p = require('./lib/prismaClient');
+    const data = {
+      deliveryStatus:   MessageStatus,
+      carrierErrorCode: ErrorCode ? String(ErrorCode) : null,
+    };
+    if (MessageStatus === 'delivered') data.deliveredAt = new Date();
+
     await p.marketingMessage.updateMany({
       where: { messageSid: MessageSid },
-      data:  { status: MessageStatus },
+      data,
     }).catch(err => console.warn('[marketing-twilio-callback] DB update failed:', err.message));
+
+    // Carrier-level rejections are the failures that actually matter to the user
+    // (30007 carrier filtering, 30034 unregistered A2P, 30003 unreachable handset)
+    // and they never surface as API errors, so log them loudly.
+    if (MessageStatus === 'undelivered' || MessageStatus === 'failed') {
+      console.warn(`[marketing-twilio-callback] ${MessageStatus} sid=${MessageSid} errorCode=${ErrorCode || 'none'}`);
+    }
   }
   res.sendStatus(204);
 });

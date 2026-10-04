@@ -107,6 +107,18 @@ backend/
 - Jobber client sync: `jobberClientSync.js` runs every 4h at :15 (avoids :00 overlap with invoicePoller). Startup delay 3 min. Live polling via GET `/api/marketing/sync-status` (polls every 3s in UI).
 - Inbound SMS: POST `/webhook/twilio` — matches sender phone to `CachedJobberClient`, updates `InboundSMS`, auto-handles STOP opt-out
 - `allowReviewRequest` field on Invoice — Jobber's own boolean for review eligibility
+- **SMS dispatch vs delivery are separate columns.** `MarketingMessage.status` is our
+  lifecycle (pending/queued/retrying/failed/skipped) — `queued` means Twilio accepted the
+  API call, NOT that a phone received it. `deliveryStatus`/`deliveredAt`/`carrierErrorCode`
+  are Twilio's, written only by `/api/marketing/twilio-callback`. Never let the callback
+  write `status`: receipts arrive out of order and will corrupt the state machine.
+  Legacy rows carry `status='sent'`, a synonym for `queued`.
+- **SMS bills per segment.** GSM-7 = 160 chars/segment (153 multipart); one character
+  outside it (any emoji, a curly `'`) switches the body to UCS-2 at 70/67. Use
+  `calculateSegments()` / `stripToGsm7()` in `smsService.js` — never estimate from
+  `body.length`.
+- Sender selection goes through `senderParams(creds)` in `smsService.js`. A Messaging
+  Service SID and a from-number are mutually exclusive in the Twilio API.
 
 ## Key env vars
 ```
@@ -134,6 +146,10 @@ THROTTLE_COOLDOWN_SECONDS         # override default 600s throttle backoff
 TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN
 TWILIO_PHONE_NUMBER               # review request number
 TWILIO_FROM_NUMBER                # marketing number (may differ)
+TWILIO_MESSAGING_SERVICE_SID      # optional MG... — used INSTEAD of a from-number
+SMS_SEGMENTS_PER_SECOND           # pacing for a single number (default 1 = long code rate)
+SMS_MESSAGING_SERVICE_SEGMENTS_PER_SECOND  # pacing when a Messaging Service is set (default 10)
+SMS_MIN_DELAY_MS                  # floor on the gap between sends
 
 # Gmail
 GMAIL_USER, GMAIL_APP_PASSWORD

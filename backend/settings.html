@@ -175,6 +175,16 @@
             <label class="text-sm font-medium text-on-surface-variant">From Phone Number</label>
             <input type="text" id="twilio-from-number" placeholder="+1xxxxxxxxxx" autocomplete="off" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" />
           </div>
+          <div class="flex flex-col gap-2 md:col-span-2">
+            <label class="text-sm font-medium text-on-surface-variant">Messaging Service SID <span class="text-on-surface-variant font-normal">(optional)</span></label>
+            <input type="text" id="twilio-messaging-service" placeholder="MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" />
+            <p class="text-xs text-on-surface-variant">
+              A single phone number sends about one SMS segment per second, so a large campaign
+              takes a long time to clear the carrier queue. A Messaging Service spreads the same
+              traffic across a pool of numbers and lets Twilio manage the queue. Leave blank to
+              keep sending from the number above.
+            </p>
+          </div>
         </div>
 
         <button id="twilio-save-btn" onclick="saveTwilio()" class="bg-primary text-zinc-900 rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors">Save</button>
@@ -287,6 +297,7 @@
         document.getElementById('twilio-status').innerHTML = '<span style="color:#47e266;">Configured</span>';
         document.getElementById('twilio-status').className = 'px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-secondary/10 text-secondary border-secondary/20';
         document.getElementById('twilio-from-number').value = data.twilio.fromNumber || '';
+        document.getElementById('twilio-messaging-service').value = data.twilio.messagingServiceSid || '';
       } else {
         document.getElementById('twilio-status').innerHTML = 'Not configured';
         document.getElementById('twilio-status').className = 'px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-white/5 text-on-surface-variant border-white/10';
@@ -320,6 +331,7 @@
     const accountSid = document.getElementById('twilio-account-sid').value.trim();
     const authToken  = document.getElementById('twilio-auth-token').value.trim();
     const fromNumber = document.getElementById('twilio-from-number').value.trim();
+    const messagingServiceSid = document.getElementById('twilio-messaging-service').value.trim();
     const btn        = document.getElementById('twilio-save-btn');
     const result     = document.getElementById('twilio-result');
 
@@ -337,7 +349,7 @@
       const res  = await fetch(`${API}/api/settings/twilio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountSid, authToken, fromNumber }),
+        body: JSON.stringify({ accountSid, authToken, fromNumber, messagingServiceSid }),
       });
       const data = await res.json();
 
