@@ -1,4 +1,5 @@
 const cron = require('node-cron');
+const { runRoutine } = require('../ai/runner');
 const prisma = require('../lib/prismaClient');
 const { jobberGraphQL } = require('./jobberClient');
 const { sendReviewSMS } = require('./smsService');
@@ -41,10 +42,10 @@ let reviewTickRunning = false;
 async function processPendingReviews() {
   // The cron fires every minute; a slow tick (Jobber/Twilio latency) must not overlap itself
   // or the same review can be sent twice before ReviewSent is written.
-  if (reviewTickRunning) return;
+  if (reviewTickRunning) return { skipped: true, summary: 'previous tick still running' };
   reviewTickRunning = true;
   try {
-    await processPendingReviewsOnce();
+    return await processPendingReviewsOnce();
   } finally {
     reviewTickRunning = false;
   }
@@ -61,17 +62,27 @@ async function processPendingReviewsOnce() {
     },
   });
 
-  if (pending.length === 0) return;
+  if (pending.length === 0) return { items_found: 0 };
 
   console.log(`[deliveryQueue] ${pending.length} review(s) due — processing...`);
 
+  const outcomes = { sms: 0, email: 0, skipped: 0, retry: 0, errors: 0 };
   for (const row of pending) {
     try {
-      await processOneReview(row);
+      const o = await processOneReview(row);
+      outcomes[o] = (outcomes[o] || 0) + 1;
     } catch (err) {
+      outcomes.errors++;
       console.error(`[deliveryQueue] Unexpected error for invoice ${row.invoiceId}:`, err.message);
     }
   }
+  const sent = outcomes.sms + outcomes.email;
+  return {
+    items_found: pending.length,
+    requires_attention: outcomes.retry + outcomes.errors,
+    actions_taken: sent ? [`Sent ${sent} review request(s) (${outcomes.sms} SMS, ${outcomes.email} email)`] : [],
+    summary: `${pending.length} due: ${sent} sent, ${outcomes.skipped} skipped, ${outcomes.retry} will retry, ${outcomes.errors} errors`,
+  };
 }
 
 async function processOneReview(row) {
@@ -85,7 +96,7 @@ async function processOneReview(row) {
     if (tags.includes(REVIEW_SENT_TAG)) {
       console.log(`${tag} SKIP: Client now has "${REVIEW_SENT_TAG}" tag — marking processed`);
       await markProcessed(id);
-      return;
+      return 'skipped';
     }
   } catch (err) {
     // Tag check failed — proceed anyway; ReviewSent is the backup dedup
@@ -97,7 +108,7 @@ async function processOneReview(row) {
   if (alreadySent) {
     console.log(`${tag} SKIP: Client already in ReviewSent table — marking processed`);
     await markProcessed(id);
-    return;
+    return 'skipped';
   }
 
   let smsSent = false;
@@ -115,7 +126,7 @@ async function processOneReview(row) {
       if (err.skip) {
         console.log(`${tag} SKIP: ${err.message} — marking processed`);
         await markProcessed(id);
-        return;
+        return 'skipped';
       }
       console.error(`${tag} SMS failed (${phone}):`, err.message);
     }
@@ -129,7 +140,7 @@ async function processOneReview(row) {
   } else {
     console.warn(`${tag} No contact method available — marking processed`);
     await markProcessed(id);
-    return;
+    return 'skipped';
   }
 
   // --- A failed send must NOT be recorded as sent (the client would be suppressed forever) ---
@@ -141,15 +152,16 @@ async function processOneReview(row) {
     } else {
       await prisma.pendingReview.update({ where: { id }, data: { scheduledAt: new Date(Date.now() + 15 * 60 * 1000) } });
       console.warn(`${tag} Send failed — will retry in 15 min`);
+      return 'retry';
     }
-    return;
+    return 'skipped';
   }
 
   // DRY_RUN: no real message went out, so don't tag the client in Jobber or write the dedup row.
   if (process.env.DRY_RUN === 'true') {
     console.log(`${tag} DRY RUN — skipping Jobber tag + ReviewSent record`);
     await markProcessed(id);
-    return;
+    return 'skipped';
   }
 
   // --- Add "review-sent" tag in Jobber ---
@@ -195,6 +207,7 @@ async function processOneReview(row) {
     `${tag} Done — channel: ${smsSent ? 'SMS' : 'Email'}` +
     (followUpScheduledAt ? ` | follow-up scheduled at ${followUpScheduledAt.toISOString()}` : '')
   );
+  return smsSent ? 'sms' : 'email';
 }
 
 async function markProcessed(id) {
@@ -221,17 +234,20 @@ async function processFollowUps() {
     },
   });
 
-  if (due.length === 0) return;
+  if (due.length === 0) return { items_found: 0 };
 
   console.log(`[deliveryQueue] ${due.length} follow-up(s) due — processing...`);
 
+  let done = 0;
   for (const row of due) {
     try {
       await processOneFollowUp(row);
+      done++;
     } catch (err) {
       console.error(`[deliveryQueue] Follow-up error for invoice ${row.invoiceId}:`, err.message);
     }
   }
+  return { items_found: due.length, actions_taken: done ? [`Processed ${done} review follow-up email(s)`] : [] };
 }
 
 async function processOneFollowUp(row) {
@@ -264,21 +280,13 @@ function startDeliveryQueue() {
   console.log('[deliveryQueue] Starting delivery queue processor (every 1 minute)');
 
   cron.schedule('* * * * *', async () => {
-    await processPendingReviews().catch((err) => {
-      console.error('[deliveryQueue] Scheduler error:', err.message);
-    });
-    await processFollowUps().catch((err) => {
-      console.error('[deliveryQueue] Follow-up scheduler error:', err.message);
-    });
+    await runRoutine('review-delivery-queue', processPendingReviews, { quiet: true });
+    await runRoutine('review-followup-email', processFollowUps, { quiet: true });
   });
 
   // Immediate run on startup
-  processPendingReviews().catch((err) => {
-    console.error('[deliveryQueue] Startup run error:', err.message);
-  });
-  processFollowUps().catch((err) => {
-    console.error('[deliveryQueue] Follow-up startup run error:', err.message);
-  });
+  runRoutine('review-delivery-queue', processPendingReviews, { quiet: true, trigger: 'startup' });
+  runRoutine('review-followup-email', processFollowUps, { quiet: true, trigger: 'startup' });
 }
 
 module.exports = { startDeliveryQueue, processPendingReviews };

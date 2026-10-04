@@ -1,4 +1,5 @@
 const cron = require('node-cron');
+const { runRoutine } = require('../ai/runner');
 const { jobberGraphQL } = require('./jobberClient');
 const { handleInvoicePaid } = require('./reviewRequester');
 const prisma = require('../lib/prismaClient');
@@ -58,14 +59,14 @@ async function pollPaidInvoices() {
   if (Date.now() < throttledUntil) {
     const remainingSeconds = Math.ceil((throttledUntil - Date.now()) / 1000);
     console.log(`[invoicePoller] Skipping poll — throttle cooldown active (${remainingSeconds}s remaining)`);
-    return;
+    return { skipped: true, summary: `Throttle cooldown active (${remainingSeconds}s left)` };
   }
 
   // Skip if no Jobber account is connected yet
   const account = await prisma.jobberAccount.findFirst();
   if (!account) {
     console.log('[invoicePoller] No Jobber account connected — skipping poll');
-    return;
+    return { skipped: true, summary: 'No Jobber account connected' };
   }
 
   const intervalMinutes   = parseInt(process.env.POLL_INTERVAL_MINUTES, 10) || 120;
@@ -79,6 +80,8 @@ async function pollPaidInvoices() {
   let pagesFetched = 0;
   let totalFound = 0;
   let totalQueued = 0;
+  let pollError = null;
+  let throttled = false;
 
   do {
     let result;
@@ -95,10 +98,12 @@ async function pollPaidInvoices() {
           `[invoicePoller] Jobber GraphQL throttled — backing off for ${cooldownSeconds}s. ` +
           `Next poll skipped until ${new Date(throttledUntil).toISOString()}`
         );
+        throttled = true;
         break;
       }
 
       console.error('[invoicePoller] GraphQL poll error:', message);
+      pollError = message;
       break;
     }
 
@@ -139,11 +144,25 @@ async function pollPaidInvoices() {
   } while (cursor);
 
   console.log(`[invoicePoller] Poll complete — pages: ${pagesFetched}, found: ${totalFound}, newly queued: ${totalQueued}`);
+  return {
+    items_found: totalFound,
+    actions_taken: totalQueued ? [`Queued ${totalQueued} paid invoice(s) for review requests`] : [],
+    summary: `${pagesFetched} page(s), ${totalFound} recent invoice(s), ${totalQueued} handled${throttled ? ' (throttled)' : ''}`,
+    error: pollError,
+    skipped: throttled && totalFound === 0,
+  };
 }
 
 // ---------------------------------------------------------------------------
 // Scheduler
 // ---------------------------------------------------------------------------
+
+/** Routine body: a swallowed GraphQL error must show up as a failed run, not a quiet success. */
+async function pollTick() {
+  const r = await pollPaidInvoices();
+  if (r?.error) throw new Error(r.error);
+  return r;
+}
 
 /**
  * Start the invoice poller cron job.
@@ -162,18 +181,10 @@ function startInvoicePoller() {
 
   console.log(`[invoicePoller] Starting invoice poller (every ${cronInterval} min)`);
 
-  cron.schedule(cronPattern, async () => {
-    await pollPaidInvoices().catch((err) => {
-      console.error('[invoicePoller] Scheduled poll error:', err.message);
-    });
-  }, { timezone: 'America/Winnipeg' });
+  cron.schedule(cronPattern, () => runRoutine('jobber-invoice-poller', pollTick), { timezone: 'America/Winnipeg' });
 
   // Delayed startup poll — wait 30s for server to fully initialize
-  setTimeout(() => {
-    pollPaidInvoices().catch((err) => {
-      console.error('[invoicePoller] Startup poll error:', err.message);
-    });
-  }, 30 * 1000);
+  setTimeout(() => runRoutine('jobber-invoice-poller', pollTick, { trigger: 'startup' }), 30 * 1000);
 }
 
-module.exports = { startInvoicePoller, pollPaidInvoices };
+module.exports = { startInvoicePoller, pollPaidInvoices, pollTick };

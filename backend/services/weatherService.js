@@ -5,6 +5,7 @@ const twilio  = require('twilio');
 const prisma  = require('../lib/prismaClient');
 const { jobberGraphQL } = require('./jobberClient');
 const { getTwilioCreds, senderParams, isOptedOut } = require('./smsService');
+const { runRoutine } = require('../ai/runner');
 const { getGmailCreds, ensureFreshToken } = require('./emailService');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -927,6 +928,19 @@ async function runMorningCheck() {
   }
 }
 
+/** Routine body: runs the check, then reports what it found from today's WeatherCheck rows. */
+async function morningCheckTick() {
+  await runMorningCheck();
+  const rows = await prisma.weatherCheck.findMany({ where: { date: toDateString() }, orderBy: { checkedAt: 'desc' }, take: 5 });
+  if (rows.length === 0) throw new Error('Morning check produced no result (check OPENWEATHER_API_KEY / forecast errors in the logs)');
+  const rain = rows.filter((r) => r.rainExpected);
+  return {
+    items_found: rows.length,
+    requires_attention: rain.length,
+    summary: rain.length ? `Rain expected: ${rain[0].forecastSummary}` : (rows[0]?.forecastSummary || 'No rain expected'),
+  };
+}
+
 /**
  * Start the weather check scheduler (5:30 AM daily).
  * Also runs immediately on startup.
@@ -934,20 +948,17 @@ async function runMorningCheck() {
 function startWeatherScheduler() {
   console.log('[weatherService] Starting weather scheduler (daily at 5:30 AM)');
 
-  cron.schedule('30 5 * * *', () => {
-    runMorningCheck().catch((err) =>
-      console.error('[weatherService] Scheduler error:', err.message)
-    );
-  }, { timezone: BUSINESS_TZ });
+  cron.schedule('30 5 * * *', () => runRoutine('weather-morning-rain-check', morningCheckTick), { timezone: BUSINESS_TZ });
 
   // Catch-up on startup ONLY if today's check never ran — redeploys must not re-propose
   // a reschedule the owner already declined or let expire.
   prisma.weatherCheck.findFirst({ where: { date: toDateString() } })
-    .then((done) => (done ? null : runMorningCheck()))
+    .then((done) => (done ? null : runRoutine('weather-morning-rain-check', morningCheckTick, { trigger: 'startup' })))
     .catch((err) => console.error('[weatherService] Startup check error:', err.message));
 }
 
 module.exports = {
+  morningCheckTick,
   tzOffsetFor,
   localHour,
   getForecast,

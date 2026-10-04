@@ -19,6 +19,8 @@ const auditRouter       = require('./routes/websiteAudit');
 const leaderboardRouter = require('./routes/leaderboard');
 const marketingRouter   = require('./routes/marketing');
 const operatorRouter    = require('./routes/operator');
+const aiRouter          = require('./routes/ai');
+const { startAiOs }     = require('./ai');
 const { requireAuth } = require('./middleware/requireAuth');
 const { startTokenRefreshScheduler }      = require('./services/tokenManager');
 const { startDeliveryQueue }              = require('./services/deliveryQueue');
@@ -181,6 +183,10 @@ app.use('/api/gmail', gmailRouter);
 // Operator API — Bearer OPERATOR_TOKEN auth, NOT session auth (hit by Claude /schedule cron).
 // Must be mounted BEFORE requireAuth so the scheduled runs don't get redirected to login.
 app.use('/api/operator', operatorRouter);
+
+// AI OS tool layer — bearer token for Claude routines OR an admin session for the dashboard.
+// Public-zone mount because routines have no cookie; routes/ai.js authenticates every request itself.
+app.use('/api/ai', aiRouter);
 
 // Portal login/logout/setup-user
 app.use('/auth', portalRouter);
@@ -622,6 +628,7 @@ app.listen(PORT, () => {
   startSeoScheduler();
   startJobberClientSyncScheduler();
   startOperatorProposalExpiry();
+  startAiOs();
 
   // Bulletproof SMS workers — retry any transient-failed rows + resume anything left
   // mid-flight when the server was last killed (Railway redeploy, crash, etc.).

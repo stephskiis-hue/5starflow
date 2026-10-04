@@ -40,6 +40,7 @@ const twilio = require('twilio');
 const prisma = require('../lib/prismaClient');
 const logger = require('../lib/logger');
 const { getTwilioCreds, toE164, sendSmsSafely, calculateSegments, senderParams } = require('./smsService');
+const { runRoutine } = require('../ai/runner');
 const { jobberGraphQL } = require('./jobberClient');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -489,7 +490,7 @@ async function retryWorkerTick() {
       orderBy: { nextRetryAt: 'asc' },
       take:    50, // cap per tick
     });
-    if (due.length === 0) return;
+    if (due.length === 0) return { items_found: 0 };
 
     // Group by userId so we reuse one Twilio client per user per tick
     const byUser = new Map();
@@ -527,8 +528,10 @@ async function retryWorkerTick() {
       const camp = await prisma.marketingCampaign.findUnique({ where: { id: cid } });
       if (camp) await finalizeCampaignStatus(cid, camp.userId, null, 0);
     }
+    return { items_found: due.length, actions_taken: [`Retried ${due.length} SMS that failed transiently`] };
   } catch (err) {
     await logger.error('campaign', 'Retry worker tick crashed', { message: err.message });
+    throw err; // surface in the routine ledger (the caller still runs the stalled sweep)
   }
 }
 
@@ -581,14 +584,19 @@ async function sweepStalledCampaigns() {
 
 function startRetryWorker() {
   if (retryTimer) return;
-  retryTimer = setInterval(() => {
-    retryWorkerTick()
-      .catch((err) => console.error('[retryWorker] unhandled:', err.message))
-      .then(() => sweepStalledCampaigns())
-      .catch((err) => console.error('[stallSweep] unhandled:', err.message));
-  }, RETRY_WORKER_INTERVAL_MS);
+  // One routine = retry tick + stalled sweep. The runner's per-routine mutex also fixes the old
+  // overlap bug (a >60s tick used to be re-entered by the next interval and could double-send).
+  const tick = async () => {
+    let tickErr = null;
+    let out = null;
+    try { out = await retryWorkerTick(); } catch (err) { tickErr = err; }
+    await sweepStalledCampaigns().catch((err) => console.error('[stallSweep] unhandled:', err.message));
+    if (tickErr) throw tickErr;
+    return out;
+  };
+  retryTimer = setInterval(() => runRoutine('marketing-sms-retry-worker', tick, { quiet: true }), RETRY_WORKER_INTERVAL_MS);
   // Also run once at startup
-  setTimeout(() => retryWorkerTick().catch(() => {}), 10_000);
+  setTimeout(() => runRoutine('marketing-sms-retry-worker', retryWorkerTick, { quiet: true, trigger: 'startup' }), 10_000);
   console.log(`[marketing] Retry worker started (tick every ${RETRY_WORKER_INTERVAL_MS / 1000}s)`);
 }
 

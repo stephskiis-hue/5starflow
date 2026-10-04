@@ -19,6 +19,7 @@ const {
 } = require('./smsService');
 const twilio = require('twilio');
 const zapier = require('./zapierClient');
+const { runRoutine } = require('../ai/runner');
 
 // How long a proposal stays open for approval before auto-expiring.
 const DEFAULT_TTL_HOURS = Number(process.env.OPERATOR_PROPOSAL_TTL_HOURS || 4);
@@ -385,13 +386,12 @@ async function expirePendingProposals() {
  */
 function startOperatorProposalExpiry({ intervalMs = 10 * 60 * 1000 } = {}) {
   const tick = async () => {
-    try { await expirePendingProposals(); }
-    catch (err) {
-      console.error('[operator] expiry cron error:', err.message);
-    }
+    const n = await expirePendingProposals();
+    return { items_found: n, actions_taken: n ? [`Expired ${n} stale approval request(s)`] : [] };
   };
-  setTimeout(tick, 30_000);                    // first run 30s after boot
-  const handle = setInterval(tick, intervalMs);
+  const run = () => runRoutine('operator-proposal-expiry', tick, { quiet: true });
+  setTimeout(run, 30_000);                     // first run 30s after boot
+  const handle = setInterval(run, intervalMs);
   console.log(`[operator] proposal expiry cron started (every ${intervalMs / 60000} min)`);
   return handle;
 }

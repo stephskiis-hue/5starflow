@@ -16,7 +16,9 @@ function requireAuth(req, res, next) {
 
   if (!payload) {
     // API callers expect JSON
-    if (req.path.startsWith('/api/') || req.headers.accept?.includes('application/json')) {
+    // originalUrl, not path: inside a mounted router req.path is relative ('/proposals'), which
+    // used to turn API 401s into HTML redirects for routes mounted before the global guard.
+    if (req.originalUrl.startsWith('/api/') || req.headers.accept?.includes('application/json')) {
       return res.status(401).json({ error: 'Not authenticated', redirect: '/login.html' });
     }
     return res.redirect('/login.html');

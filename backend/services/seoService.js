@@ -13,6 +13,7 @@
  *   - Can be triggered externally via POST /api/seo/trigger?token=SEO_TRIGGER_SECRET
  */
 
+const { runRoutine } = require('../ai/runner');
 const cron    = require('node-cron');
 const axios   = require('axios');
 const cheerio = require('cheerio');
@@ -836,7 +837,10 @@ async function runWeeklyAudit(userId = null, tier = 'pro-plus') {
 function startSeoScheduler() {
   cron.schedule('0 8 * * 0', () => {
     console.log('[seoService] Weekly cron triggered');
-    runWeeklyAudit().catch((err) => console.error('[seoService] Weekly audit error:', err.message));
+    return runRoutine('seo-weekly-audit', async () => {
+      const r = await runWeeklyAudit();
+      return { items_found: r ? 1 : 0, summary: r?.auditId ? `Audit ${r.auditId} complete` : 'Weekly audit ran' };
+    });
   }, { timezone: 'America/Winnipeg' });
   console.log('[seoService] Weekly audit scheduled — Sundays at 8:00 AM');
 }

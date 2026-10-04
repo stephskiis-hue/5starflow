@@ -224,10 +224,9 @@ router.get('/jobber-clients', async (req, res) => {
 // POST /api/marketing/sync-clients — triggers a manual background sync (fire-and-forget)
 router.post('/sync-clients', async (req, res) => {
   try {
-    const { syncAllAccounts } = require('../services/jobberClientSync');
-    syncAllAccounts().catch((err) =>
-      console.error('[marketing] Manual sync error:', err.message)
-    );
+    const { clientSyncTick } = require('../services/jobberClientSync');
+    const { runRoutine } = require('../ai/runner');
+    runRoutine('jobber-client-sync', clientSyncTick, { trigger: 'manual', userId: req.user.userId });
     res.json({ message: 'Sync started.' });
   } catch (err) {
     console.error('[marketing] POST /sync-clients error:', err.message);

@@ -9,11 +9,12 @@
  * Pattern: identical to tokenManager.js (iterate all accounts) +
  *          invoicePoller.js (throttle guard + cron schedule).
  *
- * Schedule: every 60 minutes (0 * * * *)
- * Startup:  first sync runs 30 seconds after server boot
+ * Schedule: every 4 hours at :15 past the hour (Winnipeg time)
+ * Startup:  first sync runs 3 minutes after server boot
  */
 
 const cron  = require('node-cron');
+const { runRoutine } = require('../ai/runner');
 const prisma = require('../lib/prismaClient');
 const { fetchAllJobberClients } = require('./marketingService');
 const { toE164 } = require('./smsService');
@@ -163,19 +164,30 @@ function startJobberClientSyncScheduler() {
   // and the :15 offset avoids overlap with invoicePoller which runs at :00.
   console.log('[jobberClientSync] Scheduler started (every 4 hours at :15)');
 
-  cron.schedule('15 */4 * * *', () => {
-    syncAllAccounts().catch((err) =>
-      console.error('[jobberClientSync] Cron error:', err.message)
-    );
-  });
+  cron.schedule('15 */4 * * *', () => runRoutine('jobber-client-sync', clientSyncTick), { timezone: 'America/Winnipeg' });
 
   // Startup sync — 3-minute delay lets invoicePoller (30s) and token manager
   // finish their startup bursts before we hit the Jobber API.
-  setTimeout(() => {
-    syncAllAccounts().catch((err) =>
-      console.error('[jobberClientSync] Startup sync error:', err.message)
-    );
-  }, 180_000);
+  setTimeout(() => runRoutine('jobber-client-sync', clientSyncTick, { trigger: 'startup' }), 180_000);
 }
 
-module.exports = { startJobberClientSyncScheduler, syncAllAccounts, getSyncStatus };
+/**
+ * The routine body: runs the existing sync, then reads the outcome it leaves in syncState.
+ * Throttle cooldowns are "skipped" (expected, self-healing); anything else is a failure.
+ */
+async function clientSyncTick() {
+  await syncAllAccounts();
+  const st = getSyncStatus();
+  if (st.status === 'error') {
+    if (/rate-limited|cooldown/i.test(st.error || '')) return { skipped: true, summary: st.error };
+    throw new Error(st.error || 'client sync failed');
+  }
+  if (st.status === 'done' && st.error) throw new Error(st.error);
+  return {
+    items_found: st.synced || 0,
+    actions_taken: st.synced ? [`Synced ${st.synced} Jobber clients into the local cache`] : [],
+    summary: st.status === 'idle' ? 'No Jobber account connected' : `${st.synced || 0} clients synced`,
+  };
+}
+
+module.exports = { startJobberClientSyncScheduler, syncAllAccounts, getSyncStatus, clientSyncTick };
