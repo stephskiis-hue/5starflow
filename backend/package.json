@@ -41,5 +41,8 @@
     "@railway/cli": "^4.36.1",
     "nodemon": "^3.1.0",
     "prisma": "^5.22.0"
+  },
+  "optionalDependencies": {
+    "@sparticuz/chromium": "^153.0.0"
   }
 }

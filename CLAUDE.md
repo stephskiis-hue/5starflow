@@ -36,7 +36,8 @@ backend/
     auth.js                      — Jobber OAuth2 flow (callback, token exchange)
     portal.js                    — Login/logout, session auth, Google OAuth login
     status.js                    — /api/* status endpoints (pending-reviews, test-*, probe-*)
-    webhook.js                   — POST /webhook/jobber + POST /webhook/twilio (inbound SMS)
+    webhook.js                   — POST /webhook/jobber (Jobber webhooks). Inbound SMS is POST /api/marketing/inbound-sms in server.js (Twilio-signature verified)
+    ai.js                        — /api/ai/* AI OS tool layer (bearer AI_TOKEN for Claude routines, or admin session)
     connections.js               — Integration connection state + verification
     settings.js                  — Per-user app settings
     weather.js                   — Rain check triggers, reschedule sends, history
@@ -87,12 +88,25 @@ backend/
     admin.html                   — Admin panel (admin role only)
 ```
 
+## AI Operating System (backend/ai/, backend/routes/ai.js, backend/ai.html)
+Read `backend/ai/README.md` first. Short version:
+```
+ai/runner.js        runRoutine(slug, tick, opts) — EVERY scheduler goes through it (mutex, lease, ledger row, failure tasks)
+ai/registry.js      Routine Registry seed (backend jobs + the Claude routines on claude.ai)
+ai/heartbeat.js     flags routines that went quiet (e.g. Claude plan limit) as Tasks
+ai/tasks.js memory.js ledger.js brief.js comms.js smsMonitor.js   tasks (dedupKey), selective memory, activity, work packet, conversation states
+ai/design/          design-system layouts + renderer.js (Playwright) + qa.js (brand lint)   ai/vault.js content.js social.js (daily caps)
+ai/prompts/         prompts for the Claude routines (Night Studio, Social Shift, Inbox Watch, Morning Brief)
+.claude/skills/nobs-*   skills the routines load (api, brand, content, facebook, communication, research)
+```
+Rules: deterministic work stays in code, Claude only reasons/writes; do not rebuild a working routine — wrap it in `runRoutine`; new customer-facing sends must go through `sendSmsSafely`/`logComm` and check `isOptedOut`; social caps are enforced server-side in `ai/social.js`; `/api/ai` mounts BEFORE `requireAuth` and authenticates itself.
+
 ## Absolute Rules
 1. Jobber GraphQL header required: `X-JOBBER-GRAPHQL-VERSION: 2026-03-10`
 2. `account_id` and `exp` are in the JWT payload — NOT in Jobber token response body. Decode: `JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())`
 3. Webhook payload path: `payload.data.webHookEvent.{topic, itemId, accountId}`
 4. Invoice status field is `invoiceStatus` (type: `InvoiceStatusTypeEnum`) — NOT `status`
-5. `DRY_RUN=true` in `.env` during development — set false only to go live
+5. `DRY_RUN=true` in `.env` during development — set false only to go live. DRY_RUN also blocks Jobber WRITES (tags, visit moves). Never point a local dev server at the Railway `DATABASE_URL`: the schedulers would consume production work
 6. `FRONTEND_ORIGIN=http://localhost:3001` — dashboard is local only, ngrok is server-only
 7. Always run `npx prisma migrate dev --name <name>` after any schema change
 8. HMAC webhook signature uses `JOBBER_CLIENT_SECRET` as the key
@@ -105,7 +119,7 @@ backend/
 - Throttle handling: 429 is NOT retried immediately (removed from RETRYABLE_STATUS). `jobberClientSync.js` backs off 10 min on 429. `invoicePoller.js` backs off 120s.
 - Adaptive query cost: `jobberGraphQL({ returnExtensions: true })` returns `extensions.cost.throttleStatus` — use `currentlyAvailable / restoreRate` to compute adaptive delay between pages
 - Jobber client sync: `jobberClientSync.js` runs every 4h at :15 (avoids :00 overlap with invoicePoller). Startup delay 3 min. Live polling via GET `/api/marketing/sync-status` (polls every 3s in UI).
-- Inbound SMS: POST `/webhook/twilio` — matches sender phone to `CachedJobberClient`, updates `InboundSMS`, auto-handles STOP opt-out
+- Inbound SMS: POST `/api/marketing/inbound-sms` (server.js; there is no `/webhook/twilio`) — `lib/twilioSignature.js` verifies X-Twilio-Signature (needs `APP_URL`; `TWILIO_SKIP_SIGNATURE=true` for local dev only), matches sender phone to `CachedJobberClient`, stores `InboundSMS` + a `CommMessage`, auto-handles STOP opt-out
 - `allowReviewRequest` field on Invoice — Jobber's own boolean for review eligibility
 - **SMS dispatch vs delivery are separate columns.** `MarketingMessage.status` is our
   lifecycle (pending/queued/retrying/failed/skipped) — `queued` means Twilio accepted the
@@ -140,12 +154,12 @@ JOBBER_GRAPHQL_URL=https://api.getjobber.com/api/graphql
 JOBBER_API_VERSION=2026-03-10
 JOBBER_AUTH_URL, JOBBER_TOKEN_URL
 JOBBER_PAGE_DELAY_MS              # ms between paginated Jobber queries
-THROTTLE_COOLDOWN_SECONDS         # override default 600s throttle backoff
+THROTTLE_COOLDOWN_SECONDS         # invoicePoller backoff (default 120s); jobberClientSync hard-codes 600s
 
 # Twilio
 TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN
-TWILIO_PHONE_NUMBER               # review request number
-TWILIO_FROM_NUMBER                # marketing number (may differ)
+TWILIO_PHONE_NUMBER               # display only; all sends use TwilioCredential.fromNumber (or a Messaging Service)
+TWILIO_FROM_NUMBER                # env fallback sender
 TWILIO_MESSAGING_SERVICE_SID      # optional MG... — used INSTEAD of a from-number
 SMS_SEGMENTS_PER_SECOND           # pacing for a single number (default 1 = long code rate)
 SMS_MESSAGING_SERVICE_SEGMENTS_PER_SECOND  # pacing when a Messaging Service is set (default 10)
@@ -179,4 +193,13 @@ REFERRAL_BASE_URL, REFERRAL_REDIRECT_URL
 FTP_ENCRYPTION_KEY                # AES key for stored FTP passwords
 ALERT_EMAIL                       # admin alert address
 SLACK_WEBHOOK_URL                 # optional Slack notifications
+
+# AI OS
+AI_TOKEN                          # bearer for Claude routines calling /api/ai (falls back to OPERATOR_TOKEN)
+OPERATOR_TOKEN, OPERATOR_USER_ID  # operator API + the portal user the AI OS acts as
+OPERATOR_APPROVER_PHONE           # owner's phone for approvals / urgent customer alerts
+BUSINESS_TZ=America/Winnipeg      # crons, day boundaries, social caps
+CHROMIUM_PATH                     # optional chromium for the graphic renderer (else Playwright's / @sparticuz/chromium)
+TWILIO_SKIP_SIGNATURE             # local dev only
 ```
+

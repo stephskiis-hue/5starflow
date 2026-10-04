@@ -154,7 +154,7 @@ async function getBrowser() {
         return await require('playwright').chromium.launch({ args, executablePath: process.env.CHROMIUM_PATH || undefined });
       } catch (e1) {
         try { // serverless-style chromium bundle: works on slim Linux images without system libs
-          const sparticuz = require('@sparticuz/chromium');
+          const sparticuz = (await import('@sparticuz/chromium')).default;   // ESM-only package: dynamic import works on every Node
           return await require('playwright').chromium.launch({ args: [...args, ...sparticuz.args], executablePath: await sparticuz.executablePath(), headless: true });
         } catch (e2) {
           browserPromise = null;
