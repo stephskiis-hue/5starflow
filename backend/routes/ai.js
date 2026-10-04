@@ -247,6 +247,13 @@ router.get('/inbox/unanswered-sms', async (req, res) => {
   res.json(await getUnansweredSms(req.ai.userId, { sinceDays: int(req.query.days, 14, 60), limit: int(req.query.limit, 50) }));
 });
 
+router.post('/inbox/:phone/reply', async (req, res) => {
+  const out = await require('../ai/reply').sendAiReply(req.ai.userId, { phone: req.params.phone, body: req.body?.body, reason: req.body?.reason });
+  res.status(out.sent ? 200 : out.code === 'SEND_FAILED' ? 502 : 409).json(out);
+});
+
+router.get('/whoami', (req, res) => res.json({ ok: true, actor: req.ai.actor, agent: req.ai.agent }));
+
 router.get('/customers/context', async (req, res) => {
   res.json(await getCustomerContext(req.ai.userId, { jobberClientId: req.query.jobberClientId, phone: req.query.phone, email: req.query.email, q: req.query.q }));
 });

@@ -9,6 +9,7 @@ const { resolveOwnerId } = require('./owner');
 const { seedRegistry } = require('./registry');
 const { heartbeatTick, pruneOld } = require('./heartbeat');
 const { smsMonitorTick, reconcileTwilioTick } = require('./smsMonitor');
+const { digestTick } = require('./digest');
 
 // Lazy requires: services pull in ai/runner, so requiring them at module load would be circular.
 const RUNNABLE = {
@@ -17,7 +18,8 @@ const RUNNABLE = {
   'jobber-invoice-poller':      { risk: 'queues',   fn: () => require('../services/invoicePoller').pollTick() },
   'operator-proposal-expiry':   { risk: 'safe',     fn: async () => { const n = await require('../services/operatorService').expirePendingProposals(); return { items_found: n }; } },
   'routine-heartbeat':          { risk: 'safe',     fn: (ctx) => heartbeatTick(ctx) },
-  'sms-monitor':                { risk: 'texts-owner', fn: (ctx) => smsMonitorTick(ctx) },
+  'sms-monitor':                { risk: 'safe',     fn: (ctx) => smsMonitorTick(ctx) },
+  'owner-daily-digest':         { risk: 'texts-owner', fn: (ctx) => digestTick(ctx) },
   'comm-ledger-reconcile':      { risk: 'safe',     fn: (ctx) => reconcileTwilioTick(ctx) },
   'review-delivery-queue':      { risk: 'sends',    fn: () => require('../services/deliveryQueue').processPendingReviews() },
   'weather-morning-rain-check': { risk: 'texts-owner', fn: () => require('../services/weatherService').morningCheckTick() },
@@ -41,6 +43,7 @@ async function startAiOs() {
     const sms = () => runRoutine('sms-monitor', (ctx) => smsMonitorTick(ctx), { quiet: true });
     cron.schedule('*/10 * * * *', sms);
     setTimeout(sms, 150_000);
+    cron.schedule('0 17 * * *', () => runRoutine('owner-daily-digest', (ctx) => digestTick(ctx), { quiet: true }), { timezone: 'America/Winnipeg' });
     const recon = () => runRoutine('comm-ledger-reconcile', (ctx) => reconcileTwilioTick(ctx), { quiet: true });
     cron.schedule('40 * * * *', recon);
     setTimeout(recon, 120_000);

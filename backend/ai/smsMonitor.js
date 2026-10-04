@@ -5,18 +5,19 @@
  * Communication agent's job (Inbox Watch) — it reads these tasks.
  */
 const prisma = require('../lib/prismaClient');
-const { getConversationStates, NEEDS_US, business } = require('./comms');
+const { getConversationStates, NEEDS_US } = require('./comms');
 const { createTask, updateTask, completeByDedupKey, URGENCY_RANK } = require('./tasks');
 const { logComm } = require('../lib/commLedger');
 const { recordActivity } = require('./ledger');
 
 const CREATE_AFTER_MIN = 10;     // give the owner a moment before raising a task
-const NOTIFY_AFTER_MIN = 60;     // text the owner once when someone has waited this long (waking hours only)
+const STALE_MIN = 48 * 60;       // older than this = probably handled elsewhere (phone, Jobber): low-priority task, never an alert
 
 const waitLabel = (m) => (m < 60 ? `${m} min` : m < 1440 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} d`);
 
 function urgencyFor(c) {
   let u = c.urgency;
+  if (c.waitingMinutes > STALE_MIN) return 'low';
   // "we asked something days ago" is a nudge, not an emergency: never escalate it by age
   if (c.state === 'FOLLOW_UP_REQUIRED') return 'normal';
   if (c.waitingMinutes > 24 * 60) u = 'urgent';
@@ -31,7 +32,7 @@ async function smsMonitorTick({ userId }) {
   // Tasks stay open for EVERY conversation still waiting on us — including a fresh follow-up text that is only
   // minutes old (it must not be mistaken for "answered" just because it's below the raise-a-task threshold).
   const waitingKeys = new Set(needing.map((c) => `sms:${c.phoneKey}`));
-  let created = 0; let updated = 0; let notified = 0;
+  let created = 0; let updated = 0;
 
   for (const c of waiting) {
     const dedupKey = `sms:${c.phoneKey}`;
@@ -53,28 +54,16 @@ async function smsMonitorTick({ userId }) {
       if (isNew) created++;
     } else if (!['COMPLETED', 'DISMISSED'].includes(existing.status)) {
       const patch = {};
-      if (URGENCY_RANK[urgency] > URGENCY_RANK[existing.urgency]) patch.urgency = urgency;
+      if (c.waitingMinutes > STALE_MIN && existing.urgency !== 'low') patch.urgency = 'low';
+      else if (URGENCY_RANK[urgency] > URGENCY_RANK[existing.urgency]) patch.urgency = urgency;
       if (existing.whatHappened !== happened) patch.whatHappened = happened;
       if (Object.keys(patch).length) { await updateTask(userId, existing.id, patch); updated++; }
     }
 
-    // one SMS to the owner per conversation episode, only when it has waited a while and it's waking hours
-    const task = await prisma.task.findUnique({ where: { userId_dedupKey: { userId, dedupKey } } });
-    const ctx = task?.context || {};
-    const taskOpen = task && ['NEW', 'IN_PROGRESS', 'WAITING', 'APPROVAL'].includes(task.status);   // done/dismissed = the owner has it
-    if (taskOpen && c.state !== 'FOLLOW_UP_REQUIRED' && !ctx.notifiedAt && c.waitingMinutes >= NOTIFY_AFTER_MIN && business() && URGENCY_RANK[urgencyFor(c)] >= URGENCY_RANK.high) {
-      const msg = `5StarFlow: ${who} texted ${waitLabel(c.waitingMinutes)} ago and is still waiting: "${String(c.lastMessage).slice(0, 90)}". Reply from the Inbox.`;
-      const r = await require('../services/operatorService').notifyOwner(userId, msg).catch((e) => ({ ok: false, error: e.message }));
-      if (r && (r.ok || r.dryRun)) {
-        await prisma.task.update({ where: { id: task.id }, data: { context: { ...ctx, notifiedAt: new Date().toISOString() } } });
-        notified++;
-        await recordActivity(userId, { agent: 'communication', action: 'texted the owner', summary: `${who} waiting ${waitLabel(c.waitingMinutes)}`, result: r.dryRun ? 'skipped' : 'ok', source: 'sms' });
-      }
-    }
   }
 
   // close tasks for conversations that are no longer waiting on us (someone replied, or it resolved)
-  const open = await prisma.task.findMany({ where: { userId, source: 'sms', dedupKey: { startsWith: 'sms:' }, status: { in: ['NEW', 'IN_PROGRESS', 'WAITING', 'APPROVAL'] } }, select: { dedupKey: true } });
+  const open = await prisma.task.findMany({ where: { userId, source: 'sms', dedupKey: { startsWith: 'sms:' }, status: { in: ['NEW', 'IN_PROGRESS', 'WAITING'] } }, select: { dedupKey: true } });   // APPROVAL = money hold: stays until the owner handles it
   let closed = 0;
   for (const t of open) {
     if (!waitingKeys.has(t.dedupKey)) { const r = await completeByDedupKey(userId, t.dedupKey); closed += r.count; }
@@ -84,7 +73,7 @@ async function smsMonitorTick({ userId }) {
     items_found: waiting.length,
     requires_attention: waiting.filter((c) => URGENCY_RANK[urgencyFor(c)] >= URGENCY_RANK.high).length,
     high_priority: waiting.filter((c) => urgencyFor(c) === 'urgent').length,
-    actions_taken: [created && `Raised ${created} customer-waiting task(s)`, notified && `Texted the owner about ${notified}`, closed && `Closed ${closed} answered conversation(s)`].filter(Boolean),
+    actions_taken: [created && `Raised ${created} customer-waiting task(s)`, closed && `Closed ${closed} answered conversation(s)`].filter(Boolean),
     summary: waiting.length ? `${waiting.length} customer(s) waiting on a reply` : 'Nobody waiting on a reply',
   };
 }
