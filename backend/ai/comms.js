@@ -10,7 +10,7 @@ const last10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
 // Conversation states (deterministic). Only a HUMAN reply (source manual/owner) answers a customer:
 // campaigns, review requests, rain notices and loyalty texts are automated and never count.
 // ---------------------------------------------------------------------------------------------
-const HUMAN = new Set(['manual', 'owner']);
+const HUMAN = new Set(['manual', 'owner', 'ai']);   // 'ai' = a reply sent by the Communication agent through /inbox/:phone/reply
 const ACK = /^(thanks?( you)?( so much)?|thx|ty|ok(ay)?|k|great|perfect|awesome|sounds good|got it|will do|👍|🙏)[\s.!,]*$/i;
 const PRAISE = /\b(thank(s| you)|appreciate\w*|amazing|great job|awesome|fantastic|love(d)? (it|the)|looks great|well done)\b/i;
 const REQUESTISH = /\b(please|instead|can you|could you|would you|need|want|when|reschedul\w*|move|change|cancel|call me|text me|monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|next week|doesn'?t work|won'?t work|unable)\b/i;
@@ -62,6 +62,7 @@ function classifyConversation(msgs, now = Date.now()) {
   }
 
   if (complaint || (lastIn.sentiment === 'detractor')) return { state: 'ESCALATION_REQUIRED', urgency: 'urgent', reason: complaint ? 'complaint language' : 'negative sentiment', waitingMinutes, lastIn, lastMessage: body };
+  if (waitingMinutes > 48 * 60) return { state: 'WAITING_ON_NOBS', urgency: 'low', reason: 'old thread, probably handled elsewhere', waitingMinutes, lastIn, lastMessage: body };
   if (waitingMinutes > 24 * 60) return { state: 'ESCALATION_REQUIRED', urgency: 'high', reason: 'unanswered for over a day', waitingMinutes, lastIn, lastMessage: body };
 
   const firstEver = ins.length === 1 && !sorted.some((m) => m.direction === 'out' && !m.source.startsWith('opt'));

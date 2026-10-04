@@ -111,3 +111,20 @@ test('vault: filenames auto-tag', () => {
   const t = autoTags('fall-cleanup-patio-before.png');
   for (const want of ['FALL', 'PATIOS', 'BEFORE']) assert.ok(t.includes(want), want);
 });
+
+const { isMoneyTopic, quotesAmount } = require('../ai/money');
+const { compose } = require('../ai/digest');
+
+test('money: amounts and payment talk are money, a plain quote request is not', () => {
+  for (const t of ['how much for fall cleanup?', 'I sent the e-transfer', 'I want a refund', 'is it $200?', 'can you send the invoice']) assert.ok(isMoneyTopic(t), t);
+  for (const t of ['can you give me a quote for fall cleanup?', 'are you available Thursday?', 'do you do aeration']) assert.ok(!isMoneyTopic(t), t);
+  assert.ok(quotesAmount('about $150 for that') && !quotesAmount('we will send a quote'));
+});
+
+test('digest: nothing needed means no text; otherwise one short summary', () => {
+  assert.equal(compose({ moneyHolds: [], waiting: [], failing: [] }), null);
+  const msg = compose({ moneyHolds: [{ customerName: 'Jane Doe' }, { customerName: 'Bob' }], waiting: [{}], failing: [] });
+  assert.match(msg, /2 money questions \(Jane, Bob\)/);
+  assert.match(msg, /1 customer waiting 4h\+/);
+  assert.ok(msg.length < 200);
+});

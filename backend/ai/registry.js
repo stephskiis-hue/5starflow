@@ -34,6 +34,8 @@ const BACKEND = [
     purpose: 'Finds customers whose last text has no human reply, keeps one task per conversation, escalates with age and texts the owner once.', expectedEveryMinutes: 60, config: { quiet: true, files: ['ai/smsMonitor.js'] } },
   { slug: 'comm-ledger-reconcile', name: 'Twilio log reconcile', agent: 'communication', schedule: 'Hourly', category: 'inbox',
     purpose: 'Adds texts sent from our number outside the app (Twilio console or other tools) to the ledger so answered threads are not shown as waiting.', expectedEveryMinutes: 240, config: { quiet: true, files: ['ai/smsMonitor.js'] } },
+  { slug: 'owner-daily-digest', name: 'Daily summary text to the owner', agent: 'orchestrator', schedule: 'Daily 5:00 pm', category: 'inbox',
+    purpose: 'The only text sent to the owner: one daily summary of money questions held, customers waiting 4h+ and failing routines (nothing if nothing needs them).', expectedEveryMinutes: 2160, config: { quiet: true, files: ['ai/digest.js'] } },
   { slug: 'routine-heartbeat', name: 'Routine heartbeat', agent: 'system', schedule: 'Every 15 min', category: 'ai-os',
     purpose: 'Flags any routine that should have reported but has gone quiet (e.g. a Claude routine blocked by the plan limit).', expectedEveryMinutes: 60, config: { quiet: true, files: ['ai/heartbeat.js'] } },
 ];
