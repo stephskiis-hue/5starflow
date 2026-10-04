@@ -17,4 +17,6 @@
 - [ ] Metrics loop: Social agent records `POST /content/:id/metrics`; Content Director weights layouts/pillars by `/content/performance` (endpoint exists, routine prompt uses it).
 - [ ] Per-routine autonomy ratchet UI (read → draft → approve → execute) with auto-suggest after N clean runs.
 - [ ] Facebook group memory UI (edit rules/promo policy from the dashboard).
-- [ ] Unit tests for `classifyConversation`, `lintContent`, `recordAction` caps (currently verified by smoke scripts only).
+- [x] Pure-logic unit tests (`npm test`, 15 tests: classifier, QA lint, renderer validation/escaping, tz, ledger). Still missing: DB-backed tests for caps, task dedup, publish flow (verified by smoke scripts only).
+- [ ] marketing.html (from the merged SMS-status branch): campaign progress poll never stops for rows that never get a delivery receipt, and the conversation thread doesn't show `deliveryStatus` (a carrier-rejected direct reply looks sent).
+- [ ] Re-run the adversarial review's verification stage: it hit a session limit, so only the security findings got the full 3-skeptic vote; the others were checked by hand and fixed.
