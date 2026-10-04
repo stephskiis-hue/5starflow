@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # 5StarFlow — Claude Code Context
 
 ## What this is
@@ -20,6 +24,31 @@ Extended features: rain alerts + reschedule notifications, SMS marketing campaig
 - Jobber GraphQL API — version header: `X-JOBBER-GRAPHQL-VERSION: 2026-03-10`
 - Twilio SMS + Gmail OAuth2 (nodemailer)
 - ngrok static domain: `oxydasic-elia-crenate.ngrok-free.dev`
+
+## Commands
+
+All backend commands run from `backend/`:
+
+```bash
+# Development
+npm run dev                                    # nodemon server.js (auto-restart)
+
+# Tests (pure-logic only, no DB required)
+npm test                                       # node --test test/*.test.js
+
+# Database
+npx prisma migrate dev --name <name>           # apply schema change + generate client
+npx prisma migrate deploy                      # production-safe apply (no interactive prompt)
+npx prisma studio                              # local GUI at localhost:5555
+npx prisma generate                            # regenerate client after schema edit without migrating
+
+# Railway (must run railway:link once per machine first)
+npm run railway:logs:latest                    # last 200 lines from latest deploy
+npm run railway:http-logs                      # last 200 HTTP logs
+npm run railway:deploy                         # push to Railway
+```
+
+The test suite (`test/ai.test.js`) covers pure-logic units: conversation classifier, brand QA lint, renderer validation, timezone helpers, ledger normalizer, and vault auto-tagging. DB-backed flows (campaign caps, task dedup, publish flow) have no automated tests — verify by smoke-running the relevant API endpoints.
 
 ## Startup (every session)
 ```
@@ -111,6 +140,14 @@ Rules: deterministic work stays in code, Claude only reasons/writes; do not rebu
 7. Always run `npx prisma migrate dev --name <name>` after any schema change
 8. HMAC webhook signature uses `JOBBER_CLIENT_SECRET` as the key
 9. **Jobber query cost limit is 10,000 pts.** Always add `first:` on ALL nested connections in GraphQL queries or queries will be rejected before running (each uncapped connection assumes 100 nodes = instant budget exhaustion).
+10. **`phones` and `emails` on Jobber `Client` are plain lists — they do NOT accept `first:` or any pagination args.** Writing `phones(first: 1) { ... }` causes a GraphQL schema error. Fetch them as bare selections: `phones { number isPrimary }`.
+
+## AI OS Status
+Done: M0 security + correctness · M1 registry/ledger/tasks/memory/activity/heartbeat/API/dashboard · M2 renderer, QA, vault, content pipeline, social caps/groups, skills + prompts · M3 communication ledger, conversation states, SMS monitor, Twilio reconcile, pure-logic unit tests (15 tests).
+
+Pending in code (see `backend/ai/TODO.md`): Gmail monitor (needs `gmail.readonly` Production OAuth), website-inquiry `REQUEST_CREATE` webhook, live Jobber context in `customers/context`, Google Ops Log import, deterministic cores of money routines ported to backend `run(ctx)`, metrics learning loop, autonomy ratchet UI, `marketing.html` campaign-poll infinite loop + missing `deliveryStatus` in conversation thread.
+
+Pending owner actions: Railway env (`AI_TOKEN`, `OPERATOR_USER_ID`), claude.ai network allowlist + bearer credential, update routine prompts from `ai/prompts/`, set `expectedEveryMinutes` per routine after first run, confirm Google OAuth app in Production mode for Gmail read scope.
 
 ## Known Working Patterns
 - Token refresh: decodes JWT `.exp` for expiry — Jobber does not return `expires_in`
