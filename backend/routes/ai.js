@@ -273,7 +273,7 @@ router.post('/assets', async (req, res) => {
 });
 
 router.get('/assets', async (req, res) => {
-  res.json(await vault.listAssets(req.ai.userId, { kind: req.query.kind, tag: req.query.tag, q: req.query.q, limit: int(req.query.limit, 60) }));
+  res.json(await vault.listAssets(req.ai.userId, { kind: req.query.kind, tag: req.query.tag, q: req.query.q, limit: int(req.query.limit, 60), minQuality: req.query.minQuality, usable: req.query.usable === 'true', uncurated: req.query.uncurated === 'true', pair: req.query.pair }));
 });
 
 router.get('/assets/:id', async (req, res) => {

@@ -64,10 +64,14 @@ async function saveAsset(userId, { kind = 'photo', name, buffer, tags = [], sour
   return { asset, duplicate: false };
 }
 
-const assetSelect = { id: true, userId: true, kind: true, name: true, mime: true, size: true, width: true, height: true, tags: true, source: true, notes: true, contentItemId: true, createdAt: true };
+const assetSelect = { quality: true, private: true, pairKey: true, id: true, userId: true, kind: true, name: true, mime: true, size: true, width: true, height: true, tags: true, source: true, notes: true, contentItemId: true, createdAt: true };
 
-async function listAssets(userId, { kind, tag, q, limit = 60 } = {}) {
+async function listAssets(userId, { kind, tag, q, limit = 60, minQuality, usable, uncurated, pair } = {}) {
   const where = { userId };
+  if (minQuality) where.quality = { gte: Number(minQuality) };
+  if (usable) { where.private = false; where.quality = { gte: 3 }; }     // what the renderer is allowed to use
+  if (uncurated) where.quality = null;                                  // photos the curator hasn't scored yet
+  if (pair) where.pairKey = String(pair);
   if (kind) where.kind = kind;
   if (tag) where.tags = { contains: `"${String(tag).toUpperCase()}"` };
   if (q) where.name = { contains: q, mode: 'insensitive' };
@@ -76,7 +80,7 @@ async function listAssets(userId, { kind, tag, q, limit = 60 } = {}) {
 }
 
 async function getAssetBytes(userId, id) {
-  return prisma.contentAsset.findFirst({ where: { id, userId }, select: { id: true, mime: true, bytes: true, name: true } });
+  return prisma.contentAsset.findFirst({ where: { id, userId }, select: { id: true, mime: true, bytes: true, name: true, private: true } });
 }
 
 /** { photo: "vault:<id>" } → { photo: "data:image/...;base64,..." } for the renderer. */
@@ -87,14 +91,18 @@ async function resolvePhotos(userId, refs = {}) {
     const m = ref.match(/^vault:([\w-]+)$/);
     if (!m) throw Object.assign(new Error(`photo "${slot}" must be "vault:<assetId>" (remote URLs are not fetched)`), { code: 'INVALID_PHOTO' });
     const a = await getAssetBytes(userId, m[1]);
+    if (a && a.private) throw Object.assign(new Error(`vault asset ${m[1]} is marked private (faces, plates or house numbers): pick another photo`), { code: 'INVALID_PHOTO' });
     if (!a) throw Object.assign(new Error(`vault asset ${m[1]} not found`), { code: 'INVALID_PHOTO' });
     out[slot] = `data:${a.mime};base64,${Buffer.from(a.bytes).toString('base64')}`;
   }
   return out;
 }
 
-async function updateAsset(userId, id, { tags, notes, name }) {
+async function updateAsset(userId, id, { tags, notes, name, quality, private: priv, pairKey }) {
   const data = {};
+  if (Number.isInteger(quality) && quality >= 1 && quality <= 5) data.quality = quality;
+  if (typeof priv === 'boolean') data.private = priv;
+  if (typeof pairKey === 'string') data.pairKey = pairKey.slice(0, 80) || null;
   if (Array.isArray(tags)) data.tags = JSON.stringify([...new Set(tags.map((t) => String(t).toUpperCase().slice(0, 30)))].slice(0, 20));
   if (typeof notes === 'string') data.notes = notes.slice(0, 500);
   if (typeof name === 'string' && name.trim()) data.name = name.trim().slice(0, 120);

@@ -233,7 +233,7 @@
     qa: ['QA', 'Checks everything before it goes out: spelling, facts, brand, group rules.', 'fact_check'],
     system: ['System', 'Background jobs: tokens, queues, syncs, retries.', 'settings_suggest'],
   };
-  const state = { tab: 'home', contentFilter: 'review', vaultTag: '', taskFilter: 'open', memScope: '', memQ: '', openRoutine: null, isOwner: true };
+  const state = { tab: 'home', contentFilter: 'review', vaultTag: '', vaultMode: '', taskFilter: 'open', memScope: '', memQ: '', openRoutine: null, isOwner: true };
   let pollTimer = null;
 
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -488,19 +488,21 @@
   // ---------------------------------------------------------------- VAULT
   const VAULT_TAGS = ['PATIOS', 'SOD', 'LAWNS', 'FALL', 'SNOW', 'COMMERCIAL', 'CREW', 'EQUIPMENT', 'BEFORE', 'AFTER', 'LANDSCAPING', 'DRAINAGE'];
   async function loadVault() {
-    const q = new URLSearchParams({ limit: '120', kind: 'photo' }); if (state.vaultTag) q.set('tag', state.vaultTag);
+    const q = new URLSearchParams({ limit: '120', kind: 'photo' }); if (state.vaultTag) q.set('tag', state.vaultTag); if (state.vaultMode === 'usable') q.set('usable', 'true'); if (state.vaultMode === 'uncurated') q.set('uncurated', 'true');
     const rows = await api('/assets?' + q);
     $('tab-vault').innerHTML = `
       <div class="glass-card rounded-xl p-4 mb-4">
         <p class="text-sm text-zinc-300 mb-3">Your real job photos. The Content Director uses these instead of stock or AI images. Tags are added automatically from the file name; add your own below.</p>
         <div class="flex gap-2 flex-wrap items-center"><input type="file" id="v-files" accept="image/png,image/jpeg,image/webp" multiple class="text-sm text-zinc-300"><input id="v-tags" placeholder="extra tags, comma separated" class="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-zinc-100 flex-1 min-w-[160px]"><button class="btn btn-go" id="v-upload">Upload</button></div>
         <p id="v-status" class="text-xs text-zinc-500 mt-2"></p></div>
+ <div class="flex gap-1.5 flex-wrap mb-2"><span class="text-xs text-zinc-500 self-center mr-1">Show</span>${[['', 'All'], ['usable', 'Usable on posts (3+ stars, not private)'], ['uncurated', 'Not reviewed yet']].map(([v, l]) => `<button data-vmode="${v}" class="btn ${state.vaultMode === v ? 'btn-go' : ''}">${l}</button>`).join('')}</div>
       <div class="flex gap-1.5 flex-wrap mb-4"><button data-vtag="" class="btn ${state.vaultTag ? '' : 'btn-go'}">All</button>${VAULT_TAGS.map((t) => `<button data-vtag="${t}" class="btn ${state.vaultTag === t ? 'btn-go' : ''}">${t}</button>`).join('')}</div>
-      ${rows.length ? `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">${rows.map((a) => `<div class="glass-card rounded-xl overflow-hidden" data-asset="${esc(a.id)}"><img loading="lazy" src="${API}/assets/${esc(a.id)}" alt="${esc(a.name)}" class="w-full aspect-square object-cover"><div class="p-2"><p class="text-xs text-zinc-300 truncate">${esc(a.name)}</p><div class="flex gap-1 flex-wrap mt-1">${(a.tags || []).slice(0, 4).map((t) => `<span class="badge b-mute">${esc(t)}</span>`).join('')}</div><div class="flex justify-between mt-1"><span class="text-[10px] text-zinc-500">${a.kind}${a.width ? ' · ' + a.width + '×' + a.height : ''}</span><button class="text-[10px] text-red-300" data-adel>delete</button></div></div></div>`).join('')}</div>` : empty('photo_library', 'No photos yet', 'Upload before/after shots, crew and equipment photos to give the AI real material.')}`;
+      ${rows.length ? `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">${rows.map((a) => `<div class="glass-card rounded-xl overflow-hidden" data-asset="${esc(a.id)}"><img loading="lazy" src="${API}/assets/${esc(a.id)}" alt="${esc(a.name)}" class="w-full aspect-square object-cover"><div class="p-2"><p class="text-xs text-zinc-300 truncate">${esc(a.name)}</p><div class="flex gap-1 flex-wrap mt-1">${(a.tags || []).slice(0, 4).map((t) => `<span class="badge b-mute">${esc(t)}</span>`).join('')}</div><div class="flex justify-between mt-1"><span class="text-[10px] text-zinc-500">${a.quality ? '★'.repeat(a.quality) + ' ' : 'not reviewed '}${a.private ? '· private ' : ''}${a.width ? '· ' + a.width + '×' + a.height : ''}</span><button class="text-[10px] text-red-300" data-adel>delete</button></div></div></div>`).join('')}</div>` : empty('photo_library', 'No photos yet', 'Upload before/after shots, crew and equipment photos to give the AI real material.')}`;
   }
   const fileToB64 = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
   document.addEventListener('click', async (e) => {
     const t = e.target.closest('[data-vtag]'); if (t) { state.vaultTag = t.dataset.vtag; return loadVault(); }
+    const vm = e.target.closest('[data-vmode]'); if (vm) { state.vaultMode = vm.dataset.vmode; return loadVault(); }
     const d = e.target.closest('[data-adel]');
     if (d && confirm('Delete this photo? Posts already rendered from it keep their graphics.')) { try { await api('/assets/' + d.closest('[data-asset]').dataset.asset, { method: 'DELETE' }); loadVault(); } catch (err) { toast(err.message); } }
     if (e.target.id === 'v-upload') {
