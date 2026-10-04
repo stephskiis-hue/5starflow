@@ -43,14 +43,31 @@ function dimensions(buf, mime) {
   return {};
 }
 
+// iPhone photos. The ftyp brand tells them apart from MP4/MOV clips, which share the same box.
+const HEIC_BRANDS = new Set(['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'mif1', 'msf1']);
+
 const sniff = (b) => (b.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ? 'image/png'
   : b[0] === 0xff && b[1] === 0xd8 ? 'image/jpeg' : b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP' ? 'image/webp'
-  : b.toString('ascii', 4, 8) === 'ftyp' ? (b.toString('ascii', 8, 12) === 'qt  ' ? 'video/quicktime' : 'video/mp4') : null);
+  : b.toString('ascii', 4, 8) === 'ftyp' ? (HEIC_BRANDS.has(b.toString('ascii', 8, 12)) ? 'image/heic' : b.toString('ascii', 8, 12) === 'qt  ' ? 'video/quicktime' : 'video/mp4') : null);
+
+// Facebook and Instagram don't take HEIC, so every HEIC/HEIF is stored as a JPEG (rotation applied).
+async function heicToJpeg(buffer) {
+  try {
+    return Buffer.from(await require('heic-convert')({ buffer, format: 'JPEG', quality: 0.9 }));
+  } catch {
+    throw Object.assign(new Error('could not read that HEIC photo. Export it as JPEG and try again'), { code: 'INVALID_ASSET' });
+  }
+}
 
 async function saveAsset(userId, { kind = 'photo', name, buffer, tags = [], source = 'upload', notes = null, contentItemId = null }) {
   if (!Buffer.isBuffer(buffer) || !buffer.length) throw Object.assign(new Error('empty file'), { code: 'INVALID_ASSET' });
   if (buffer.length > MAX_BYTES) throw Object.assign(new Error(`file too large (max ${MAX_BYTES / 1048576} MB)`), { code: 'INVALID_ASSET' });
-  const mime = sniff(buffer);                       // trust the bytes, not the client's claim
+  let mime = sniff(buffer);                         // trust the bytes, not the client's claim
+  if (mime === 'image/heic') {
+    buffer = await heicToJpeg(buffer);
+    mime = 'image/jpeg';
+    name = String(name || 'upload').replace(/\.(heic|heif)$/i, '') + '.jpg';
+  }
   if (!mime || !MIMES.has(mime)) throw Object.assign(new Error('only PNG, JPEG or WebP images, or MP4/MOV clips, are accepted'), { code: 'INVALID_ASSET' });
   if (mime.startsWith('video/')) {
     if (buffer.length > MAX_VIDEO_BYTES) throw Object.assign(new Error(`video too large (max ${MAX_VIDEO_BYTES / 1048576} MB)`), { code: 'INVALID_ASSET' });
@@ -116,4 +133,4 @@ async function updateAsset(userId, id, { tags, notes, name, quality, private: pr
   return r.count > 0;
 }
 
-module.exports = { saveAsset, listAssets, getAssetBytes, resolvePhotos, updateAsset, autoTags, MAX_BYTES };
+module.exports = { sniff, heicToJpeg, saveAsset, listAssets, getAssetBytes, resolvePhotos, updateAsset, autoTags, MAX_BYTES };

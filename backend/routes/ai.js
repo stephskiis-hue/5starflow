@@ -195,12 +195,23 @@ router.post('/requests/claim', async (req, res) => {
   res.json({ request: await requests.claimNext(req.ai.userId, req.body?.slug || 'ext-request-inbox') });
 });
 
-// After posting: log it so metrics can be tracked (does not touch the daily caps: record those via /social/actions first).
+// The owner asked to be told when a request is finished or stuck. Never lets a text failure break the report.
+function notifyRequestOutcome(userId, r) {
+  if (process.env.OWNER_SMS === 'off') return;
+  const { stripToGsm7 } = require('../services/smsService');
+  const label = { done: 'Done', needs_owner: 'Needs you', failed: 'FAILED' }[r.status];
+  const what = (r.body || 'your photo/video post').replace(/\s+/g, ' ').slice(0, 60);
+  const msg = stripToGsm7(`${label}: ${what}. ${(r.response || '').replace(/\s+/g, ' ').slice(0, 200)}`).slice(0, 320);
+  require('../services/operatorService').notifyOwner(userId, msg).catch((e) => console.warn(`[requests] owner text failed: ${e.message}`));
+}
+
+// After a post goes live: one call logs it (content item for metrics, an owner_post action, activity). Owner posts don't use the daily caps.
 router.post('/requests/:id/posted', async (req, res) => {
   if (req.ai.actor !== 'agent') return res.status(403).json({ error: 'Only routines log posts' });
   try {
     const item = await requests.recordPost(req.ai.userId, req.params.id, req.body || {});
     if (!item) return res.status(404).json({ error: 'Request not found' });
+    await recordActivity(req.ai.userId, { agent: req.ai.agent || 'social', action: `posted to ${req.body.platform}`, summary: `${item.title} ${req.body.postUrl || ''}`.trim(), source: req.body.platform, result: 'ok' });
     res.json({ ok: true, contentItemId: item.id });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -216,6 +227,7 @@ router.patch('/requests/:id', async (req, res) => {
     const r = await requests.reportRequest(userId, req.params.id, req.body || {});
     if (!r) return res.status(404).json({ error: 'Request not found (or cancelled)' });
     if (r.status !== 'working') {
+      notifyRequestOutcome(userId, r);
       await recordActivity(userId, { agent: req.ai.agent || 'orchestrator', routineSlug: r.claimedBy, runId: r.runId, action: `owner request ${r.status}`, summary: `${r.body.slice(0, 150)} → ${r.response.slice(0, 300)}`, source: 'owner', result: r.status });
     }
     res.json(r);

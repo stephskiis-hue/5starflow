@@ -2,6 +2,7 @@
 // claims and acts on it. body is owner-written only; agents can write status/response/runId.
 const prisma = require('../lib/prismaClient');
 const { clip } = require('./constants');
+const { recordAction } = require('./social');
 
 const REQUEST_STATES = ['pending', 'working', 'done', 'needs_owner', 'failed', 'cancelled'];
 const AGENT_REPORT_STATES = ['working', 'done', 'needs_owner', 'failed'];
@@ -102,8 +103,15 @@ async function recordPost(userId, id, { platform, postUrl, caption, captionIg } 
     postUrl: existing?.postUrl || postUrl || null,
     ...(caption ? { caption: clip(caption, 5000) } : {}), ...(captionIg ? { captionIg: clip(captionIg, 2500) } : {}),
   };
-  if (existing) return prisma.contentItem.update({ where: { id: existing.id }, data });
-  return prisma.contentItem.create({ data: { userId, source, format: 'post', title: clip(req.body || caption || 'Owner post', 160), assetIds: Array.isArray(req.attachments) ? req.attachments : undefined, grounding: 'Owner request with the owner\'s own media', ...data } });
+  const item = existing
+    ? await prisma.contentItem.update({ where: { id: existing.id }, data })
+    : await createPostItem();
+  await recordAction(userId, { platform, kind: 'owner_post', contentItemId: item.id, target: postUrl, url: postUrl, summary: clip(req.body || caption || 'Owner post', 200) });
+  return item;
+
+  function createPostItem() {
+    return prisma.contentItem.create({ data: { userId, source, format: 'post', title: clip(req.body || caption || 'Owner post', 160), assetIds: Array.isArray(req.attachments) ? req.attachments : undefined, grounding: 'Owner request with the owner\'s own media', ...data } });
+  }
 }
 
 module.exports = { REQUEST_STATES, createRequest, listRequests, pendingCount, claimNext, recordPost, reportRequest, cancelRequest };

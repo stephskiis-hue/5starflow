@@ -137,3 +137,14 @@ test('pricing: amounts, services and stats', () => {
   assert.equal(classifyService('snow removal monthly'), 'snow');
   assert.deepEqual(stats([200, 240, 220]), { count: 3, min: 200, median: 220, max: 240 });
 });
+
+test('vault: HEIC is told apart from MP4/MOV clips and converted to a real JPEG', async () => {
+  const fs = require('node:fs'); const path = require('node:path');
+  const { sniff, heicToJpeg } = require('../ai/vault');
+  const heic = fs.readFileSync(path.join(__dirname, 'fixtures', 'iphone-sample.heic'));
+  assert.equal(sniff(heic), 'image/heic');
+  assert.equal(sniff(Buffer.from('\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00', 'binary')), 'video/mp4');
+  assert.equal(sniff(Buffer.from('\x00\x00\x00\x14ftypqt  \x00\x00\x00\x00', 'binary')), 'video/quicktime');
+  assert.equal(sniff(await heicToJpeg(heic)), 'image/jpeg');
+  await assert.rejects(heicToJpeg(Buffer.from('\x00\x00\x00\x18ftypheic\x00\x00\x00\x00junkjunk', 'binary')), { code: 'INVALID_ASSET' });
+});

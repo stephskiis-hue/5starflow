@@ -8,7 +8,7 @@ const { toDateString, dayBounds } = require('../lib/tz');
 
 // per platform, per Winnipeg calendar day
 const DAILY_CAPS = { comment: 10, dm: 5, like: 20, follow: 10, group_join: 5, group_post: 3, page_post: 2, story: 3 };
-const UNCAPPED = new Set(['reply']);                 // replying to people who wrote to us is never capped
+const UNCAPPED = new Set(['reply', 'owner_post']);   // replies, and posts the owner explicitly asked for (logged, but they don't use the autopilot budget)
 const PLATFORMS = ['facebook', 'instagram'];
 
 class CapError extends Error {
