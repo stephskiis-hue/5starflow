@@ -1,4 +1,5 @@
 const cron = require('node-cron');
+const { runRoutine } = require('../ai/runner');
 const axios = require('axios');
 const prisma = require('../lib/prismaClient');
 const { refreshAccessToken } = require('./jobberClient');
@@ -124,7 +125,7 @@ async function refreshExpiringGmailTokens() {
         client_secret: process.env.GOOGLE_CLIENT_SECRET,
         refresh_token: cred.refreshToken,
         grant_type:    'refresh_token',
-      });
+      }, { timeout: 20000 });
 
       const { access_token, expires_in } = resp.data;
       const tokenExpiry = new Date(Date.now() + (expires_in || 3600) * 1000);
@@ -169,7 +170,7 @@ async function refreshExpiringSeoGoogleTokens() {
         client_secret: process.env.GOOGLE_CLIENT_SECRET,
         refresh_token: s.googleRefreshToken,
         grant_type:    'refresh_token',
-      });
+      }, { timeout: 20000 });
 
       const { access_token, expires_in } = resp.data;
       const googleTokenExpiry = new Date(Date.now() + (expires_in || 3600) * 1000);
@@ -186,6 +187,37 @@ async function refreshExpiringSeoGoogleTokens() {
   }
 }
 
+// One tick = all three refreshers. Each still runs even if an earlier one throws (same as before);
+// errors are collected so the ledger records the run as failed instead of silently "fine".
+async function tokenRefreshTick() {
+  const steps = [
+    ['jobber', refreshExpiringTokens],
+    ['gmail', refreshExpiringGmailTokens],
+    ['seo-google', refreshExpiringSeoGoogleTokens],
+  ];
+  const errors = [];
+  let refreshed = 0;
+  let failed = 0;
+  for (const [name, fn] of steps) {
+    try {
+      const r = await fn();
+      refreshed += Number(r?.refreshed) || 0;
+      failed += Number(r?.failed) || 0;
+    } catch (err) {
+      console.error(`[tokenManager] ${name} refresh error:`, err.message);
+      errors.push(`${name}: ${err.message}`);
+    }
+  }
+  if (failed > 0) errors.push(`jobber: ${failed} account token(s) failed to refresh`);
+  if (errors.length) throw new Error(errors.join('; '));
+  return {
+    items_found: refreshed + failed,
+    requires_attention: failed,
+    actions_taken: refreshed ? [`Refreshed ${refreshed} token(s)`] : [],
+    summary: refreshed || failed ? `${refreshed} refreshed, ${failed} failed` : '',
+  };
+}
+
 /**
  * Start the proactive token refresh scheduler.
  * Called once on server startup from server.js.
@@ -195,30 +227,14 @@ async function refreshExpiringSeoGoogleTokens() {
 function startTokenRefreshScheduler() {
   console.log('[tokenManager] Starting token refresh scheduler (every 5 minutes)');
 
-  cron.schedule('*/5 * * * *', async () => {
+  cron.schedule('*/5 * * * *', () => {
     console.log(`[tokenManager] [${new Date().toISOString()}] Running scheduled refresh check...`);
-    await refreshExpiringTokens().catch((err) => {
-      console.error('[tokenManager] Unexpected scheduler error:', err.message);
-    });
-    await refreshExpiringGmailTokens().catch((err) => {
-      console.error('[tokenManager] Gmail refresh error:', err.message);
-    });
-    await refreshExpiringSeoGoogleTokens().catch((err) => {
-      console.error('[tokenManager] SEO Google refresh error:', err.message);
-    });
+    return runRoutine('jobber-token-refresh', tokenRefreshTick, { quiet: true });
   });
 
   // Run immediately on startup — catches any tokens that expired while server was down
   console.log('[tokenManager] Running initial refresh check on startup...');
-  refreshExpiringTokens().catch((err) => {
-    console.error('[tokenManager] Initial refresh check error:', err.message);
-  });
-  refreshExpiringGmailTokens().catch((err) => {
-    console.error('[tokenManager] Initial Gmail refresh error:', err.message);
-  });
-  refreshExpiringSeoGoogleTokens().catch((err) => {
-    console.error('[tokenManager] Initial SEO Google refresh error:', err.message);
-  });
+  runRoutine('jobber-token-refresh', tokenRefreshTick, { quiet: true, trigger: 'startup' });
 }
 
-module.exports = { startTokenRefreshScheduler, refreshExpiringTokens };
+module.exports = { startTokenRefreshScheduler, refreshExpiringTokens, tokenRefreshTick };

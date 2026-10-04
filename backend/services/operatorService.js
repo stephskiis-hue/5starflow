@@ -15,9 +15,11 @@ const {
   sendSmsSafely,
   toE164,
   getTwilioCreds,
+  senderParams,
 } = require('./smsService');
 const twilio = require('twilio');
 const zapier = require('./zapierClient');
+const { runRoutine } = require('../ai/runner');
 
 // How long a proposal stays open for approval before auto-expiring.
 const DEFAULT_TTL_HOURS = Number(process.env.OPERATOR_PROPOSAL_TTL_HOURS || 4);
@@ -142,10 +144,11 @@ async function sendProposalSms(proposalId) {
   const client = twilio(creds.accountSid, creds.authToken);
   const result = await sendSmsSafely({
     to,
-    from:   creds.fromNumber,
+    ...senderParams(creds),
     body,
     client,
     userId: proposal.userId,
+    source: 'operator',
   });
 
   if (result.ok) {
@@ -188,7 +191,7 @@ async function notifyOwner(userId, message) {
   }
 
   const client = twilio(creds.accountSid, creds.authToken);
-  return sendSmsSafely({ to: toE164(toRaw), from: creds.fromNumber, body: message, client, userId });
+  return sendSmsSafely({ to: toE164(toRaw), ...senderParams(creds), body: message, client, userId, source: 'operator' });
 }
 
 /**
@@ -231,45 +234,53 @@ async function listApprovedUnexecuted(userId) {
  * The webhook handler calls this for EVERY inbound SMS — matched:false means
  * the message should be handled by the existing review-request Y/N flow.
  */
-async function matchInboundResponse({ userId, body }) {
-  if (!body) return { matched: false };
-  const m = String(body).trim().match(/^(yes|y|no|n)\s+(\d{1,4})\b/i);
-  if (!m) return { matched: false };
-
-  const action    = m[1].toLowerCase().startsWith('y') ? 'approved' : 'declined';
-  const shortCode = padShortCode(parseInt(m[2], 10));
-
+async function respondToCode({ userId, shortCode, action }) {
   const proposal = await prisma.operatorProposal.findUnique({
     where: { userId_shortCode: { userId, shortCode } },
   });
-  if (!proposal) return { matched: false };
+  if (!proposal) return { matched: false, shortCode };
   if (proposal.status !== 'pending') {
     // Already handled — log and treat as matched so the SMS isn't double-routed.
     await logger.info('operator', `Reply for #${shortCode} ignored — status=${proposal.status}`, {
       proposalId: proposal.id, status: proposal.status,
     }, userId);
-    return { matched: true, proposal, action: proposal.status };
+    return { matched: true, shortCode, proposal, action: proposal.status };
   }
   if (proposal.expiresAt < new Date()) {
-    await prisma.operatorProposal.update({
-      where: { id: proposal.id },
-      data:  { status: 'expired' },
-    });
-    return { matched: true, proposal, action: 'expired' };
+    await prisma.operatorProposal.update({ where: { id: proposal.id }, data: { status: 'expired' } });
+    return { matched: true, shortCode, proposal, action: 'expired' };
   }
 
-  const updated = await prisma.operatorProposal.update({
-    where: { id: proposal.id },
-    data:  {
-      status:       action,
-      respondedAt:  new Date(),
-      respondedVia: 'sms',
-    },
+  // Atomic claim: only the first reply to flip a still-pending row wins (double-texts, retries).
+  const claimed = await prisma.operatorProposal.updateMany({
+    where: { id: proposal.id, status: 'pending' },
+    data:  { status: action, respondedAt: new Date(), respondedVia: 'sms' },
   });
+  if (claimed.count === 0) return { matched: true, shortCode, proposal, action: 'already_handled' };
+
+  const updated = await prisma.operatorProposal.findUnique({ where: { id: proposal.id } });
   await logger.info('operator', `Proposal #${shortCode} ${action} via SMS`, {
     proposalId: proposal.id, category: proposal.category,
   }, userId);
-  return { matched: true, proposal: updated, action };
+  return { matched: true, shortCode, proposal: updated, action };
+}
+
+async function matchInboundResponse({ userId, body }) {
+  if (!body) return { matched: false };
+  // "YES 0012", "yes 12 14", "NO 0003, 0004" — one verb, one or more codes
+  const m = String(body).trim().match(/^(yes|y|no|n)\s+(\d{1,4}(?:[\s,]+(?:and\s+)?\d{1,4})*)\s*$/i);
+  if (!m) return { matched: false };
+
+  const action = m[1].toLowerCase().startsWith('y') ? 'approved' : 'declined';
+  const codes  = [...new Set(m[2].match(/\d{1,4}/g).map((c) => padShortCode(parseInt(c, 10))))];
+
+  const results = [];
+  for (const shortCode of codes) {
+    results.push(await respondToCode({ userId, shortCode, action }));
+  }
+  const hit = results.filter((r) => r.matched);
+  if (hit.length === 0) return { matched: false };
+  return { matched: true, proposal: hit[0].proposal, action: hit[0].action, results: hit };
 }
 
 /**
@@ -290,6 +301,13 @@ async function executeProposal(proposalId) {
   if (proposal.status !== 'approved') {
     throw new Error(`Proposal ${proposal.shortCode} status=${proposal.status}, cannot execute`);
   }
+
+  // Atomic claim so two callers (SMS reply + operator /execute) can't both post/send.
+  const claim = await prisma.operatorProposal.updateMany({
+    where: { id: proposalId, status: 'approved', executedAt: null },
+    data:  { status: 'executing' },
+  });
+  if (claim.count === 0) return { ok: true, alreadyExecuted: true, proposal };
 
   let result = { ok: true, note: 'logged-only' };
   try {
@@ -324,6 +342,9 @@ async function executeProposal(proposalId) {
         // Draft-only categories — execution here is just marking done; Claude already produced the artifact.
         result = { ok: true, note: `category=${proposal.category} is draft-only; logged` };
     }
+
+    // A dispatcher that reports ok:false (missing hook URL, Zapier error) is a failure, not "executed".
+    if (result && result.ok === false) throw new Error(result.error || 'dispatch reported ok:false');
 
     await prisma.operatorProposal.update({
       where: { id: proposalId },
@@ -366,13 +387,12 @@ async function expirePendingProposals() {
  */
 function startOperatorProposalExpiry({ intervalMs = 10 * 60 * 1000 } = {}) {
   const tick = async () => {
-    try { await expirePendingProposals(); }
-    catch (err) {
-      console.error('[operator] expiry cron error:', err.message);
-    }
+    const n = await expirePendingProposals();
+    return { items_found: n, actions_taken: n ? [`Expired ${n} stale approval request(s)`] : [] };
   };
-  setTimeout(tick, 30_000);                    // first run 30s after boot
-  const handle = setInterval(tick, intervalMs);
+  const run = () => runRoutine('operator-proposal-expiry', tick, { quiet: true });
+  setTimeout(run, 30_000);                     // first run 30s after boot
+  const handle = setInterval(run, intervalMs);
   console.log(`[operator] proposal expiry cron started (every ${intervalMs / 60000} min)`);
   return handle;
 }

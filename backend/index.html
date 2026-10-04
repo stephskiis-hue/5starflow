@@ -162,6 +162,10 @@
         <span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">home</span>
         <span class="text-sm font-medium tracking-tight">Home</span>
       </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/ai.html">
+        <span class="material-symbols-outlined text-[20px]">smart_toy</span>
+        <span class="text-sm font-medium tracking-tight">AI Command</span>
+      </a>
       <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/review-dashboard.html">
         <span class="material-symbols-outlined text-[20px]">rate_review</span>
         <span class="text-sm font-medium tracking-tight">Review Requests</span>
@@ -238,6 +242,20 @@
 
     <!-- Bento Grid -->
     <div class="grid grid-cols-12 gap-4 sm:gap-6 pb-10">
+
+      <!-- AI Command briefing (admins only — stays hidden if the AI API refuses) -->
+      <section id="ai-brief-card" class="hidden col-span-12 glass-card rounded-xl p-5 sm:p-6 cursor-pointer sm:hover:scale-[1.003] transition-all duration-300" onclick="window.location='/ai.html'">
+        <div class="flex items-center justify-between gap-3 mb-4">
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-primary">smart_toy</span>
+            <h3 class="text-lg font-bold text-zinc-100">AI Command</h3>
+            <span id="ai-brief-dry" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20">dry run</span>
+          </div>
+          <span class="text-primary text-sm font-semibold flex items-center gap-1">Open <span class="material-symbols-outlined text-sm">arrow_forward</span></span>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="ai-brief-stats"></div>
+        <p class="text-sm text-zinc-400 mt-4 hidden" id="ai-brief-top"></p>
+      </section>
 
       <!-- Review Requests (Large) -->
       <section class="col-span-12 lg:col-span-8 glass-card rounded-xl p-5 sm:p-10 group sm:hover:scale-[1.005] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-500 cursor-pointer" onclick="window.location='/review-dashboard.html'">
@@ -490,6 +508,8 @@
   setInterval(updateClock, 30000);
 
   // ── Time Ago ────────────────────────────────────────────────────────
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
   function formatTimeAgo(date) {
     const diff = (Date.now() - date.getTime()) / 1000;
     if (diff < 60)    return 'just now';
@@ -563,7 +583,7 @@
         return `<div class="flex items-center justify-between p-3 bg-white/5 rounded-lg">
           <div class="flex items-center gap-3">
             <div class="w-2 h-2 rounded-full ${dotColor}"></div>
-            <span class="text-sm font-medium truncate max-w-[120px]">${name}</span>
+            <span class="text-sm font-medium truncate max-w-[120px]">${esc(name)}</span>
           </div>
           <span class="text-xs text-on-surface-variant flex-shrink-0">${time}</span>
         </div>`;
@@ -846,7 +866,7 @@
 
     // Rebuild options
     select.innerHTML = '<option value="">Select event to track…</option>'
-      + data.events.map(e => `<option value="${e.name}">${e.name}</option>`).join('');
+      + data.events.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join('');
 
     // Auto-select first event matching "call", else first event
     const phoneEvent = data.events.find(e => /call/i.test(e.name));
@@ -947,13 +967,13 @@
         ? '<span class="w-5 h-5 rounded-full bg-secondary text-[10px] font-bold text-black flex items-center justify-center flex-shrink-0">' + c.unreadCount + '</span>'
         : '';
       return '<div class="flex items-start gap-3 p-3 bg-white/5 rounded-lg">' +
-        '<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-xs font-bold text-zinc-100 flex-shrink-0">' + initials + '</div>' +
+        '<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-xs font-bold text-zinc-100 flex-shrink-0">' + esc(initials) + '</div>' +
         '<div class="flex-1 min-w-0">' +
           '<div class="flex items-center justify-between gap-2">' +
-            '<span class="text-sm font-semibold text-zinc-100 truncate">' + name + '</span>' +
+            '<span class="text-sm font-semibold text-zinc-100 truncate">' + esc(name) + '</span>' +
             '<span class="text-[10px] text-on-surface-variant flex-shrink-0">' + timeAgo + '</span>' +
           '</div>' +
-          '<p class="text-xs text-on-surface-variant truncate mt-0.5">' + msg + '</p>' +
+          '<p class="text-xs text-on-surface-variant truncate mt-0.5">' + esc(msg) + '</p>' +
         '</div>' +
         unreadDot +
       '</div>';
@@ -1227,7 +1247,28 @@
       document.querySelector('aside').classList.remove('mob-open');
       document.getElementById('mob-sidebar-backdrop').style.display = 'none';
     }
-  </script>
+  
+  // ---- AI Command briefing card (admin only; silently hidden for everyone else) ----
+  (async function loadAiBrief() {
+    try {
+      const res = await fetch('/api/ai/brief', { credentials: 'include' });
+      if (!res.ok) return;
+      const b = await res.json();
+      const cells = [
+        ['Needs you', b.tasks.urgent, b.tasks.urgent ? 'text-amber-300' : 'text-secondary', '/ai.html#tasks'],
+        ['Awaiting approval', b.approvals.pending, b.approvals.pending ? 'text-amber-300' : 'text-secondary', '/ai.html#approvals'],
+        ['Customers waiting', b.inbound.unansweredSms, b.inbound.unansweredSms ? 'text-red-300' : 'text-secondary', '/ai.html#inbox'],
+        ['Routines to check', b.routines.unhealthy.length, b.routines.unhealthy.length ? 'text-red-300' : 'text-secondary', '/ai.html#routines'],
+      ];
+      document.getElementById('ai-brief-stats').innerHTML = cells.map(([l, n, c, href]) =>
+        `<a href="${href}" onclick="event.stopPropagation()" class="block rounded-xl bg-white/5 px-4 py-3 hover:bg-white/10 transition-colors"><p class="text-[10px] font-bold uppercase tracking-wide text-zinc-500">${l}</p><p class="text-2xl font-black ${c}">${Number(n) || 0}</p></a>`).join('');
+      const top = b.tasks.top[0];
+      if (top) { const el = document.getElementById('ai-brief-top'); el.textContent = 'Top item: ' + top.title; el.classList.remove('hidden'); }
+      if (b.dryRun) document.getElementById('ai-brief-dry').classList.remove('hidden');
+      document.getElementById('ai-brief-card').classList.remove('hidden');
+    } catch {}
+  })();
+</script>
 
 </body>
 </html>

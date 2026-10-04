@@ -4,6 +4,28 @@ const prisma  = require('../lib/prismaClient');
 const axios   = require('axios');
 const { requireAuth } = require('../middleware/requireAuth');
 const { GoogleAuth } = require('google-auth-library');
+const crypto  = require('crypto');
+
+// /api/seo is mounted before the global requireAuth (Google redirects back here without a
+// session, and /trigger carries its own secret). Everything else needs a real session —
+// without this, req.user is undefined and Prisma silently drops the userId filter.
+const PUBLIC_SEO_PATHS = new Set(['/google/callback', '/trigger']);
+router.use((req, res, next) => (PUBLIC_SEO_PATHS.has(req.path) ? next() : requireAuth(req, res, next)));
+
+// Signed, expiring OAuth state so the callback can't be pointed at another user's settings.
+const signState = (userId) => {
+  const raw = `${userId}:${Date.now()}`;
+  const mac = crypto.createHmac('sha256', process.env.SESSION_SECRET).update(raw).digest('hex').slice(0, 24);
+  return Buffer.from(`${raw}:${mac}`).toString('base64url');
+};
+const verifyState = (state) => {
+  try {
+    const [userId, ts, mac] = Buffer.from(String(state), 'base64url').toString().split(':');
+    const expected = crypto.createHmac('sha256', process.env.SESSION_SECRET).update(`${userId}:${ts}`).digest('hex').slice(0, 24);
+    const ok = mac && mac.length === expected.length && crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected));
+    return ok && Date.now() - Number(ts) < 10 * 60 * 1000 ? userId : null;
+  } catch { return null; }
+};
 
 // In-memory pagespeed job state — resets on server restart (scan stops too, so this is fine)
 const activePageSpeedJobs = new Map(); // userId -> { status, result, error }
@@ -475,16 +497,7 @@ router.get('/traffic-stats', requireAuth, async (req, res) => {
 // Redirect to Google OAuth consent screen
 // ---------------------------------------------------------------------------
 router.get('/google/auth', (req, res) => {
-  // Route is in the public zone — req.user is not populated. Read session cookie manually.
-  let userId = null;
-  try {
-    const { verifyToken } = require('../lib/auth');
-    const token = req.cookies?.sf_session;
-    if (token) {
-      const payload = verifyToken(token);
-      if (payload?.userId) userId = payload.userId;
-    }
-  } catch { /* no session — proceed without userId */ }
+  const userId = req.user.userId;
 
   const clientId    = process.env.GOOGLE_CLIENT_ID;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI;
@@ -506,7 +519,7 @@ router.get('/google/auth', (req, res) => {
   url.searchParams.set('access_type',   'offline');
   url.searchParams.set('prompt',        'consent');
   // Pass userId in state so callback can scope the save
-  url.searchParams.set('state', userId || 'anon');
+  url.searchParams.set('state', signState(userId));
 
   res.redirect(url.toString());
 });
@@ -520,8 +533,8 @@ router.get('/google/callback', async (req, res) => {
   if (error) return res.redirect('/connections.html?google_error=' + encodeURIComponent(error));
   if (!code)  return res.redirect('/connections.html?google_error=no_code');
 
-  // state = userId passed from /google/auth
-  const userId = state || null;
+  const userId = verifyState(state);
+  if (!userId) return res.redirect('/connections.html?google_error=invalid_state');
 
   try {
     const resp = await axios.post('https://oauth2.googleapis.com/token', {

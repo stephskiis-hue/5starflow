@@ -3,7 +3,7 @@ const twilio   = require('twilio');
 const nodemailer = require('nodemailer');
 const router   = express.Router();
 const prisma   = require('../lib/prismaClient');
-const { getTwilioCreds, toE164 } = require('../services/smsService');
+const { getTwilioCreds, toE164, senderParams, isOptedOut } = require('../services/smsService');
 const { getGmailCreds, ensureFreshToken } = require('../services/emailService');
 const { getStatusTier } = require('../services/loyaltyService');
 const { jobberGraphQL } = require('../services/jobberClient');
@@ -118,9 +118,11 @@ router.post('/reward', async (req, res) => {
       const phone  = (phones.find(p => p.primary) || phones[0])?.number;
       if (!phone) return res.status(400).json({ error: 'Client has no phone number' });
 
+      if (await isOptedOut(userId, phone)) return res.status(409).json({ error: 'Client opted out of texts (STOP)' });
       const creds  = await getTwilioCreds(userId);
       const client = twilio(creds.accountSid, creds.authToken);
-      await client.messages.create({ body: msg, from: creds.fromNumber, to: toE164(phone) });
+      const sent = await client.messages.create({ body: msg, ...senderParams(creds), to: toE164(phone) });
+      require('../lib/commLedger').logComm(userId, { direction: 'out', phone: toE164(phone), body: msg, source: 'reward', providerId: sent.sid, status: 'queued' });
 
     } else if (channel === 'email') {
       const emails = clientData.emails || [];

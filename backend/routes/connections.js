@@ -91,6 +91,7 @@ router.get('/status', async (req, res) => {
     const twilio = {
       configured:  isVerified('twilio'),
       fromNumber:  twilioCred?.fromNumber || process.env.TWILIO_PHONE_NUMBER || null,
+      messagingServiceSid: twilioCred?.messagingServiceSid || process.env.TWILIO_MESSAGING_SERVICE_SID || null,
       accountSid:  twilioCred
         ? twilioCred.accountSid.slice(0, 8) + '...'
         : process.env.TWILIO_ACCOUNT_SID

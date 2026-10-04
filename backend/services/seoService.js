@@ -13,6 +13,7 @@
  *   - Can be triggered externally via POST /api/seo/trigger?token=SEO_TRIGGER_SECRET
  */
 
+const { runRoutine } = require('../ai/runner');
 const cron    = require('node-cron');
 const axios   = require('axios');
 const cheerio = require('cheerio');
@@ -698,13 +699,13 @@ async function runWeeklyAudit(userId = null, tier = 'pro-plus') {
 
   if (!settings.auditEnabled) {
     console.log('[seoService] Audit disabled — skipping');
-    return;
+    return { skipped: true, summary: 'SEO audit is turned off' };
   }
 
   const siteUrl = settings.siteUrl;
   if (!siteUrl) {
     console.log('[seoService] siteUrl not configured — skipping audit. Set it in SEO Settings.');
-    return;
+    return { skipped: true, summary: 'No site URL configured in SEO settings' };
   }
 
   // Tier controls model depth and whether to run competitor research
@@ -814,6 +815,7 @@ async function runWeeklyAudit(userId = null, tier = 'pro-plus') {
     if (ownSpeed.score !== null && ownSpeed.score < 60) {
       console.log(`[seoService] ⚠ Performance score is ${ownSpeed.score}/100 — action required`);
     }
+    return { auditId: audit.id, proposalId: savedProposal.id, items_found: summaryItems.length, requires_attention: 1, summary: `Audit complete: ${summaryItems.length} proposed change(s) waiting for approval` };
 
   } catch (err) {
     console.error('[seoService] Audit failed:', err.message);
@@ -821,6 +823,7 @@ async function runWeeklyAudit(userId = null, tier = 'pro-plus') {
       where: { id: audit.id },
       data:  { status: 'failed' },
     });
+    return { error: err.message, auditId: audit.id };
   }
 }
 
@@ -836,8 +839,12 @@ async function runWeeklyAudit(userId = null, tier = 'pro-plus') {
 function startSeoScheduler() {
   cron.schedule('0 8 * * 0', () => {
     console.log('[seoService] Weekly cron triggered');
-    runWeeklyAudit();
-  });
+    return runRoutine('seo-weekly-audit', async () => {
+      const r = await runWeeklyAudit();
+      if (r?.error) throw new Error(`SEO audit failed: ${r.error}`);   // a swallowed failure must show as a failed run
+      return r || { skipped: true, summary: 'Weekly audit did not run' };
+    });
+  }, { timezone: 'America/Winnipeg' });
   console.log('[seoService] Weekly audit scheduled — Sundays at 8:00 AM');
 }
 

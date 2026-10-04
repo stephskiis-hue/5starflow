@@ -19,6 +19,8 @@ const auditRouter       = require('./routes/websiteAudit');
 const leaderboardRouter = require('./routes/leaderboard');
 const marketingRouter   = require('./routes/marketing');
 const operatorRouter    = require('./routes/operator');
+const aiRouter          = require('./routes/ai');
+const { startAiOs }     = require('./ai');
 const { requireAuth } = require('./middleware/requireAuth');
 const { startTokenRefreshScheduler }      = require('./services/tokenManager');
 const { startDeliveryQueue }              = require('./services/deliveryQueue');
@@ -29,6 +31,7 @@ const { startJobberClientSyncScheduler }  = require('./services/jobberClientSync
 const { startRetryWorker, resumeAllPending } = require('./services/marketingService');
 const { startOperatorProposalExpiry, isFromApprover, handleInboundFromSteph } = require('./services/operatorService');
 const logger = require('./lib/logger');
+const { validateTwilioSignature } = require('./lib/twilioSignature');
 
 // ---------------------------------------------------------------------------
 // Env validation — fail fast if critical config is missing. Twilio + DB are
@@ -151,7 +154,9 @@ app.use(
 // ---------------------------------------------------------------------------
 app.use('/webhook', webhookRouter);
 
-app.use(express.json());
+// /api/ai parses its own (larger) JSON bodies AFTER authenticating — photo uploads arrive as base64.
+const defaultJson = express.json();
+app.use((req, res, next) => (req.path.startsWith('/api/ai') ? next() : defaultJson(req, res, next)));
 app.use(cookieParser());
 
 // ---------------------------------------------------------------------------
@@ -181,11 +186,15 @@ app.use('/api/gmail', gmailRouter);
 // Must be mounted BEFORE requireAuth so the scheduled runs don't get redirected to login.
 app.use('/api/operator', operatorRouter);
 
+// AI OS tool layer — bearer token for Claude routines OR an admin session for the dashboard.
+// Public-zone mount because routines have no cookie; routes/ai.js authenticates every request itself.
+app.use('/api/ai', aiRouter);
+
 // Portal login/logout/setup-user
 app.use('/auth', portalRouter);
 
 // Twilio delivery status callback — public (Twilio posts here, no session)
-app.post('/api/weather/twilio-callback', twilioLimiter, express.urlencoded({ extended: false }), async (req, res) => {
+app.post('/api/weather/twilio-callback', twilioLimiter, express.urlencoded({ extended: false }), validateTwilioSignature, async (req, res) => {
   const { MessageSid, MessageStatus } = req.body || {};
   if (MessageSid && MessageStatus) {
     const prisma = require('./lib/prismaClient');
@@ -198,21 +207,46 @@ app.post('/api/weather/twilio-callback', twilioLimiter, express.urlencoded({ ext
 });
 
 // Marketing Twilio delivery status callback — public (Twilio posts here, no session)
-app.post('/api/marketing/twilio-callback', twilioLimiter, express.urlencoded({ extended: false }), async (req, res) => {
-  const { MessageSid, MessageStatus } = req.body || {};
+//
+// This writes ONLY to deliveryStatus. It must never touch `status`, which is the
+// dispatcher's own state machine: Twilio's MessageStatus vocabulary (queued /
+// sending / sent / delivered / undelivered / failed) overlaps ours but means
+// different things, and receipts arrive out of order — a late "queued" receipt
+// used to regress an already-dispatched row into a state no counter recognised,
+// silently dropping it from every campaign total.
+app.post('/api/marketing/twilio-callback', twilioLimiter, express.urlencoded({ extended: false }), validateTwilioSignature, async (req, res) => {
+  const { MessageSid, MessageStatus, ErrorCode } = req.body || {};
   if (MessageSid && MessageStatus) {
     const p = require('./lib/prismaClient');
-    await p.marketingMessage.updateMany({
-      where: { messageSid: MessageSid },
-      data:  { status: MessageStatus },
-    }).catch(err => console.warn('[marketing-twilio-callback] DB update failed:', err.message));
+    // Receipts can arrive out of order; only ever move forward (queued < sending < sent < terminal).
+    const RANK = { accepted: 0, scheduled: 0, queued: 1, sending: 2, sent: 3, delivered: 4, read: 4, undelivered: 4, failed: 4 };
+    const data = {
+      deliveryStatus:   MessageStatus,
+      carrierErrorCode: ErrorCode ? String(ErrorCode) : null,
+    };
+    if (MessageStatus === 'delivered') data.deliveredAt = new Date();
+
+    try {
+      const cur = await p.marketingMessage.findFirst({ where: { messageSid: MessageSid }, select: { id: true, deliveryStatus: true } });
+      const behind = cur && cur.deliveryStatus && (RANK[cur.deliveryStatus] ?? 0) > (RANK[MessageStatus] ?? 0);
+      if (cur && !behind) await p.marketingMessage.update({ where: { id: cur.id }, data });
+      // the communication ledger tracks delivery so a carrier-rejected reply doesn't count as an answer
+      await p.commMessage.updateMany({ where: { providerId: MessageSid, direction: 'out' }, data: { status: MessageStatus } });
+    } catch (err) { console.warn('[marketing-twilio-callback] DB update failed:', err.message); }
+
+    // Carrier-level rejections are the failures that actually matter to the user
+    // (30007 carrier filtering, 30034 unregistered A2P, 30003 unreachable handset)
+    // and they never surface as API errors, so log them loudly.
+    if (MessageStatus === 'undelivered' || MessageStatus === 'failed') {
+      console.warn(`[marketing-twilio-callback] ${MessageStatus} sid=${MessageSid} errorCode=${ErrorCode || 'none'}`);
+    }
   }
   res.sendStatus(204);
 });
 
 // Marketing inbound SMS webhook — Twilio posts here when a client replies to the marketing number
 // Must be public (no auth session) and return TwiML so Twilio doesn't retry
-app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ extended: false }), async (req, res) => {
+app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ extended: false }), validateTwilioSignature, async (req, res) => {
   // Always respond with empty TwiML first to prevent Twilio retries
   res.set('Content-Type', 'text/xml');
   res.send('<Response></Response>');
@@ -270,6 +304,11 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
       cred = { ...cred, fromNumber: fixed };
     }
     const userId = cred.userId;
+    // the credential that signed this request must belong to the same tenant we resolved from `To`
+    if (req.twilioUserId && req.twilioUserId !== userId) {
+      console.warn(`[inbound-sms] signature verified for a different tenant than To=${To} resolves to — dropping`);
+      return;
+    }
 
     const last10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
     const from10 = last10(normalizedFrom);
@@ -339,11 +378,12 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
       } else {
         try {
           const twilioClient = twilio(cred.accountSid, cred.authToken);
-          await twilioClient.messages.create({
+          const stopMsg = await twilioClient.messages.create({
             to:   normalizedFrom,
             from: cred.fromNumber,
             body: "You've been removed from our automated messaging list. You won't receive any more texts from us.",
           });
+          require('./lib/commLedger').logComm(userId, { direction: 'out', phone: normalizedFrom, body: stopMsg.body || 'Opt-out confirmation', source: 'optout', providerId: stopMsg.sid });
           console.log(`[inbound-sms] Opt-out confirmation sent to ${normalizedFrom}`);
         } catch (smsErr) {
           if (smsErr.code === 21610) {
@@ -355,7 +395,7 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
       }
 
       // Tag the client in Jobber with "no-Texts"
-      if (cachedClient?.jobberClientId) {
+      if (cachedClient?.jobberClientId && process.env.DRY_RUN !== 'true') {
         const { jobberGraphQL } = require('./services/jobberClient');
         const NO_TEXTS_TAG = `
           mutation AddClientTag($clientId: EncodedId!, $label: String!) {
@@ -366,7 +406,7 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
           }
         `;
         try {
-          const tagResult = await jobberGraphQL(NO_TEXTS_TAG, { clientId: cachedClient.jobberClientId, label: 'no-Texts' }, null);
+          const tagResult = await jobberGraphQL(NO_TEXTS_TAG, { clientId: cachedClient.jobberClientId, label: 'no-Texts' }, userId);
           const tagErrors = tagResult?.clientTagCreate?.errors;
           if (tagErrors?.length) {
             console.error(`[inbound-sms] Jobber tag errors for ${normalizedFrom}:`, tagErrors.map(e => e.message).join('; '));
@@ -402,6 +442,11 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
       },
     });
 
+    require('./lib/commLedger').logComm(userId, {
+      direction: 'in', phone: normalizedFrom, body: Body.trim(), source: 'inbound', sourceId: inbound.id, providerId: MessageSid,
+      jobberClientId: cachedClient?.jobberClientId, clientName: cachedClient?.name,
+    });
+
     console.log(
       `[inbound-sms] Stored message from ${normalizedFrom}` +
       (cachedClient ? ` (${cachedClient.name})` : ' (unmatched)') +
@@ -418,15 +463,25 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
       if (fromApprover) {
         // Rain recommendation reply first ("YES Wednesday" / "NO") — natural language,
         // no shortcode needed. Falls through to the generic YES/NO <code> + slash handler.
-        const rain = await handleRainReply({ userId, body: Body.trim() });
-        if (rain.matched) {
+        // Explicit "YES 0012" codes and "/slash" commands always win; only free-text replies
+        // ("YES Wednesday", "NO") fall through to the rain grammar. Otherwise a pending rain
+        // proposal swallowed code approvals and turned "/post Saturday" into a reschedule.
+        const explicit = /^\s*(?:(?:yes|y|no|n)\s+\d{1,4}\b|\/)/i.test(Body);
+        const match = explicit ? await handleInboundFromSteph({ userId, body: Body.trim() }) : { matched: false };
+        if (match.matched) {
           operatorHandled = true;
-          console.log('[inbound-sms] Rain reply handled for approver');
+          console.log(`[inbound-sms] Operator match: type=${match.type} action=${match.action || match.command}`);
         } else {
-          const match = await handleInboundFromSteph({ userId, body: Body.trim() });
-          if (match.matched) {
+          const rain = await handleRainReply({ userId, body: Body.trim() });
+          if (rain.matched) {
             operatorHandled = true;
-            console.log(`[inbound-sms] Operator match: type=${match.type} action=${match.action || match.command}`);
+            console.log('[inbound-sms] Rain reply handled for approver');
+          } else if (!explicit) {
+            const m2 = await handleInboundFromSteph({ userId, body: Body.trim() });
+            if (m2.matched) {
+              operatorHandled = true;
+              console.log(`[inbound-sms] Operator match: type=${m2.type} action=${m2.action || m2.command}`);
+            }
           }
         }
       }
@@ -444,7 +499,7 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
         const sentiment = classifySentiment(Body);
         await prisma.inboundSMS.update({ where: { id: inbound.id }, data: { sentiment } });
 
-        if (sentiment !== 'neutral' && cachedClient?.jobberClientId) {
+        if (sentiment !== 'neutral' && cachedClient?.jobberClientId && process.env.DRY_RUN !== 'true') {
           const { jobberGraphQL } = require('./services/jobberClient');
           const SENTIMENT_TAG = `
             mutation AddClientTag($clientId: EncodedId!, $label: String!) {
@@ -471,7 +526,7 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
     }
 
     // Send admin SMS notification for Y/N responses (not for opt-outs or general messages)
-    if (isResponse && cred.notifyPhone) {
+    if (isResponse && cred.notifyPhone && process.env.DRY_RUN !== 'true') {
       try {
         const twilioClient = twilio(cred.accountSid, cred.authToken);
         const clientLabel  = cachedClient?.name || normalizedFrom;
@@ -533,8 +588,11 @@ app.get('/', (req, res) => {
 // ---------------------------------------------------------------------------
 app.use(requireAuth);
 
-// Serve dashboard and other static files (protected)
-app.use(express.static(__dirname));
+// Serve dashboard pages (protected). Only top-level *.html is exposed — never server.js,
+// routes/, services/, prisma/ or other source that lives in this directory.
+const serveDashboardPage = express.static(__dirname, { index: false, dotfiles: 'deny' });
+app.use((req, res, next) => (/^\/[A-Za-z0-9_-]+\.html$/.test(req.path) ? serveDashboardPage(req, res, next) : next()));
+app.use('/public-ai', express.static(path.join(__dirname, 'public-ai')));
 app.use('/images', express.static(path.join(__dirname, 'images')));
 
 // Protected API routes
@@ -588,6 +646,7 @@ app.listen(PORT, () => {
   startSeoScheduler();
   startJobberClientSyncScheduler();
   startOperatorProposalExpiry();
+  startAiOs();
 
   // Bulletproof SMS workers — retry any transient-failed rows + resume anything left
   // mid-flight when the server was last killed (Railway redeploy, crash, etc.).

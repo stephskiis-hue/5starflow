@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>AI Command — 5StarFlow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#aac7ff",
+            "on-surface": "#e5e2e1",
+            "on-background": "#e5e2e1",
+            "inverse-primary": "#005db8",
+            "error": "#ffb4ab",
+            "surface-variant": "#353534",
+            "on-primary": "#003064",
+            "surface": "#131313",
+            "surface-dim": "#131313",
+            "surface-bright": "#3a3939",
+            "inverse-on-surface": "#313030",
+            "on-surface-variant": "#8b91a0",
+            "background": "#131313",
+            "secondary-container": "#09bf49",
+            "surface-container-high": "#2a2a2a",
+            "surface-container-lowest": "#0e0e0e",
+            "surface-container-low": "#1c1b1b",
+            "inverse-surface": "#e5e2e1",
+            "surface-tint": "#aac7ff",
+            "primary-container": "#3e90ff",
+            "tertiary-container": "#c863fb",
+            "primary-fixed-dim": "#aac7ff",
+            "tertiary-fixed-dim": "#e9b3ff",
+            "on-error": "#690005",
+            "outline-variant": "#414754",
+            "surface-container": "#201f1f",
+            "error-container": "#93000a",
+            "on-error-container": "#ffdad6",
+            "secondary": "#47e266",
+            "tertiary": "#e9b3ff",
+            "outline": "#8b91a0",
+            "surface-container-highest": "#353534"
+          },
+          fontFamily: {
+            "headline": ["Inter"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          },
+          borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+        },
+      },
+    }
+  </script>
+  <style>
+    body { background-color: #000000; color: #e5e2e1; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+    .glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .tab-active { background: rgba(170,199,255,0.15); color: #aac7ff; border-color: rgba(170,199,255,0.3); }
+    /* Mobile sidebar slide-in */
+    .mob-menu-btn { display: none; }
+    .mob-sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 54; backdrop-filter: blur(2px); }
+    @media (max-width: 640px) {
+      .mob-menu-btn { display: flex; }
+      aside { transform: translateX(-110%) !important; transition: transform 0.3s cubic-bezier(0.4,0,0.2,1) !important; z-index: 56 !important; }
+      aside.mob-open { transform: translateX(0) !important; }
+      main { padding-left: 1rem !important; padding-right: 1rem !important; padding-bottom: 2rem !important; }
+      /* Wide data tables scroll horizontally instead of squishing on mobile */
+      table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      table th, table td { white-space: nowrap; }
+    }
+    /* Mobile icon tab bar */
+    .mob-tab { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; min-height: 52px; border-radius: 14px; transition: background 0.15s; cursor: pointer; border: none; background: transparent; gap: 2px; padding: 6px 2px; }
+    .mob-tab.active { background: rgba(170,199,255,0.15); }
+    .mob-tab .mob-tab-icon { font-size: 22px; color: #8b91a0; transition: color 0.15s; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .mob-tab.active .mob-tab-icon { color: #aac7ff; font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .mob-tab .mob-tab-label { font-size: 9px; font-weight: 600; color: #8b91a0; letter-spacing: 0.03em; transition: color 0.15s; }
+    .mob-tab.active .mob-tab-label { color: #aac7ff; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    .badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; padding:2px 8px; border-radius:9999px; }
+    .b-urgent { background:rgba(255,180,171,.15); color:#ffb4ab; } .b-high { background:rgba(251,191,36,.15); color:#fbbf24; }
+    .b-normal { background:rgba(170,199,255,.12); color:#aac7ff; } .b-low { background:rgba(139,145,160,.15); color:#8b91a0; }
+    .b-ok { background:rgba(71,226,102,.12); color:#47e266; } .b-bad { background:rgba(255,180,171,.15); color:#ffb4ab; } .b-warn { background:rgba(251,191,36,.15); color:#fbbf24; } .b-mute { background:rgba(255,255,255,.06); color:#8b91a0; }
+    .dot { width:8px; height:8px; border-radius:9999px; display:inline-block; flex:none; }
+    .btn { padding:.45rem .9rem; border-radius:.75rem; font-size:.75rem; font-weight:700; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.05); color:#d4d4d8; transition:all .15s; }
+    .btn:hover { background:rgba(255,255,255,.1); } .btn:disabled { opacity:.5; cursor:not-allowed; }
+    .btn-go { background:rgba(71,226,102,.15); color:#47e266; border-color:rgba(71,226,102,.3); } .btn-go:hover { background:rgba(71,226,102,.25); }
+    .btn-no { background:rgba(255,180,171,.1); color:#ffb4ab; border-color:rgba(255,180,171,.25); }
+    .tabs-scroll { display:flex; gap:.5rem; overflow-x:auto; padding-bottom:.25rem; }
+    .tabs-scroll::-webkit-scrollbar { display:none; } .tabs-scroll { scrollbar-width:none; }
+    .tabs-scroll button { flex:none; }
+    @media (max-width: 640px) { .tabs-scroll { margin-left:-.25rem; margin-right:-.25rem; } }
+  </style>
+</head>
+<body class="bg-black min-h-screen">
+
+  <!-- Sidebar -->
+  <aside class="fixed left-6 top-6 bottom-6 w-64 rounded-[3rem] border-t border-white/10 bg-zinc-900/60 backdrop-blur-2xl flex flex-col h-[calc(100vh-3rem)] p-4 shadow-[0_40px_40px_-5px_rgba(0,0,0,0.6)] z-50">
+    <div class="mb-8 px-4 pt-4">
+      <img src="/images/logo.png" alt="5StarFlow" style="height:36px;width:auto;display:block;margin:0 auto 0.5rem;">
+      <h1 class="text-xl font-bold text-zinc-100 tracking-tighter">Command Center</h1>
+      <p class="text-xs text-zinc-500 font-medium mt-1">5StarFlow</p>
+    </div>
+
+    <nav class="flex-1 space-y-0.5 overflow-y-auto" id="main-nav">
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/index.html">
+        <span class="material-symbols-outlined text-[20px]">home</span>
+        <span class="text-sm font-medium tracking-tight">Home</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-100 rounded-xl relative before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-secondary before:rounded-full hover:bg-white/5 transition-all duration-200" href="/ai.html">
+        <span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">smart_toy</span>
+        <span class="text-sm font-medium tracking-tight">AI Command</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/review-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">rate_review</span>
+        <span class="text-sm font-medium tracking-tight">Review Requests</span>
+        <span class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary/10 text-secondary hidden" id="sidebar-pending"></span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/weather-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">thunderstorm</span>
+        <span class="text-sm font-medium tracking-tight">Rain Alerts</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/seo-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">search_check</span>
+        <span class="text-sm font-medium tracking-tight">SEO Audit</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/website-audit.html">
+        <span class="material-symbols-outlined text-[20px]">speed</span>
+        <span class="text-sm font-medium tracking-tight">Website Audit</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/marketing.html">
+        <span class="material-symbols-outlined text-[20px]" >campaign</span>
+        <span class="text-sm font-medium tracking-tight">SMS Marketing</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/connections.html">
+        <span class="material-symbols-outlined text-[20px]">hub</span>
+        <span class="text-sm font-medium tracking-tight">App Connections</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/message-settings.html">
+        <span class="material-symbols-outlined text-[20px]">edit_note</span>
+        <span class="text-sm font-medium tracking-tight">Message Templates</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/settings.html">
+        <span class="material-symbols-outlined text-[20px]">settings</span>
+        <span class="text-sm font-medium tracking-tight">Settings</span>
+      </a>
+      <a id="admin-nav-link" class="hidden flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/admin.html">
+        <span class="material-symbols-outlined text-[20px]">manage_accounts</span>
+        <span class="text-sm font-medium tracking-tight">User Management</span>
+      </a>
+    </nav>
+
+    <div class="mt-auto px-2 pt-4 border-t border-white/5">
+      <div class="flex items-center gap-3 p-2">
+        <div class="w-9 h-9 rounded-full bg-surface-container-highest flex items-center justify-center text-sm font-bold text-zinc-100 flex-shrink-0" id="user-avatar">?</div>
+        <div class="flex-1 overflow-hidden">
+          <p class="text-sm font-semibold text-zinc-100 truncate" id="user-email">Loading...</p>
+          <p class="text-xs text-zinc-500 truncate" id="user-role">Administrator</p>
+        </div>
+        <button onclick="logout()" class="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex-shrink-0" title="Log out">
+          <span class="material-symbols-outlined text-[18px]">logout</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+
+  <!-- Mobile sidebar backdrop -->
+  <div class="mob-sidebar-backdrop" id="mob-sidebar-backdrop" onclick="closeMobSidebar()"></div>
+
+  <main class="pl-80 pr-12 py-10 min-h-screen">
+    <div class="mb-6 flex items-center gap-3">
+      <button onclick="openMobSidebar()" class="mob-menu-btn w-10 h-10 items-center justify-center rounded-xl bg-white/5 border border-white/10 text-zinc-300 hover:bg-white/10 transition-colors flex-shrink-0" aria-label="Open menu">
+        <span class="material-symbols-outlined text-[22px]">menu</span>
+      </button>
+      <div>
+        <h2 class="text-2xl font-black text-zinc-100 tracking-tight">AI Command</h2>
+        <p class="text-sm text-on-surface-variant mt-0.5 hidden sm:block">What 5StarFlow is watching, doing and waiting on you for</p>
+      </div>
+    </div>
+
+    <div id="dry-run-banner" class="hidden mb-6 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-medium flex items-center gap-2">
+      <span class="material-symbols-outlined text-[18px]">science</span>
+      DRY RUN is on: nothing is really sent or changed in Jobber
+    </div>
+    <div id="err-banner" class="hidden mb-6 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm font-medium"></div>
+
+    <div class="tabs-scroll mb-6" id="tab-bar" role="tablist">
+      <button data-tab="home"      class="tab-active px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200">Home</button>
+      <button data-tab="inbox"     class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Inbox <span id="badge-inbox" class="badge b-bad hidden ml-1"></span></button>
+      <button data-tab="tasks"     class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Tasks <span id="badge-tasks" class="badge b-warn hidden ml-1"></span></button>
+      <button data-tab="approvals" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Approvals <span id="badge-approvals" class="badge b-warn hidden ml-1"></span></button>
+      <button data-tab="content" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Content <span id="badge-content" class="badge b-warn hidden ml-1"></span></button>
+      <button data-tab="social" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Social</button>
+      <button data-tab="vault" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Vault</button>
+      <button data-tab="routines"  class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Routines</button>
+      <button data-tab="agents"    class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Agents</button>
+      <button data-tab="activity"  class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Activity</button>
+      <button data-tab="memory"    class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Memory</button>
+    </div>
+
+    <section id="tab-home"></section>
+    <section id="tab-inbox" class="hidden"></section>
+    <section id="tab-tasks" class="hidden"></section>
+    <section id="tab-approvals" class="hidden"></section>
+    <section id="tab-content" class="hidden"></section>
+    <section id="tab-social" class="hidden"></section>
+    <section id="tab-vault" class="hidden"></section>
+    <section id="tab-routines" class="hidden"></section>
+    <section id="tab-agents" class="hidden"></section>
+    <section id="tab-activity" class="hidden"></section>
+    <section id="tab-memory" class="hidden"></section>
+  </main>
+
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl bg-zinc-800 text-zinc-100 text-sm border border-white/10 shadow-xl hidden z-[70]"></div>
+
+<script>
+  const API = '/api/ai';
+  const TABS = ['home', 'inbox', 'tasks', 'approvals', 'content', 'social', 'vault', 'routines', 'agents', 'activity', 'memory'];
+  const AGENT_INFO = {
+    orchestrator: ['Orchestrator', 'Coordinates the others, sets priorities, prevents duplicate work.', 'account_tree'],
+    communication: ['Communication', 'Nobody important gets left unanswered: SMS, Gmail, reviews, follow-ups.', 'forum'],
+    operations: ['Operations', 'Finds what is being missed: unbilled work, stale visits, money, payroll.', 'engineering'],
+    research: ['Research', 'Keeps knowledge fresh: SEO, local market, competitors, changing sites.', 'travel_explore'],
+    content: ['Content Director', 'Plans and writes marketing content from real jobs and performance.', 'edit_note'],
+    design: ['Design', 'Turns content into on-brand graphics with the No-Bs design system.', 'palette'],
+    social: ['Social', 'Facebook, Instagram and groups: posting, replies, community research.', 'share'],
+    qa: ['QA', 'Checks everything before it goes out: spelling, facts, brand, group rules.', 'fact_check'],
+    system: ['System', 'Background jobs: tokens, queues, syncs, retries.', 'settings_suggest'],
+  };
+  const state = { tab: 'home', contentFilter: 'review', vaultTag: '', taskFilter: 'open', memScope: '', memQ: '', openRoutine: null, isOwner: true };
+  let pollTimer = null;
+
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const $ = (id) => document.getElementById(id);
+
+  async function api(path, opts = {}) {
+    const res = await fetch(API + path, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...opts, body: opts.body ? JSON.stringify(opts.body) : undefined });
+    if (res.status === 401) { window.location.href = '/login.html'; throw new Error('Not signed in'); }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+    return data;
+  }
+  function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), 3200); }
+  function showErr(msg) { const b = $('err-banner'); if (!msg) return b.classList.add('hidden'); b.textContent = msg; b.classList.remove('hidden'); }
+
+  function ago(d) {
+    if (!d) return 'never';
+    const s = Math.max(0, (Date.now() - new Date(d).getTime()) / 1000);
+    if (s < 90) return 'just now'; if (s < 3600) return Math.round(s / 60) + ' min ago';
+    if (s < 86400) return Math.round(s / 3600) + ' h ago'; return Math.round(s / 86400) + ' d ago';
+  }
+  function inLabel(d) {
+    const m = Math.round((new Date(d).getTime() - Date.now()) / 60000);
+    return m <= 0 ? 'now' : m < 90 ? 'in ' + m + ' min' : 'in ' + Math.round(m / 60) + ' h';
+  }
+  function waitLabel(min) { return min < 60 ? `${min} min` : min < 1440 ? `${Math.round(min / 60)} h` : `${Math.round(min / 1440)} d`; }
+  const urgBadge = (u) => `<span class="badge b-${esc(u)}">${esc(u)}</span>`;
+  function statusBadge(s) {
+    const map = { completed: ['b-ok', 'ok'], failed: ['b-bad', 'failed'], missed: ['b-bad', 'missed'], skipped: ['b-mute', 'skipped'], running: ['b-warn', 'running'] };
+    const [cls, label] = map[s] || ['b-mute', s || 'no runs yet'];
+    return `<span class="badge ${cls}">${esc(label)}</span>`;
+  }
+  const empty = (icon, title, sub) => `<div class="glass-card rounded-xl p-10 text-center"><span class="material-symbols-outlined text-[40px] text-zinc-600">${icon}</span><p class="text-zinc-300 font-semibold mt-2">${esc(title)}</p><p class="text-sm text-zinc-500 mt-1">${esc(sub || '')}</p></div>`;
+
+  // ---------------------------------------------------------------- tabs
+  function switchTab(tab, push = true) {
+    if (!TABS.includes(tab)) tab = 'home';
+    state.tab = tab;
+    TABS.forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== tab));
+    document.querySelectorAll('#tab-bar button').forEach((b) => {
+      const on = b.dataset.tab === tab;
+      b.className = 'px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200 ' + (on ? 'tab-active' : 'bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10');
+    });
+    if (push) history.replaceState(null, '', '#' + tab);
+    load(tab);
+    schedulePoll();
+  }
+  function schedulePoll() {
+    clearInterval(pollTimer);
+    pollTimer = setInterval(() => { if (!document.hidden) load(state.tab, true); }, 20000); // active tab only, paused when hidden
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(state.tab, true); });
+  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (TABS.includes(t) && t !== state.tab) switchTab(t, false); });
+  $('tab-bar').addEventListener('click', (e) => { const b = e.target.closest('button[data-tab]'); if (b) switchTab(b.dataset.tab); });
+
+  async function load(tab, quiet) {
+    // the 20s background refresh must not wipe half-typed text, a chosen file or an open form
+    if (quiet && ['memory', 'vault'].includes(tab)) return;
+    if (quiet && tab === 'content' && [...document.querySelectorAll('#tab-content [data-sched]')].some((i) => i.value)) return;
+    try {
+      showErr('');
+      await ({ home: loadHome, inbox: loadInbox, tasks: loadTasks, approvals: loadApprovals, content: loadContent, social: loadSocial, vault: loadVault, routines: loadRoutines, agents: loadAgents, activity: loadActivity, memory: loadMemory }[tab])(quiet);
+    } catch (e) { showErr(e.message); }
+  }
+
+  function setBadge(id, n) { const el = $(id); if (n > 0) { el.textContent = n; el.classList.remove('hidden'); } else el.classList.add('hidden'); }
+
+  // ---------------------------------------------------------------- HOME
+  async function loadHome() {
+    const [brief, acts] = await Promise.all([api('/brief'), api('/activity?limit=8')]);
+    $('dry-run-banner').classList.toggle('hidden', !brief.dryRun);
+    setBadge('badge-tasks', brief.tasks.open); setBadge('badge-approvals', brief.approvals.pending); setBadge('badge-inbox', brief.inbound.unansweredSms);
+    const attention = brief.tasks.top.filter((t) => ['urgent', 'high'].includes(t.urgency)).concat(brief.tasks.top.filter((t) => !['urgent', 'high'].includes(t.urgency))).slice(0, 5);
+    $('tab-home').innerHTML = `
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        ${stat('Needs you', brief.tasks.urgent, 'urgent or high tasks', brief.tasks.urgent ? 'text-amber-300' : 'text-secondary', 'tasks')}
+        ${stat('Waiting on approval', brief.approvals.pending, 'from the owner', brief.approvals.pending ? 'text-amber-300' : 'text-secondary', 'approvals')}
+        ${stat('Customers waiting', brief.inbound.unansweredSms, brief.inbound.unansweredSms ? 'oldest ' + waitLabel(brief.inbound.oldestWaitingMinutes) : 'nobody waiting', brief.inbound.unansweredSms ? 'text-red-300' : 'text-secondary', 'inbox')}
+        ${stat('Routines', brief.routines.total - brief.routines.unhealthy.length + '/' + brief.routines.total, brief.routines.unhealthy.length ? brief.routines.unhealthy.length + ' need a look' : 'all healthy', brief.routines.unhealthy.length ? 'text-red-300' : 'text-secondary', 'routines')}
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="glass-card rounded-xl p-5">
+          <h3 class="text-sm font-bold text-zinc-200 mb-3">What needs attention</h3>
+          ${attention.length ? attention.map((t) => `<div class="flex items-start gap-3 py-2 border-b border-white/5 last:border-0">${urgBadge(t.urgency)}<div class="min-w-0"><p class="text-sm text-zinc-100">${esc(t.title)}</p><p class="text-xs text-zinc-500">${esc(t.customer || t.agent || '')}${t.flagged > 1 ? ` · raised ${t.flagged}×` : ''}</p></div></div>`).join('') : '<p class="text-sm text-zinc-500">Nothing on fire.</p>'}
+        </div>
+        <div class="glass-card rounded-xl p-5">
+          <h3 class="text-sm font-bold text-zinc-200 mb-3">Routines that need a look</h3>
+          ${brief.routines.unhealthy.length ? brief.routines.unhealthy.map((r) => `<div class="flex items-start gap-3 py-2 border-b border-white/5 last:border-0">${statusBadge(r.status)}<div class="min-w-0"><p class="text-sm text-zinc-100">${esc(r.name)}</p><p class="text-xs text-zinc-500">${esc(r.summary || '')}</p></div></div>`).join('') : '<p class="text-sm text-zinc-500">Everything is running on schedule.</p>'}
+        </div>
+        <div class="glass-card rounded-xl p-5 lg:col-span-2">
+          <h3 class="text-sm font-bold text-zinc-200 mb-3">What 5StarFlow has been doing</h3>
+          ${acts.length ? acts.map(actRow).join('') : '<p class="text-sm text-zinc-500">No activity recorded yet.</p>'}
+        </div>
+      </div>`;
+  }
+  const stat = (label, big, sub, cls, tab) => `<button data-goto="${tab}" class="glass-card rounded-xl p-4 text-left hover:bg-white/5 transition-colors"><p class="text-xs text-zinc-500 font-semibold uppercase tracking-wide">${esc(label)}</p><p class="text-3xl font-black ${cls} mt-1">${esc(big)}</p><p class="text-xs text-zinc-500 mt-1">${esc(sub)}</p></button>`;
+  document.addEventListener('click', (e) => { const g = e.target.closest('[data-goto]'); if (g) switchTab(g.dataset.goto); });
+
+  function actRow(a) {
+    const res = { ok: 'b-ok', failed: 'b-bad', skipped: 'b-mute', pending_approval: 'b-warn' }[a.result] || 'b-mute';
+    return `<div class="flex items-start gap-3 py-2 border-b border-white/5 last:border-0">
+      <span class="badge b-normal flex-none">${esc((AGENT_INFO[a.agent] || [a.agent])[0])}</span>
+      <div class="min-w-0 flex-1"><p class="text-sm text-zinc-100">${esc(a.action)} <span class="text-zinc-400">${esc(a.summary || '')}</span></p>
+      ${a.learning ? `<p class="text-xs text-secondary mt-0.5">Learned: ${esc(a.learning)}</p>` : ''}${a.error ? `<p class="text-xs text-red-300 mt-0.5">${esc(a.error)}</p>` : ''}</div>
+      <span class="text-xs text-zinc-500 flex-none">${esc(ago(a.createdAt))}</span>${a.result ? `<span class="badge ${res} flex-none hidden sm:inline-flex">${esc(a.result)}</span>` : ''}</div>`;
+  }
+
+  // ---------------------------------------------------------------- INBOX
+  async function loadInbox() {
+    const rows = await api('/inbox/unanswered-sms');
+    setBadge('badge-inbox', rows.length);
+    $('tab-inbox').innerHTML = `
+      <div class="glass-card rounded-xl p-5 mb-4"><p class="text-sm text-zinc-300"><b>Waiting on No-Bs.</b> Customers whose last text has no human reply after it (automated campaigns, review requests and rain notices do not count as replies). Replies from your personal phone or Jobber are not visible here, so a thread may already be handled.</p></div>
+      ${rows.length ? rows.map((r) => `<div class="glass-card rounded-xl p-4 mb-3 flex items-start gap-4">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap"><p class="text-sm font-semibold text-zinc-100">${esc(r.clientName || r.phone)}</p>${r.clientName ? `<span class="text-xs text-zinc-500">${esc(r.phone)}</span>` : '<span class="badge b-warn">unmatched</span>'}<span class="badge ${r.state === 'ESCALATION_REQUIRED' ? 'b-bad' : r.state === 'FOLLOW_UP_REQUIRED' ? 'b-warn' : 'b-normal'}">${esc(String(r.state || '').replace(/_/g, ' ').toLowerCase())}</span>${r.sentiment && r.sentiment !== 'neutral' ? `<span class="badge ${r.sentiment === 'promoter' ? 'b-ok' : 'b-bad'}">${esc(r.sentiment)}</span>` : ''}</div>
+          <p class="text-sm text-zinc-300 mt-1 break-words">${esc(r.lastMessage)}</p>${r.reason ? `<p class="text-xs text-zinc-500 mt-1">${esc(r.reason)}</p>` : ''}
+        </div>
+        <div class="text-right flex-none"><p class="text-xs font-bold ${r.waitingMinutes > 240 ? 'text-red-300' : 'text-amber-300'}">waiting ${esc(waitLabel(r.waitingMinutes))}</p>
+        <a class="btn inline-block mt-2" href="/marketing.html#inbox">Reply</a></div></div>`).join('') : empty('mark_email_read', 'Nobody is waiting on a reply', 'Every recent text has an answer after it.')}`;
+  }
+
+  // ---------------------------------------------------------------- TASKS
+  async function loadTasks() {
+    const q = state.taskFilter === 'open' ? 'open' : state.taskFilter;
+    const rows = await api('/tasks?status=' + encodeURIComponent(q) + '&limit=100');
+    if (state.taskFilter === 'open') setBadge('badge-tasks', rows.length);
+    const chips = [['open', 'Open'], ['COMPLETED', 'Done'], ['DISMISSED', 'Dismissed']].map(([v, l]) => `<button data-taskfilter="${v}" class="btn ${state.taskFilter === v ? 'btn-go' : ''}">${l}</button>`).join(' ');
+    $('tab-tasks').innerHTML = `<div class="flex gap-2 mb-4">${chips}</div>` + (rows.length ? rows.map((t) => `
+      <div class="glass-card rounded-xl p-4 mb-3" data-task="${esc(t.id)}">
+        <div class="flex items-start gap-3 flex-wrap">
+          ${urgBadge(t.urgency)}<span class="badge b-mute">${esc(t.status.replace('_', ' '))}</span>
+          <div class="flex-1 min-w-[200px]"><p class="text-sm font-semibold text-zinc-100">${esc(t.title)}</p>
+          <p class="text-xs text-zinc-500 mt-0.5">${esc([t.customerName, t.source, t.agent && (AGENT_INFO[t.agent] || [t.agent])[0]].filter(Boolean).join(' · '))}${t.timesFlagged > 1 ? ` · raised ${t.timesFlagged}× since ${esc(ago(t.firstFlaggedAt))}` : ''}</p></div>
+        </div>
+        ${t.reason ? `<p class="text-sm text-zinc-300 mt-2">${esc(t.reason)}</p>` : ''}
+        ${t.whatNeeds ? `<p class="text-sm text-zinc-400 mt-1"><b class="text-zinc-300">Needs:</b> ${esc(t.whatNeeds)}</p>` : ''}
+        ${t.proposedResponse ? `<p class="text-sm text-zinc-400 mt-1 p-2 rounded-lg bg-white/5"><b class="text-zinc-300">Draft reply:</b> ${esc(t.proposedResponse)}</p>` : ''}
+        ${['COMPLETED', 'DISMISSED'].includes(t.status) ? '' : `<div class="flex gap-2 mt-3 flex-wrap">
+          ${t.status === 'NEW' ? '<button class="btn" data-taskact="IN_PROGRESS">Start</button>' : ''}
+          <button class="btn btn-go" data-taskact="COMPLETED">Done</button>
+          <button class="btn btn-no" data-taskact="DISMISSED">Dismiss (stop raising this)</button></div>`}
+      </div>`).join('') : empty('task_alt', 'No tasks here', 'When something needs a human, it shows up in this list once.'));
+  }
+  document.addEventListener('click', async (e) => {
+    const f = e.target.closest('[data-taskfilter]'); if (f) { state.taskFilter = f.dataset.taskfilter; return loadTasks(); }
+    const a = e.target.closest('[data-taskact]');
+    if (a) { const id = a.closest('[data-task]').dataset.task; a.disabled = true;
+      try { await api('/tasks/' + id, { method: 'PATCH', body: { status: a.dataset.taskact } }); toast('Task updated'); await loadTasks(); } catch (err) { toast(err.message); a.disabled = false; } }
+  });
+
+  // ---------------------------------------------------------------- APPROVALS
+  async function loadApprovals() {
+    const { items } = await api('/approvals');
+    setBadge('badge-approvals', items.filter((i) => i.status === 'pending').length);
+    $('tab-approvals').innerHTML = items.length ? items.map((p) => `
+      <div class="glass-card rounded-xl p-4 mb-3" data-approval="${esc(p.id)}">
+        <div class="flex items-center gap-2 flex-wrap"><span class="badge b-normal">${esc(p.category)}</span>${p.code ? `<span class="text-xs text-zinc-500">#${esc(p.code)}</span>` : ''}<span class="badge ${p.status === 'pending' ? 'b-warn' : 'b-ok'}">${esc(p.status)}</span><span class="text-xs text-zinc-500 ml-auto">${p.expiresAt ? 'expires ' + esc(inLabel(p.expiresAt)) : ''}</span></div>
+        <p class="text-sm text-zinc-100 mt-2">${esc(p.summary)}</p>
+        ${p.payload && (p.payload.body || p.payload.text) ? `<p class="text-sm text-zinc-300 mt-2 p-3 rounded-lg bg-white/5 whitespace-pre-wrap break-words">${esc(p.payload.body || p.payload.text)}</p>` : ''}
+        ${p.note ? `<p class="text-xs text-zinc-500 mt-2">${esc(p.note)}</p>` : ''}
+        <div class="flex gap-2 mt-3">${p.actionable ? '<button class="btn btn-go" data-appr="approve">Approve</button><button class="btn btn-no" data-appr="reject">Reject</button>' : ''}${p.href ? `<a class="btn" href="${esc(p.href)}">Open</a>` : ''}</div>
+      </div>`).join('') : empty('verified', 'Nothing waiting on you', 'Anything that needs your OK before going out will appear here (and by text).');
+  }
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-appr]'); if (!b) return;
+    const id = b.closest('[data-approval]').dataset.approval;
+    if (b.dataset.appr === 'approve' && !confirm('Approve this? Approved actions run right away.')) return;
+    b.disabled = true;
+    try { const r = await api(`/approvals/${id}/respond`, { method: 'POST', body: { decision: b.dataset.appr } });
+      toast(r.execution && r.execution.ok === false ? 'Approved, but it failed: ' + r.execution.error : b.dataset.appr === 'approve' ? 'Approved' : 'Rejected'); await loadApprovals(); }
+    catch (err) { toast(err.message); b.disabled = false; }
+  });
+
+
+  // ---------------------------------------------------------------- CONTENT STUDIO
+  const CONTENT_FILTERS = { review: ['rendered', 'qa_failed', 'draft'], queue: ['queued', 'approved'], published: ['published'], rejected: ['rejected'] };
+  async function loadContent() {
+    const [rows, queue] = await Promise.all([api('/content?limit=100'), api('/content/queue?limit=1')]);
+    const need = rows.filter((r) => CONTENT_FILTERS.review.includes(r.status)).length;
+    setBadge('badge-content', need);
+    const list = rows.filter((r) => CONTENT_FILTERS[state.contentFilter].includes(r.status));
+    const chips = [['review', 'Needs review'], ['queue', 'Queued to post'], ['published', 'Published'], ['rejected', 'Rejected']]
+      .map(([v, l]) => `<button data-cfilter="${v}" class="btn ${state.contentFilter === v ? 'btn-go' : ''}">${l} (${rows.filter((r) => CONTENT_FILTERS[v].includes(r.status)).length})</button>`).join(' ');
+    $('tab-content').innerHTML = `
+      <div class="glass-card rounded-xl p-4 mb-4 text-sm text-zinc-300">${queue.autopilot
+        ? '<b>Autopilot is on.</b> Posts that pass QA go to the queue and are published by the Social agent within the daily caps. Reject anything you do not want out.'
+        : '<b>Approval mode.</b> Nothing is posted until you approve it here.'}</div>
+      <div class="flex gap-2 mb-4 flex-wrap">${chips}</div>` +
+      (list.length ? list.map(contentCard).join('') : empty('palette', 'Nothing here', state.contentFilter === 'review' ? 'New graphics from the Content Director appear here for a quick look.' : ''));
+  }
+  const qaBadges = (qa) => !qa ? '' : [...(qa.errors || []).map((e) => `<span class="badge b-bad">${esc(e)}</span>`), ...(qa.warnings || []).map((w) => `<span class="badge b-warn">${esc(w)}</span>`)].join(' ');
+  function contentCard(c) {
+    const imgs = (c.assetIds || []).map((id) => `<img loading="lazy" src="${API}/assets/${esc(id)}" alt="" class="rounded-lg w-40 flex-none border border-white/10">`).join('');
+    const open = ['rendered', 'queued', 'qa_failed', 'draft'].includes(c.status);
+    const canReject = open || c.status === 'approved';
+    return `<div class="glass-card rounded-xl p-4 mb-4" data-content="${esc(c.id)}">
+      <div class="flex gap-4 flex-wrap sm:flex-nowrap">
+        <div class="flex gap-2 overflow-x-auto max-w-full sm:max-w-[360px] flex-none">${imgs || '<div class="w-40 h-52 rounded-lg bg-white/5 flex items-center justify-center text-xs text-zinc-500">not rendered</div>'}</div>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 flex-wrap"><span class="badge b-normal">${esc(c.layout || c.format)}</span><span class="badge b-mute">${esc((c.platforms || []).join(' + '))}</span><span class="badge ${c.status === 'qa_failed' ? 'b-bad' : c.status === 'queued' || c.status === 'approved' ? 'b-ok' : 'b-warn'}">${esc(c.status.replace('_', ' '))}</span>${c.scheduledFor ? `<span class="text-xs text-zinc-500">for ${esc(new Date(c.scheduledFor).toLocaleString())}</span>` : ''}</div>
+          <p class="text-sm font-semibold text-zinc-100 mt-2">${esc(c.title)}</p>
+          <p class="text-sm text-zinc-300 mt-2 whitespace-pre-wrap break-words p-3 rounded-lg bg-white/5">${esc(c.caption)}</p>
+          ${c.grounding ? `<p class="text-xs text-zinc-500 mt-2">Source: ${esc(c.grounding)}</p>` : ''}
+          ${c.note ? `<p class="text-xs text-amber-300 mt-2">Note: ${esc(c.note)}</p>` : ''}
+          ${c.postUrl ? `<p class="text-xs mt-2"><a class="text-primary" target="_blank" rel="noopener" href="${esc(c.postUrl)}">View post</a></p>` : ''}
+          <div class="flex gap-1 flex-wrap mt-2">${qaBadges(c.qa)}</div>
+          ${open ? `<div class="flex gap-2 mt-3 flex-wrap items-center">
+            ${c.status !== 'qa_failed' && (c.assetIds || []).length ? '<button class="btn btn-go" data-cact="approve">Approve</button>' : ''}
+            <input type="datetime-local" class="bg-zinc-900 border border-white/10 rounded-lg text-xs text-zinc-200 py-1 px-2" data-sched>
+            <button class="btn" data-cact="schedule">Approve + schedule</button>
+            <button class="btn" data-cact="render">Re-render</button>
+            <button class="btn" data-cact="edit">Edit caption</button>
+            <button class="btn btn-no" data-cact="reject">Reject</button></div>` : canReject ? '<div class="flex gap-2 mt-3"><button class="btn btn-no" data-cact="reject">Reject (pull from queue)</button></div>' : ''}
+        </div>
+      </div></div>`;
+  }
+  document.addEventListener('click', async (e) => {
+    const f = e.target.closest('[data-cfilter]'); if (f) { state.contentFilter = f.dataset.cfilter; return loadContent(); }
+    const b = e.target.closest('[data-cact]'); if (!b) return;
+    const card = b.closest('[data-content]'), id = card.dataset.content, act = b.dataset.cact;
+    try {
+      b.disabled = true;
+      if (act === 'approve') { await api(`/content/${id}/approve`, { method: 'POST', body: {} }); toast('Approved'); }
+      if (act === 'schedule') { const v = card.querySelector('[data-sched]').value; if (!v) { toast('Pick a date and time'); b.disabled = false; return; } await api(`/content/${id}/approve`, { method: 'POST', body: { scheduledFor: new Date(v).toISOString() } }); toast('Scheduled'); }
+      if (act === 'render') { const r = await api(`/content/${id}/render`, { method: 'POST' }); toast(r.qa && !r.qa.ok ? 'QA failed: ' + r.qa.errors[0] : 'Re-rendered'); }
+      if (act === 'reject') { const note = prompt('What should change? (the Content Director reads this)', ''); if (note === null) { b.disabled = false; return; } await api(`/content/${id}/reject`, { method: 'POST', body: { note } }); toast('Rejected'); }
+      if (act === 'edit') {
+        const cur = card.querySelector('p.whitespace-pre-wrap').textContent; const v = prompt('Caption', cur); if (v === null) { b.disabled = false; return; }
+        await api('/content/' + id, { method: 'PATCH', body: { caption: v } }); await api(`/content/${id}/render`, { method: 'POST' }); toast('Saved and re-rendered');
+      }
+      await loadContent();
+    } catch (err) { toast(err.message); b.disabled = false; }
+  });
+
+  // ---------------------------------------------------------------- SOCIAL
+  async function loadSocial() {
+    const [b, groups, actions] = await Promise.all([api('/social/budget'), api('/social/groups'), api('/social/actions?limit=25')]);
+    const kinds = Object.keys(b.caps);
+    const meter = (m) => `<div class="mb-2"><div class="flex justify-between text-xs text-zinc-400"><span>${esc(m.k.replace('_', ' '))}</span><span>${m.used}/${m.cap}</span></div><div class="h-1.5 rounded-full bg-white/10"><div class="h-1.5 rounded-full ${m.used >= m.cap ? 'bg-red-400' : 'bg-secondary'}" style="width:${Math.min(100, (m.used / m.cap) * 100)}%"></div></div></div>`;
+    const plat = (p) => `<div class="glass-card rounded-xl p-4"><h3 class="text-sm font-bold text-zinc-200 mb-3 capitalize">${p} today</h3>${kinds.map((k) => meter({ k, ...b.budget[p][k] })).join('')}</div>`;
+    const memb = { member: 'b-ok', requested: 'b-warn', unknown: 'b-mute', declined: 'b-bad', banned: 'b-bad', left: 'b-mute' };
+    $('tab-social').innerHTML = `
+      <p class="text-sm text-zinc-500 mb-4">Daily caps are enforced by the server, not the agent's good intentions. ${esc(b.date)}.</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">${plat('facebook')}${plat('instagram')}</div>
+      <div class="glass-card rounded-xl p-5 mb-6"><h3 class="text-sm font-bold text-zinc-200 mb-3">Groups (${groups.length})</h3>
+        ${groups.length ? `<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-zinc-500"><th class="py-1 pr-3">Group</th><th class="pr-3">Status</th><th class="pr-3">Promo</th><th class="pr-3">Last post</th><th class="pr-3">Posts</th><th>Leads</th></tr></thead><tbody>${groups.map((g) => `<tr class="border-t border-white/5"><td class="py-2 pr-3 text-zinc-100">${esc(g.name)}${g.promoNotes ? `<div class="text-xs text-zinc-500">${esc(g.promoNotes)}</div>` : ''}</td><td class="pr-3"><span class="badge ${memb[g.membership] || 'b-mute'}">${esc(g.membership)}</span></td><td class="pr-3 text-zinc-300">${esc(g.promoPolicy)}</td><td class="pr-3 text-zinc-400">${g.lastPostedAt ? esc(ago(g.lastPostedAt)) : '—'}</td><td class="pr-3 text-zinc-300">${g.postsCount}</td><td class="text-zinc-300">${g.leads}</td></tr>`).join('')}</tbody></table></div>` : '<p class="text-sm text-zinc-500">No groups recorded yet. The Social agent adds each group (with its rules) the first time it visits.</p>'}</div>
+      <div class="glass-card rounded-xl p-5"><h3 class="text-sm font-bold text-zinc-200 mb-3">Recent actions</h3>
+        ${actions.length ? actions.map((a) => `<div class="flex items-start gap-3 py-2 border-b border-white/5 last:border-0 text-sm"><span class="badge b-normal flex-none">${esc(a.platform)}</span><span class="text-zinc-300 flex-1 min-w-0 break-words">${esc(a.kind.replace('_', ' '))}${a.target ? ' · ' + esc(a.target) : ''}${a.summary ? ' · ' + esc(a.summary) : ''}</span><span class="text-xs text-zinc-500 flex-none">${esc(ago(a.createdAt))}</span></div>`).join('') : '<p class="text-sm text-zinc-500">No social actions yet.</p>'}</div>`;
+  }
+
+  // ---------------------------------------------------------------- VAULT
+  const VAULT_TAGS = ['PATIOS', 'SOD', 'LAWNS', 'FALL', 'SNOW', 'COMMERCIAL', 'CREW', 'EQUIPMENT', 'BEFORE', 'AFTER', 'LANDSCAPING', 'DRAINAGE'];
+  async function loadVault() {
+    const q = new URLSearchParams({ limit: '120', kind: 'photo' }); if (state.vaultTag) q.set('tag', state.vaultTag);
+    const rows = await api('/assets?' + q);
+    $('tab-vault').innerHTML = `
+      <div class="glass-card rounded-xl p-4 mb-4">
+        <p class="text-sm text-zinc-300 mb-3">Your real job photos. The Content Director uses these instead of stock or AI images. Tags are added automatically from the file name; add your own below.</p>
+        <div class="flex gap-2 flex-wrap items-center"><input type="file" id="v-files" accept="image/png,image/jpeg,image/webp" multiple class="text-sm text-zinc-300"><input id="v-tags" placeholder="extra tags, comma separated" class="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-zinc-100 flex-1 min-w-[160px]"><button class="btn btn-go" id="v-upload">Upload</button></div>
+        <p id="v-status" class="text-xs text-zinc-500 mt-2"></p></div>
+      <div class="flex gap-1.5 flex-wrap mb-4"><button data-vtag="" class="btn ${state.vaultTag ? '' : 'btn-go'}">All</button>${VAULT_TAGS.map((t) => `<button data-vtag="${t}" class="btn ${state.vaultTag === t ? 'btn-go' : ''}">${t}</button>`).join('')}</div>
+      ${rows.length ? `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">${rows.map((a) => `<div class="glass-card rounded-xl overflow-hidden" data-asset="${esc(a.id)}"><img loading="lazy" src="${API}/assets/${esc(a.id)}" alt="${esc(a.name)}" class="w-full aspect-square object-cover"><div class="p-2"><p class="text-xs text-zinc-300 truncate">${esc(a.name)}</p><div class="flex gap-1 flex-wrap mt-1">${(a.tags || []).slice(0, 4).map((t) => `<span class="badge b-mute">${esc(t)}</span>`).join('')}</div><div class="flex justify-between mt-1"><span class="text-[10px] text-zinc-500">${a.kind}${a.width ? ' · ' + a.width + '×' + a.height : ''}</span><button class="text-[10px] text-red-300" data-adel>delete</button></div></div></div>`).join('')}</div>` : empty('photo_library', 'No photos yet', 'Upload before/after shots, crew and equipment photos to give the AI real material.')}`;
+  }
+  const fileToB64 = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
+  document.addEventListener('click', async (e) => {
+    const t = e.target.closest('[data-vtag]'); if (t) { state.vaultTag = t.dataset.vtag; return loadVault(); }
+    const d = e.target.closest('[data-adel]');
+    if (d && confirm('Delete this photo? Posts already rendered from it keep their graphics.')) { try { await api('/assets/' + d.closest('[data-asset]').dataset.asset, { method: 'DELETE' }); loadVault(); } catch (err) { toast(err.message); } }
+    if (e.target.id === 'v-upload') {
+      const files = [...$('v-files').files]; if (!files.length) return toast('Choose one or more photos');
+      const tags = $('v-tags').value.split(',').map((x) => x.trim()).filter(Boolean); const st = $('v-status'); let ok = 0, dup = 0; const errs = [];
+      for (const [i, f] of files.entries()) {
+        st.textContent = `Uploading ${i + 1} of ${files.length}…`;
+        try { const r = await api('/assets', { method: 'POST', body: { name: f.name, base64: await fileToB64(f), tags } }); r.duplicate ? dup++ : ok++; } catch (err) { errs.push(f.name + ': ' + err.message); }
+      }
+      toast(`${ok} added${dup ? `, ${dup} already in the vault` : ''}${errs.length ? `, ${errs.length} failed` : ''}`);
+      await loadVault();
+      if (errs.length) $('v-status').textContent = errs.join(' · ');
+    }
+  });
+
+  // ---------------------------------------------------------------- ROUTINES
+  async function loadRoutines() {
+    const rows = await api('/routines');
+    const order = (r) => (['failed', 'missed'].includes(r.lastStatus) ? 0 : r.enabled ? 1 : 2);
+    rows.sort((a, b) => order(a) - order(b) || a.name.localeCompare(b.name));
+    const kind = { backend: 'Backend', claude_cloud: 'Claude (cloud)', claude_desktop: 'Claude (MSI PC)', zapier: 'Zapier' };
+    $('tab-routines').innerHTML = `<p class="text-sm text-zinc-500 mb-4">Everything that runs for the business. Backend jobs report automatically. Claude routines report in once their prompt calls the AI API; until then they show as "no runs yet".</p>` +
+      rows.map((r) => `
+      <div class="glass-card rounded-xl p-4 mb-3" data-routine="${esc(r.slug)}">
+        <div class="flex items-start gap-3 flex-wrap">
+          <span class="dot mt-1.5 ${r.enabled ? (['failed', 'missed'].includes(r.lastStatus) ? 'bg-red-400' : 'bg-secondary') : 'bg-zinc-600'}"></span>
+          <div class="flex-1 min-w-[220px]">
+            <p class="text-sm font-semibold text-zinc-100">${esc(r.name)} ${r.enabled ? '' : '<span class="badge b-mute ml-1">paused</span>'}</p>
+            <p class="text-xs text-zinc-500 mt-0.5">${esc(kind[r.kind] || r.kind)} · ${esc((AGENT_INFO[r.agent] || [r.agent])[0])} · ${esc(r.schedule || 'on demand')}</p>
+            <p class="text-xs text-zinc-400 mt-1">${esc(r.purpose)}</p>
+          </div>
+          <div class="text-right"><p>${statusBadge(r.lastStatus)}</p><p class="text-xs text-zinc-500 mt-1">${r.lastRunAt ? 'last ' + esc(ago(r.lastRunAt)) : 'not reporting yet'}</p></div>
+        </div>
+        ${r.lastSummary && !r.lastError ? `<p class="text-xs text-zinc-300 mt-2">${esc(r.lastSummary)}</p>` : ''}${r.lastError ? `<p class="text-xs text-red-300 mt-1">${esc(r.lastError)}</p>` : ''}
+        <div class="flex gap-2 mt-3 flex-wrap items-center">
+          <button class="btn" data-rt="runs">Recent runs</button>
+          ${r.runnable ? '<button class="btn btn-go" data-rt="run">Run now</button>' : ''}
+          <button class="btn" data-rt="toggle">${r.enabled ? 'Pause' : 'Resume'}</button>
+          <label class="text-xs text-zinc-500 ml-auto flex items-center gap-2">Autonomy
+            <select data-rt="autonomy" class="bg-zinc-900 border border-white/10 rounded-lg text-xs text-zinc-200 py-1 pl-2 pr-7">${['read', 'draft', 'approve', 'execute'].map((a) => `<option value="${a}" ${r.autonomy === a ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
+        </div>
+        <div class="hidden mt-3" data-runs></div>
+      </div>`).join('');
+  }
+  document.addEventListener('change', async (e) => {
+    const s = e.target.closest('select[data-rt="autonomy"]'); if (!s) return;
+    try { await api('/routines/' + s.closest('[data-routine]').dataset.routine, { method: 'PATCH', body: { autonomy: s.value } }); toast('Autonomy set to ' + s.value); } catch (err) { toast(err.message); }
+  });
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-rt]'); if (!b) return;
+    const card = b.closest('[data-routine]'), slug = card.dataset.routine, act = b.dataset.rt;
+    try {
+      if (act === 'toggle') { await api('/routines/' + slug, { method: 'PATCH', body: { enabled: b.textContent.trim() === 'Resume' } }); await loadRoutines(); }
+      if (act === 'run') { if (!confirm('Run this now? It runs the same code as its schedule.')) return; b.disabled = true; b.textContent = 'Running…'; const r = await api(`/routines/${slug}/run`, { method: 'POST' }); toast(r.skipped ? 'Already running' : (r.result && r.result.summary) || 'Done'); await loadRoutines(); }
+      if (act === 'runs') {
+        const box = card.querySelector('[data-runs]'); if (!box.classList.contains('hidden')) return box.classList.add('hidden');
+        const { runs } = await api('/routines/' + slug);
+        box.innerHTML = runs.length ? runs.map((r) => `<div class="flex items-center gap-3 py-1.5 text-xs border-b border-white/5 last:border-0">${statusBadge(r.status)}<span class="text-zinc-400 w-24 flex-none">${esc(ago(r.startedAt))}</span><span class="text-zinc-300 flex-1 min-w-0 truncate">${esc(r.summary || r.error || '')}</span><span class="text-zinc-600 flex-none">${esc(r.source)}${r.durationMs != null ? ' · ' + Math.round(r.durationMs / 100) / 10 + 's' : ''}</span></div>`).join('') : '<p class="text-xs text-zinc-500">No runs recorded yet (quiet jobs only record runs that found or did something).</p>';
+        box.classList.remove('hidden');
+      }
+    } catch (err) { toast(err.message); if (b) b.disabled = false; }
+  });
+
+  // ---------------------------------------------------------------- AGENTS
+  async function loadAgents() {
+    const [routines, tasks, acts] = await Promise.all([api('/routines'), api('/tasks?status=open&limit=200'), api('/activity?limit=200')]);
+    $('tab-agents').innerHTML = '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">' + Object.entries(AGENT_INFO).map(([k, [name, mission, icon]]) => {
+      const rs = routines.filter((r) => r.agent === k), ts = tasks.filter((t) => t.agent === k), last = acts.find((a) => a.agent === k);
+      const bad = rs.filter((r) => ['failed', 'missed'].includes(r.lastStatus)).length;
+      return `<div class="glass-card rounded-xl p-5"><div class="flex items-center gap-3 mb-2"><span class="material-symbols-outlined text-primary">${icon}</span><h3 class="text-sm font-bold text-zinc-100">${esc(name)}</h3>${bad ? `<span class="badge b-bad ml-auto">${bad} failing</span>` : ''}</div>
+        <p class="text-xs text-zinc-400 mb-3">${esc(mission)}</p>
+        <p class="text-xs text-zinc-500">${rs.length} routine${rs.length === 1 ? '' : 's'} · ${ts.length} open task${ts.length === 1 ? '' : 's'}</p>
+        <p class="text-xs text-zinc-500 mt-1 truncate">${last ? 'Last: ' + esc(last.action) + ' (' + esc(ago(last.createdAt)) + ')' : 'No activity yet'}</p></div>`;
+    }).join('') + '</div>';
+  }
+
+  // ---------------------------------------------------------------- ACTIVITY
+  async function loadActivity() {
+    const rows = await api('/activity?limit=100');
+    $('tab-activity').innerHTML = rows.length ? `<div class="glass-card rounded-xl p-5">${rows.map(actRow).join('')}</div>` : empty('history', 'Nothing yet', 'Actions, results and what was learned will be recorded here.');
+  }
+
+  // ---------------------------------------------------------------- MEMORY
+  async function loadMemory() {
+    const p = new URLSearchParams({ limit: '100' }); if (state.memScope) p.set('scope', state.memScope); if (state.memQ) p.set('q', state.memQ);
+    const rows = await api('/memory?' + p);
+    $('tab-memory').innerHTML = `
+      <div class="flex gap-2 mb-4 flex-wrap">
+        <input id="mem-q" value="${esc(state.memQ)}" placeholder="Search memory" class="flex-1 min-w-[160px] bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-zinc-100">
+        <select id="mem-scope" class="bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-zinc-200">${[['', 'All scopes'], ['rule', 'Rules'], ['business', 'Business'], ['brand', 'Brand'], ['customer:*', 'Customers'], ['agent:*', 'Agents'], ['routine:*', 'Routines'], ['channel:*', 'Channels'], ['group:*', 'Groups']].map(([v, l]) => `<option value="${v}" ${state.memScope === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      </div>
+      <details class="glass-card rounded-xl p-4 mb-4"><summary class="text-sm font-semibold text-zinc-200 cursor-pointer">Teach it something</summary>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3"><input id="mn-scope" placeholder="scope (rule, business, brand…)" class="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-zinc-100"><input id="mn-key" placeholder="short name" class="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-zinc-100"><button class="btn btn-go" id="mn-save">Save</button></div>
+        <textarea id="mn-value" rows="2" placeholder="What should every agent remember?" class="w-full mt-2 bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-zinc-100"></textarea></details>
+      ${rows.length ? rows.map((m) => `<div class="glass-card rounded-xl p-4 mb-2 flex items-start gap-3" data-mem="${esc(m.id)}"><div class="flex-1 min-w-0"><p class="text-xs text-zinc-500"><span class="badge b-normal">${esc(m.scope)}</span> ${esc(m.key)} · confidence ${Math.round(m.confidence * 100)}%${m.agent ? ' · ' + esc(m.agent) : ''}</p><p class="text-sm text-zinc-200 mt-1 break-words">${esc(m.value)}</p></div><button class="btn btn-no flex-none" data-memdel>Forget</button></div>`).join('') : empty('psychology', 'Nothing remembered yet', 'Only durable facts that improve future decisions are kept: customer preferences, rules, what worked.')}`;
+  }
+  document.addEventListener('input', (e) => { if (e.target.id === 'mem-q') { state.memQ = e.target.value; clearTimeout(loadMemory._t); loadMemory._t = setTimeout(loadMemory, 350); } });
+  document.addEventListener('change', (e) => { if (e.target.id === 'mem-scope') { state.memScope = e.target.value; loadMemory(); } });
+  document.addEventListener('click', async (e) => {
+    if (e.target.id === 'mn-save') {
+      try { await api('/memory', { method: 'POST', body: { scope: $('mn-scope').value.trim(), key: $('mn-key').value.trim(), value: $('mn-value').value.trim(), source: 'owner', confidence: 1 } }); toast('Saved'); loadMemory(); } catch (err) { toast(err.message); }
+    }
+    const d = e.target.closest('[data-memdel]');
+    if (d && confirm('Forget this?')) { try { await api('/memory/' + d.closest('[data-mem]').dataset.mem, { method: 'DELETE' }); loadMemory(); } catch (err) { toast(err.message); } }
+  });
+
+  // ---------------------------------------------------------------- shell (same helpers as the other dashboard pages)
+  async function logout() { try { const r = await fetch('/auth/logout', { method: 'POST' }); const d = await r.json(); window.location.href = d.redirect || '/login.html'; } catch { window.location.href = '/login.html'; } }
+  function openMobSidebar() { document.querySelector('aside').classList.add('mob-open'); $('mob-sidebar-backdrop').style.display = 'block'; }
+  function closeMobSidebar() { document.querySelector('aside').classList.remove('mob-open'); $('mob-sidebar-backdrop').style.display = 'none'; }
+
+  (async function init() {
+    try {
+      const res = await fetch('/api/admin/me', { credentials: 'include' });
+      if (res.status === 401) return (window.location.href = '/login.html');
+      const me = await res.json();
+      $('user-email').textContent = me.email || ''; $('user-avatar').textContent = (me.email || '?').charAt(0).toUpperCase();
+      $('user-role').textContent = me.role === 'admin' ? 'Administrator' : 'Client';
+      if (me.role !== 'admin') {
+        document.querySelector('main').innerHTML = '<div class="glass-card rounded-xl p-10 text-center mt-10"><p class="text-zinc-200 font-semibold">AI Command is available to administrators.</p></div>';
+        return;
+      }
+      $('admin-nav-link').classList.remove('hidden');
+    } catch {}
+    switchTab(location.hash.slice(1) || 'home', false);
+  })();
+</script>
+</body>
+</html>

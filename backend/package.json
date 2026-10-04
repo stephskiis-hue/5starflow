@@ -18,7 +18,8 @@
     "railway:logs:latest": "railway logs --latest -n 200",
     "railway:http-logs": "railway logs --http --latest -n 200",
     "railway:deploy": "railway up",
-    "railway:deploy:ci": "railway up --ci"
+    "railway:deploy:ci": "railway up --ci",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.79.0",
@@ -41,5 +42,8 @@
     "@railway/cli": "^4.36.1",
     "nodemon": "^3.1.0",
     "prisma": "^5.22.0"
+  },
+  "optionalDependencies": {
+    "@sparticuz/chromium": "^153.0.0"
   }
 }

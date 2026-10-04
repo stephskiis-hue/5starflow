@@ -270,6 +270,11 @@ model TwilioCredential {
   accountSid  String
   authToken   String
   fromNumber  String
+  // Optional Twilio Messaging Service SID (MG...). When set it is used INSTEAD of
+  // fromNumber: Twilio then picks a sender from the service's pool, so throughput
+  // scales with the number of senders instead of being capped at one long code's
+  // ~1 segment/sec, and Twilio manages the send queue itself.
+  messagingServiceSid String?
   notifyPhone String?           // admin's personal mobile — gets SMS when client replies Y/N
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -444,13 +449,27 @@ model MarketingMessage {
   firstName       String
   phone           String?
   body            String            @default("")  // resolved message body ({firstName} replaced)
-  status          String            @default("pending") // pending | sent | failed | retrying | skipped
+  segments        Int               @default(1)   // SMS segments this body costs (see calculateSegments)
+  encoding        String?           // "GSM-7" | "UCS-2" — what forced the segment count
+
+  // --- Dispatch state: OUR lifecycle, written only by the dispatcher/retry worker ---
+  // pending | queued | failed | retrying | skipped
+  //   queued = Twilio ACCEPTED the API call and returned a SID. It is NOT delivered.
+  //   Legacy rows may still carry "sent", which means exactly the same thing.
+  status          String            @default("pending")
   attempts        Int               @default(0)
   messageSid      String?
   error           String?
-  sentAt          DateTime?
+  sentAt          DateTime?         // when Twilio accepted the API call (NOT delivery time)
   lastAttemptAt   DateTime?
   nextRetryAt     DateTime?
+
+  // --- Delivery state: TWILIO's lifecycle, written only by the status callback ---
+  // null (no receipt yet) | queued | sending | sent | delivered | undelivered | failed
+  deliveryStatus   String?
+  deliveredAt      DateTime?        // set when deliveryStatus first becomes "delivered"
+  carrierErrorCode String?          // Twilio ErrorCode from the receipt (e.g. 30007 carrier filtered)
+
   replyBody       String?           // client's reply text (set when inbound SMS is matched)
   replyReceivedAt DateTime?         // when the reply arrived
   createdAt       DateTime          @default(now())
@@ -461,6 +480,7 @@ model MarketingMessage {
   @@index([status, nextRetryAt])
   @@index([userId, status])
   @@index([phone, status])
+  @@index([campaignId, deliveryStatus])
 }
 
 // ---------------------------------------------------------------------------
@@ -555,8 +575,283 @@ model OperatorProposal {
   executedAt    DateTime?
   result        Json?                                     // outcome payload (zapier response, error, etc.)
   expiresAt     DateTime
+  dedupKey      String?                                   // idempotency key so a re-run doesn't propose the same thing twice
+  routineSlug   String?                                   // which Routine/agent created it
+  runId         String?                                   // RoutineRun.id that created it
+  createdBy     String?                                   // agent name or "owner"
 
   @@unique([userId, shortCode])
+  @@unique([userId, dedupKey])
   @@index([userId, status])
   @@index([status, expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// AI Operating System — registry, run ledger, tasks, memory, activity.
+// Every background job and every Claude routine is a Routine; every execution is a RoutineRun.
+// All rows are scoped by userId (the portal tenant). See backend/ai/*.
+// ---------------------------------------------------------------------------
+
+// One registry row per routine (backend scheduler, Claude cloud routine, desktop routine, Zapier action).
+model Routine {
+  id                   String       @id @default(cuid())
+  userId               String
+  slug                 String                                  // stable kebab-case id, e.g. "jobber-token-refresh"
+  name                 String
+  kind                 String                                  // backend | claude_cloud | claude_desktop | zapier
+  agent                String       @default("system")         // orchestrator | communication | operations | research | content | design | social | qa | system
+  category             String       @default("operations")
+  purpose              String       @default("")
+  trigger              String       @default("schedule")       // schedule | webhook | manual | event
+  schedule             String?                                 // cron string or human-readable
+  timezone             String       @default("America/Winnipeg")
+  enabled              Boolean      @default(true)
+  expectedEveryMinutes Int?                                    // heartbeat: longest acceptable gap between runs (null = not monitored)
+  approvalRequired     Boolean      @default(false)
+  learningEnabled      Boolean      @default(true)
+  researchEnabled      Boolean      @default(false)
+  autonomy             String       @default("approve")        // read | draft | approve | execute
+  externalId           String?                                 // Claude routine trigger id (trig_...)
+  config               Json?                                   // inputs/outputs/retry policy/notes
+  lastRunAt            DateTime?
+  lastStatus           String?
+  lastSummary          String?
+  lastError            String?
+  nextRunAt            DateTime?
+  consecutiveFailures  Int          @default(0)
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  runs                 RoutineRun[]
+
+  @@unique([userId, slug])
+  @@index([userId, agent])
+}
+
+// One row per execution. result holds the standard structured return value.
+model RoutineRun {
+  id                String    @id @default(cuid())
+  routineId         String
+  routine           Routine   @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  userId            String
+  status            String    @default("running")             // running | completed | failed | skipped | missed
+  trigger           String    @default("schedule")            // schedule | manual | api | heartbeat
+  source            String    @default("backend")             // backend | claude
+  startedAt         DateTime  @default(now())
+  finishedAt        DateTime?
+  durationMs        Int?
+  summary           String?
+  itemsFound        Int?
+  requiresAttention Int?
+  result            Json?                                     // { items_found, requires_attention, high_priority, summary, actions_taken[], learnings[], research_findings[], items[] }
+  errorClass        String?                                   // rate_limit | throttled | auth | network | validation | unknown
+  error             String?
+
+  @@index([routineId, startedAt])
+  @@index([userId, startedAt])
+  @@index([userId, status])
+}
+
+// Things that need a human. dedupKey makes creation idempotent ("never create duplicate tasks").
+model Task {
+  id               String    @id @default(cuid())
+  userId           String
+  dedupKey         String
+  title            String
+  reason           String    @default("")
+  source           String    @default("system")                // sms | gmail | website | routine | social | opslog | owner ...
+  customerName     String?
+  customerKey      String?                                     // jobberClientId, phone or email
+  context          Json?
+  whatHappened     String    @default("")
+  whatNeeds        String    @default("")
+  recommended      String    @default("")
+  proposedResponse String    @default("")
+  urgency          String    @default("normal")                // low | normal | high | urgent
+  status           String    @default("NEW")                   // NEW | IN_PROGRESS | WAITING | APPROVAL | COMPLETED | DISMISSED
+  agent            String?
+  routineSlug      String?
+  timesFlagged     Int       @default(1)
+  firstFlaggedAt   DateTime  @default(now())
+  lastFlaggedAt    DateTime  @default(now())
+  dueAt            DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([userId, dedupKey])
+  @@index([userId, status])
+  @@index([userId, urgency, status])
+}
+
+// Selective, durable knowledge. Upsert-only by (userId, scope, key) so it can't fill with duplicates.
+model Memory {
+  id         String    @id @default(cuid())
+  userId     String
+  scope      String                                            // business | brand | customer:<id> | agent:<name> | routine:<slug> | channel:<name> | group:<id> | rule
+  key        String
+  value      String
+  confidence Float     @default(0.8)
+  source     String?                                           // run id, task id, "owner", "opslog-import"
+  agent      String?
+  hits       Int       @default(0)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([userId, scope, key])
+  @@index([userId, scope])
+}
+
+// Human-readable "what has 5StarFlow been doing" feed (separate from the technical AppLog).
+model AgentActivity {
+  id          String   @id @default(cuid())
+  userId      String
+  agent       String
+  routineSlug String?
+  runId       String?
+  action      String                                           // short verb phrase: "posted to group", "created task", "rendered graphic"
+  summary     String
+  source      String?                                          // sms | gmail | facebook | jobber | system ...
+  result      String?                                          // ok | failed | skipped | pending_approval
+  tool        String?
+  approval    String?                                          // none | auto | approved | pending | rejected
+  learning    String?
+  customerRef String?
+  error       String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, agent, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Content engine + social (M2). Vault = the owner's real photos and every rendered graphic.
+// ---------------------------------------------------------------------------
+
+// Photos, rendered graphics, logos, references. Bytes live in Postgres (small business scale; dedup by sha256).
+model ContentAsset {
+  id            String   @id @default(cuid())
+  userId        String
+  kind          String   @default("photo")                   // photo | graphic | logo | reference | screenshot
+  name          String
+  mime          String
+  bytes         Bytes
+  size          Int
+  sha256        String
+  width         Int?
+  height        Int?
+  tags          String   @default("[]")                      // JSON array: PATIOS, SOD, FALL, BEFORE, AFTER, CREW ...
+  source        String   @default("upload")                  // upload | render | import
+  notes         String?
+  contentItemId String?                                      // set for rendered graphics
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, sha256])
+  @@index([userId, kind])
+  @@index([contentItemId])
+}
+
+// One piece of marketing content from idea to measured result.
+model ContentItem {
+  id            String    @id @default(cuid())
+  userId        String
+  status        String    @default("draft")                  // idea | draft | rendered | qa_failed | queued | approved | published | rejected | failed
+  title         String
+  pillar        String?                                      // tip | proof | review | faq | offer | founder | story | group | seasonal
+  format        String    @default("post")                   // post | carousel | story | reel_cover | group_post
+  layout        String?                                      // design-system layout name
+  platforms     String    @default("[\"facebook\"]")         // JSON array: facebook | instagram | group
+  slots         Json?                                        // renderer slots; carousels: { slides: [{layout, slots}] }
+  caption       String    @default("")                       // Facebook / group text
+  captionIg     String?                                      // Instagram caption incl. hashtags
+  groupId       String?                                      // SocialGroup.id for group posts
+  assetIds      Json?                                        // rendered ContentAsset ids, in order
+  qa            Json?                                        // { ok, errors[], warnings[] }
+  grounding     String?                                      // where the facts came from (real review URL, blog post, job)
+  source        String?                                      // routine slug that created it
+  scheduledFor  DateTime?
+  approvedAt    DateTime?
+  publishedAt   DateTime?
+  postUrl       String?
+  publishedOn   Json?                                        // { facebook: { postUrl, at }, instagram: { ... } } — one entry per platform actually posted
+  metrics       Json?                                        // { reach, reactions, comments, shares, leads, capturedAt }
+  note          String?                                      // owner's edit/reject note, fed back to the Content Director
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, scheduledFor])
+}
+
+// Facebook groups (and similar communities): rules, promo policy and what we've learned.
+model SocialGroup {
+  id             String    @id @default(cuid())
+  userId         String
+  platform       String    @default("facebook")
+  name           String
+  url            String?
+  location       String?
+  audience       String?
+  relevance      Int       @default(3)                       // 1-5, how useful for leads
+  membership     String    @default("unknown")               // unknown | requested | member | declined | left | banned
+  rules          String    @default("")
+  promoPolicy    String    @default("unknown")               // unknown | allowed | restricted | banned
+  promoNotes     String    @default("")                      // e.g. "promo posts Fri-Sun only"
+  cooldownDays   Int       @default(14)
+  topics         String    @default("")
+  notes          String    @default("")
+  leads          Int       @default(0)
+  postsCount     Int       @default(0)
+  lastCheckedAt  DateTime?
+  lastPostedAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([userId, platform, name])
+  @@index([userId, membership])
+}
+
+// Every outward social action. Daily caps are enforced against this table (GET /social/budget).
+model SocialAction {
+  id            String   @id @default(cuid())
+  userId        String
+  platform      String                                       // facebook | instagram
+  kind          String                                       // comment | dm | like | follow | group_join | group_post | page_post | story | reply
+  target        String?
+  groupId       String?
+  contentItemId String?
+  summary       String   @default("")
+  status        String   @default("done")                    // done | failed | skipped
+  url           String?
+  createdAt     DateTime @default(now())
+
+  @@index([userId, platform, kind, createdAt])
+  @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Communication ledger (M3) — every SMS in and out, with WHO sent it. "Waiting on No-Bs" is computed
+// from this: only a human reply (source manual/owner) answers a customer; campaigns, review requests,
+// rain notices and loyalty texts are automated and do not.
+// ---------------------------------------------------------------------------
+model CommMessage {
+  id             String   @id @default(cuid())
+  userId         String
+  channel        String   @default("sms")               // sms | email
+  direction      String                                  // in | out
+  phone          String?                                 // E.164
+  phoneKey       String?                                 // last 10 digits, for joins
+  email          String?
+  jobberClientId String?
+  clientName     String?
+  body           String   @default("")
+  source         String   @default("system")             // inbound | campaign | review | rain | loyalty | reward | optout | operator | manual | owner | system
+  sourceId       String?                                 // InboundSMS.id, MarketingMessage.id, Twilio sid ...
+  providerId     String?                                 // Twilio MessageSid
+  status         String?
+  at             DateTime @default(now())
+
+  @@unique([userId, channel, direction, providerId])
+  @@index([userId, phoneKey, at])
+  @@index([userId, direction, at])
 }

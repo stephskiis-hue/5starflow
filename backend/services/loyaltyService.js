@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const twilio = require('twilio');
 const prisma  = require('../lib/prismaClient');
-const { getTwilioCreds, toE164 } = require('./smsService');
+const { getTwilioCreds, toE164, isOptedOut, senderParams } = require('./smsService');
 
 const REFERRAL_BASE_URL = process.env.REFERRAL_BASE_URL || 'http://localhost:3001/r';
 
@@ -143,7 +143,12 @@ async function awardPoints(jobberClientId, clientName, phone, userId) {
     }
     const client = twilio(creds.accountSid, creds.authToken);
     const to = toE164(phone);
-    const message = await client.messages.create({ body: msg, from: creds.fromNumber, to });
+    if (await isOptedOut(userId, to)) {
+      console.log(`[loyaltyService] ${record.displayName} opted out — skipping loyalty SMS`);
+      return;
+    }
+    const message = await client.messages.create({ body: msg, ...senderParams(creds), to });
+    require('../lib/commLedger').logComm(userId, { direction: 'out', phone: to, body: msg, source: 'loyalty', providerId: message.sid, status: 'queued' });
     console.log(`[loyaltyService] Loyalty SMS sent to ${to} | SID: ${message.sid}`);
   } catch (err) {
     console.error(`[loyaltyService] Failed to send loyalty SMS to ${record.displayName}:`, err.message);

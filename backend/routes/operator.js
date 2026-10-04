@@ -28,7 +28,7 @@ const prisma  = require('../lib/prismaClient');
 const logger  = require('../lib/logger');
 const op      = require('../services/operatorService');
 const { jobberGraphQL } = require('../services/jobberClient');
-const { sendSmsSafely, toE164, getTwilioCreds } = require('../services/smsService');
+const { sendSmsSafely, toE164, getTwilioCreds, senderParams } = require('../services/smsService');
 const twilio  = require('twilio');
 
 // ---------------------------------------------------------------------------
@@ -52,6 +52,16 @@ function requireOperatorAuth(req, res, next) {
   req.operatorUserId = userId;
   next();
 }
+
+// Express 4 doesn't catch rejected promises from async handlers — without this a DB error
+// leaves the request hanging and fires unhandledRejection. Forward to the global error handler.
+['get', 'post', 'put', 'patch', 'delete'].forEach((method) => {
+  const orig = router[method].bind(router);
+  router[method] = (path, ...handlers) => orig(path, ...handlers.map((h) =>
+    (h && h.constructor && h.constructor.name === 'AsyncFunction')
+      ? (req, res, next) => h(req, res, next).catch(next)
+      : h));
+});
 
 router.use(express.json({ limit: '1mb' }));
 router.use(requireOperatorAuth);
@@ -301,7 +311,7 @@ router.post('/send-pending-sms', async (req, res) => {
   }
 
   const client = twilio(creds.accountSid, creds.authToken);
-  const result = await sendSmsSafely({ to, from: creds.fromNumber, body, client, userId });
+  const result = await sendSmsSafely({ to, ...senderParams(creds), body, client, userId, source: 'operator' });
 
   if (result.ok) {
     await prisma.operatorProposal.updateMany({
@@ -346,7 +356,14 @@ router.get('/seo-data', async (req, res) => {
   const userId = req.operatorUserId;
   const out = { seoSettings: null, latestAudit: null, recentPageSpeed: [], recentAuditPages: [] };
   try {
-    out.seoSettings = await prisma.seoSettings.findUnique({ where: { userId } });
+    // Never hand credentials to the agent: deploy password and Google OAuth tokens stay server-side.
+    out.seoSettings = await prisma.seoSettings.findUnique({
+      where: { userId },
+      select: {
+        siteUrl: true, competitorUrls: true, deployType: true, deployBranch: true,
+        siteProperty: true, ga4PropertyId: true, auditEnabled: true, deepAnalysis: true,
+      },
+    });
     out.latestAudit = await prisma.seoAudit.findFirst({
       where: { userId }, orderBy: { runAt: 'desc' },
     });
@@ -485,6 +502,9 @@ router.post('/apply-site-changes/:id', async (req, res) => {
   if (!proposal)                  return res.status(404).json({ error: 'Proposal not found' });
   if (proposal.userId !== userId) return res.status(403).json({ error: 'Proposal belongs to a different user' });
   if (proposal.category !== 'seo') return res.status(400).json({ error: 'apply-site-changes is only valid for category=seo proposals' });
+  if (!['approved', 'executed'].includes(proposal.status)) {
+    return res.status(409).json({ error: `Proposal is ${proposal.status}, not approved` });
+  }
 
   // We piggy-back on the existing SeoChange table rather than invent a new one.
   // A lightweight SeoProposal anchor is created if not already present — keeps

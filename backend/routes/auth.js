@@ -17,6 +17,7 @@ const axios   = require('axios');
 const crypto  = require('crypto');
 const prisma  = require('../lib/prismaClient');
 const { verifyToken } = require('../lib/auth');
+const { requireAuth } = require('../middleware/requireAuth');
 
 /**
  * GET /auth/connect
@@ -160,13 +161,19 @@ router.get('/callback', async (req, res) => {
  * Removes all stored Jobber tokens and review logs.
  * Called by the frontend "Disconnect" button.
  */
-router.post('/disconnect', async (req, res) => {
+router.post('/disconnect', requireAuth, async (req, res) => {
+  // Public zone (mounted before the global guard) — authenticate here and only touch this user's data.
+  const userId = req.user.userId;
   try {
-    await prisma.jobberAccount.deleteMany();
-    await prisma.tokenRefreshLog.deleteMany();
-    await prisma.reviewSent.deleteMany();
-    await prisma.pendingReview.deleteMany();
-    console.log('[auth] Jobber account disconnected and all data cleared');
+    const accounts   = await prisma.jobberAccount.findMany({ where: { userId }, select: { accountId: true } });
+    const accountIds = accounts.map((a) => a.accountId);
+    await prisma.$transaction([
+      prisma.jobberAccount.deleteMany({ where: { userId } }),
+      prisma.tokenRefreshLog.deleteMany({ where: { accountId: { in: accountIds } } }),
+      prisma.reviewSent.deleteMany({ where: { accountId: { in: accountIds } } }),
+      prisma.pendingReview.deleteMany({ where: { userId } }),
+    ]);
+    console.log(`[auth] Jobber account disconnected for user ${userId}`);
     res.json({ success: true, message: 'Jobber account disconnected' });
   } catch (err) {
     console.error('[auth] Disconnect error:', err.message);

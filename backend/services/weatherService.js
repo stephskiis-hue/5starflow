@@ -4,7 +4,8 @@ const nodemailer = require('nodemailer');
 const twilio  = require('twilio');
 const prisma  = require('../lib/prismaClient');
 const { jobberGraphQL } = require('./jobberClient');
-const { getTwilioCreds } = require('./smsService');
+const { getTwilioCreds, senderParams, isOptedOut } = require('./smsService');
+const { runRoutine } = require('../ai/runner');
 const { getGmailCreds, ensureFreshToken } = require('./emailService');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -108,9 +109,9 @@ async function fetchAllClients(userId) {
  * Returns visits with client contact info for SMS/email.
  */
 async function fetchWeekVisits(userId, startDate, endDate) {
-  // Use Winnipeg CDT (UTC-5) for boundary times so a job at 8 AM local is never missed
-  const start = new Date(startDate + 'T00:00:00-05:00').toISOString();
-  const end   = new Date(endDate   + 'T23:59:59-05:00').toISOString();
+  // Day boundaries in Winnipeg local time (DST-aware) so a job at 8 AM local is never missed
+  const start = new Date(startDate + 'T00:00:00' + tzOffsetFor(startDate)).toISOString();
+  const end   = new Date(endDate   + 'T23:59:59' + tzOffsetFor(endDate)).toISOString();
 
   const allNodes = [];
   let cursor  = null;
@@ -164,6 +165,11 @@ async function rescheduleJobberVisit(visitId, newStartAt, newEndAt, userId) {
     timezone:  'Central Time (US & Canada)',
   };
 
+  if (process.env.DRY_RUN === 'true') {
+    console.log('[reschedule] DRY RUN — would move visit', JSON.stringify(vars));
+    return { id: visitId, dryRun: true };
+  }
+
   console.log('[reschedule] vars:', JSON.stringify(vars));
   const data   = await jobberGraphQL(EDIT_VISIT_SCHEDULE_MUTATION, vars, userId);
   const result = data?.visitEditSchedule;
@@ -182,16 +188,10 @@ async function rescheduleJobberVisit(visitId, newStartAt, newEndAt, userId) {
  * Returns "monday", "tuesday", etc. for a given Date (default today).
  */
 function getDayTag(date = new Date()) {
-  return date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  return date.toLocaleDateString('en-US', { weekday: 'long', timeZone: BUSINESS_TZ }).toLowerCase();
 }
 
-/**
- * Converts a date string or Date to "YYYY-MM-DD" in local time.
- */
-function toDateString(date = new Date()) {
-  const d = date instanceof Date ? date : new Date(date);
-  return d.toISOString().slice(0, 10);
-}
+const { BUSINESS_TZ, toDateString, localHour, tzOffsetFor } = require('../lib/tz');
 
 /**
  * Formats a YYYY-MM-DD string as "Tuesday, March 18".
@@ -217,11 +217,12 @@ const WEEKDAY_ALIASES = {
 function nextWeekdayDate(dayName, from = new Date()) {
   const target = WEEKDAYS.indexOf(String(dayName || '').toLowerCase());
   if (target < 0) return null;
-  // Walk forward 1..7 days until the weekday matches.
+  // Walk forward 1..7 days in business-local calendar days until the weekday matches.
+  const base = toDateString(from);                       // YYYY-MM-DD in Winnipeg
   for (let i = 1; i <= 7; i++) {
-    const d = new Date(from);
-    d.setDate(from.getDate() + i);
-    if (d.getDay() === target) return toDateString(d);
+    const d = new Date(`${base}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + i);
+    if (d.getUTCDay() === target) return d.toISOString().slice(0, 10);
   }
   return null;
 }
@@ -249,7 +250,7 @@ function parseRainReply(body) {
     }
   }
   if (!day && /\btomorrow\b/.test(text)) {
-    day = WEEKDAYS[new Date(Date.now() + 86400000).getDay()];
+    day = getDayTag(new Date(Date.now() + 86400000));
   }
 
   return { intent, day };
@@ -362,15 +363,15 @@ async function checkRainToday(settings) {
   // Filter to today's entries within business hours
   const todayEntries = forecastList.filter((entry) => {
     const d = new Date(entry.dt * 1000);
-    const dateStr = d.toISOString().slice(0, 10);
-    const hour    = d.getUTCHours(); // OWM timestamps are UTC
+    const dateStr = toDateString(d);
+    const hour    = localHour(d); // OWM timestamps are UTC — compare in business-local time
     return dateStr === todayStr && hour >= startH && hour <= endH;
   });
 
   if (todayEntries.length === 0) {
     // No entries for today in business hours — use any today entries
     const anyToday = forecastList.filter((e) =>
-      new Date(e.dt * 1000).toISOString().slice(0, 10) === todayStr
+      toDateString(new Date(e.dt * 1000)) === todayStr
     );
     todayEntries.push(...anyToday);
   }
@@ -474,6 +475,10 @@ async function sendRainSMS(phone, firstName, newDateLabel, customMessage, userId
     body = template.replace(/\{firstName\}/g, name).replace(/\{newDate\}/g, newDateLabel);
   }
 
+  if (await isOptedOut(userId, to)) {
+    throw new Error(`Recipient ${to} opted out (STOP) — rain SMS not sent`);
+  }
+
   if (process.env.DRY_RUN === 'true') {
     console.log(`[weatherService] DRY RUN — would send rain SMS to ${to}: "${body.slice(0, 80)}..."`);
     return 'dry-run';
@@ -483,11 +488,12 @@ async function sendRainSMS(phone, firstName, newDateLabel, customMessage, userId
   if (!creds.accountSid || !creds.authToken) throw new Error('Twilio credentials not configured');
 
   const client = twilio(creds.accountSid, creds.authToken);
-  const params = { body, from: creds.fromNumber, to };
+  const params = { body, ...senderParams(creds), to };
   if (process.env.APP_URL) {
     params.statusCallback = `${process.env.APP_URL}/api/weather/twilio-callback`;
   }
   const msg = await client.messages.create(params);
+  require('../lib/commLedger').logComm(userId, { direction: 'out', phone: to, body, source: 'rain', providerId: msg.sid, status: 'queued' });
 
   console.log(`[weatherService] Rain SMS sent to ${to} | SID: ${msg.sid}`);
   return msg.sid;
@@ -556,9 +562,10 @@ async function sendRainEmail(to, firstName, newDateLabel, customMessage, userId)
 /**
  * Tag a Jobber client with "rain-rescheduled" so they won't be double-notified.
  */
-async function addRainTag(clientId) {
+async function addRainTag(clientId, userId = null) {
+  if (process.env.DRY_RUN === 'true') return; // tagging a real client is a real Jobber write
   try {
-    await jobberGraphQL(ADD_CLIENT_TAG, { clientId, label: 'rain-rescheduled' });
+    await jobberGraphQL(ADD_CLIENT_TAG, { clientId, label: 'rain-rescheduled' }, userId);
   } catch (err) {
     console.warn(`[weatherService] Could not add rain tag to ${clientId}:`, err.message);
   }
@@ -605,7 +612,7 @@ async function batchNotify({ clients, newDate, newDateLabel, customMessage, user
     }
 
     // Tag client in Jobber so we don't double-notify
-    await addRainTag(id);
+    await addRainTag(id, userId);
     await sleep(300);
   }
 
@@ -897,6 +904,25 @@ async function runMorningCheck() {
   }
 }
 
+/** Routine body: runs the check, then reports what it found from today's WeatherCheck rows. */
+async function morningCheckTick() {
+  await runMorningCheck();
+  const rows = await prisma.weatherCheck.findMany({ where: { date: toDateString() }, orderBy: { checkedAt: 'desc' }, take: 5 });
+  if (rows.length === 0) {
+    // "disabled by the owner" is a normal state, not a failure
+    const enabled = await prisma.weatherSettings.count({ where: { checkEnabled: true } });
+    const any     = await prisma.weatherSettings.count();
+    if (any > 0 && enabled === 0) return { skipped: true, summary: 'Daily rain check is turned off' };
+    throw new Error('Morning check produced no result (check OPENWEATHER_API_KEY / forecast errors in the logs)');
+  }
+  const rain = rows.filter((r) => r.rainExpected);
+  return {
+    items_found: rows.length,
+    requires_attention: rain.length,
+    summary: rain.length ? `Rain expected: ${rain[0].forecastSummary}` : (rows[0]?.forecastSummary || 'No rain expected'),
+  };
+}
+
 /**
  * Start the weather check scheduler (5:30 AM daily).
  * Also runs immediately on startup.
@@ -904,19 +930,19 @@ async function runMorningCheck() {
 function startWeatherScheduler() {
   console.log('[weatherService] Starting weather scheduler (daily at 5:30 AM)');
 
-  cron.schedule('30 5 * * *', () => {
-    runMorningCheck().catch((err) =>
-      console.error('[weatherService] Scheduler error:', err.message)
-    );
-  });
+  cron.schedule('30 5 * * *', () => runRoutine('weather-morning-rain-check', morningCheckTick), { timezone: BUSINESS_TZ });
 
-  // Run immediately on startup (non-blocking)
-  runMorningCheck().catch((err) =>
-    console.error('[weatherService] Startup check error:', err.message)
-  );
+  // Catch-up on startup ONLY if today's check never ran — redeploys must not re-propose
+  // a reschedule the owner already declined or let expire.
+  prisma.weatherCheck.findFirst({ where: { date: toDateString() } })
+    .then((done) => (done ? null : runRoutine('weather-morning-rain-check', morningCheckTick, { trigger: 'startup' })))
+    .catch((err) => console.error('[weatherService] Startup check error:', err.message));
 }
 
 module.exports = {
+  morningCheckTick,
+  tzOffsetFor,
+  localHour,
   getForecast,
   buildDaySummaries,
   checkRainToday,

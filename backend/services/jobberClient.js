@@ -66,7 +66,7 @@ async function refreshAccessToken(account, trigger = 'on-demand') {
           client_id:     process.env.JOBBER_CLIENT_ID,
           client_secret: process.env.JOBBER_CLIENT_SECRET,
         }),
-        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 20000 }
       );
       lastOauthErr = null;
       break;
@@ -191,6 +191,7 @@ async function jobberGraphQL(query, variables = {}, userId = null, opts = {}) {
             'Content-Type': 'application/json',
             'X-JOBBER-GRAPHQL-VERSION': JOBBER_API_VERSION,
           },
+          timeout: 45000,
         }
       );
       lastErr = null;
