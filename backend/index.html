@@ -236,12 +236,42 @@
         </div>
       </div>
       <div class="flex items-center gap-3">
+        <a href="#notification-centre" id="notif-bell" aria-label="Notification Centre" class="relative flex items-center gap-1.5 text-xs text-zinc-300 px-3 py-1.5 bg-white/5 rounded-full border border-white/5 hover:bg-white/10 transition-colors">
+          <span class="material-symbols-outlined text-base">notifications</span><span class="hidden sm:inline">Notifications</span>
+          <span id="notif-bell-count" class="hidden min-w-[18px] h-[18px] px-1 rounded-full bg-amber-400 text-black text-[10px] font-black items-center justify-center">0</span>
+        </a>
         <div class="text-xs text-zinc-500 px-3 py-1.5 bg-white/5 rounded-full border border-white/5" id="time-badge">—</div>
       </div>
     </header>
 
     <!-- Bento Grid -->
     <div class="grid grid-cols-12 gap-4 sm:gap-6 pb-10">
+
+      <!-- Notification Centre: where routine updates land instead of daily texts/emails -->
+      <section id="notification-centre" class="col-span-12 glass-card rounded-xl p-5 sm:p-6 scroll-mt-6">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-primary">notifications</span>
+            <h3 class="text-lg font-bold text-zinc-100">Notification Centre</h3>
+            <span id="notif-unread" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20">0 new</span>
+          </div>
+          <button id="notif-mark-read" type="button" class="text-xs text-zinc-400 hover:text-zinc-100 transition-colors">Mark all read</button>
+        </div>
+        <div class="rounded-xl bg-white/5 px-4 py-3 mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+          <p id="notif-banner" class="text-zinc-300 flex-1 min-w-[220px]">No daily texts. Updates collect here.</p>
+          <div class="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+            <label class="flex items-center gap-1">Summary
+              <select id="notif-mode" class="bg-zinc-900 border border-white/10 rounded px-1.5 py-1 text-zinc-200"><option value="weekly">weekly</option><option value="off">off</option></select>
+            </label>
+            <select id="notif-day" aria-label="Summary day" class="bg-zinc-900 border border-white/10 rounded px-1.5 py-1 text-zinc-200">
+              <option value="0">Sun</option><option value="1">Mon</option><option value="2">Tue</option><option value="3">Wed</option><option value="4">Thu</option><option value="5">Fri</option><option value="6">Sat</option>
+            </select>
+            <select id="notif-hour" aria-label="Summary hour" class="bg-zinc-900 border border-white/10 rounded px-1.5 py-1 text-zinc-200"></select>
+            <label class="flex items-center gap-1.5"><input id="notif-urgent" type="checkbox" class="accent-amber-400"> Text me urgent items</label>
+          </div>
+        </div>
+        <div id="notif-list" class="space-y-2 max-h-80 overflow-y-auto"><p class="text-sm text-zinc-500">Loading…</p></div>
+      </section>
 
       <!-- AI Command briefing (admins only — stays hidden if the AI API refuses) -->
       <section id="ai-brief-card" class="hidden col-span-12 glass-card rounded-xl p-5 sm:p-6 cursor-pointer sm:hover:scale-[1.003] transition-all duration-300" onclick="window.location='/ai.html'">
@@ -1289,6 +1319,49 @@
       if (b.dryRun) document.getElementById('ai-brief-dry').classList.remove('hidden');
       document.getElementById('ai-brief-card').classList.remove('hidden');
     } catch {}
+  })();
+
+  // ---- Notification Centre ----
+  (function initNotifications() {
+    const $ = (id) => document.getElementById(id);
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const hourLabel = (h) => `${h % 12 || 12}:00 ${h < 12 ? 'AM' : 'PM'}`;
+    const hourSel = $('notif-hour');
+    for (let h = 0; h < 24; h++) hourSel.insertAdjacentHTML('beforeend', `<option value="${h}">${hourLabel(h)}</option>`);
+    const escH = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const ago = (d) => { const m = Math.max(1, Math.round((Date.now() - new Date(d)) / 60000)); return m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
+
+    function banner(s) {
+      $('notif-banner').innerHTML = s.digestMode === 'off'
+        ? '<strong class="text-zinc-100">No summary texts.</strong> Updates collect here. Only urgent items ' + (s.urgentSms ? 'are texted.' : 'are shown here too (texts off).')
+        : `<strong class="text-zinc-100">You are not texted daily.</strong> One weekly summary: ${dayNames[s.digestDay]} at ${hourLabel(s.digestHour)}. ${s.urgentSms ? 'Urgent items are texted right away.' : 'Urgent texts are off.'}`;
+    }
+    function render(data) {
+      const s = data.settings;
+      $('notif-mode').value = s.digestMode; $('notif-day').value = s.digestDay; hourSel.value = s.digestHour; $('notif-urgent').checked = s.urgentSms;
+      banner(s);
+      const n = data.unread || 0;
+      const chip = $('notif-unread'); chip.textContent = n + ' new'; chip.classList.toggle('hidden', !n);
+      const bc = $('notif-bell-count'); bc.textContent = n > 99 ? '99+' : n; bc.classList.toggle('hidden', !n); bc.classList.toggle('flex', !!n);
+      $('notif-list').innerHTML = data.items.length ? data.items.map((i) => {
+        const tag = i.urgency === 'urgent' ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-red-500/10 text-red-300 border border-red-500/20">urgent</span>' : '';
+        const inner = `<div class="flex items-center gap-2"><p class="text-sm ${i.readAt ? 'text-zinc-400' : 'text-zinc-100 font-semibold'}">${escH(i.title)}</p>${tag}<span class="ml-auto text-[11px] text-zinc-500 whitespace-nowrap">${ago(i.createdAt)}</span></div>${i.body ? `<p class="text-xs text-zinc-500 mt-0.5">${escH(i.body)}</p>` : ''}`;
+        const cls = 'block rounded-lg px-3 py-2 ' + (i.readAt ? 'bg-white/[0.02]' : 'bg-white/5');
+        return i.link && /^\/[a-z0-9_.\-]*(\.html)?(#[\w-]*)?$/i.test(i.link) ? `<a href="${i.link}" class="${cls} hover:bg-white/10 transition-colors">${inner}</a>` : `<div class="${cls}">${inner}</div>`;
+      }).join('') : '<p class="text-sm text-zinc-500">All quiet. Nothing needs you.</p>';
+    }
+    async function load() {
+      try { const r = await fetch('/api/notifications', { credentials: 'include' }); if (r.ok) render(await r.json()); }
+      catch { $('notif-list').innerHTML = '<p class="text-sm text-zinc-500">Could not load notifications.</p>'; }
+    }
+    async function saveSettings() {
+      const body = { digestMode: $('notif-mode').value, digestDay: +$('notif-day').value, digestHour: +hourSel.value, urgentSms: $('notif-urgent').checked };
+      try { const r = await fetch('/api/notifications/settings', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); if (r.ok) banner((await r.json()).settings); } catch {}
+    }
+    ['notif-mode', 'notif-day', 'notif-hour', 'notif-urgent'].forEach((id) => $(id).addEventListener('change', saveSettings));
+    $('notif-mark-read').addEventListener('click', async () => { await fetch('/api/notifications/read', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {}); load(); });
+    load();
+    setInterval(load, 60000);
   })();
 
   // ---- Requests card ----

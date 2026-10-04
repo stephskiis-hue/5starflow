@@ -43,3 +43,6 @@ Known limits: single-tenant (OPERATOR_USER_ID); in-process mutex + DB lease (one
 
 ## Local dev
 Use a **separate** Postgres (never the Railway URL; the schedulers act on whatever DB they see). `DRY_RUN=true`, `TWILIO_SKIP_SIGNATURE=true` if testing inbound by hand, `SESSION_SECRET` ≥ 32 chars, `AI_TOKEN`, `OPERATOR_USER_ID`. `npx prisma migrate deploy` then `npm run dev`.
+
+## Notifications
+Nothing texts or emails the owner daily. Every update goes through `lib/notify.js` into the Notification Centre (top of the home page). Only `urgent: true` items are texted immediately (approvals, rain reschedule, customer waiting 24h+, auth failures, failed/stuck owner requests). The rest is summed up in one weekly text (`ai/digest.js`, default Saturday 3 pm, editable in the Notification Centre). Claude routines post with `POST /api/ai/notify`.

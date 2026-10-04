@@ -22,6 +22,7 @@ const { createTask, updateTask, listTasks } = require('../ai/tasks');
 const requests = require('../ai/requests');
 const { saveMemory, searchMemory } = require('../ai/memory');
 const { buildBrief } = require('../ai/brief');
+const { notify } = require('../lib/notify');
 const { getUnansweredSms, getCustomerContext } = require('../ai/comms');
 const { RUNNABLE } = require('../ai');
 const { AGENTS, TASK_STATES } = require('../ai/constants');
@@ -182,6 +183,15 @@ router.get('/requests', async (req, res) => {
   res.json(await requests.listRequests(req.ai.userId, { status: req.query.status, limit: int(req.query.limit, 20, 100) }));
 });
 
+// Claude routines drop updates in the Notification Centre. urgent=true also texts the owner now; use it only when they must act today.
+router.post('/notify', async (req, res) => {
+  if (req.ai.actor !== 'agent') return res.status(403).json({ error: 'Only routines post notifications' });
+  const { title, body, category, urgent, link, routineSlug } = req.body || {};
+  if (!title) return res.status(400).json({ error: 'title required' });
+  const n = await notify(req.ai.userId, { title, body, category: category || 'routine', urgent: !!urgent, link, routineSlug });
+  res.status(201).json({ ok: !!n, id: n?.id });
+});
+
 router.post('/requests', ownerOnly, async (req, res) => {
   try {
     const r = await requests.createRequest(req.ai.userId, req.body?.body, req.body?.attachments);
@@ -196,13 +206,11 @@ router.post('/requests/claim', async (req, res) => {
 });
 
 // The owner asked to be told when a request is finished or stuck. Never lets a text failure break the report.
+// Done lands in the Notification Centre only; stuck/failed ones are texted.
 function notifyRequestOutcome(userId, r) {
-  if (process.env.OWNER_SMS === 'off') return;
-  const { stripToGsm7 } = require('../services/smsService');
   const label = { done: 'Done', needs_owner: 'Needs you', failed: 'FAILED' }[r.status];
   const what = (r.body || 'your photo/video post').replace(/\s+/g, ' ').slice(0, 60);
-  const msg = stripToGsm7(`${label}: ${what}. ${(r.response || '').replace(/\s+/g, ' ').slice(0, 200)}`).slice(0, 320);
-  require('../services/operatorService').notifyOwner(userId, msg).catch((e) => console.warn(`[requests] owner text failed: ${e.message}`));
+  notify(userId, { category: 'request', urgent: r.status !== 'done', title: `${label}: ${what}`, body: (r.response || '').replace(/\s+/g, ' ').slice(0, 200), link: '/index.html#requests-card' });
 }
 
 // After a post goes live: one call logs it (content item for metrics, an owner_post action, activity). Owner posts don't use the daily caps.

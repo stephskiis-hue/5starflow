@@ -318,6 +318,7 @@ router.post('/send-pending-sms', async (req, res) => {
       where: { id: { in: pending.map((p) => p.id) } },
       data:  { smsSentAt: new Date(), smsMessageSid: result.sid },
     });
+    require('../lib/notify').notify(userId, { category: 'approval', urgent: true, alreadySent: true, title: `${pending.length} approval${pending.length > 1 ? 's' : ''} waiting on you`, body: 'Reply YES/NO code by text or open AI Command.', link: '/ai.html#approvals' });
     await logger.info('operator', `Batched approval SMS for ${pending.length} proposals`, {
       count: pending.length, sid: result.sid,
     }, userId);

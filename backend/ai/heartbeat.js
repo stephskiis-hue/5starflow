@@ -6,6 +6,7 @@
 const prisma = require('../lib/prismaClient');
 const { createTask } = require('./tasks');
 const { recordActivity } = require('./ledger');
+const { notify } = require('../lib/notify');
 
 const GRACE = 1.5;          // alert after 1.5x the expected interval
 const MIN_GAP_MIN = 10;
@@ -37,6 +38,7 @@ async function heartbeatTick({ userId }) {
       whatNeeds: external ? 'Check the routine in Claude (Run now / usage). Consider fewer or lighter runs.' : 'Check Railway logs for this routine.',
       recommended: external ? 'Open Routines → this routine → recent runs.' : 'Redeploy or check logs.',
     });
+    notify(userId, { category: 'routine', urgent: !external, routineSlug: r.slug, title: `${r.name} hasn't run in ${hours}h`, body: external ? 'A Claude routine went quiet (plan usage limit or paused?).' : 'A backend scheduler stopped running.', link: '/ai.html#routines' });
     await recordActivity(userId, { agent: 'system', routineSlug: r.slug, action: 'routine missed', summary: `${r.name} silent for ${hours}h`, result: 'failed', source: 'heartbeat' });
   }
 
