@@ -1,0 +1,43 @@
+<!-- @dsCard group="Posts" width=1080 height=1350 subtitle="Real job, same angle, before over after." -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;800&family=DM+Serif+Display&display=swap">
+<style>*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:transparent}
+.post{width:1080px;height:1350px;position:relative;overflow:hidden;font-family:var(--font-sans)}
+.post.size-story{height:1920px}.post.size-square{height:1080px}
+.mark{display:flex;align-items:center;gap:16px}
+.badge{width:64px;height:64px;border-radius:var(--radius-badge);display:block}
+.wm{font-family:var(--font-display);font-size:34px;letter-spacing:1px;line-height:1}
+.wm small{display:block;font-family:var(--font-sans);font-weight:600;font-size:14px;letter-spacing:4px;opacity:.75;margin-top:6px}
+
+.post{background:var(--forest);color:var(--white);display:flex;flex-direction:column}
+.top{padding:56px var(--safe-statement) 40px;flex:none}
+.kick{font-weight:800;letter-spacing:6px;color:var(--leaf);font-size:22px}
+h1{font-family:var(--font-display);font-weight:400;font-size:84px;line-height:.95;text-transform:uppercase;margin-top:var(--gap-s)}
+h1 span{color:var(--leaf)}
+.pair{flex:1;display:grid;grid-template-rows:1fr 1fr;gap:8px;background:var(--leaf);min-height:0}
+.shot{position:relative;overflow:hidden}
+.img{position:absolute;inset:0;background-size:cover;background-position:center}
+.shot.before .img{background-color:#5b5947;background-image:repeating-linear-gradient(90deg,#5b5947 0 45px,#67644f 45px 90px)}
+.shot.after .img{background-color:#3e6b35;background-image:repeating-linear-gradient(90deg,#3e6b35 0 45px,#5c8f47 45px 90px)}
+.tag{position:absolute;left:40px;top:32px;font-family:var(--font-display);font-size:40px;letter-spacing:2px;line-height:1;padding:12px 20px 10px}
+.before .tag{background:var(--forest);color:var(--white)}
+.after .tag{background:var(--leaf);color:var(--leaf-ink)}
+.foot{flex:none;display:flex;justify-content:space-between;align-items:center;padding:34px var(--safe-statement) 44px}
+.cta{text-align:right;font-family:var(--font-display);font-size:52px;letter-spacing:1px;line-height:1}
+.cta small{display:block;font-family:var(--font-sans);font-weight:600;font-size:18px;letter-spacing:4px;color:var(--leaf);margin-bottom:8px}
+.size-story .top{padding-top:220px}
+.size-story h1{font-size:100px}
+.size-story .foot{padding-bottom:300px}
+.size-square .top{padding:44px 64px 30px}
+.size-square h1{font-size:64px}
+.size-square .pair{grid-template-rows:none;grid-template-columns:1fr 1fr}
+.size-square .foot{padding:28px 64px 36px}</style>
+<div class="post">
+<div class="top"><div class="kick" data-slot="kicker">FALL CLEANUP · ST. VITAL</div><h1 data-slot="headline" data-fit>Same yard. <span>One morning.</span></h1></div>
+<div class="pair">
+<div class="shot before"><div class="img" data-slot-bg="before"></div><span class="tag" data-slot="before_label" data-default>BEFORE</span></div>
+<div class="shot after"><div class="img" data-slot-bg="after"></div><span class="tag" data-slot="after_label" data-default>AFTER</span></div>
+</div>
+<div class="foot"><div class="mark"><img class="badge" src="/_blob/8a3342d2750849e38f3090d481e356a8" alt=""><div class="wm">No-Bs Yardwork<small>WINNIPEG · EST. 2019</small></div></div><div class="cta"><small>CALL OR TEXT</small>204-900-0438</div></div>
+</div>
+<script></script>

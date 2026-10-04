@@ -1,0 +1,27 @@
+<!-- @dsCard group="Stories" width=1080 height=1920 subtitle="Story question with room for the poll sticker." -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;800&family=DM+Serif+Display&display=swap">
+<style>*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:transparent}
+.post{width:1080px;height:1920px;position:relative;overflow:hidden;font-family:var(--font-sans)}
+.mark{display:flex;align-items:center;gap:16px}
+.badge{width:64px;height:64px;border-radius:var(--radius-badge);display:block}
+.wm{font-family:var(--font-display);font-size:34px;letter-spacing:1px;line-height:1}
+.wm small{display:block;font-family:var(--font-sans);font-weight:600;font-size:14px;letter-spacing:4px;opacity:.75;margin-top:6px}
+
+.post{background:var(--forest);color:var(--white)}
+.stripes{position:absolute;inset:0;background:repeating-linear-gradient(90deg,var(--forest-stripe-a) 0 var(--stripe),var(--forest-stripe-b) var(--stripe) calc(var(--stripe)*2))}
+.c{position:absolute;inset:240px var(--safe-statement) 300px;display:flex;flex-direction:column}
+.kick{font-weight:800;letter-spacing:6px;color:var(--leaf);font-size:24px}
+h1{font-family:var(--font-display);font-weight:400;font-size:170px;line-height:.9;margin-top:var(--gap-s);text-transform:uppercase}
+h1 span{color:var(--leaf)}
+p{font-size:36px;line-height:1.35;margin-top:36px;color:var(--sage);max-width:860px}
+.sticker{margin-top:72px;height:380px;border:3px dashed var(--rule-on-forest);display:grid;place-items:center;font-weight:600;font-size:20px;letter-spacing:4px;color:var(--rule-on-forest)}
+.render .guide{visibility:hidden}
+.foot{margin-top:auto;display:flex;justify-content:center}</style>
+<div class="post"><div class="stripes"></div><div class="c">
+<div class="kick" data-slot="kicker">QUICK POLL</div>
+<h1 data-slot="question" data-fit>Leaves:<br><span>bag or mulch?</span></h1>
+<p data-slot="body" data-fit>Tap your pick below.</p>
+<div class="sticker guide">POLL STICKER GOES HERE</div>
+<div class="foot"><div class="mark"><img class="badge" src="/_blob/8a3342d2750849e38f3090d481e356a8" alt=""><div class="wm">No-Bs Yardwork<small>WINNIPEG · EST. 2019</small></div></div></div></div></div>
+<script></script>

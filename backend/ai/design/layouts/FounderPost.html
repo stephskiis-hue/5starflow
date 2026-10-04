@@ -1,0 +1,38 @@
+<!-- @dsCard group="Posts" width=1080 height=1350 subtitle="The owners, in their own words, with a real photo." -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;800&family=DM+Serif+Display&display=swap">
+<style>*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:transparent}
+.post{width:1080px;height:1350px;position:relative;overflow:hidden;font-family:var(--font-sans)}
+.post.size-story{height:1920px}.post.size-square{height:1080px}
+.mark{display:flex;align-items:center;gap:16px}
+.badge{width:64px;height:64px;border-radius:var(--radius-badge);display:block}
+.wm{font-family:var(--font-display);font-size:34px;letter-spacing:1px;line-height:1}
+.wm small{display:block;font-family:var(--font-sans);font-weight:600;font-size:14px;letter-spacing:4px;opacity:.75;margin-top:6px}
+
+.post{background:var(--paper);color:var(--ink);display:flex;flex-direction:column}
+.photo{flex:none;height:560px;background-color:var(--forest);background-image:repeating-linear-gradient(90deg,var(--forest-stripe-a) 0 var(--stripe),var(--forest-stripe-b) var(--stripe) calc(var(--stripe)*2));background-size:cover;background-position:center 18%}
+.c{flex:1;display:flex;flex-direction:column;padding:56px var(--safe-print) 72px;min-height:0}
+.kick{font-weight:800;letter-spacing:6px;font-size:22px;color:var(--forest)}
+h1{font-family:var(--font-serif);font-weight:400;font-size:86px;line-height:1.04;letter-spacing:-1px;margin-top:20px}
+p{font-size:30px;line-height:1.5;margin-top:28px;color:var(--muted);max-width:840px}
+.sig{font-family:var(--font-display);font-size:34px;letter-spacing:1px;text-transform:uppercase;color:var(--forest);margin-top:26px}
+.foot{margin-top:auto;display:flex;justify-content:space-between;align-items:center;color:var(--forest);border-top:1px solid var(--rule-on-light);padding-top:var(--gap-m)}
+.cta{font-weight:800;font-size:24px;letter-spacing:1px}
+.size-story .photo{height:860px}
+.size-story .c{padding-bottom:300px}
+.size-story h1{font-size:86px}
+.size-square .photo{height:400px}
+.size-square .c{padding:40px 80px 52px}
+.size-square h1{font-size:58px}
+.size-square p{font-size:24px;margin-top:18px}
+.size-square .sig{font-size:28px;margin-top:16px}</style>
+<div class="post">
+<div class="photo" data-slot-bg="photo"></div>
+<div class="c">
+<div class="kick" data-slot="kicker">FROM THE OWNERS</div>
+<h1 data-slot="headline" data-fit>Our names are on every lawn we cut.</h1>
+<p data-slot="body" data-fit>Sample letter. Write it with the owners in their own words: why they started, what they promise, what they won't do. Never invent their story.</p>
+<div class="sig" data-slot="signature">Steph and Ben, co-founders</div>
+<div class="foot"><div class="mark"><img class="badge" src="/_blob/8a3342d2750849e38f3090d481e356a8" alt=""><div class="wm">No-Bs Yardwork<small>WINNIPEG · EST. 2019</small></div></div><div class="cta">CALL OR TEXT 204-900-0438</div></div>
+</div></div>
+<script></script>

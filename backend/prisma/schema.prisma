@@ -723,3 +723,107 @@ model AgentActivity {
   @@index([userId, createdAt])
   @@index([userId, agent, createdAt])
 }
+
+// ---------------------------------------------------------------------------
+// Content engine + social (M2). Vault = the owner's real photos and every rendered graphic.
+// ---------------------------------------------------------------------------
+
+// Photos, rendered graphics, logos, references. Bytes live in Postgres (small business scale; dedup by sha256).
+model ContentAsset {
+  id            String   @id @default(cuid())
+  userId        String
+  kind          String   @default("photo")                   // photo | graphic | logo | reference | screenshot
+  name          String
+  mime          String
+  bytes         Bytes
+  size          Int
+  sha256        String
+  width         Int?
+  height        Int?
+  tags          String   @default("[]")                      // JSON array: PATIOS, SOD, FALL, BEFORE, AFTER, CREW ...
+  source        String   @default("upload")                  // upload | render | import
+  notes         String?
+  contentItemId String?                                      // set for rendered graphics
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, sha256])
+  @@index([userId, kind])
+  @@index([contentItemId])
+}
+
+// One piece of marketing content from idea to measured result.
+model ContentItem {
+  id            String    @id @default(cuid())
+  userId        String
+  status        String    @default("draft")                  // idea | draft | rendered | qa_failed | queued | approved | published | rejected | failed
+  title         String
+  pillar        String?                                      // tip | proof | review | faq | offer | founder | story | group | seasonal
+  format        String    @default("post")                   // post | carousel | story | reel_cover | group_post
+  layout        String?                                      // design-system layout name
+  platforms     String    @default("[\"facebook\"]")         // JSON array: facebook | instagram | group
+  slots         Json?                                        // renderer slots; carousels: { slides: [{layout, slots}] }
+  caption       String    @default("")                       // Facebook / group text
+  captionIg     String?                                      // Instagram caption incl. hashtags
+  groupId       String?                                      // SocialGroup.id for group posts
+  assetIds      Json?                                        // rendered ContentAsset ids, in order
+  qa            Json?                                        // { ok, errors[], warnings[] }
+  grounding     String?                                      // where the facts came from (real review URL, blog post, job)
+  source        String?                                      // routine slug that created it
+  scheduledFor  DateTime?
+  approvedAt    DateTime?
+  publishedAt   DateTime?
+  postUrl       String?
+  metrics       Json?                                        // { reach, reactions, comments, shares, leads, capturedAt }
+  note          String?                                      // owner's edit/reject note, fed back to the Content Director
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, scheduledFor])
+}
+
+// Facebook groups (and similar communities): rules, promo policy and what we've learned.
+model SocialGroup {
+  id             String    @id @default(cuid())
+  userId         String
+  platform       String    @default("facebook")
+  name           String
+  url            String?
+  location       String?
+  audience       String?
+  relevance      Int       @default(3)                       // 1-5, how useful for leads
+  membership     String    @default("unknown")               // unknown | requested | member | declined | left | banned
+  rules          String    @default("")
+  promoPolicy    String    @default("unknown")               // unknown | allowed | restricted | banned
+  promoNotes     String    @default("")                      // e.g. "promo posts Fri-Sun only"
+  cooldownDays   Int       @default(14)
+  topics         String    @default("")
+  notes          String    @default("")
+  leads          Int       @default(0)
+  postsCount     Int       @default(0)
+  lastCheckedAt  DateTime?
+  lastPostedAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([userId, platform, name])
+  @@index([userId, membership])
+}
+
+// Every outward social action. Daily caps are enforced against this table (GET /social/budget).
+model SocialAction {
+  id            String   @id @default(cuid())
+  userId        String
+  platform      String                                       // facebook | instagram
+  kind          String                                       // comment | dm | like | follow | group_join | group_post | page_post | story | reply
+  target        String?
+  groupId       String?
+  contentItemId String?
+  summary       String   @default("")
+  status        String   @default("done")                    // done | failed | skipped
+  url           String?
+  createdAt     DateTime @default(now())
+
+  @@index([userId, platform, kind, createdAt])
+  @@index([userId, createdAt])
+}

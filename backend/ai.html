@@ -195,6 +195,9 @@
       <button data-tab="inbox"     class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Inbox <span id="badge-inbox" class="badge b-bad hidden ml-1"></span></button>
       <button data-tab="tasks"     class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Tasks <span id="badge-tasks" class="badge b-warn hidden ml-1"></span></button>
       <button data-tab="approvals" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Approvals <span id="badge-approvals" class="badge b-warn hidden ml-1"></span></button>
+      <button data-tab="content" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Content <span id="badge-content" class="badge b-warn hidden ml-1"></span></button>
+      <button data-tab="social" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Social</button>
+      <button data-tab="vault" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Vault</button>
       <button data-tab="routines"  class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Routines</button>
       <button data-tab="agents"    class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Agents</button>
       <button data-tab="activity"  class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Activity</button>
@@ -205,6 +208,9 @@
     <section id="tab-inbox" class="hidden"></section>
     <section id="tab-tasks" class="hidden"></section>
     <section id="tab-approvals" class="hidden"></section>
+    <section id="tab-content" class="hidden"></section>
+    <section id="tab-social" class="hidden"></section>
+    <section id="tab-vault" class="hidden"></section>
     <section id="tab-routines" class="hidden"></section>
     <section id="tab-agents" class="hidden"></section>
     <section id="tab-activity" class="hidden"></section>
@@ -215,7 +221,7 @@
 
 <script>
   const API = '/api/ai';
-  const TABS = ['home', 'inbox', 'tasks', 'approvals', 'routines', 'agents', 'activity', 'memory'];
+  const TABS = ['home', 'inbox', 'tasks', 'approvals', 'content', 'social', 'vault', 'routines', 'agents', 'activity', 'memory'];
   const AGENT_INFO = {
     orchestrator: ['Orchestrator', 'Coordinates the others, sets priorities, prevents duplicate work.', 'account_tree'],
     communication: ['Communication', 'Nobody important gets left unanswered: SMS, Gmail, reviews, follow-ups.', 'forum'],
@@ -227,7 +233,7 @@
     qa: ['QA', 'Checks everything before it goes out: spelling, facts, brand, group rules.', 'fact_check'],
     system: ['System', 'Background jobs: tokens, queues, syncs, retries.', 'settings_suggest'],
   };
-  const state = { tab: 'home', taskFilter: 'open', memScope: '', memQ: '', openRoutine: null, isOwner: true };
+  const state = { tab: 'home', contentFilter: 'review', vaultTag: '', taskFilter: 'open', memScope: '', memQ: '', openRoutine: null, isOwner: true };
   let pollTimer = null;
 
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -286,7 +292,7 @@
   async function load(tab, quiet) {
     try {
       showErr('');
-      await ({ home: loadHome, inbox: loadInbox, tasks: loadTasks, approvals: loadApprovals, routines: loadRoutines, agents: loadAgents, activity: loadActivity, memory: loadMemory }[tab])(quiet);
+      await ({ home: loadHome, inbox: loadInbox, tasks: loadTasks, approvals: loadApprovals, content: loadContent, social: loadSocial, vault: loadVault, routines: loadRoutines, agents: loadAgents, activity: loadActivity, memory: loadMemory }[tab])(quiet);
     } catch (e) { showErr(e.message); }
   }
 
@@ -397,6 +403,111 @@
     try { const r = await api(`/approvals/${id}/respond`, { method: 'POST', body: { decision: b.dataset.appr } });
       toast(r.execution && r.execution.ok === false ? 'Approved, but it failed: ' + r.execution.error : b.dataset.appr === 'approve' ? 'Approved' : 'Rejected'); await loadApprovals(); }
     catch (err) { toast(err.message); b.disabled = false; }
+  });
+
+
+  // ---------------------------------------------------------------- CONTENT STUDIO
+  const CONTENT_FILTERS = { review: ['rendered', 'qa_failed', 'draft'], queue: ['queued', 'approved'], published: ['published'], rejected: ['rejected'] };
+  async function loadContent() {
+    const [rows, queue] = await Promise.all([api('/content?limit=100'), api('/content/queue?limit=1')]);
+    const need = rows.filter((r) => CONTENT_FILTERS.review.includes(r.status)).length;
+    setBadge('badge-content', need);
+    const list = rows.filter((r) => CONTENT_FILTERS[state.contentFilter].includes(r.status));
+    const chips = [['review', 'Needs review'], ['queue', 'Queued to post'], ['published', 'Published'], ['rejected', 'Rejected']]
+      .map(([v, l]) => `<button data-cfilter="${v}" class="btn ${state.contentFilter === v ? 'btn-go' : ''}">${l} (${rows.filter((r) => CONTENT_FILTERS[v].includes(r.status)).length})</button>`).join(' ');
+    $('tab-content').innerHTML = `
+      <div class="glass-card rounded-xl p-4 mb-4 text-sm text-zinc-300">${queue.autopilot
+        ? '<b>Autopilot is on.</b> Posts that pass QA go to the queue and are published by the Social agent within the daily caps. Reject anything you do not want out.'
+        : '<b>Approval mode.</b> Nothing is posted until you approve it here.'}</div>
+      <div class="flex gap-2 mb-4 flex-wrap">${chips}</div>` +
+      (list.length ? list.map(contentCard).join('') : empty('palette', 'Nothing here', state.contentFilter === 'review' ? 'New graphics from the Content Director appear here for a quick look.' : ''));
+  }
+  const qaBadges = (qa) => !qa ? '' : [...(qa.errors || []).map((e) => `<span class="badge b-bad">${esc(e)}</span>`), ...(qa.warnings || []).map((w) => `<span class="badge b-warn">${esc(w)}</span>`)].join(' ');
+  function contentCard(c) {
+    const imgs = (c.assetIds || []).map((id) => `<img loading="lazy" src="${API}/assets/${esc(id)}" alt="" class="rounded-lg w-40 flex-none border border-white/10">`).join('');
+    const open = ['rendered', 'queued', 'qa_failed', 'draft'].includes(c.status);
+    return `<div class="glass-card rounded-xl p-4 mb-4" data-content="${esc(c.id)}">
+      <div class="flex gap-4 flex-wrap sm:flex-nowrap">
+        <div class="flex gap-2 overflow-x-auto max-w-full sm:max-w-[360px] flex-none">${imgs || '<div class="w-40 h-52 rounded-lg bg-white/5 flex items-center justify-center text-xs text-zinc-500">not rendered</div>'}</div>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 flex-wrap"><span class="badge b-normal">${esc(c.layout || c.format)}</span><span class="badge b-mute">${esc((c.platforms || []).join(' + '))}</span><span class="badge ${c.status === 'qa_failed' ? 'b-bad' : c.status === 'queued' || c.status === 'approved' ? 'b-ok' : 'b-warn'}">${esc(c.status.replace('_', ' '))}</span>${c.scheduledFor ? `<span class="text-xs text-zinc-500">for ${esc(new Date(c.scheduledFor).toLocaleString())}</span>` : ''}</div>
+          <p class="text-sm font-semibold text-zinc-100 mt-2">${esc(c.title)}</p>
+          <p class="text-sm text-zinc-300 mt-2 whitespace-pre-wrap break-words p-3 rounded-lg bg-white/5">${esc(c.caption)}</p>
+          ${c.grounding ? `<p class="text-xs text-zinc-500 mt-2">Source: ${esc(c.grounding)}</p>` : ''}
+          ${c.note ? `<p class="text-xs text-amber-300 mt-2">Note: ${esc(c.note)}</p>` : ''}
+          ${c.postUrl ? `<p class="text-xs mt-2"><a class="text-primary" target="_blank" rel="noopener" href="${esc(c.postUrl)}">View post</a></p>` : ''}
+          <div class="flex gap-1 flex-wrap mt-2">${qaBadges(c.qa)}</div>
+          ${open ? `<div class="flex gap-2 mt-3 flex-wrap items-center">
+            ${c.status !== 'qa_failed' && (c.assetIds || []).length ? '<button class="btn btn-go" data-cact="approve">Approve</button>' : ''}
+            <input type="datetime-local" class="bg-zinc-900 border border-white/10 rounded-lg text-xs text-zinc-200 py-1 px-2" data-sched>
+            <button class="btn" data-cact="schedule">Approve + schedule</button>
+            <button class="btn" data-cact="render">Re-render</button>
+            <button class="btn" data-cact="edit">Edit caption</button>
+            <button class="btn btn-no" data-cact="reject">Reject</button></div>` : ''}
+        </div>
+      </div></div>`;
+  }
+  document.addEventListener('click', async (e) => {
+    const f = e.target.closest('[data-cfilter]'); if (f) { state.contentFilter = f.dataset.cfilter; return loadContent(); }
+    const b = e.target.closest('[data-cact]'); if (!b) return;
+    const card = b.closest('[data-content]'), id = card.dataset.content, act = b.dataset.cact;
+    try {
+      b.disabled = true;
+      if (act === 'approve') { await api(`/content/${id}/approve`, { method: 'POST', body: {} }); toast('Approved'); }
+      if (act === 'schedule') { const v = card.querySelector('[data-sched]').value; if (!v) { toast('Pick a date and time'); b.disabled = false; return; } await api(`/content/${id}/approve`, { method: 'POST', body: { scheduledFor: new Date(v).toISOString() } }); toast('Scheduled'); }
+      if (act === 'render') { const r = await api(`/content/${id}/render`, { method: 'POST' }); toast(r.qa && !r.qa.ok ? 'QA failed: ' + r.qa.errors[0] : 'Re-rendered'); }
+      if (act === 'reject') { const note = prompt('What should change? (the Content Director reads this)', ''); if (note === null) { b.disabled = false; return; } await api(`/content/${id}/reject`, { method: 'POST', body: { note } }); toast('Rejected'); }
+      if (act === 'edit') {
+        const cur = card.querySelector('p.whitespace-pre-wrap').textContent; const v = prompt('Caption', cur); if (v === null) { b.disabled = false; return; }
+        await api('/content/' + id, { method: 'PATCH', body: { caption: v } }); await api(`/content/${id}/render`, { method: 'POST' }); toast('Saved and re-rendered');
+      }
+      await loadContent();
+    } catch (err) { toast(err.message); b.disabled = false; }
+  });
+
+  // ---------------------------------------------------------------- SOCIAL
+  async function loadSocial() {
+    const [b, groups, actions] = await Promise.all([api('/social/budget'), api('/social/groups'), api('/social/actions?limit=25')]);
+    const kinds = Object.keys(b.caps);
+    const meter = (m) => `<div class="mb-2"><div class="flex justify-between text-xs text-zinc-400"><span>${esc(m.k.replace('_', ' '))}</span><span>${m.used}/${m.cap}</span></div><div class="h-1.5 rounded-full bg-white/10"><div class="h-1.5 rounded-full ${m.used >= m.cap ? 'bg-red-400' : 'bg-secondary'}" style="width:${Math.min(100, (m.used / m.cap) * 100)}%"></div></div></div>`;
+    const plat = (p) => `<div class="glass-card rounded-xl p-4"><h3 class="text-sm font-bold text-zinc-200 mb-3 capitalize">${p} today</h3>${kinds.map((k) => meter({ k, ...b.budget[p][k] })).join('')}</div>`;
+    const memb = { member: 'b-ok', requested: 'b-warn', unknown: 'b-mute', declined: 'b-bad', banned: 'b-bad', left: 'b-mute' };
+    $('tab-social').innerHTML = `
+      <p class="text-sm text-zinc-500 mb-4">Daily caps are enforced by the server, not the agent's good intentions. ${esc(b.date)}.</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">${plat('facebook')}${plat('instagram')}</div>
+      <div class="glass-card rounded-xl p-5 mb-6"><h3 class="text-sm font-bold text-zinc-200 mb-3">Groups (${groups.length})</h3>
+        ${groups.length ? `<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-zinc-500"><th class="py-1 pr-3">Group</th><th class="pr-3">Status</th><th class="pr-3">Promo</th><th class="pr-3">Last post</th><th class="pr-3">Posts</th><th>Leads</th></tr></thead><tbody>${groups.map((g) => `<tr class="border-t border-white/5"><td class="py-2 pr-3 text-zinc-100">${esc(g.name)}${g.promoNotes ? `<div class="text-xs text-zinc-500">${esc(g.promoNotes)}</div>` : ''}</td><td class="pr-3"><span class="badge ${memb[g.membership] || 'b-mute'}">${esc(g.membership)}</span></td><td class="pr-3 text-zinc-300">${esc(g.promoPolicy)}</td><td class="pr-3 text-zinc-400">${g.lastPostedAt ? esc(ago(g.lastPostedAt)) : '—'}</td><td class="pr-3 text-zinc-300">${g.postsCount}</td><td class="text-zinc-300">${g.leads}</td></tr>`).join('')}</tbody></table></div>` : '<p class="text-sm text-zinc-500">No groups recorded yet. The Social agent adds each group (with its rules) the first time it visits.</p>'}</div>
+      <div class="glass-card rounded-xl p-5"><h3 class="text-sm font-bold text-zinc-200 mb-3">Recent actions</h3>
+        ${actions.length ? actions.map((a) => `<div class="flex items-start gap-3 py-2 border-b border-white/5 last:border-0 text-sm"><span class="badge b-normal flex-none">${esc(a.platform)}</span><span class="text-zinc-300 flex-1 min-w-0 break-words">${esc(a.kind.replace('_', ' '))}${a.target ? ' · ' + esc(a.target) : ''}${a.summary ? ' · ' + esc(a.summary) : ''}</span><span class="text-xs text-zinc-500 flex-none">${esc(ago(a.createdAt))}</span></div>`).join('') : '<p class="text-sm text-zinc-500">No social actions yet.</p>'}</div>`;
+  }
+
+  // ---------------------------------------------------------------- VAULT
+  const VAULT_TAGS = ['PATIOS', 'SOD', 'LAWNS', 'FALL', 'SNOW', 'COMMERCIAL', 'CREW', 'EQUIPMENT', 'BEFORE', 'AFTER', 'LANDSCAPING', 'DRAINAGE'];
+  async function loadVault() {
+    const q = new URLSearchParams({ limit: '120' }); if (state.vaultTag) q.set('tag', state.vaultTag);
+    const rows = await api('/assets?' + q);
+    $('tab-vault').innerHTML = `
+      <div class="glass-card rounded-xl p-4 mb-4">
+        <p class="text-sm text-zinc-300 mb-3">Your real job photos. The Content Director uses these instead of stock or AI images. Tags are added automatically from the file name; add your own below.</p>
+        <div class="flex gap-2 flex-wrap items-center"><input type="file" id="v-files" accept="image/png,image/jpeg,image/webp" multiple class="text-sm text-zinc-300"><input id="v-tags" placeholder="extra tags, comma separated" class="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-zinc-100 flex-1 min-w-[160px]"><button class="btn btn-go" id="v-upload">Upload</button></div>
+        <p id="v-status" class="text-xs text-zinc-500 mt-2"></p></div>
+      <div class="flex gap-1.5 flex-wrap mb-4"><button data-vtag="" class="btn ${state.vaultTag ? '' : 'btn-go'}">All</button>${VAULT_TAGS.map((t) => `<button data-vtag="${t}" class="btn ${state.vaultTag === t ? 'btn-go' : ''}">${t}</button>`).join('')}</div>
+      ${rows.length ? `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">${rows.map((a) => `<div class="glass-card rounded-xl overflow-hidden" data-asset="${esc(a.id)}"><img loading="lazy" src="${API}/assets/${esc(a.id)}" alt="${esc(a.name)}" class="w-full aspect-square object-cover"><div class="p-2"><p class="text-xs text-zinc-300 truncate">${esc(a.name)}</p><div class="flex gap-1 flex-wrap mt-1">${(a.tags || []).slice(0, 4).map((t) => `<span class="badge b-mute">${esc(t)}</span>`).join('')}</div><div class="flex justify-between mt-1"><span class="text-[10px] text-zinc-500">${a.kind}${a.width ? ' · ' + a.width + '×' + a.height : ''}</span><button class="text-[10px] text-red-300" data-adel>delete</button></div></div></div>`).join('')}</div>` : empty('photo_library', 'No photos yet', 'Upload before/after shots, crew and equipment photos to give the AI real material.')}`;
+  }
+  const fileToB64 = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
+  document.addEventListener('click', async (e) => {
+    const t = e.target.closest('[data-vtag]'); if (t) { state.vaultTag = t.dataset.vtag; return loadVault(); }
+    const d = e.target.closest('[data-adel]');
+    if (d && confirm('Delete this photo? Posts already rendered from it keep their graphics.')) { try { await api('/assets/' + d.closest('[data-asset]').dataset.asset, { method: 'DELETE' }); loadVault(); } catch (err) { toast(err.message); } }
+    if (e.target.id === 'v-upload') {
+      const files = [...$('v-files').files]; if (!files.length) return toast('Choose one or more photos');
+      const tags = $('v-tags').value.split(',').map((x) => x.trim()).filter(Boolean); const st = $('v-status'); let ok = 0, dup = 0;
+      for (const [i, f] of files.entries()) {
+        st.textContent = `Uploading ${i + 1} of ${files.length}…`;
+        try { const r = await api('/assets', { method: 'POST', body: { name: f.name, base64: await fileToB64(f), tags } }); r.duplicate ? dup++ : ok++; } catch (err) { st.textContent = f.name + ': ' + err.message; }
+      }
+      toast(`${ok} added${dup ? `, ${dup} already in the vault` : ''}`); loadVault();
+    }
   });
 
   // ---------------------------------------------------------------- ROUTINES

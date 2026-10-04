@@ -1,0 +1,35 @@
+<!-- @dsCard group="Posts" width=1080 height=1350 subtitle="Booking pushes, offers, snow plan, hiring." -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;800&family=DM+Serif+Display&display=swap">
+<style>*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:transparent}
+.post{width:1080px;height:1350px;position:relative;overflow:hidden;font-family:var(--font-sans)}
+.post.size-story{height:1920px}.post.size-square{height:1080px}
+.mark{display:flex;align-items:center;gap:16px}
+.badge{width:64px;height:64px;border-radius:var(--radius-badge);display:block}
+.wm{font-family:var(--font-display);font-size:34px;letter-spacing:1px;line-height:1}
+.wm small{display:block;font-family:var(--font-sans);font-weight:600;font-size:14px;letter-spacing:4px;opacity:.75;margin-top:6px}
+
+.post{background:var(--forest);color:var(--white)}
+.stripes{position:absolute;inset:0;background:repeating-linear-gradient(90deg,var(--forest-stripe-a) 0 var(--stripe),var(--forest-stripe-b) var(--stripe) calc(var(--stripe)*2))}
+.photo{position:absolute;inset:0;background-size:cover;background-position:center}
+.shade{position:absolute;inset:0;background:var(--forest);opacity:.72}
+.c{position:absolute;inset:var(--safe-statement);display:flex;flex-direction:column}
+.kick{font-weight:800;letter-spacing:6px;color:var(--leaf);font-size:22px}
+h1{font-family:var(--font-display);font-weight:400;font-size:230px;line-height:.88;margin-top:28px;text-transform:uppercase}
+h1 span{color:var(--leaf)}
+p{font-size:34px;line-height:1.35;margin-top:var(--gap-l);max-width:780px;color:var(--sage)}
+.foot{margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;border-top:2px solid var(--rule-on-forest);padding-top:var(--gap-m)}
+.cta{text-align:right;font-family:var(--font-display);font-size:52px;letter-spacing:1px;line-height:1}
+.cta small{display:block;font-family:var(--font-sans);font-weight:600;font-size:18px;letter-spacing:4px;color:var(--leaf);margin-bottom:8px}
+.size-story .c{inset:220px var(--safe-statement) 300px}
+.size-story .head{margin:auto 0}
+.size-square h1{font-size:180px}
+.size-square p{font-size:30px}</style>
+<div class="post"><div class="stripes"></div><div class="photo" data-if="photo" data-slot-bg="photo"></div><div class="shade" data-if="photo"></div><div class="c">
+<div class="head">
+<div class="kick" data-slot="kicker">THE WINTER LONG PLAN</div>
+<h1 data-slot="headline" data-fit>One inch.<br><span>We're there.</span></h1>
+<p data-slot="body" data-fit>Driveway and walks cleared all winter. One flat monthly rate. No per visit bills.</p>
+</div>
+<div class="foot"><div class="mark"><img class="badge" src="/_blob/8a3342d2750849e38f3090d481e356a8" alt=""><div class="wm">No-Bs Yardwork<small>WINNIPEG · EST. 2019</small></div></div><div class="cta"><small>CALL OR TEXT</small>204-900-0438</div></div></div></div>
+<script></script>

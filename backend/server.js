@@ -154,7 +154,9 @@ app.use(
 // ---------------------------------------------------------------------------
 app.use('/webhook', webhookRouter);
 
-app.use(express.json());
+// /api/ai parses its own (larger) JSON bodies AFTER authenticating — photo uploads arrive as base64.
+const defaultJson = express.json();
+app.use((req, res, next) => (req.path.startsWith('/api/ai') ? next() : defaultJson(req, res, next)));
 app.use(cookieParser());
 
 // ---------------------------------------------------------------------------

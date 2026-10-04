@@ -191,33 +191,7 @@ function getDayTag(date = new Date()) {
   return date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 }
 
-const BUSINESS_TZ = process.env.BUSINESS_TZ || 'America/Winnipeg';
-
-const _dateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: BUSINESS_TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
-const _hourFmt = new Intl.DateTimeFormat('en-GB', { timeZone: BUSINESS_TZ, hour: '2-digit', hourCycle: 'h23' });
-
-/**
- * Converts a date string or Date to "YYYY-MM-DD" in the business timezone (Winnipeg).
- * (Was UTC, which flipped to "tomorrow" every evening and broke the morning check.)
- */
-function toDateString(date = new Date()) {
-  const d = date instanceof Date ? date : new Date(date);
-  return _dateFmt.format(d);
-}
-
-/** Hour of day (0-23) in the business timezone. */
-function localHour(date) {
-  return parseInt(_hourFmt.format(date), 10);
-}
-
-/** UTC offset like "-05:00" / "-06:00" for a YYYY-MM-DD in the business timezone (DST-aware). */
-function tzOffsetFor(dateStr) {
-  const noon = new Date(`${dateStr}T18:00:00Z`);
-  const part = new Intl.DateTimeFormat('en-US', { timeZone: BUSINESS_TZ, timeZoneName: 'longOffset' })
-    .formatToParts(noon).find((p) => p.type === 'timeZoneName')?.value || 'GMT-06:00';
-  const m = part.match(/GMT([+-]\d{2}):?(\d{2})?/);
-  return m ? `${m[1]}:${m[2] || '00'}` : '-06:00';
-}
+const { BUSINESS_TZ, toDateString, localHour, tzOffsetFor } = require('../lib/tz');
 
 /**
  * Formats a YYYY-MM-DD string as "Tuesday, March 18".

@@ -1,0 +1,49 @@
+<!-- @dsCard group="Posts" width=1080 height=1350 subtitle="Four services or four jobs in one grid." -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;800&family=DM+Serif+Display&display=swap">
+<style>*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:transparent}
+.post{width:1080px;height:1350px;position:relative;overflow:hidden;font-family:var(--font-sans)}
+.post.size-story{height:1920px}.post.size-square{height:1080px}
+.mark{display:flex;align-items:center;gap:16px}
+.badge{width:64px;height:64px;border-radius:var(--radius-badge);display:block}
+.wm{font-family:var(--font-display);font-size:34px;letter-spacing:1px;line-height:1}
+.wm small{display:block;font-family:var(--font-sans);font-weight:600;font-size:14px;letter-spacing:4px;opacity:.75;margin-top:6px}
+
+.post{background:var(--forest);color:var(--white)}
+.stripes{position:absolute;inset:0;background:repeating-linear-gradient(90deg,var(--forest-stripe-a) 0 var(--stripe),var(--forest-stripe-b) var(--stripe) calc(var(--stripe)*2))}
+.c{position:absolute;inset:var(--safe-statement);display:flex;flex-direction:column}
+.kick{font-weight:800;letter-spacing:6px;color:var(--leaf);font-size:22px}
+h1{font-family:var(--font-display);font-weight:400;font-size:110px;line-height:.92;margin-top:var(--gap-s);text-transform:uppercase}
+h1 span{color:var(--leaf)}
+.grid{flex:1;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:14px;margin:44px 0 36px;min-height:0}
+.tile{position:relative;overflow:hidden;background:var(--leaf);color:var(--leaf-ink)}
+.tile:nth-child(2),.tile:nth-child(3){background:var(--paper);color:var(--ink)}
+.img{position:absolute;inset:0;background-size:cover;background-position:center}
+.lab{position:absolute;inset:0;padding:30px 32px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start}
+.lab b{font-family:var(--font-display);font-weight:400;font-size:130px;line-height:.85;color:var(--forest)}
+.lab span{font-family:var(--font-display);font-size:52px;line-height:.95;text-transform:uppercase}
+.img[style*="url("]+.lab{top:auto;flex-direction:row;align-items:baseline;gap:16px;padding:22px 26px 24px;background:var(--forest);color:var(--white)}
+.img[style*="url("]+.lab b{font-size:44px;line-height:1;color:var(--leaf)}
+.img[style*="url("]+.lab span{font-size:46px}
+.foot{display:flex;justify-content:space-between;align-items:flex-end;border-top:2px solid var(--rule-on-forest);padding-top:var(--gap-m)}
+.cta{text-align:right;font-family:var(--font-display);font-size:52px;letter-spacing:1px;line-height:1}
+.cta small{display:block;font-family:var(--font-sans);font-weight:600;font-size:18px;letter-spacing:4px;color:var(--leaf);margin-bottom:8px}
+.size-story .c{inset:220px var(--safe-statement) 300px}
+.size-story h1{font-size:130px}
+.size-square .c{inset:64px}
+.size-square h1{font-size:80px}
+.size-square .grid{margin:30px 0 26px;gap:10px}
+.size-square .lab span{font-size:38px}
+.size-square .lab b{font-size:90px}
+.size-square .img[style*="url("]+.lab b{font-size:34px}</style>
+<div class="post"><div class="stripes"></div><div class="c">
+<div class="kick" data-slot="kicker">FALL IN WINNIPEG</div>
+<h1 data-slot="headline" data-fit>One crew.<br><span>Four jobs done.</span></h1>
+<div class="grid" data-slot-list="tiles">
+<div class="tile"><div class="img" data-slot-bg="photo"></div><div class="lab"><b data-slot="num">01</b><span data-slot="label">Leaf cleanup</span></div></div>
+<div class="tile"><div class="img" data-slot-bg="photo"></div><div class="lab"><b data-slot="num">02</b><span data-slot="label">Last cut</span></div></div>
+<div class="tile"><div class="img" data-slot-bg="photo"></div><div class="lab"><b data-slot="num">03</b><span data-slot="label">Aeration</span></div></div>
+<div class="tile"><div class="img" data-slot-bg="photo"></div><div class="lab"><b data-slot="num">04</b><span data-slot="label">Snow plan</span></div></div>
+</div>
+<div class="foot"><div class="mark"><img class="badge" src="/_blob/8a3342d2750849e38f3090d481e356a8" alt=""><div class="wm">No-Bs Yardwork<small>WINNIPEG · EST. 2019</small></div></div><div class="cta"><small>CALL OR TEXT</small>204-900-0438</div></div></div></div>
+<script></script>

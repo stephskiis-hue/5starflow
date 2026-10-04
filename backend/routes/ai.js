@@ -25,13 +25,17 @@ const { getUnansweredSms, getCustomerContext } = require('../ai/comms');
 const { RUNNABLE } = require('../ai');
 const { AGENTS, TASK_STATES } = require('../ai/constants');
 const op = require('../services/operatorService');
+const vault = require('../ai/vault');
+const content = require('../ai/content');
+const social = require('../ai/social');
+const { renderPost, RenderError } = require('../ai/design/renderer');
+const { describeLayouts } = require('../ai/design/layouts');
+const { lintContent } = require('../ai/design/qa');
 
 const safeEq = (a, b) => {
   const x = Buffer.from(String(a)); const y = Buffer.from(String(b));
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 };
-
-router.use(express.json({ limit: '2mb' }));
 
 // Express 4: forward async rejections to the global error handler instead of hanging the request.
 ['get', 'post', 'put', 'patch', 'delete'].forEach((method) => {
@@ -60,6 +64,7 @@ async function aiAuth(req, res, next) {
 const ownerOnly = (req, res, next) => (req.ai.actor === 'owner' ? next() : res.status(403).json({ error: 'Owner session required' }));
 
 router.use(aiAuth);
+router.use(express.json({ limit: '20mb' }));      // assets arrive as base64
 
 const int = (v, d, max = 200) => Math.min(Math.max(parseInt(v, 10) || d, 1), max);
 
@@ -229,6 +234,177 @@ router.get('/inbox/unanswered-sms', async (req, res) => {
 
 router.get('/customers/context', async (req, res) => {
   res.json(await getCustomerContext(req.ai.userId, { jobberClientId: req.query.jobberClientId, phone: req.query.phone, email: req.query.email, q: req.query.q }));
+});
+
+
+// --------------------------------------------------------------------------- vault (photos + graphics)
+const parseBase64 = (b64) => Buffer.from(String(b64 || '').replace(/^data:[^;]+;base64,/, ''), 'base64');
+
+router.post('/assets', async (req, res) => {
+  try {
+    const { asset, duplicate } = await vault.saveAsset(req.ai.userId, {
+      kind: ['photo', 'graphic', 'reference', 'screenshot', 'logo'].includes(req.body?.kind) ? req.body.kind : 'photo',
+      name: req.body?.name, buffer: parseBase64(req.body?.base64), tags: req.body?.tags, notes: req.body?.notes, source: req.ai.actor === 'agent' ? 'import' : 'upload',
+    });
+    res.status(duplicate ? 200 : 201).json({ asset: { ...asset, tags: JSON.parse(asset.tags || '[]') }, duplicate });
+  } catch (e) { res.status(e.code === 'INVALID_ASSET' ? 422 : 400).json({ error: e.message }); }
+});
+
+router.get('/assets', async (req, res) => {
+  res.json(await vault.listAssets(req.ai.userId, { kind: req.query.kind, tag: req.query.tag, q: req.query.q, limit: int(req.query.limit, 60) }));
+});
+
+router.get('/assets/:id', async (req, res) => {
+  const a = await vault.getAssetBytes(req.ai.userId, req.params.id);
+  if (!a) return res.status(404).json({ error: 'Asset not found' });
+  res.set({ 'Content-Type': a.mime, 'Cache-Control': 'private, max-age=86400', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': `inline; filename="${a.name.replace(/"/g, '')}"` });
+  res.send(Buffer.from(a.bytes));
+});
+
+router.patch('/assets/:id', async (req, res) => {
+  const ok = await vault.updateAsset(req.ai.userId, req.params.id, req.body || {});
+  res.status(ok ? 200 : 404).json({ ok });
+});
+
+router.delete('/assets/:id', ownerOnly, async (req, res) => {
+  const r = await prisma.contentAsset.deleteMany({ where: { id: req.params.id, userId: req.ai.userId } });
+  res.status(r.count ? 200 : 404).json({ ok: !!r.count });
+});
+
+// --------------------------------------------------------------------------- content engine
+const renderErr = (res, e) => {
+  if (e instanceof RenderError) return res.status(e.code === 'RENDERER_UNAVAILABLE' ? 503 : 422).json({ error: e.message, code: e.code, details: e.details });
+  if (['INVALID_PHOTO', 'INVALID_CONTENT'].includes(e.code)) return res.status(422).json({ error: e.message });
+  if (e.code === 'NOT_FOUND') return res.status(404).json({ error: e.message });
+  if (e.code === 'BAD_STATE') return res.status(409).json({ error: e.message });
+  if (e.code === 'CAP_REACHED') return res.status(409).json({ error: e.message, code: e.code, kind: e.kind, cap: e.cap });
+  throw e;
+};
+const isAutopilot = async (userId) => {
+  const r = await prisma.routine.findUnique({ where: { userId_slug: { userId, slug: 'ext-social-daily' } }, select: { autonomy: true } });
+  return r?.autonomy === 'execute';
+};
+
+router.get('/content/layouts', (req, res) => res.json(describeLayouts()));
+
+router.post('/content/lint', (req, res) => res.json(lintContent(req.body || {})));
+
+// One-off preview render (no item, nothing stored): returns the PNG.
+router.post('/content/preview', async (req, res) => {
+  try {
+    const { layout, slots, size, photos } = req.body || {};
+    const r = await renderPost({ layout, slots: slots || {}, size: size || 'feed', photos: await vault.resolvePhotos(req.ai.userId, photos || {}) });
+    res.set({ 'Content-Type': 'image/png', 'X-Fit-Steps': String(r.fitSteps), 'X-Overflow': String(r.overflow) }).send(r.png);
+  } catch (e) { renderErr(res, e); }
+});
+
+router.get('/content', async (req, res) => {
+  const where = { userId: req.ai.userId };
+  if (req.query.status) where.status = String(req.query.status);
+  const rows = await prisma.contentItem.findMany({ where, orderBy: { updatedAt: 'desc' }, take: int(req.query.limit, 60) });
+  res.json(rows.map((r) => ({ ...r, platforms: JSON.parse(r.platforms || '[]') })));
+});
+
+router.get('/content/performance', async (req, res) => res.json(await content.performanceSummary(req.ai.userId, { days: int(req.query.days, 60, 365) })));
+
+router.get('/content/queue', async (req, res) => {
+  const autopilot = await isAutopilot(req.ai.userId);
+  res.json({ autopilot, items: await content.publishQueue(req.ai.userId, { platform: req.query.platform, autopilot, limit: int(req.query.limit, 10, 30) }) });
+});
+
+router.post('/content', async (req, res) => {
+  try {
+    const item = await content.createContent(req.ai.userId, { source: req.ai.agent, ...req.body });
+    let result = { item };
+    if (req.body?.render) result = await content.renderContent(req.ai.userId, item.id, { autopilot: await isAutopilot(req.ai.userId) });
+    res.status(201).json(result);
+  } catch (e) { renderErr(res, e); }
+});
+
+router.patch('/content/:id', async (req, res) => {
+  const b = req.body || {}; const data = {};
+  for (const k of ['title', 'caption', 'captionIg', 'pillar', 'layout', 'grounding', 'note']) if (typeof b[k] === 'string') data[k] = b[k].slice(0, 5000);
+  if (b.slots && typeof b.slots === 'object') data.slots = b.slots;
+  if (Array.isArray(b.platforms)) data.platforms = JSON.stringify(b.platforms);
+  if (b.scheduledFor !== undefined) data.scheduledFor = b.scheduledFor ? new Date(b.scheduledFor) : null;
+  if (Object.keys(data).some((k) => ['slots', 'layout', 'caption', 'captionIg'].includes(k))) { data.status = 'draft'; data.assetIds = null; data.qa = null; } // edited → must re-render + re-QA
+  const r = await prisma.contentItem.updateMany({ where: { id: req.params.id, userId: req.ai.userId }, data });
+  res.status(r.count ? 200 : 404).json({ ok: !!r.count });
+});
+
+router.post('/content/:id/render', async (req, res) => {
+  try { res.json(await content.renderContent(req.ai.userId, req.params.id, { autopilot: await isAutopilot(req.ai.userId) })); } catch (e) { renderErr(res, e); }
+});
+
+router.post('/content/:id/approve', ownerOnly, async (req, res) => {
+  try {
+    const item = await content.transition(req.ai.userId, req.params.id, 'approve', { scheduledFor: req.body?.scheduledFor });
+    await recordActivity(req.ai.userId, { agent: 'orchestrator', action: 'approved content', summary: item.title, result: 'ok', approval: 'approved', source: 'dashboard' });
+    res.json(item);
+  } catch (e) { renderErr(res, e); }
+});
+
+router.post('/content/:id/reject', ownerOnly, async (req, res) => {
+  try {
+    const item = await content.transition(req.ai.userId, req.params.id, 'reject', { note: req.body?.note });
+    if (req.body?.note) await saveMemory(req.ai.userId, { scope: 'agent:content', key: `rejected:${item.id}`, value: `Owner rejected "${item.title}" (${item.layout || item.format}): ${req.body.note}`, confidence: 0.9, source: 'owner', agent: 'content' }).catch(() => {});
+    res.json(item);
+  } catch (e) { renderErr(res, e); }
+});
+
+router.post('/content/:id/published', async (req, res) => {
+  try { res.json(await content.markPublished(req.ai.userId, req.params.id, req.body || {})); } catch (e) { renderErr(res, e); }
+});
+
+router.post('/content/:id/metrics', async (req, res) => {
+  const ok = await content.recordMetrics(req.ai.userId, req.params.id, req.body || {});
+  res.status(ok ? 200 : 404).json({ ok });
+});
+
+// --------------------------------------------------------------------------- social
+router.get('/social/budget', async (req, res) => res.json(await social.getBudget(req.ai.userId, { date: req.query.date })));
+
+router.get('/social/actions', async (req, res) => {
+  res.json(await prisma.socialAction.findMany({ where: { userId: req.ai.userId }, orderBy: { createdAt: 'desc' }, take: int(req.query.limit, 50) }));
+});
+
+router.post('/social/actions', async (req, res) => {
+  try {
+    const row = await social.recordAction(req.ai.userId, req.body || {});
+    await recordActivity(req.ai.userId, { agent: 'social', action: `${row.kind.replace('_', ' ')} on ${row.platform}`, summary: [row.target, row.summary].filter(Boolean).join(': '), result: row.status === 'done' ? 'ok' : row.status, source: row.platform });
+    res.status(201).json(row);
+  } catch (e) {
+    if (e.code === 'CAP_REACHED') return res.status(409).json({ error: e.message, code: e.code, kind: e.kind, cap: e.cap });
+    if (e.code === 'INVALID_ACTION') return res.status(422).json({ error: e.message });
+    throw e;
+  }
+});
+
+router.get('/social/groups', async (req, res) => {
+  res.json(await prisma.socialGroup.findMany({ where: { userId: req.ai.userId }, orderBy: [{ membership: 'asc' }, { relevance: 'desc' }, { name: 'asc' }], take: 300 }));
+});
+
+router.get('/social/groups/next', async (req, res) => {
+  res.json(await social.nextGroups(req.ai.userId, { promo: req.query.promo === 'true', limit: int(req.query.limit, 3, 10) }));
+});
+
+router.post('/social/groups', async (req, res) => {
+  const b = req.body || {};
+  if (!b.name) return res.status(400).json({ error: 'name required' });
+  const platform = b.platform || 'facebook';
+  const fields = {};
+  for (const k of ['url', 'location', 'audience', 'rules', 'promoNotes', 'topics', 'notes']) if (typeof b[k] === 'string') fields[k] = b[k].slice(0, 3000);
+  if (['unknown', 'requested', 'member', 'declined', 'left', 'banned'].includes(b.membership)) fields.membership = b.membership;
+  if (['unknown', 'allowed', 'restricted', 'banned'].includes(b.promoPolicy)) fields.promoPolicy = b.promoPolicy;
+  if (Number.isFinite(Number(b.relevance))) fields.relevance = Math.min(5, Math.max(1, Number(b.relevance)));
+  if (Number.isFinite(Number(b.cooldownDays))) fields.cooldownDays = Math.min(60, Math.max(1, Number(b.cooldownDays)));
+  if (b.leadsDelta) fields.leads = { increment: Math.max(0, parseInt(b.leadsDelta, 10) || 0) };
+  fields.lastCheckedAt = new Date();
+  const row = await prisma.socialGroup.upsert({
+    where: { userId_platform_name: { userId: req.ai.userId, platform, name: String(b.name).slice(0, 160) } },
+    update: fields, create: { userId: req.ai.userId, platform, name: String(b.name).slice(0, 160), ...fields, leads: typeof fields.leads === 'number' ? fields.leads : 0 },
+  });
+  res.status(201).json(row);
 });
 
 router.use((err, req, res, next) => {
