@@ -19,7 +19,7 @@ Primary sources, best first: City of Winnipeg (winnipeg.ca, legacy.winnipeg.ca),
 - Book spring cleanup now (OfferPost, no price).
 
 ## April
-- **Elm pruning ban April 1 to July 31** (Dutch elm disease; fresh cuts attract elm bark beetles). Storing elm firewood with bark is illegal in Manitoba. Source: https://www.gov.mb.ca/stopthespread/fis/ded/faq.html and https://www.treeswinnipeg.org/our-urban-forest/urban-forest-threats/dutch-elm-disease
+- **Elm pruning ban April 1 to July 31** (Dutch elm disease; fresh cuts attract elm bark beetles). "Storing elm wood ... is illegal" in Manitoba; dead or dying elms are cut flush or debarked to the soil line, then burned or chipped (check burning rules with the municipality). Source: https://www.gov.mb.ca/stopthespread/fis/ded/faq.html and https://www.treeswinnipeg.org/our-urban-forest/urban-forest-threats/dutch-elm-disease
 - **Don't rake too early.** Wait until soil dries and mud season passes. Rake matted grass to break up snow mold. Source: https://extension.umn.edu/news/practice-patience-spring-lawn-care
 - Snow mold: what the grey or pink matted patches are, and why they usually recover. Source: https://extension.umn.edu/yard-and-garden-news/what-does-winter-injury-look-your-lawn
 
