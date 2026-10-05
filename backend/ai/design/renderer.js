@@ -174,7 +174,7 @@ async function getBrowser() {
           return await require('playwright').chromium.launch({ args: [...args, ...sparticuz.args], executablePath: await sparticuz.executablePath(), headless: true });
         } catch (e2) {
           browserPromise = null;
-          throw new RenderError('RENDERER_UNAVAILABLE', `No Chromium available (${e1.message.split('\n')[0]}). Install with "npx playwright install chromium" or set CHROMIUM_PATH.`);
+          throw new RenderError('RENDERER_UNAVAILABLE', `No Chromium available (${e1.message.split('\n')[0]}; fallback: ${e2.message.split('\n')[0]}). Deploy with backend/Dockerfile, run "npx playwright install chromium", or set CHROMIUM_PATH.`);
         }
       }
     })();
@@ -206,6 +206,17 @@ const FIT_SCRIPT = () => {
       return r.right > pr.right - 8 || r.left < pr.left + 8 || r.bottom > pr.bottom - 8 || el.scrollWidth > el.clientWidth + 2 || spillsFoot;
     });
   };
+  // Slots without [data-fit] can't shrink, but long copy in them can still push a column off the canvas or under the footer.
+  const slotOverflow = () => {
+    const pr = post.getBoundingClientRect();
+    const fr = footEl ? footEl.getBoundingClientRect() : null;
+    return [...post.querySelectorAll('[data-slot], [data-slot-list] > *')].some((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0 || !el.textContent.trim()) return false;
+      if (r.right > pr.right + 1 || r.left < pr.left - 1 || r.bottom > pr.bottom + 1 || r.top < pr.top - 1) return true;
+      return !!fr && !footEl.contains(el) && r.bottom > fr.top - 24 && r.top < fr.top && r.right > fr.left && r.left < fr.right;   // keep air above the footer
+    });
+  };
   let steps = 0;
   while (overflowing() && steps < 24) {
     for (const el of fits) {
@@ -214,7 +225,7 @@ const FIT_SCRIPT = () => {
     }
     steps++;
   }
-  return { fitSteps: steps, overflow: overflowing() };
+  return { fitSteps: steps, overflow: overflowing() || slotOverflow() };
 };
 
 /**

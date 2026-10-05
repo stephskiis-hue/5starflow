@@ -18,7 +18,7 @@ const {
   getSettings,
   runMorningCheck,
 } = require('../services/weatherService');
-const { notifyOwner } = require('../services/operatorService');
+const { notify } = require('../lib/notify');
 
 // In-memory calendar cache — busted on reschedule, expires after 15 min
 const calendarCache = new Map(); // userId -> { data, cachedAt }
@@ -339,8 +339,7 @@ router.post('/reschedule-visits', async (req, res) => {
 
   // Tell the owner it's done (fire-and-forget — never block/break the response).
   const errNote = errors.length ? ` · ${errors.length} error(s)` : '';
-  notifyOwner(userId, `✅ Rescheduled ${movedCount} job(s) to ${newDateLabel}. SMS ${smsCount} · Email ${emailCount}${errNote}`)
-    .catch((err) => console.warn('[weather] owner notify failed:', err.message));
+  notify(userId, { category: 'weather', title: `Rescheduled ${movedCount} job(s) to ${newDateLabel}`, body: `SMS ${smsCount} · Email ${emailCount}${errNote}`, link: '/weather-dashboard.html' });
 
   res.json({ success: true, moved: movedCount, smsCount, emailCount, errors });
 });
@@ -410,8 +409,7 @@ router.post('/notify', async (req, res) => {
     console.log(`[weather] Rain notifications sent — SMS: ${smsCount}, Email: ${emailCount}, Clients: ${clients.length}`);
 
     // Tell the owner it's done (fire-and-forget).
-    notifyOwner(req.user.userId, `✅ Notified ${clients.length} client(s) — rescheduled to ${newDateLabel}. SMS ${smsCount} · Email ${emailCount}`)
-      .catch((e) => console.warn('[weather] owner notify failed:', e.message));
+    notify(req.user.userId, { category: 'weather', title: `Notified ${clients.length} client(s): rescheduled to ${newDateLabel}`, body: `SMS ${smsCount} · Email ${emailCount}`, link: '/weather-dashboard.html' });
 
     res.json({ success: true, smsCount, emailCount, clientCount: clients.length, errors });
 

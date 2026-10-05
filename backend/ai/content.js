@@ -5,22 +5,38 @@
 const prisma = require('../lib/prismaClient');
 const { Prisma } = require('@prisma/client');
 const { renderPost, RenderError } = require('./design/renderer');
+const { makeReel } = require('./design/reel');
 const { lintContent } = require('./design/qa');
 const { LAYOUTS } = require('./design/layouts');
 const { saveAsset, resolvePhotos } = require('./vault');
 const { recordAction } = require('./social');
 const { recordActivity } = require('./ledger');
+const { notify } = require('../lib/notify');
 
-const FORMAT_SIZE = { post: 'feed', carousel: 'feed', group_post: 'square', story: 'story', reel_cover: 'story' };
+const FORMAT_SIZE = { post: 'feed', carousel: 'feed', group_post: 'square', story: 'story', reel: 'story', reel_cover: 'story' };
+// formats that may hold several frames in slots.slides (a story sequence, a reel's scenes, a carousel)
+const FRAME_LIMITS = { carousel: [3, 10], story: [1, 6], reel: [1, 6] };
 const PILLARS = ['tip', 'proof', 'review', 'faq', 'offer', 'founder', 'story', 'group', 'seasonal'];
 const FORMATS = Object.keys(FORMAT_SIZE);
+// Advice posts must be researched: their `grounding` has to link the source(s) the facts came from.
+const RESEARCHED_PILLARS = ['tip', 'seasonal'];
+// Owner's placement rules (Oct 5 2026): tips and advice are Facebook stories, ads are reels, Instagram gets reels only.
+const ADVICE_PILLARS = ['tip', 'seasonal', 'faq'];
+
+function placementErrors(format, pillar, platforms) {
+  const errors = [];
+  if (ADVICE_PILLARS.includes(pillar) && format !== 'story') errors.push('Tips and advice go on Facebook stories: use format "story" (one idea per frame, up to 6 frames in slots.slides).');
+  if (pillar === 'offer' && format !== 'reel') errors.push('Ads go out as reels: use format "reel".');
+  if (platforms.includes('instagram') && format !== 'reel') errors.push('Instagram gets reels only: use format "reel" or drop "instagram".');
+  return errors;
+}
 
 const parse = (s, d) => { try { return JSON.parse(s); } catch { return d; } };
 const out = (row) => row && ({ ...row, platforms: parse(row.platforms, []) });
 
-/** Slides to render for an item: one for single posts, N for carousels. */
+/** Frames to render: one for a single post, N for carousels, story sequences and reels (slots.slides). */
 function slidesOf(item) {
-  if (item.format === 'carousel') return Array.isArray(item.slots?.slides) ? item.slots.slides : [];
+  if (item.format === 'carousel' || (FRAME_LIMITS[item.format] && Array.isArray(item.slots?.slides))) return Array.isArray(item.slots?.slides) ? item.slots.slides : [];
   return item.layout ? [{ layout: item.layout, slots: item.slots || {} }] : [];
 }
 
@@ -28,7 +44,8 @@ function lintItem(item) {
   const slides = slidesOf(item);
   const errors = []; const warnings = [];
   if (!slides.length) errors.push('No layout/slots to render.');
-  const platform = item.format === 'story' ? 'story' : item.format === 'group_post' ? 'group' : (parse(item.platforms, [])[0] || 'facebook');
+  const platforms = parse(item.platforms, []);
+  const platform = item.format === 'story' ? 'story' : item.format === 'group_post' ? 'group' : (platforms[0] || 'facebook');
   slides.forEach((s, i) => {
     const r = lintContent({ slots: s.slots, layout: s.layout, caption: i === 0 ? item.caption : '', platform });
     r.errors.forEach((e) => errors.push(slides.length > 1 ? `Slide ${i + 1}: ${e}` : e));
@@ -38,31 +55,43 @@ function lintItem(item) {
     const r = lintContent({ caption: item.captionIg, platform: 'instagram' });
     errors.push(...r.errors.map((e) => `Instagram caption: ${e}`));
   }
-  if (item.format === 'carousel' && (slides.length < 3 || slides.length > 10)) errors.push('Carousel needs 3 to 10 slides.');
+  const [min, max] = FRAME_LIMITS[item.format] || [1, 1];
+  if (slides.length && (slides.length < min || slides.length > max)) errors.push(`A ${item.format} needs ${min === max ? min : `${min} to ${max}`} frame(s), got ${slides.length}.`);
+  errors.push(...placementErrors(item.format, item.pillar, platforms));
+  if (RESEARCHED_PILLARS.includes(item.pillar) && !/https?:\/\/\S+/.test(item.grounding || '')) {
+    errors.push(`A ${item.pillar} post needs research: put the source URL(s) in grounding (extension service, City of Winnipeg, Manitoba government, our own site).`);
+  }
   return { ok: errors.length === 0, errors, warnings };
 }
 
 async function createContent(userId, c) {
   if (!c?.title) throw Object.assign(new Error('title required'), { code: 'INVALID_CONTENT' });
-  const format = FORMATS.includes(c.format) ? c.format : 'post';
+  const pillar = PILLARS.includes(c.pillar) ? c.pillar : null;
+  // no format given: follow the placement rules instead of defaulting everything to a feed post
+  const format = FORMATS.includes(c.format) ? c.format : ADVICE_PILLARS.includes(pillar) ? 'story' : pillar === 'offer' ? 'reel' : 'post';
+  const platforms = Array.isArray(c.platforms) && c.platforms.length ? c.platforms : format === 'reel' ? ['facebook', 'instagram'] : ['facebook'];
   if (c.layout && !LAYOUTS[c.layout]) throw Object.assign(new Error(`unknown layout "${c.layout}"`), { code: 'INVALID_CONTENT' });
   const row = await prisma.contentItem.create({
     data: {
-      userId, title: String(c.title).slice(0, 160), pillar: PILLARS.includes(c.pillar) ? c.pillar : null, format, layout: c.layout || null,
-      platforms: JSON.stringify(Array.isArray(c.platforms) && c.platforms.length ? c.platforms : ['facebook']),
+      userId, title: String(c.title).slice(0, 160), pillar, format, layout: c.layout || null,
+      platforms: JSON.stringify(platforms),
       slots: c.slots || undefined, caption: String(c.caption || '').slice(0, 5000), captionIg: c.captionIg ? String(c.captionIg).slice(0, 2500) : null,
-      groupId: c.groupId || null, grounding: c.grounding ? String(c.grounding).slice(0, 500) : null, source: c.source || null,
+      groupId: c.groupId || null, grounding: c.grounding ? String(c.grounding).slice(0, 1000) : null, source: c.source || null,
       scheduledFor: c.scheduledFor ? new Date(c.scheduledFor) : null, status: c.status === 'idea' ? 'idea' : 'draft',
     },
   });
   return out(row);
 }
 
-/** Render every slide, store PNGs in the vault, run QA, and settle the status. */
-async function renderContent(userId, id, { autopilot = false, photos: photoOverride } = {}) {
+/**
+ * Render every slide, store PNGs in the vault, run QA, and settle the status. No owner approval: a clean render goes
+ * straight to the queue (the owner is told, and can pull it). Anything that fails QA or does not fit goes back to the
+ * agent as qa_failed with the reasons.
+ */
+async function renderContent(userId, id, { photos: photoOverride } = {}) {
   const item = await prisma.contentItem.findFirst({ where: { id, userId } });
   if (!item) throw Object.assign(new Error('content item not found'), { code: 'NOT_FOUND' });
-  // a rejected or already-published item must not be revived (or re-queued for autopilot) by a stray render call
+  // a rejected or already-published item must not be revived (or re-queued) by a stray render call
   if (['rejected', 'published', 'failed'].includes(item.status)) throw Object.assign(new Error(`cannot render an item that is ${item.status}`), { code: 'BAD_STATE' });
   const qa = lintItem(item);
   if (!qa.ok) {
@@ -72,6 +101,7 @@ async function renderContent(userId, id, { autopilot = false, photos: photoOverr
 
   const size = FORMAT_SIZE[item.format] || 'feed';
   const assetIds = [];
+  const pngs = [];
   const slides = slidesOf(item);
   for (let i = 0; i < slides.length; i++) {
     const { layout, slots } = slides[i];
@@ -91,16 +121,26 @@ async function renderContent(userId, id, { autopilot = false, photos: photoOverr
       }
     }
     const r = await renderPost({ layout, slots: clean, size, photos });
-    if (r.overflow) qa.warnings.push(`Slide ${i + 1}: text still overflows after shrinking. Shorten the copy.`);
+    if (r.overflow) qa.errors.push(`${slides.length > 1 ? `Slide ${i + 1}: t` : 'T'}ext does not fit the graphic (runs off the edge or into the footer). Shorten the copy.`);
     const { asset } = await saveAsset(userId, { kind: 'graphic', name: `${item.title}-${i + 1}.png`, buffer: r.png, tags: [layout.replace('Post', '').toUpperCase()], source: 'render', contentItemId: id });
+    assetIds.push(asset.id);
+    pngs.push(r.png);
+  }
+  // a reel is a video: the frames become one MP4, stored last in assetIds
+  if (item.format === 'reel' && qa.errors.length === 0) {
+    const { asset } = await saveAsset(userId, { kind: 'video', name: `${item.title}.mp4`, buffer: await makeReel(pngs), tags: ['REEL'], source: 'render', contentItemId: id });
     assetIds.push(asset.id);
   }
 
-  // Autopilot only queues CLEAN items. Any warning (missing phone in the caption, too many words, overflow...) goes to the owner.
-  // An already-approved item stays approved after a re-render.
-  const status = item.status === 'approved' ? 'approved' : autopilot && qa.warnings.length === 0 ? 'queued' : 'rendered';
+  qa.ok = qa.errors.length === 0;
+  // An already-approved (legacy) item stays approved after a re-render.
+  const status = !qa.ok ? 'qa_failed' : item.status === 'approved' ? 'approved' : 'queued';
   const row = await prisma.contentItem.update({ where: { id }, data: { assetIds, qa, status } });
-  await recordActivity(userId, { agent: 'design', action: 'rendered graphic', summary: `${item.title} (${slides.length} slide${slides.length > 1 ? 's' : ''})`, result: 'ok', source: 'design-system', runId: null });
+  await recordActivity(userId, { agent: 'design', action: 'rendered graphic', summary: `${item.title} (${slides.length} slide${slides.length > 1 ? 's' : ''})`, result: qa.ok ? 'ok' : 'qa_failed', source: 'design-system', runId: null });
+  if (status === 'queued' && item.status !== 'queued') {
+    const where = parse(item.platforms, []).join(' + ') || 'facebook';
+    await notify(userId, { category: 'content', title: `Queued to post: ${item.title}`, body: `${where}. ${item.caption}`.slice(0, 600), link: '/ai.html#content' });
+  }
   return { item: out(row), qa, rendered: assetIds.length };
 }
 
@@ -120,14 +160,33 @@ async function transition(userId, id, action, extra = {}) {
   return out(await prisma.contentItem.update({ where: { id }, data: { status: 'rejected', note: String(extra.note || '').slice(0, 500) || null } }));
 }
 
-/** Posts ready to go out now on `platform`: owner-approved, or QA-passed 'queued' items when autopilot is on. */
+// Travels with every queue item so the Social agent follows the owner's placement rules even with an old copy of its skill.
+const HOW_TO_POST = {
+  story: 'Facebook Story only (never Instagram). Post each image in uploadAssetIds as its own story frame, in order. No caption needed.',
+  reel: 'Reel on this platform. In the Reels composer upload the images in uploadAssetIds as photos (3 to 4 seconds each) and add music from the platform\'s own music library (upbeat, clean). Use the stored caption (captionIg on Instagram). If the composer refuses photos, upload fallbackVideoAssetId (MP4) as the Reel and add music there.',
+  feed: 'Normal Facebook post (never an Instagram feed post) with the stored caption and the images in uploadAssetIds.',
+};
+
+/** Posts ready to go out now on `platform`: QA-passed 'queued' items (and legacy approved ones). Autopilot off = the owner paused posting. */
 async function publishQueue(userId, { platform, autopilot, limit = 10 } = {}) {
   const statuses = autopilot ? ['approved', 'queued'] : ['approved'];
   const where = { userId, status: { in: statuses }, OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }] };
   if (platform) where.platforms = { contains: `"${platform}"` };
-  const rows = await prisma.contentItem.findMany({ where, orderBy: [{ scheduledFor: 'asc' }, { createdAt: 'asc' }], take: 60 });
-  // an item with a caption for Facebook AND Instagram stays in the queue for a platform until it was posted THERE
-  return rows.map(out).filter((r) => !platform || !(r.publishedOn || {})[platform]).slice(0, Math.min(limit, 30));
+  const rows = (await prisma.contentItem.findMany({ where, orderBy: [{ scheduledFor: 'asc' }, { createdAt: 'asc' }], take: 60 })).map(out)
+    // an item with a caption for Facebook AND Instagram stays in the queue for a platform until it was posted THERE
+    .filter((r) => !platform || !(r.publishedOn || {})[platform])
+    // Instagram gets reels only, whatever an older item says
+    .filter((r) => platform !== 'instagram' || r.format === 'reel')
+    .slice(0, Math.min(limit, 30));
+  const ids = rows.flatMap((r) => r.assetIds || []);
+  const videos = new Set(ids.length ? (await prisma.contentAsset.findMany({ where: { id: { in: ids }, kind: 'video' }, select: { id: true } })).map((a) => a.id) : []);
+  // Spell out for the Social agent what to upload and where. story = the PNG frames in order. reel = the PNG frames
+  // as photos in the Reels composer with a song from the platform's own music library; the MP4 is the fallback.
+  return rows.map((r) => {
+    const fallbackVideoAssetId = (r.assetIds || []).find((x) => videos.has(x)) || null;
+    const postAs = r.format === 'reel' ? 'reel' : r.format === 'story' ? 'story' : 'feed';
+    return { ...r, postAs, uploadAssetIds: (r.assetIds || []).filter((x) => !videos.has(x)), fallbackVideoAssetId, addMusic: postAs === 'reel', howToPost: HOW_TO_POST[postAs] };
+  }).filter((r) => r.uploadAssetIds.length);
 }
 
 /**
@@ -177,4 +236,4 @@ async function performanceSummary(userId, { days = 60 } = {}) {
   return Object.entries(agg).map(([k, a]) => ({ key: k, posts: a.n, measured: a.measured, avgScore: a.measured ? +(a.score / a.measured).toFixed(1) : null })).sort((a, b) => (b.avgScore ?? -1) - (a.avgScore ?? -1));
 }
 
-module.exports = { createContent, renderContent, transition, publishQueue, markPublished, recordMetrics, performanceSummary, lintItem, FORMATS, PILLARS, RenderError };
+module.exports = { createContent, renderContent, transition, publishQueue, markPublished, recordMetrics, performanceSummary, lintItem, placementErrors, FORMATS, PILLARS, RenderError };

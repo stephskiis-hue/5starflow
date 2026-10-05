@@ -873,10 +873,10 @@ async function maybeRecommendReschedule(userId, result) {
     ttlHours: 12,
   });
 
-  await op.notifyOwner(
-    userId,
-    `🌧️ ${summary} Reply "YES <day>" to move them (e.g. YES Wednesday), or NO to keep them.`
-  );
+  await require('../lib/notify').notify(userId, {
+    category: 'weather', urgent: true, title: 'Rain forecast: jobs may need moving', body: summary, link: '/weather-dashboard.html',
+    smsText: `🌧️ ${summary} Reply "YES <day>" to move them (e.g. YES Wednesday), or NO to keep them.`,
+  });
   console.log(`[weatherService][user:${userId}] rain recommendation sent (proposal ${proposal.shortCode})`);
 }
 

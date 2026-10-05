@@ -233,7 +233,7 @@
     qa: ['QA', 'Checks everything before it goes out: spelling, facts, brand, group rules.', 'fact_check'],
     system: ['System', 'Background jobs: tokens, queues, syncs, retries.', 'settings_suggest'],
   };
-  const state = { tab: 'home', contentFilter: 'review', vaultTag: '', vaultMode: '', taskFilter: 'open', memScope: '', memQ: '', openRoutine: null, isOwner: true };
+  const state = { tab: 'home', contentFilter: 'queue', vaultTag: '', vaultMode: '', taskFilter: 'open', memScope: '', memQ: '', openRoutine: null, isOwner: true };
   let pollTimer = null;
 
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -292,7 +292,6 @@
   async function load(tab, quiet) {
     // the 20s background refresh must not wipe half-typed text, a chosen file or an open form
     if (quiet && ['memory', 'vault'].includes(tab)) return;
-    if (quiet && tab === 'content' && [...document.querySelectorAll('#tab-content [data-sched]')].some((i) => i.value)) return;
     try {
       showErr('');
       await ({ home: loadHome, inbox: loadInbox, tasks: loadTasks, approvals: loadApprovals, content: loadContent, social: loadSocial, vault: loadVault, routines: loadRoutines, agents: loadAgents, activity: loadActivity, memory: loadMemory }[tab])(quiet);
@@ -410,44 +409,43 @@
 
 
   // ---------------------------------------------------------------- CONTENT STUDIO
-  const CONTENT_FILTERS = { review: ['rendered', 'qa_failed', 'draft'], queue: ['queued', 'approved'], published: ['published'], rejected: ['rejected'] };
+  const CONTENT_FILTERS = { queue: ['queued', 'approved'], fixing: ['rendered', 'qa_failed', 'draft'], published: ['published'], rejected: ['rejected'] };
   async function loadContent() {
     const [rows, queue] = await Promise.all([api('/content?limit=100'), api('/content/queue?limit=1')]);
-    const need = rows.filter((r) => CONTENT_FILTERS.review.includes(r.status)).length;
-    setBadge('badge-content', need);
+    setBadge('badge-content', rows.filter((r) => CONTENT_FILTERS.queue.includes(r.status)).length);
     const list = rows.filter((r) => CONTENT_FILTERS[state.contentFilter].includes(r.status));
-    const chips = [['review', 'Needs review'], ['queue', 'Queued to post'], ['published', 'Published'], ['rejected', 'Rejected']]
+    const chips = [['queue', 'Queued to post'], ['fixing', 'Agent fixing'], ['published', 'Published'], ['rejected', 'Pulled']]
       .map(([v, l]) => `<button data-cfilter="${v}" class="btn ${state.contentFilter === v ? 'btn-go' : ''}">${l} (${rows.filter((r) => CONTENT_FILTERS[v].includes(r.status)).length})</button>`).join(' ');
     $('tab-content').innerHTML = `
       <div class="glass-card rounded-xl p-4 mb-4 text-sm text-zinc-300">${queue.autopilot
-        ? '<b>Autopilot is on.</b> Posts that pass QA go to the queue and are published by the Social agent within the daily caps. Reject anything you do not want out.'
-        : '<b>Approval mode.</b> Nothing is posted until you approve it here.'}</div>
+        ? '<b>Posting automatically.</b> Every post is researched, rendered and checked (brand rules, facts sourced, text fits the graphic) and then goes straight into the queue. The Social agent posts it within the daily caps. Nothing to approve or schedule. Pull anything you do not want out.'
+        : '<b>Posting is paused.</b> Checked posts still collect in the queue, but nothing goes out until autonomy for the social routine is set back to execute (Routines tab).'}</div>
       <div class="flex gap-2 mb-4 flex-wrap">${chips}</div>` +
-      (list.length ? list.map(contentCard).join('') : empty('palette', 'Nothing here', state.contentFilter === 'review' ? 'New graphics from the Content Director appear here for a quick look.' : ''));
+      (list.length ? list.map(contentCard).join('') : empty('palette', 'Nothing here', state.contentFilter === 'queue' ? 'Checked posts from the Content Director land here and go out automatically.' : state.contentFilter === 'fixing' ? 'Posts that failed a check wait here until the Content Director fixes them. Nothing for you to do.' : ''));
   }
   const qaBadges = (qa) => !qa ? '' : [...(qa.errors || []).map((e) => `<span class="badge b-bad">${esc(e)}</span>`), ...(qa.warnings || []).map((w) => `<span class="badge b-warn">${esc(w)}</span>`)].join(' ');
   function contentCard(c) {
-    const imgs = (c.assetIds || []).map((id) => `<img loading="lazy" src="${API}/assets/${esc(id)}" alt="" class="rounded-lg w-40 flex-none border border-white/10">`).join('');
+    const vids = c.videoAssetIds || [];
+    const imgs = (c.assetIds || []).map((id) => vids.includes(id)
+      ? `<video src="${API}/assets/${esc(id)}" controls muted playsinline preload="metadata" class="rounded-lg w-40 flex-none border border-white/10"></video>`
+      : `<img loading="lazy" src="${API}/assets/${esc(id)}" alt="" class="rounded-lg w-40 flex-none border border-white/10">`).join('');
+    const where = c.format === 'story' ? 'Facebook story' : c.format === 'reel' ? (c.platforms || []).map((p) => p === 'instagram' ? 'IG reel' : 'FB reel').join(' + ') : (c.platforms || []).join(' + ');
     const open = ['rendered', 'queued', 'qa_failed', 'draft'].includes(c.status);
     const canReject = open || c.status === 'approved';
     return `<div class="glass-card rounded-xl p-4 mb-4" data-content="${esc(c.id)}">
       <div class="flex gap-4 flex-wrap sm:flex-nowrap">
         <div class="flex gap-2 overflow-x-auto max-w-full sm:max-w-[360px] flex-none">${imgs || '<div class="w-40 h-52 rounded-lg bg-white/5 flex items-center justify-center text-xs text-zinc-500">not rendered</div>'}</div>
         <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2 flex-wrap"><span class="badge b-normal">${esc(c.layout || c.format)}</span><span class="badge b-mute">${esc((c.platforms || []).join(' + '))}</span><span class="badge ${c.status === 'qa_failed' ? 'b-bad' : c.status === 'queued' || c.status === 'approved' ? 'b-ok' : 'b-warn'}">${esc(c.status.replace('_', ' '))}</span>${c.scheduledFor ? `<span class="text-xs text-zinc-500">for ${esc(new Date(c.scheduledFor).toLocaleString())}</span>` : ''}</div>
+          <div class="flex items-center gap-2 flex-wrap"><span class="badge b-normal">${esc(c.layout || c.format)}</span><span class="badge b-mute">${esc(where)}</span><span class="badge ${c.status === 'qa_failed' ? 'b-bad' : c.status === 'queued' || c.status === 'approved' ? 'b-ok' : 'b-warn'}">${esc(c.status.replace('_', ' '))}</span>${c.scheduledFor ? `<span class="text-xs text-zinc-500">for ${esc(new Date(c.scheduledFor).toLocaleString())}</span>` : ''}</div>
           <p class="text-sm font-semibold text-zinc-100 mt-2">${esc(c.title)}</p>
           <p class="text-sm text-zinc-300 mt-2 whitespace-pre-wrap break-words p-3 rounded-lg bg-white/5">${esc(c.caption)}</p>
-          ${c.grounding ? `<p class="text-xs text-zinc-500 mt-2">Source: ${esc(c.grounding)}</p>` : ''}
+          ${c.grounding ? `<p class="text-xs text-zinc-500 mt-2 break-all">Source: ${esc(c.grounding)}</p>` : ''}
           ${c.note ? `<p class="text-xs text-amber-300 mt-2">Note: ${esc(c.note)}</p>` : ''}
           ${c.postUrl ? `<p class="text-xs mt-2"><a class="text-primary" target="_blank" rel="noopener" href="${esc(c.postUrl)}">View post</a></p>` : ''}
           <div class="flex gap-1 flex-wrap mt-2">${qaBadges(c.qa)}</div>
-          ${open ? `<div class="flex gap-2 mt-3 flex-wrap items-center">
-            ${c.status !== 'qa_failed' && (c.assetIds || []).length ? '<button class="btn btn-go" data-cact="approve">Approve</button>' : ''}
-            <input type="datetime-local" class="bg-zinc-900 border border-white/10 rounded-lg text-xs text-zinc-200 py-1 px-2" data-sched>
-            <button class="btn" data-cact="schedule">Approve + schedule</button>
-            <button class="btn" data-cact="render">Re-render</button>
-            <button class="btn" data-cact="edit">Edit caption</button>
-            <button class="btn btn-no" data-cact="reject">Reject</button></div>` : canReject ? '<div class="flex gap-2 mt-3"><button class="btn btn-no" data-cact="reject">Reject (pull from queue)</button></div>' : ''}
+          ${canReject ? `<div class="flex gap-2 mt-3 flex-wrap items-center">
+            ${open ? '<button class="btn" data-cact="edit">Edit caption</button>' : ''}
+            <button class="btn btn-no" data-cact="reject">Pull${c.status === 'queued' || c.status === 'approved' ? ' from queue' : ''}</button></div>` : ''}
         </div>
       </div></div>`;
   }
@@ -457,13 +455,10 @@
     const card = b.closest('[data-content]'), id = card.dataset.content, act = b.dataset.cact;
     try {
       b.disabled = true;
-      if (act === 'approve') { await api(`/content/${id}/approve`, { method: 'POST', body: {} }); toast('Approved'); }
-      if (act === 'schedule') { const v = card.querySelector('[data-sched]').value; if (!v) { toast('Pick a date and time'); b.disabled = false; return; } await api(`/content/${id}/approve`, { method: 'POST', body: { scheduledFor: new Date(v).toISOString() } }); toast('Scheduled'); }
-      if (act === 'render') { const r = await api(`/content/${id}/render`, { method: 'POST' }); toast(r.qa && !r.qa.ok ? 'QA failed: ' + r.qa.errors[0] : 'Re-rendered'); }
-      if (act === 'reject') { const note = prompt('What should change? (the Content Director reads this)', ''); if (note === null) { b.disabled = false; return; } await api(`/content/${id}/reject`, { method: 'POST', body: { note } }); toast('Rejected'); }
+      if (act === 'reject') { const note = prompt('Why pull it? (the Content Director reads this)', ''); if (note === null) { b.disabled = false; return; } await api(`/content/${id}/reject`, { method: 'POST', body: { note } }); toast('Pulled'); }
       if (act === 'edit') {
         const cur = card.querySelector('p.whitespace-pre-wrap').textContent; const v = prompt('Caption', cur); if (v === null) { b.disabled = false; return; }
-        await api('/content/' + id, { method: 'PATCH', body: { caption: v } }); await api(`/content/${id}/render`, { method: 'POST' }); toast('Saved and re-rendered');
+        await api('/content/' + id, { method: 'PATCH', body: { caption: v } }); const r = await api(`/content/${id}/render`, { method: 'POST' }); toast(r.qa && !r.qa.ok ? 'Check failed: ' + r.qa.errors[0] : 'Saved, checked and queued');
       }
       await loadContent();
     } catch (err) { toast(err.message); b.disabled = false; }

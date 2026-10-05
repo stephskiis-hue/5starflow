@@ -1,7 +1,7 @@
 /**
  * SMS monitor — deterministic (no Claude). Every 10 minutes: find customers waiting on a human reply,
  * keep exactly one Task per conversation (dedupKey sms:<last10>), escalate with age, text the owner once
- * for urgent ones during the day, and close the Task when somebody answers. "Draft a reply" is the
+ * for urgent (24h+) ones, and close the Task when somebody answers. "Draft a reply" is the
  * Communication agent's job (Inbox Watch) — it reads these tasks.
  */
 const prisma = require('../lib/prismaClient');
@@ -9,6 +9,7 @@ const { getConversationStates, NEEDS_US } = require('./comms');
 const { createTask, updateTask, completeByDedupKey, URGENCY_RANK } = require('./tasks');
 const { logComm } = require('../lib/commLedger');
 const { recordActivity } = require('./ledger');
+const { notify } = require('../lib/notify');
 
 const CREATE_AFTER_MIN = 10;     // give the owner a moment before raising a task
 const STALE_MIN = 48 * 60;       // older than this = probably handled elsewhere (phone, Jobber): low-priority task, never an alert
@@ -23,6 +24,11 @@ function urgencyFor(c) {
   if (c.waitingMinutes > 24 * 60) u = 'urgent';
   else if (c.waitingMinutes > 120 && URGENCY_RANK[u] < URGENCY_RANK.high) u = 'high';
   return u;
+}
+
+// The one customer text that can reach the owner during the day: someone has been waiting a long time. Fired once per escalation.
+function alertWaiting(userId, who, c) {
+  notify(userId, { category: 'customer', urgent: true, title: `${who} has been waiting ${waitLabel(c.waitingMinutes)} for a reply`, body: String(c.lastMessage || '').slice(0, 160), link: '/marketing.html' });
 }
 
 async function smsMonitorTick({ userId }) {
@@ -52,11 +58,13 @@ async function smsMonitorTick({ userId }) {
         context: { phoneKey: c.phoneKey, phone: c.phone, state: c.state },
       });
       if (isNew) created++;
+      if (urgency === 'urgent') alertWaiting(userId, who, c);
     } else if (!['COMPLETED', 'DISMISSED'].includes(existing.status)) {
       const patch = {};
       if (c.waitingMinutes > STALE_MIN && existing.urgency !== 'low') patch.urgency = 'low';
       else if (URGENCY_RANK[urgency] > URGENCY_RANK[existing.urgency]) patch.urgency = urgency;
       if (existing.whatHappened !== happened) patch.whatHappened = happened;
+      if (patch.urgency === 'urgent') alertWaiting(userId, who, c);
       if (Object.keys(patch).length) { await updateTask(userId, existing.id, patch); updated++; }
     }
 

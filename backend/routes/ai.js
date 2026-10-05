@@ -22,6 +22,7 @@ const { createTask, updateTask, listTasks } = require('../ai/tasks');
 const requests = require('../ai/requests');
 const { saveMemory, searchMemory } = require('../ai/memory');
 const { buildBrief } = require('../ai/brief');
+const { notify } = require('../lib/notify');
 const { getUnansweredSms, getCustomerContext } = require('../ai/comms');
 const { RUNNABLE } = require('../ai');
 const { AGENTS, TASK_STATES } = require('../ai/constants');
@@ -182,6 +183,15 @@ router.get('/requests', async (req, res) => {
   res.json(await requests.listRequests(req.ai.userId, { status: req.query.status, limit: int(req.query.limit, 20, 100) }));
 });
 
+// Claude routines drop updates in the Notification Centre. urgent=true also texts the owner now; use it only when they must act today.
+router.post('/notify', async (req, res) => {
+  if (req.ai.actor !== 'agent') return res.status(403).json({ error: 'Only routines post notifications' });
+  const { title, body, category, urgent, link, routineSlug } = req.body || {};
+  if (!title) return res.status(400).json({ error: 'title required' });
+  const n = await notify(req.ai.userId, { title, body, category: category || 'routine', urgent: !!urgent, link, routineSlug });
+  res.status(201).json({ ok: !!n, id: n?.id });
+});
+
 router.post('/requests', ownerOnly, async (req, res) => {
   try {
     const r = await requests.createRequest(req.ai.userId, req.body?.body, req.body?.attachments);
@@ -196,13 +206,11 @@ router.post('/requests/claim', async (req, res) => {
 });
 
 // The owner asked to be told when a request is finished or stuck. Never lets a text failure break the report.
+// Done lands in the Notification Centre only; stuck/failed ones are texted.
 function notifyRequestOutcome(userId, r) {
-  if (process.env.OWNER_SMS === 'off') return;
-  const { stripToGsm7 } = require('../services/smsService');
   const label = { done: 'Done', needs_owner: 'Needs you', failed: 'FAILED' }[r.status];
   const what = (r.body || 'your photo/video post').replace(/\s+/g, ' ').slice(0, 60);
-  const msg = stripToGsm7(`${label}: ${what}. ${(r.response || '').replace(/\s+/g, ' ').slice(0, 200)}`).slice(0, 320);
-  require('../services/operatorService').notifyOwner(userId, msg).catch((e) => console.warn(`[requests] owner text failed: ${e.message}`));
+  notify(userId, { category: 'request', urgent: r.status !== 'done', title: `${label}: ${what}`, body: (r.response || '').replace(/\s+/g, ' ').slice(0, 200), link: '/index.html#requests-card' });
 }
 
 // After a post goes live: one call logs it (content item for metrics, an owner_post action, activity). Owner posts don't use the daily caps.
@@ -360,6 +368,7 @@ router.delete('/assets/:id', ownerOnly, async (req, res) => {
 // --------------------------------------------------------------------------- content engine
 const renderErr = (res, e) => {
   if (e instanceof RenderError) return res.status(e.code === 'RENDERER_UNAVAILABLE' ? 503 : 422).json({ error: e.message, code: e.code, details: e.details });
+  if (e.code === 'REEL_UNAVAILABLE') return res.status(503).json({ error: e.message, code: e.code });
   if (['INVALID_PHOTO', 'INVALID_CONTENT'].includes(e.code)) return res.status(422).json({ error: e.message });
   if (e.code === 'NOT_FOUND') return res.status(404).json({ error: e.message });
   if (e.code === 'BAD_STATE') return res.status(409).json({ error: e.message });
@@ -388,7 +397,10 @@ router.get('/content', async (req, res) => {
   const where = { userId: req.ai.userId };
   if (req.query.status) where.status = String(req.query.status);
   const rows = await prisma.contentItem.findMany({ where, orderBy: { updatedAt: 'desc' }, take: int(req.query.limit, 60) });
-  res.json(rows.map((r) => ({ ...r, platforms: JSON.parse(r.platforms || '[]') })));
+  // which rendered assets are videos (reels), so the dashboard and the Social agent know what to post
+  const ids = rows.flatMap((r) => (Array.isArray(r.assetIds) ? r.assetIds : []));
+  const videos = new Set(ids.length ? (await prisma.contentAsset.findMany({ where: { id: { in: ids }, kind: 'video' }, select: { id: true } })).map((a) => a.id) : []);
+  res.json(rows.map((r) => ({ ...r, platforms: JSON.parse(r.platforms || '[]'), videoAssetIds: (Array.isArray(r.assetIds) ? r.assetIds : []).filter((id) => videos.has(id)) })));
 });
 
 router.get('/content/performance', async (req, res) => res.json(await content.performanceSummary(req.ai.userId, { days: int(req.query.days, 60, 365) })));
@@ -402,7 +414,7 @@ router.post('/content', async (req, res) => {
   try {
     const item = await content.createContent(req.ai.userId, { source: req.ai.agent, ...req.body });
     let result = { item };
-    if (req.body?.render) result = await content.renderContent(req.ai.userId, item.id, { autopilot: await isAutopilot(req.ai.userId) });
+    if (req.body?.render) result = await content.renderContent(req.ai.userId, item.id);
     res.status(201).json(result);
   } catch (e) { renderErr(res, e); }
 });
@@ -411,15 +423,16 @@ router.patch('/content/:id', async (req, res) => {
   const b = req.body || {}; const data = {};
   for (const k of ['title', 'caption', 'captionIg', 'pillar', 'layout', 'grounding', 'note']) if (typeof b[k] === 'string') data[k] = b[k].slice(0, 5000);
   if (b.slots && typeof b.slots === 'object') data.slots = b.slots;
+  if (typeof b.format === 'string') { if (!content.FORMATS.includes(b.format)) return res.status(422).json({ error: `format must be one of ${content.FORMATS.join(', ')}` }); data.format = b.format; }
   if (Array.isArray(b.platforms)) data.platforms = JSON.stringify(b.platforms);
   if (b.scheduledFor !== undefined) data.scheduledFor = b.scheduledFor ? new Date(b.scheduledFor) : null;
-  if (Object.keys(data).some((k) => ['slots', 'layout', 'caption', 'captionIg'].includes(k))) { data.status = 'draft'; data.assetIds = Prisma.DbNull; data.qa = Prisma.DbNull; } // edited → must re-render + re-QA (Json null needs DbNull)
+  if (Object.keys(data).some((k) => ['slots', 'layout', 'caption', 'captionIg', 'format', 'platforms', 'pillar'].includes(k))) { data.status = 'draft'; data.assetIds = Prisma.DbNull; data.qa = Prisma.DbNull; } // edited → must re-render + re-QA (Json null needs DbNull)
   const r = await prisma.contentItem.updateMany({ where: { id: req.params.id, userId: req.ai.userId, status: { notIn: ['published'] } }, data });
   res.status(r.count ? 200 : 404).json({ ok: !!r.count });
 });
 
 router.post('/content/:id/render', async (req, res) => {
-  try { res.json(await content.renderContent(req.ai.userId, req.params.id, { autopilot: await isAutopilot(req.ai.userId) })); } catch (e) { renderErr(res, e); }
+  try { res.json(await content.renderContent(req.ai.userId, req.params.id)); } catch (e) { renderErr(res, e); }
 });
 
 router.post('/content/:id/approve', ownerOnly, async (req, res) => {

@@ -1,7 +1,7 @@
 /**
  * Deterministic brand/QA linter for post copy — the cheap, non-Claude half of the QA agent.
  * Rules come straight from the design system README ("Content rules") and the owner's standing rules.
- * Returns { ok, errors[], warnings[] }: errors block auto-publishing, warnings go to the reviewer.
+ * Returns { ok, errors[], warnings[] }: errors keep a post out of the queue until the agent fixes them; warnings are notes only.
  */
 const PHONE = '204-900-0438';
 const BRAND = 'No-Bs Yardwork';
@@ -45,19 +45,21 @@ function lintContent({ slots = {}, caption = '', layout, platform } = {}) {
   // Phone must be on the graphic footer (templates add it) — and in the caption unless it is a story/cover.
   const needsPhoneInCaption = platform && !['story'].includes(platform);
   if (caption && needsPhoneInCaption && !caption.includes(PHONE) && platform !== 'group_no_phone') {
-    warnings.push(`Caption does not include ${PHONE}.`);
+    errors.push(`Caption does not include ${PHONE}.`);
   }
 
-  if (graphicText && words(graphicText) > 46) warnings.push(`Graphic has ${words(graphicText)} words (target under about 40).`);
+  const n = words(graphicText);
+  if (n > 50) errors.push(`Graphic has ${n} words. Keep it under about 40 (move detail into the caption or a carousel).`);
+  else if (n > 40) warnings.push(`Graphic has ${n} words (target under about 40).`);
   const head = slots.headline || slots.title || slots.question || slots.answer_headline;
   if (head && (words(String(head).replace(/\[\[|\]\]/g, '')) < 2 || words(String(head).replace(/\[\[|\]\]/g, '')) > 14)) warnings.push('Headline should be roughly 2 to 7 words per line.');
 
   if (layout === 'ReviewPost' && slots.reviewer && /\s[A-Z][a-z]+\s+[A-Z][a-z]+/.test(String(slots.reviewer).split('·')[0].replace(/^[A-Z]+$/, ''))) {
-    warnings.push('Reviewer line looks like it has a surname. First name and neighbourhood only.');
+    errors.push('Reviewer line looks like it has a surname. First name and neighbourhood only.');
   }
-  if (/\b(guarantee|guaranteed|best in winnipeg|#1|number one|cheapest)\b/i.test(all)) warnings.push('Unsubstantiated claim (guarantee / best / cheapest).');
+  if (/\b(guarantee|guaranteed|best in winnipeg|#1|number one|cheapest)\b/i.test(all)) errors.push('Unsubstantiated claim (guarantee / best / cheapest).');
   if (/(one[- ]time|per snowfall|single clear)/i.test(all) && /(yes|we do|available|offer)/i.test(all) && !/monthly/i.test(all)) {
-    warnings.push('Snow offer mentions one-time clears. We do monthly contracts only.');
+    errors.push('Snow offer mentions one-time clears. We do monthly contracts only.');
   }
   return { ok: errors.length === 0, errors, warnings };
 }

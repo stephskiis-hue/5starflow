@@ -63,6 +63,36 @@ test('qa: clean copy passes', () => {
   assert.deepEqual(r.errors, []);
 });
 
+test('qa: anything that would need a human check is an error, so it never auto-queues', () => {
+  const fb = { platform: 'facebook' };
+  assert.equal(lintContent({ ...fb, slots: { headline: 'Fall cleanup' }, caption: 'Book now.' }).ok, false);   // no phone
+  assert.equal(lintContent({ ...fb, slots: { headline: 'Guaranteed green lawn' }, caption: 'Call or text 204-900-0438.' }).ok, false);
+  assert.equal(lintContent({ ...fb, slots: { body: 'word '.repeat(60) }, caption: 'Call or text 204-900-0438.' }).ok, false);
+  assert.equal(lintContent({ ...fb, layout: 'ReviewPost', slots: { reviewer: 'Mike Smith Jones · River Heights' }, caption: '204-900-0438' }).ok, false);
+  const notes = lintContent({ ...fb, slots: { body: 'word '.repeat(44) }, caption: 'Call or text 204-900-0438.' });
+  assert.equal(notes.ok, true); assert.equal(notes.warnings.length > 0, true);   // cosmetic notes don't block
+});
+
+test('content: tip and seasonal posts must cite a researched source', () => {
+  const { lintItem } = require('../ai/content');
+  const base = { format: 'story', layout: 'TipPost', platforms: '["facebook"]', caption: 'Call or text 204-900-0438.', slots: { number: '04', kicker: 'OCTOBER TIP', headline: 'Feed it before winter', body: 'Late fall fertilizer after the last mow.' } };
+  assert.equal(lintItem({ ...base, pillar: 'tip', grounding: 'our blog' }).ok, false);
+  assert.equal(lintItem({ ...base, pillar: 'seasonal', grounding: null }).ok, false);
+  assert.deepEqual(lintItem({ ...base, pillar: 'tip', grounding: 'UMN Extension https://extension.umn.edu/lawncare/fertilizing-lawns' }).errors, []);
+  assert.deepEqual(lintItem({ ...base, format: 'reel', pillar: 'offer', grounding: 'Owner snow offer rules' }).errors, []);
+});
+
+test('content: tips are Facebook stories, ads are reels, Instagram gets reels only', () => {
+  const { placementErrors } = require('../ai/content');
+  assert.equal(placementErrors('post', 'tip', ['facebook']).length, 1);
+  assert.equal(placementErrors('story', 'faq', ['facebook']).length, 0);
+  assert.equal(placementErrors('post', 'offer', ['facebook']).length, 1);
+  assert.equal(placementErrors('reel', 'offer', ['facebook', 'instagram']).length, 0);
+  assert.equal(placementErrors('post', 'proof', ['facebook', 'instagram']).length, 1);   // no Instagram feed posts
+  assert.equal(placementErrors('post', 'proof', ['facebook']).length, 0);                // Facebook feed is still fine
+  assert.equal(placementErrors('story', 'seasonal', ['facebook', 'instagram']).length, 1);
+});
+
 test('renderer: required slots, photo requirement and length caps are enforced', () => {
   assert.throws(() => validate('StatementPost', { kicker: 'K' }, 'feed'), /needs: headline, body/);
   assert.throws(() => validate('BeforeAfterPost', { kicker: 'K', headline: 'H', before: 'x', after: 'y' }, 'feed', {}), /real photo/);

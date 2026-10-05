@@ -20,6 +20,7 @@ const { resolveOwnerId } = require('./owner');
 const { classifyError, normalizeResult, recordActivity } = require('./ledger');
 const { createTask, completeByDedupKey } = require('./tasks');
 const { saveMemory } = require('./memory');
+const { notify } = require('../lib/notify');
 
 const FAILURE_TASK_THRESHOLD = 3;
 const DEFAULT_MAX_RUNTIME_MIN = 20;
@@ -160,6 +161,7 @@ async function finishFailure({ err, userId, slug, routineId, routine, runId, tri
       whatNeeds: errorClass === 'auth' ? 'Reconnect the integration (token refresh is failing).' : 'Check the error; the routine may need a different method.',
       recommended: 'Open Routines → this routine → last error.',
     });
+    if (failures === FAILURE_TASK_THRESHOLD) notify(userId, { category: 'routine', urgent: errorClass === 'auth', routineSlug: slug, title: `${routine?.name || slug} keeps failing (${failures}x)`, body: data.error, link: '/ai.html#routines' });
     try { await saveMemory(userId, { scope: `routine:${slug}`, key: 'last-failure', value: `${errorClass}: ${data.error}`, confidence: 0.9, source: 'runner', agent: routine?.agent }); } catch {}
   }
   logger.warn('routine', `${slug} failed`, { errorClass, failures, error: data.error }, userId).catch(() => {});
@@ -192,6 +194,7 @@ async function recordExternalRun(userId, slug, rep) {
   }
   await completeByDedupKey(userId, `routine-missed:${slug}`);
   if (status === 'failed' && failures >= FAILURE_TASK_THRESHOLD) {
+    if (failures === FAILURE_TASK_THRESHOLD) notify(userId, { category: 'routine', routineSlug: slug, title: `${routine.name} keeps failing (${failures}x)`, body: run.error || '', link: '/ai.html#routines' });
     await createTask(userId, { dedupKey: `routine-failing:${slug}`, title: `${routine.name} keeps failing (${failures}x in a row)`, source: 'routine', routineSlug: slug, agent: routine.agent, urgency: errorClass === 'rate_limit' ? 'high' : 'high', reason: `Last error (${errorClass}): ${run.error}` });
   }
   for (const a of result.actions_taken.slice(0, 30)) {

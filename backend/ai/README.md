@@ -9,6 +9,7 @@ Claude routines (claude.ai, MSI PC)  ──Bearer AI_TOKEN──▶  /api/ai/*  
    Night Studio · Social Shift · Inbox Watch · Morning Brief ·            Routine, RoutineRun, Task, Memory, AgentActivity,
    the 9 existing business routines                                        ContentAsset, ContentItem, SocialGroup, SocialAction, CommMessage
 Backend schedulers (all wrapped by runRoutine) ────────────────────────▶ same ledger
+Ollama worker on the MSI (scripts/ollama-worker.js, drafts only) ──────▶ same ledger
 Dashboard: /ai.html (admin session)
 ```
 
@@ -31,10 +32,12 @@ Dashboard: /ai.html (admin session)
 
 ## Design system → graphics
 `ai/design/` holds the No-Bs Yardwork design system exported from the claude.ai artifact: `tokens.json`, vendored fonts + logos, and the 12 layout templates (`layouts/<Name>.html` + `.md` slot docs). `renderer.js` fills `data-slot` markers and screenshots 1080×1350 / 1080×1920 / 1080×1080 PNGs (~150 ms each). `qa.js` is the deterministic brand lint (no prices, no mid-sentence dashes, exact name, phone, banned words). To re-sync after the design system changes: re-export `project/tokens.json` and `project/components/*/preview.html`, replace the files here, re-run the render smoke (all 12 layouts) and eyeball them.
-Chromium: dev uses `npx playwright install chromium`; the Railway fallback is `@sparticuz/chromium` (optional dependency; **not yet verified on Railway**) or set `CHROMIUM_PATH`.
+Chromium: Railway builds `backend/Dockerfile` (official Playwright image, Chromium and its system libraries included). Dev uses `npx playwright install chromium`; `CHROMIUM_PATH` and `@sparticuz/chromium` remain as fallbacks.
+No owner approval: a render that passes QA (brand lint, a source URL for tip/seasonal posts, text that fits the canvas) goes straight to `queued` and the owner gets a Notification Centre note; anything else is `qa_failed` for the Content Director to fix. The owner can pull a post. The `ext-social-daily` autonomy (execute) is the pause switch for posting.
+Placement (owner rule, `placementErrors` in `ai/content.js`): tips/advice = Facebook stories, ads = reels (Facebook + Instagram), Instagram = reels only. Reels: the queue hands the Social agent the PNG frames to post as a photo Reel with in-app music, plus an MP4 fallback made by `ai/design/reel.js` (ffmpeg, installed in the Dockerfile).
 
 ## Guardrails that live in code (not prompts)
-Daily social caps (`ai/social.js`), QA gate before content can be queued, owner-only approvals, task/memory dedup, opt-out (`isOptedOut`) on every customer SMS, Twilio signature validation on public webhooks, DRY_RUN blocks Jobber writes, Winnipeg-timezone crons.
+Daily social caps (`ai/social.js`), QA gate before content can be queued (no owner approval for content), owner-only approvals for everything else, task/memory dedup, opt-out (`isOptedOut`) on every customer SMS, Twilio signature validation on public webhooks, DRY_RUN blocks Jobber writes, Winnipeg-timezone crons.
 
 ## Status
 Done: M0 security + correctness fixes · M1 registry/ledger/tasks/memory/activity/heartbeat/API/dashboard · M2 renderer, QA, vault, content pipeline, social caps/groups, Content/Social/Vault tabs, skills + prompts · M3 communication ledger, conversation states, SMS monitor, Twilio reconcile.
@@ -43,3 +46,6 @@ Known limits: single-tenant (OPERATOR_USER_ID); in-process mutex + DB lease (one
 
 ## Local dev
 Use a **separate** Postgres (never the Railway URL; the schedulers act on whatever DB they see). `DRY_RUN=true`, `TWILIO_SKIP_SIGNATURE=true` if testing inbound by hand, `SESSION_SECRET` ≥ 32 chars, `AI_TOKEN`, `OPERATOR_USER_ID`. `npx prisma migrate deploy` then `npm run dev`.
+
+## Notifications
+Nothing texts or emails the owner daily. Every update goes through `lib/notify.js` into the Notification Centre (top of the home page). Only `urgent: true` items are texted immediately (approvals, rain reschedule, customer waiting 24h+, auth failures, failed/stuck owner requests). The rest is summed up in one weekly text (`ai/digest.js`, default Saturday 3 pm, editable in the Notification Centre). Claude routines post with `POST /api/ai/notify`.

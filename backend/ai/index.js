@@ -9,7 +9,7 @@ const { resolveOwnerId } = require('./owner');
 const { seedRegistry } = require('./registry');
 const { heartbeatTick, pruneOld } = require('./heartbeat');
 const { smsMonitorTick, reconcileTwilioTick } = require('./smsMonitor');
-const { digestTick } = require('./digest');
+const { digestTick, digestDue } = require('./digest');
 const { pricingTick } = require('./learning/pricing');
 
 // Lazy requires: services pull in ai/runner, so requiring them at module load would be circular.
@@ -37,6 +37,8 @@ async function startAiOs() {
     const userId = await resolveOwnerId();
     if (!userId) { console.warn('[ai] No owner user yet (create the first admin) — AI OS idle until restart.'); started = false; return; }
     await seedRegistry(userId);
+    // weekly now: the old daily expectation would make the heartbeat flag it as missed
+    await require('../lib/prismaClient').routine.updateMany({ where: { userId, slug: 'owner-daily-digest', expectedEveryMinutes: { not: null } }, data: { expectedEveryMinutes: null } }).catch(() => {});
     console.log('[ai] Routine registry ready');
 
     const beat = () => runRoutine('routine-heartbeat', (ctx) => heartbeatTick(ctx), { quiet: true });
@@ -45,7 +47,8 @@ async function startAiOs() {
     const sms = () => runRoutine('sms-monitor', (ctx) => smsMonitorTick(ctx), { quiet: true });
     cron.schedule('*/10 * * * *', sms);
     setTimeout(sms, 150_000);
-    cron.schedule('0 17 * * *', () => runRoutine('owner-daily-digest', (ctx) => digestTick(ctx), { quiet: true }), { timezone: 'America/Winnipeg' });
+    // hourly check: the run only happens in the day/hour the owner chose (default Saturday 3 pm)
+    cron.schedule('0 * * * *', async () => { try { if (await digestDue(userId)) await runRoutine('owner-daily-digest', (ctx) => digestTick(ctx), { quiet: true }); } catch (e) { console.warn('[ai] weekly digest check failed:', e.message); } });
     cron.schedule('15 2 * * *', () => runRoutine('pricing-learner', (ctx) => pricingTick(ctx), { quiet: true }), { timezone: 'America/Winnipeg' });
     const recon = () => runRoutine('comm-ledger-reconcile', (ctx) => reconcileTwilioTick(ctx), { quiet: true });
     cron.schedule('40 * * * *', recon);

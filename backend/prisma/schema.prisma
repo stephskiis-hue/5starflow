@@ -598,7 +598,7 @@ model Routine {
   userId               String
   slug                 String                                  // stable kebab-case id, e.g. "jobber-token-refresh"
   name                 String
-  kind                 String                                  // backend | claude_cloud | claude_desktop | zapier
+  kind                 String                                  // backend | claude_cloud | claude_desktop | zapier | local_ollama
   agent                String       @default("system")         // orchestrator | communication | operations | research | content | design | social | qa | system
   category             String       @default("operations")
   purpose              String       @default("")
@@ -876,4 +876,32 @@ model CommMessage {
   @@unique([userId, channel, direction, providerId])
   @@index([userId, phoneKey, at])
   @@index([userId, direction, at])
+}
+
+// Owner notification centre: every routine/event lands here; only urgent ones are also texted.
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String
+  category    String    @default("system")  // routine | approval | customer | weather | request | system
+  title       String
+  body        String    @default("")
+  urgency     String    @default("normal")  // normal | urgent
+  routineSlug String?
+  link        String?
+  sentVia     String    @default("none")    // none | sms | digest
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}
+
+// Per-user notification preferences (one row per user).
+model NotificationSettings {
+  id          String  @id @default(cuid())
+  userId      String  @unique
+  digestMode  String  @default("weekly")  // weekly | off
+  digestDay   Int     @default(6)         // 0=Sun .. 6=Sat
+  digestHour  Int     @default(15)        // local business time
+  urgentSms   Boolean @default(true)
 }
