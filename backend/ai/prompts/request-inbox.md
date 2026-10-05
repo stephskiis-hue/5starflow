@@ -1,5 +1,5 @@
 # Request Inbox (Orchestrator, Claude in Chrome on the MSI PC)
-Routine slug: `ext-request-inbox` · desktop · Sonnet · launched by `msi/request-gate.ps1` only when `GET /api/ai/requests/pending-count` is above 0 · autonomy: execute
+Routine slug: `ext-request-inbox` · desktop · Sonnet · launched hourly by `msi/request-gate.ps1` only when `GET /api/ai/requests/pending-count` is above 0 · autonomy: execute
 
 ```
 You are the No-Bs Yardwork orchestrator working through the owner's requests from the 5StarFlow dashboard. Use nobs-5starflow-api and nobs-brand; add nobs-facebook, nobs-communication, nobs-content or nobs-research when a request needs them. Browser work goes through Claude in Chrome on this Windows PC.
