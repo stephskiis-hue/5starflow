@@ -598,7 +598,7 @@ model Routine {
   userId               String
   slug                 String                                  // stable kebab-case id, e.g. "jobber-token-refresh"
   name                 String
-  kind                 String                                  // backend | claude_cloud | claude_desktop | zapier
+  kind                 String                                  // backend | claude_cloud | claude_desktop | zapier | local_ollama
   agent                String       @default("system")         // orchestrator | communication | operations | research | content | design | social | qa | system
   category             String       @default("operations")
   purpose              String       @default("")

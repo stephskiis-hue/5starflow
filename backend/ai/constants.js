@@ -4,7 +4,7 @@ const TASK_STATES = ['NEW', 'IN_PROGRESS', 'WAITING', 'APPROVAL', 'COMPLETED', '
 const OPEN_TASK_STATES = ['NEW', 'IN_PROGRESS', 'WAITING', 'APPROVAL'];
 const URGENCIES = ['low', 'normal', 'high', 'urgent'];
 const AUTONOMY = ['read', 'draft', 'approve', 'execute'];
-const ROUTINE_KINDS = ['backend', 'claude_cloud', 'claude_desktop', 'zapier'];
+const ROUTINE_KINDS = ['backend', 'claude_cloud', 'claude_desktop', 'zapier', 'local_ollama'];
 const RUN_STATUSES = ['running', 'completed', 'failed', 'skipped', 'missed'];
 
 // A task/memory field is never allowed to grow without bound — agents write these.

@@ -9,6 +9,7 @@ Claude routines (claude.ai, MSI PC)  ──Bearer AI_TOKEN──▶  /api/ai/*  
    Night Studio · Social Shift · Inbox Watch · Morning Brief ·            Routine, RoutineRun, Task, Memory, AgentActivity,
    the 9 existing business routines                                        ContentAsset, ContentItem, SocialGroup, SocialAction, CommMessage
 Backend schedulers (all wrapped by runRoutine) ────────────────────────▶ same ledger
+Ollama worker on the MSI (scripts/ollama-worker.js, drafts only) ──────▶ same ledger
 Dashboard: /ai.html (admin session)
 ```
 

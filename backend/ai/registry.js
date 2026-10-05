@@ -69,6 +69,8 @@ const EXTERNAL = [
     purpose: 'Publishes the queue, replies to comments and DMs, posts in groups and records metrics through Claude in Chrome (Browser 2), within server-enforced daily caps.' },
   { slug: 'ext-request-inbox', name: 'Request Inbox (owner requests)', agent: 'orchestrator', kind: 'claude_desktop', schedule: 'Event-gated: MSI script checks every 10 min, starts Claude only when a request is pending', category: 'ops', autonomy: 'execute',
     purpose: 'Claims requests typed on the dashboard home page, does the work (Claude in Chrome on the MSI), and reports the result back. Unmonitored by the heartbeat on purpose: it only runs when there is work. Prompt: ai/prompts/request-inbox.md' },
+  { slug: 'local-ollama-worker', name: 'Local model worker (Ollama on MSI)', agent: 'communication', kind: 'local_ollama', schedule: 'SMS triage every 30 min 6 am to 10 pm, morning note 5:30 am Winnipeg (MSI Task Scheduler)', category: 'inbox', autonomy: 'draft', expectedEveryMinutes: 120,
+    purpose: 'Drafts SMS reply tasks and the morning note on a local Ollama model so Claude tokens go to connector and Chrome work. Never sends. Script: scripts/ollama-worker.js, scheduler: ai/prompts/msi/ollama-worker.ps1' },
   { slug: 'ext-social-daily', externalId: 'trig_01JL7wxcDHNL3wRYrY8yiGMY', name: 'No-Bs social media daily (Claude in Chrome)', agent: 'social', kind: 'claude_desktop', schedule: 'Daily 7:45 am Winnipeg (MSI PC)', category: 'social', autonomy: 'execute', enabled: false,
     purpose: 'Facebook + Instagram inbox, leads, groups, stories and weekly content using Claude in Chrome.' },
 ];
