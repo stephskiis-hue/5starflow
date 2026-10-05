@@ -47,8 +47,14 @@ async function releaseStale(userId) {
   });
 }
 
-// The MSI gate polls this every 10 minutes: one count query, no Claude tokens.
+// In memory on purpose: the heartbeat only needs "has the MSI gate checked in lately", and after a
+// restart "not since restart" is an accurate enough answer for an alert.
+let lastGatePollAt = null;
+const gateLastPolledAt = () => lastGatePollAt;
+
+// The MSI gate polls this every hour: one count query, no Claude tokens.
 async function pendingCount(userId) {
+  lastGatePollAt = new Date();
   await releaseStale(userId);
   return prisma.ownerRequest.count({ where: { userId, status: 'pending' } });
 }
@@ -114,4 +120,13 @@ async function recordPost(userId, id, { platform, postUrl, caption, captionIg } 
   }
 }
 
-module.exports = { REQUEST_STATES, createRequest, listRequests, pendingCount, claimNext, recordPost, reportRequest, cancelRequest };
+// Oldest request nobody has claimed yet, for the heartbeat's stuck-request alert.
+async function oldestPending(userId) {
+  const [count, oldest] = await Promise.all([
+    prisma.ownerRequest.count({ where: { userId, status: 'pending' } }),
+    prisma.ownerRequest.findFirst({ where: { userId, status: 'pending' }, orderBy: { createdAt: 'asc' }, select: { createdAt: true } }),
+  ]);
+  return { count, oldestAt: oldest?.createdAt || null };
+}
+
+module.exports = { REQUEST_STATES, createRequest, listRequests, pendingCount, gateLastPolledAt, oldestPending, claimNext, recordPost, reportRequest, cancelRequest };

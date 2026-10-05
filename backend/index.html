@@ -1384,7 +1384,12 @@
         if (!res.ok) return;
         const rows = await res.json();
         list.innerHTML = rows.map(r => {
-          const [label, cls] = chips[r.status] || [r.status, 'bg-white/10 text-zinc-300'];
+          let [label, cls] = chips[r.status] || [r.status, 'bg-white/10 text-zinc-300'];
+          if (r.status === 'pending') {
+            const mins = Math.floor((Date.now() - new Date(r.createdAt).getTime()) / 60000);
+            label += ' · ' + (mins < 60 ? mins + 'm' : Math.floor(mins / 60) + 'h');
+            if (mins >= 90) cls = 'bg-amber-500/10 text-amber-300';
+          }
           return '<div class="rounded-xl bg-white/5 px-4 py-3">'
             + '<div class="flex items-center justify-between gap-2 mb-1">'
             + '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ' + cls + '">' + esc(label) + '</span>'
