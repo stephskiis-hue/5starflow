@@ -23,7 +23,7 @@ $dir = Join-Path $HOME '.5starflow'
 $envFile = Join-Path $dir 'env'
 if (-not (Test-Path $envFile)) { throw "$envFile not found. It must already hold FIVESTARFLOW_URL and FIVESTARFLOW_TOKEN (same file request-gate.ps1 uses)." }
 $lines = Get-Content $envFile | Where-Object { $_ -notmatch '^\s*OLLAMA_(URL|MODEL)\s*=' }
-$lines += 'OLLAMA_URL=http://localhost:11434'
+$lines += 'OLLAMA_URL=http://127.0.0.1:11434'
 $lines += "OLLAMA_MODEL=$model"
 Set-Content -Path $envFile -Value $lines
 
