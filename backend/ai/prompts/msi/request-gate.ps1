@@ -6,6 +6,10 @@ Get-Content $envFile | ForEach-Object {
   if ($_ -match '^\s*([A-Z_]+)\s*=\s*(.+?)\s*$') { Set-Item -Path "Env:$($Matches[1])" -Value $Matches[2] }
 }
 
+# Keep this checkout (skills, playbooks, prompts) current so every MSI routine follows the latest rules.
+# Fast-forward only: local edits or a diverged branch are left alone, and a failed pull never blocks the inbox.
+try { git -C (Join-Path $PSScriptRoot '..\..\..\..') pull --ff-only --quiet 2>$null | Out-Null } catch { }
+
 $lock = Join-Path $HOME '.5starflow\request-inbox.lock'
 if ((Test-Path $lock) -and ((Get-Item $lock).LastWriteTime -gt (Get-Date).AddHours(-2))) { exit 0 }   # a run is in progress
 
