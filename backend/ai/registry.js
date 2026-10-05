@@ -63,7 +63,7 @@ const EXTERNAL = [
     purpose: 'Finds overlooked client emails in Inbox and Spam, labels them and rescues genuine ones from Spam.' },
   { slug: 'ext-night-studio', name: 'Night Studio (content + design)', agent: 'content', kind: 'claude_cloud', schedule: 'Daily 1:00 am Winnipeg', category: 'content', autonomy: 'execute', enabled: false, researchEnabled: true,
     purpose: 'Researches a timely topic, writes copy, renders on-brand graphics with the design system, QA-checks and queues posts. Prompt: ai/prompts/night-studio.md' },
-  { slug: 'ext-inbox-watch', name: 'Inbox Watch (SMS + Gmail)', agent: 'communication', kind: 'claude_cloud', schedule: '3x daily (8:00, 13:00, 18:00 Winnipeg)', category: 'inbox', autonomy: 'draft', enabled: false,
+  { slug: 'ext-inbox-watch', externalId: 'trig_01TWNVnNpoCkv7EpKPt5pWy1', name: 'Inbox Watch (SMS + Gmail)', agent: 'communication', kind: 'claude_cloud', schedule: 'Hourly at :57, 8:57 am to 8:57 pm Winnipeg', category: 'inbox', autonomy: 'draft', enabled: false,
     purpose: 'Triages unanswered texts and emails, drafts replies as tasks, records hidden operational info. Prompt: ai/prompts/inbox-watch.md' },
   { slug: 'ext-social-mac', name: 'Social shifts (Claude app on the Mac, MSI Chrome)', agent: 'social', kind: 'claude_desktop', schedule: '6:15 am and 7:30 pm Winnipeg', category: 'social', autonomy: 'execute', expectedEveryMinutes: 780,
     purpose: 'Publishes the queue, replies to comments and DMs, posts in groups and records metrics through Claude in Chrome (Browser 2), within server-enforced daily caps.' },
