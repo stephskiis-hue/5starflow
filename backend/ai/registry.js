@@ -36,6 +36,8 @@ const BACKEND = [
     purpose: 'Adds texts sent from our number outside the app (Twilio console or other tools) to the ledger so answered threads are not shown as waiting.', expectedEveryMinutes: 240, config: { quiet: true, files: ['ai/smsMonitor.js'] } },
   { slug: 'owner-daily-digest', name: 'Weekly summary text to the owner', agent: 'orchestrator', schedule: 'Weekly, Saturday 3:00 pm (editable)', category: 'inbox',
     purpose: 'One weekly summary text: money questions held, customers waiting 4h+, failing routines and the week\'s Notification Centre updates (nothing if nothing to report). Urgent items are texted immediately instead.', expectedEveryMinutes: null, config: { quiet: true, files: ['ai/digest.js'] } },
+  { slug: 'vault-drive-import', name: 'Drive photo import', agent: 'design', schedule: 'Daily 1:30 am', category: 'content',
+    purpose: 'Pulls new photos from the connected Google Drive into the vault (newest first, then the older backlog), auto-enhances them and keeps the original so the curator can re-edit or revert.', expectedEveryMinutes: 2160, config: { files: ['ai/driveImport.js', 'ai/enhance.js'] } },
   { slug: 'pricing-learner', name: 'Price learner', agent: 'research', schedule: 'Daily 2:15 am', category: 'learning', learningEnabled: true,
     purpose: 'Learns what the business actually charges from the owner\'s own texts (min / median / max per service) so replies can eventually quote it.', expectedEveryMinutes: 2160, config: { quiet: true, files: ['ai/learning/pricing.js'] } },
   { slug: 'routine-heartbeat', name: 'Routine heartbeat', agent: 'system', schedule: 'Every 15 min', category: 'ai-os',

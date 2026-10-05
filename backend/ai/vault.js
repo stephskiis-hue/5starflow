@@ -59,7 +59,7 @@ async function heicToJpeg(buffer) {
   }
 }
 
-async function saveAsset(userId, { kind = 'photo', name, buffer, tags = [], source = 'upload', notes = null, contentItemId = null }) {
+async function saveAsset(userId, { kind = 'photo', name, buffer, tags = [], source = 'upload', notes = null, contentItemId = null, driveFileId = null, originalId = null, edits = null }) {
   if (!Buffer.isBuffer(buffer) || !buffer.length) throw Object.assign(new Error('empty file'), { code: 'INVALID_ASSET' });
   if (buffer.length > MAX_BYTES) throw Object.assign(new Error(`file too large (max ${MAX_BYTES / 1048576} MB)`), { code: 'INVALID_ASSET' });
   let mime = sniff(buffer);                         // trust the bytes, not the client's claim
@@ -81,21 +81,22 @@ async function saveAsset(userId, { kind = 'photo', name, buffer, tags = [], sour
   const clean = String(name || 'upload').replace(/[^\w.\- ]+/g, '').slice(0, 120) || 'upload';
   const allTags = [...new Set([...(tags || []).map((t) => String(t).toUpperCase().slice(0, 30)), ...autoTags(clean, notes)])].slice(0, 20);
   const asset = await prisma.contentAsset.create({
-    data: { userId, kind, name: clean, mime, bytes: buffer, size: buffer.length, sha256, ...dimensions(buffer, mime), tags: JSON.stringify(allTags), source, notes, contentItemId },
+    data: { userId, kind, name: clean, mime, bytes: buffer, size: buffer.length, sha256, ...dimensions(buffer, mime), tags: JSON.stringify(allTags), source, notes, contentItemId, driveFileId, originalId, edits: edits ? JSON.stringify(edits) : null },
     select: assetSelect,
   });
   return { asset, duplicate: false };
 }
 
-const assetSelect = { quality: true, private: true, pairKey: true, id: true, userId: true, kind: true, name: true, mime: true, size: true, width: true, height: true, tags: true, source: true, notes: true, contentItemId: true, createdAt: true };
+const assetSelect = { quality: true, private: true, pairKey: true, driveFileId: true, originalId: true, edits: true, id: true, userId: true, kind: true, name: true, mime: true, size: true, width: true, height: true, tags: true, source: true, notes: true, contentItemId: true, createdAt: true };
 
-async function listAssets(userId, { kind, tag, q, limit = 60, minQuality, usable, uncurated, pair } = {}) {
-  const where = { userId };
+async function listAssets(userId, { kind, tag, q, limit = 60, minQuality, usable, uncurated, pair, source } = {}) {
+  const where = { userId, kind: { notIn: ['original', 'skipped'] } };   // originals behind enhanced copies + Drive rejects stay hidden
   if (minQuality) where.quality = { gte: Number(minQuality) };
   if (usable) { where.private = false; where.quality = { gte: 3 }; }     // what the renderer is allowed to use
   if (uncurated) where.quality = null;                                  // photos the curator hasn't scored yet
   if (pair) where.pairKey = String(pair);
   if (kind) where.kind = kind;
+  if (source) where.source = String(source);
   if (tag) where.tags = { contains: `"${String(tag).toUpperCase()}"` };
   if (q) where.name = { contains: q, mode: 'insensitive' };
   const rows = await prisma.contentAsset.findMany({ where, orderBy: { createdAt: 'desc' }, take: Math.min(limit, 200), select: assetSelect });
@@ -103,7 +104,7 @@ async function listAssets(userId, { kind, tag, q, limit = 60, minQuality, usable
 }
 
 async function getAssetBytes(userId, id) {
-  return prisma.contentAsset.findFirst({ where: { id, userId }, select: { id: true, mime: true, bytes: true, name: true, private: true } });
+  return prisma.contentAsset.findFirst({ where: { id, userId, kind: { not: 'skipped' } }, select: { id: true, mime: true, bytes: true, name: true, private: true } });
 }
 
 /** { photo: "vault:<id>" } → { photo: "data:image/...;base64,..." } for the renderer. */
@@ -121,6 +122,28 @@ async function resolvePhotos(userId, refs = {}) {
   return out;
 }
 
+/** Re-enhance an imported photo from its original (edits never stack); revert restores the original untouched. */
+async function editAsset(userId, id, edits = {}) {
+  const asset = await prisma.contentAsset.findFirst({ where: { id, userId }, select: { id: true, originalId: true } });
+  if (!asset) return null;
+  if (!asset.originalId) throw Object.assign(new Error('this photo has no stored original to edit from'), { code: 'INVALID_ASSET' });
+  const original = await prisma.contentAsset.findFirst({ where: { id: asset.originalId, userId }, select: { bytes: true, mime: true } });
+  if (!original) throw Object.assign(new Error('the original for this photo is missing'), { code: 'INVALID_ASSET' });
+  let bytes = Buffer.from(original.bytes), mime = original.mime, applied = { reverted: true }, dims;
+  if (!edits.revert) {
+    const out = await require('./enhance').enhance(bytes, edits);
+    ({ buffer: bytes, edits: applied } = out); mime = 'image/jpeg'; dims = { width: out.width, height: out.height };
+  }
+  const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
+  // a revert carries the original's exact bytes, whose row already owns that sha256: suffix it to keep the unique index
+  const clash = await prisma.contentAsset.findFirst({ where: { userId, sha256, id: { not: id } }, select: { id: true } });
+  return prisma.contentAsset.update({
+    where: { id },
+    data: { bytes, mime, size: bytes.length, sha256: clash ? `${sha256}:${id}` : sha256, ...(dims || dimensions(bytes, mime)), edits: JSON.stringify(applied) },
+    select: assetSelect,
+  });
+}
+
 async function updateAsset(userId, id, { tags, notes, name, quality, private: priv, pairKey }) {
   const data = {};
   if (Number.isInteger(quality) && quality >= 1 && quality <= 5) data.quality = quality;
@@ -133,4 +156,4 @@ async function updateAsset(userId, id, { tags, notes, name, quality, private: pr
   return r.count > 0;
 }
 
-module.exports = { sniff, heicToJpeg, saveAsset, listAssets, getAssetBytes, resolvePhotos, updateAsset, autoTags, MAX_BYTES };
+module.exports = { sniff, heicToJpeg, saveAsset, listAssets, getAssetBytes, resolvePhotos, updateAsset, editAsset, dimensions, autoTags, MAX_BYTES };

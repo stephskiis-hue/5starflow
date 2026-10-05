@@ -23,6 +23,7 @@ const RUNNABLE = {
   'sms-monitor':                { risk: 'safe',     fn: (ctx) => smsMonitorTick(ctx) },
   'owner-daily-digest':         { risk: 'texts-owner', fn: (ctx) => digestTick(ctx) },
   'comm-ledger-reconcile':      { risk: 'safe',     fn: (ctx) => reconcileTwilioTick(ctx) },
+  'vault-drive-import':         { risk: 'safe',     fn: (ctx) => require('./driveImport').driveImportTick(ctx) },
   'review-delivery-queue':      { risk: 'sends',    fn: () => require('../services/deliveryQueue').processPendingReviews() },
   'weather-morning-rain-check': { risk: 'texts-owner', fn: () => require('../services/weatherService').morningCheckTick() },
   'seo-weekly-audit':           { risk: 'spends',   fn: async () => { const r = await require('../services/seoService').runWeeklyAudit(); if (r?.error) throw new Error(`SEO audit failed: ${r.error}`); return r || { skipped: true, summary: 'Audit did not run' }; } },
@@ -49,6 +50,8 @@ async function startAiOs() {
     setTimeout(sms, 150_000);
     // hourly check: the run only happens in the day/hour the owner chose (default Saturday 3 pm)
     cron.schedule('0 * * * *', async () => { try { if (await digestDue(userId)) await runRoutine('owner-daily-digest', (ctx) => digestTick(ctx), { quiet: true }); } catch (e) { console.warn('[ai] weekly digest check failed:', e.message); } });
+    // before the Night Studio, so new Drive photos are waiting for it to curate
+    cron.schedule('30 1 * * *', () => runRoutine('vault-drive-import', (ctx) => require('./driveImport').driveImportTick(ctx)), { timezone: 'America/Winnipeg' });
     cron.schedule('15 2 * * *', () => runRoutine('pricing-learner', (ctx) => pricingTick(ctx), { quiet: true }), { timezone: 'America/Winnipeg' });
     const recon = () => runRoutine('comm-ledger-reconcile', (ctx) => reconcileTwilioTick(ctx), { quiet: true });
     cron.schedule('40 * * * *', recon);

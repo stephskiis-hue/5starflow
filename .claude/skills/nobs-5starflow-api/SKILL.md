@@ -48,7 +48,7 @@ curl -sS -X POST -H "$AUTH" -H "Content-Type: application/json" "$BASE/api/ai/ru
 ## Content + social endpoints
 - `GET /api/ai/content/layouts`, `POST /api/ai/content/lint`, `POST /api/ai/content` (with `"render":true`), `GET /api/ai/content/queue`, `POST /api/ai/content/:id/published`, `POST /api/ai/content/:id/metrics` — see `nobs-content`.
 - `GET /api/ai/social/budget`, `POST /api/ai/social/actions`, `GET/POST /api/ai/social/groups`, `GET /api/ai/social/groups/next?promo=true` — see `nobs-facebook`.
-- Photos: `GET /api/ai/assets?tag=PATIOS` (the vault), `GET /api/ai/assets/:id` (bytes), `POST /api/ai/assets {name, base64, tags}`.
+- Photos: `GET /api/ai/assets?tag=PATIOS` (the vault), `GET /api/ai/assets/:id` (bytes), `POST /api/ai/assets {name, base64, tags}`, `POST /api/ai/assets/:id/edit {straighten, rotate, crop, brightness, saturation, tone}` or `{revert: true}` (Google Drive imports only: always re-edits from the original). `POST /api/ai/routines/vault-drive-import/run` pulls new Drive photos now.
 
 ## Rules the server enforces (you cannot talk past them)
 Daily social caps (409 `CAP_REACHED`), QA lint on all content, owner-only approvals, dedup on tasks/memory. A 409 is not an error to retry: stop that kind of action for today and note it.

@@ -25,7 +25,7 @@ Dashboard: /ai.html (admin session)
 | Activity | `GET/POST /activity` |
 | Approvals | `GET /approvals` · `POST /approvals/:id/respond` (owner) |
 | Inbox | `GET /inbox/unanswered-sms` · `GET /customers/context` |
-| Vault | `POST/GET /assets` · `GET /assets/:id` · `PATCH /assets/:id` · `DELETE` (owner) |
+| Vault | `POST/GET /assets` · `GET /assets/:id` · `PATCH /assets/:id` · `POST /assets/:id/edit` · `DELETE` (owner) |
 | Content | `GET /content/layouts` · `POST /content/lint` · `POST /content/preview` (PNG) · `GET/POST /content` · `PATCH /content/:id` · `POST /content/:id/render|approve|reject|published|metrics` · `GET /content/queue` · `GET /content/performance` |
 | Social | `GET /social/budget` · `GET/POST /social/actions` (409 at the daily cap) · `GET/POST /social/groups` · `GET /social/groups/next` |
 
@@ -48,3 +48,18 @@ Use a **separate** Postgres (never the Railway URL; the schedulers act on whatev
 
 ## Notifications
 Nothing texts or emails the owner daily. Every update goes through `lib/notify.js` into the Notification Centre (top of the home page). Only `urgent: true` items are texted immediately (approvals, rain reschedule, customer waiting 24h+, auth failures, failed/stuck owner requests). The rest is summed up in one weekly text (`ai/digest.js`, default Saturday 3 pm, editable in the Notification Centre). Claude routines post with `POST /api/ai/notify`.
+
+## Google Drive photo import
+`ai/driveImport.js` (routine `vault-drive-import`, nightly 1:30 am, before the Night Studio) reads the Drive connected on
+the Connections page (`routes/drive.js`, scope `drive.readonly`, `DriveCredential`). Each run imports up to
+`DRIVE_IMPORT_PER_RUN` (30) photos: anything new since the last sync first, then one page of the older backlog
+(`backfillPageToken`) until the whole Drive has been seen. Code only drops facts-based rejects (short edge under 600px, screenshots,
+over 15 MB, black or blown-out frames); the curator judges the rest.
+Every photo is stored twice: the untouched original (`kind: 'original'`, hidden from listings) and an enhanced copy
+(`ai/enhance.js`: EXIF rotation, auto levels only when dull or badly exposed, light saturation and sharpening, ≤2048px JPEG,
+all metadata stripped including GPS) with `originalId` pointing at it. `POST /assets/:id/edit` re-runs the enhancement from
+the original with straighten/rotate/crop/brightness/saturation, or `{revert: true}`. Deleting a Drive photo leaves an empty
+`kind: 'skipped'` marker so the import doesn't bring it back.
+Setup: enable the Drive API on the Google OAuth client, add the redirect URI `<APP_URL or localhost>/api/drive/callback`
+and set `GOOGLE_DRIVE_REDIRECT_URI`. `drive.readonly` is a restricted scope: while the OAuth app is in Testing mode
+Google expires the refresh token after 7 days (the routine then fails with "reconnect it on the Connections page").

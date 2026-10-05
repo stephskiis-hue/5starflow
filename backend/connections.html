@@ -303,6 +303,7 @@
       renderOpenWeatherCard(data.openweather || {}),
       renderPageSpeedCard(data.pagespeed || {}),
       renderGoogleCard(data.google || {}),
+      renderDriveCard(data.drive || {}),
       renderSkyvernCard(data.skyvern || {}),
     ].join('');
   }
@@ -405,6 +406,57 @@
         <button id="test-btn-gmail" class="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors text-zinc-300" onclick="testService('gmail')">Test SMTP</button>
       </div>
     </div>`;
+  }
+
+  function renderDriveCard(d) {
+    const ok = d.connected;
+    const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    return `
+    <div class="glass-card rounded-xl p-6" id="drive">
+      <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center mb-4">
+        <span class="material-symbols-outlined text-yellow-400 text-lg">add_to_drive</span>
+      </div>
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <h3 class="text-sm font-semibold text-zinc-100">Google Drive</h3>
+          <p class="text-xs text-on-surface-variant mt-0.5">Job photos for the content vault (read-only)</p>
+        </div>
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium ${ok ? 'bg-secondary/10 text-secondary border border-secondary/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}">
+          ${ok ? 'Connected' : 'Not Connected'}
+        </span>
+      </div>
+      <div class="text-xs text-on-surface-variant mb-4">
+        <span class="font-semibold">Used for:</span> Nightly photo import · Auto-enhance · Post graphics
+      </div>
+      ${ok ? `<div class="space-y-2 mb-4">
+        <div class="flex items-center justify-between text-xs gap-3"><span class="text-on-surface-variant">Account</span><span class="text-zinc-300 truncate">${esc(d.email)}</span></div>
+        <div class="flex items-center justify-between text-xs"><span class="text-on-surface-variant">Last import</span><span class="text-zinc-300">${d.lastSyncAt ? new Date(d.lastSyncAt).toLocaleString() : 'Tonight, 1:30 am'}</span></div>
+        <div class="flex items-center justify-between text-xs"><span class="text-on-surface-variant">Photos imported</span><span class="text-zinc-300">${d.importedCount || 0}${d.backfillDone ? ' · whole Drive scanned' : ''}</span></div>
+      </div>` : ''}
+      ${d.lastError ? `<div class="text-xs text-yellow-400 mb-4 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg break-words">${esc(d.lastError)}</div>` : ''}
+      <div id="drive-result" class="text-xs text-on-surface-variant"></div>
+      <div class="flex flex-wrap gap-2 mt-4">
+        ${ok ? `<button id="drive-import-btn" class="px-3 py-1.5 text-xs font-medium bg-secondary/10 border border-secondary/20 rounded-xl hover:bg-secondary/20 transition-colors text-secondary" onclick="driveImport()">Import now</button>
+        <button class="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors text-zinc-300" onclick="driveDisconnect()">Disconnect</button>`
+        : `<a href="/api/drive/auth" class="px-3 py-1.5 text-xs font-medium bg-secondary/10 border border-secondary/20 rounded-xl hover:bg-secondary/20 transition-colors text-secondary">Connect Google Drive</a>`}
+      </div>
+    </div>`;
+  }
+
+  async function driveImport() {
+    const btn = document.getElementById('drive-import-btn'), out = document.getElementById('drive-result');
+    btn.disabled = true; btn.textContent = 'Importing…'; out.textContent = 'Downloading and enhancing photos. This can take a few minutes.';
+    try {
+      const r = await (await fetch('/api/drive/import', { method: 'POST' })).json();
+      out.textContent = r.skipped ? 'An import is already running.' : (r.result?.summary || r.error || 'Done');
+    } catch (err) { out.textContent = 'Import failed: ' + err.message; }
+    loadStatus();
+  }
+
+  async function driveDisconnect() {
+    if (!confirm('Disconnect Google Drive? Photos already imported stay in the vault.')) return;
+    await fetch('/api/drive/disconnect', { method: 'POST' });
+    loadStatus();
   }
 
   function renderTwilioCard(t) {
@@ -821,13 +873,15 @@
   // ── Main load ─────────────────────────────────────────────────────
   async function loadStatus() {
     try {
-      const [connRes, statusRes] = await Promise.all([
+      const [connRes, statusRes, driveRes] = await Promise.all([
         fetch('/api/connections/status'),
         fetch('/api/status'),
+        fetch('/api/drive/status').catch(() => null),
       ]);
       if (statusRes.status === 401) { window.location.href = '/login.html'; return; }
       const conn   = await connRes.json();
       const status = await statusRes.json();
+      conn.drive = driveRes && driveRes.ok ? await driveRes.json() : {};
 
       loadUserInfo(status.userEmail);
       renderCards(conn);
@@ -844,6 +898,16 @@
     const params = new URLSearchParams(window.location.search);
     const connected = params.get('connected');
     const reason = params.get('reason');
+
+    const driveErr = params.get('drive_error');
+    if (params.get('drive_connected') || driveErr) {
+      const msg = document.createElement('div');
+      msg.className = `fixed top-6 right-6 px-4 py-3 rounded-xl text-sm font-medium z-[9999] border ${driveErr ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-secondary/10 border-secondary/30 text-secondary'}`;
+      msg.textContent = driveErr ? '✕ Google Drive: ' + driveErr : '✓ Google Drive connected. New photos import nightly at 1:30 am.';
+      document.body.appendChild(msg);
+      setTimeout(() => msg.remove(), 6000);
+      history.replaceState({}, '', '/connections.html');
+    }
 
     if (reason === 'jobber_not_connected') {
       const msg = document.createElement('div');

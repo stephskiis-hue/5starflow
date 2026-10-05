@@ -345,7 +345,7 @@ router.post('/assets', async (req, res) => {
 });
 
 router.get('/assets', async (req, res) => {
-  res.json(await vault.listAssets(req.ai.userId, { kind: req.query.kind, tag: req.query.tag, q: req.query.q, limit: int(req.query.limit, 60), minQuality: req.query.minQuality, usable: req.query.usable === 'true', uncurated: req.query.uncurated === 'true', pair: req.query.pair }));
+  res.json(await vault.listAssets(req.ai.userId, { kind: req.query.kind, tag: req.query.tag, q: req.query.q, limit: int(req.query.limit, 60), minQuality: req.query.minQuality, usable: req.query.usable === 'true', uncurated: req.query.uncurated === 'true', pair: req.query.pair, source: req.query.source }));
 });
 
 router.get('/assets/:id', async (req, res) => {
@@ -355,12 +355,25 @@ router.get('/assets/:id', async (req, res) => {
   res.send(Buffer.from(a.bytes));
 });
 
+// Re-enhance a Drive-imported photo from its original: { straighten, rotate, crop:{x,y,w,h}, brightness, saturation, tone } or { revert: true }
+router.post('/assets/:id/edit', async (req, res) => {
+  try {
+    const asset = await vault.editAsset(req.ai.userId, req.params.id, req.body || {});
+    if (!asset) return res.status(404).json({ error: 'Asset not found' });
+    res.json({ asset: { ...asset, tags: JSON.parse(asset.tags || '[]'), edits: JSON.parse(asset.edits || 'null') } });
+  } catch (e) { res.status(e.code === 'INVALID_ASSET' ? 422 : 400).json({ error: e.message }); }
+});
+
 router.patch('/assets/:id', async (req, res) => {
   const ok = await vault.updateAsset(req.ai.userId, req.params.id, req.body || {});
   res.status(ok ? 200 : 404).json({ ok });
 });
 
 router.delete('/assets/:id', ownerOnly, async (req, res) => {
+  const a = await prisma.contentAsset.findFirst({ where: { id: req.params.id, userId: req.ai.userId }, select: { originalId: true, driveFileId: true } });
+  if (a?.originalId) await prisma.contentAsset.deleteMany({ where: { id: a.originalId, userId: req.ai.userId, kind: 'original' } });
+  // a deleted Drive photo leaves an empty marker so the nightly import doesn't bring it back
+  if (a?.driveFileId) return res.json({ ok: !!(await prisma.contentAsset.update({ where: { id: req.params.id }, data: { kind: 'skipped', bytes: Buffer.alloc(0), size: 0, originalId: null } })) });
   const r = await prisma.contentAsset.deleteMany({ where: { id: req.params.id, userId: req.ai.userId } });
   res.status(r.count ? 200 : 404).json({ ok: !!r.count });
 });

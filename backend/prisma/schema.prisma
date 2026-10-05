@@ -344,6 +344,23 @@ model GmailCredential {
   updatedAt    DateTime  @updatedAt
 }
 
+// Read-only Google Drive connection the vault imports photos from.
+model DriveCredential {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  email             String
+  accessToken       String    @default("")
+  refreshToken      String?
+  tokenExpiry       DateTime?
+  lastSyncAt        DateTime?
+  backfillPageToken String?                // next page of older photos; null once the whole Drive was walked
+  backfillDone      Boolean   @default(false)
+  importedCount     Int       @default(0)
+  lastError         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
 model MessageTemplate {
   id        String   @id @default(cuid())
   userId    String
@@ -766,9 +783,13 @@ model ContentAsset {
   quality       Int?                                         // 1-5 curator score; renders only use >= 3
   private       Boolean  @default(false)                     // faces, plates, house numbers: never used on posts
   pairKey       String?                                      // groups before/after candidates (same job + day)
+  driveFileId   String?                                      // Google Drive file it was imported from
+  originalId    String?                                      // enhanced copy → its untouched original (kind "original")
+  edits         String?                                      // JSON of the enhancement applied
   createdAt     DateTime @default(now())
 
   @@unique([userId, sha256])
+  @@unique([userId, driveFileId])
   @@index([userId, kind])
   @@index([contentItemId])
 }

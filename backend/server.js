@@ -182,6 +182,9 @@ app.use('/api/seo', seoRouter);
 // The /auth endpoint enforces its own requireAuth internally.
 app.use('/api/gmail', gmailRouter);
 
+// Google Drive (vault photo import) — same pattern: public callback, the other routes check the session.
+app.use('/api/drive', require('./routes/drive'));
+
 // Operator API — Bearer OPERATOR_TOKEN auth, NOT session auth (hit by Claude /schedule cron).
 // Must be mounted BEFORE requireAuth so the scheduled runs don't get redirected to login.
 app.use('/api/operator', operatorRouter);

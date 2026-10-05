@@ -7,8 +7,14 @@ description: Content Director + Design workflow for No-Bs Yardwork: research a t
 
 Read `nobs-brand` and `nobs-5starflow-api` first. Goal: keep a **pool of 7+ days of ready posts** so nobody has to ask for individual posts.
 
-## Curate the vault first (new photos only, max 20 per run)
-`GET /api/ai/assets?kind=photo&uncurated=true&limit=20`, then look at each image (`GET /api/ai/assets/<id>` returns the bytes) and `PATCH /api/ai/assets/<id>` with `{quality: 1-5, tags: [...], private: true|false, pairKey}`. Quality: 5 sharp, well lit, clearly shows the work; 3 usable; 1 blurry or unusable. `private: true` when a face, licence plate or house number is readable. Tag with the service (PATIOS, SOD, LAWNS, FALL, SNOW, LANDSCAPING, DRAINAGE, COMMERCIAL), BEFORE or AFTER, CREW, EQUIPMENT. Give matching before/after shots of the same spot the same `pairKey` (for example `job-<name>-<date>`). The renderer refuses private photos and the Content Director only uses `usable=true` ones (`GET /api/ai/assets?usable=true&tag=BEFORE`).
+## Curate the vault first (new photos only, max 40 per run)
+`GET /api/ai/assets?kind=photo&uncurated=true&limit=40`, then look at each image (`GET /api/ai/assets/<id>` returns the bytes) and `PATCH /api/ai/assets/<id>` with `{quality: 1-5, tags: [...], private: true|false, pairKey}`. Quality: 5 sharp, well lit, clearly shows the work; 3 usable; 1 blurry or unusable. `private: true` when a face, licence plate or house number is readable. Tag with the service (PATIOS, SOD, LAWNS, FALL, SNOW, LANDSCAPING, DRAINAGE, COMMERCIAL), BEFORE or AFTER, CREW, EQUIPMENT. Give matching before/after shots of the same spot the same `pairKey` (for example `job-<name>-<date>`). The renderer refuses private photos and the Content Director only uses `usable=true` ones (`GET /api/ai/assets?usable=true&tag=BEFORE`).
+
+Most new photos come from the owner's whole Google Drive (`source: "drive"`, the Drive folder and date are in `notes`), already auto-enhanced, with the untouched original kept (`originalId`). So:
+- **Not our work** (family, pets, food, receipts, documents, other businesses' jobs): `quality: 1, private: true`. Don't tag it.
+- **Fixable**: crooked horizon or fence line → `POST /api/ai/assets/<id>/edit {"straighten": -3}` (degrees, + is clockwise, max 15). Sideways → `{"rotate": 90}`. Clutter, a bin, a car or a house number at the edge → `{"crop": {"x":0,"y":0.1,"w":1,"h":0.8}}` (fractions of the photo). Too dark or flat → `{"brightness": 1.15}` or `{"tone": true}`. Each call starts again from the original, so send **all** the edits you want together. Look at the result again before scoring it.
+- **Enhancement made it worse** (oversaturated grass, crushed shadows, odd colours) → `{"revert": true}`, or `{"tone": false, "saturation": 1}`.
+- Never edit to change what the job looked like. Straighten, crop and correct the light only.
 
 ## Nightly loop
 1. `GET /api/ai/brief?agent=content`; `GET /api/ai/content?status=queued` and `?status=published` (don't repeat topics from the last 3 weeks); `GET /api/ai/content/performance` (what worked: weight winners up, repeated losers down).
