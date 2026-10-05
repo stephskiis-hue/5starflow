@@ -14,7 +14,8 @@ These are the prompts for the Claude routines that act as the agents. They are d
 
 ## Frugality rules (the weekly plan limit is the constraint)
 - Fetch `/api/ai/brief` instead of crawling; do nothing and report `skipped` when the brief shows nothing to do.
-- Sonnet for routine/triage runs; Opus only for Night Studio (creative strategy).
+- Model tiers, cheapest first: the local Ollama worker for drafting (SMS triage, morning note), Sonnet for every Claude routine (connectors, Chrome, reports, Night Studio). No routine is pinned to Opus: pin the model explicitly on the claude.ai routine, because a routine copied from a chat keeps that chat's model.
+- If the Ollama worker is failing (AI Command -> Routines, or `~/.5starflow/ollama-worker.log` on the MSI), Inbox Watch silently does all the SMS drafting on Claude. Its failure summary names the cause.
 - Never schedule several routines in the same minute.
 - A routine that finds nothing to do should exit in seconds.
 

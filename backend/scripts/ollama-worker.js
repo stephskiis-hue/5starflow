@@ -26,10 +26,22 @@ async function api(method, route, body, agent) {
     headers: { Authorization: `Bearer ${TOKEN}`, 'X-Agent': agent, 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(30000),
-  });
+  }).catch((e) => { throw new Error(`${method} ${route}: ${why(e)}`); });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`${method} ${route} → ${res.status} ${data.error || ''}`);
   return data;
+}
+
+// "fetch failed" alone hides the reason (ECONNREFUSED, ENOTFOUND, timeout), so name the host and the cause.
+const why = (e) => [e.message, e.cause?.code || e.cause?.message].filter(Boolean).join(': ');
+
+// Fails fast with a readable error before any work is fetched, so a stopped Ollama never looks like an API fault.
+async function ollamaReady() {
+  let tags;
+  try { tags = await (await fetch(`${OLLAMA}/api/tags`, { signal: AbortSignal.timeout(10000) })).json(); }
+  catch (e) { throw new Error(`Ollama not reachable at ${OLLAMA} (${why(e)}). Is the Ollama app running on the MSI?`); }
+  const names = (tags.models || []).map((m) => m.name);
+  if (!names.some((n) => n === MODEL || n === `${MODEL}:latest`)) throw new Error(`Ollama model ${MODEL} is not pulled (have: ${names.join(', ') || 'none'}). Run: ollama pull ${MODEL}`);
 }
 
 // Structured output: Ollama constrains the reply to the JSON schema. One retry on unparseable output.
@@ -41,7 +53,7 @@ async function ollama(system, user, schema) {
       body: JSON.stringify({ model: MODEL, stream: false, think: false, format: schema, options: { temperature: 0.2, num_predict: 600, num_ctx: 8192 },
         messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
       signal: AbortSignal.timeout(180000),
-    });
+    }).catch((e) => { throw new Error(`ollama ${OLLAMA}: ${why(e)}`); });
     if (!res.ok) throw new Error(`ollama ${res.status}: ${await res.text()}`);
     try { return JSON.parse((await res.json()).message.content); } catch { /* retry */ }
   }
@@ -149,10 +161,11 @@ const JOBS = { 'sms-triage': smsTriage, 'morning-summary': morningSummary };
   const startedAt = new Date().toISOString();
   let report;
   try {
+    await ollamaReady();
     const r = await JOBS[job]();
     report = { status: r.status, summary: `[${job}] ${r.summary}`, agent: r.agent, result: { summary: `[${job}] ${r.summary}`, items_found: r.items_found || 0, requires_attention: r.requires_attention || 0, actions_taken: r.actions_taken || [] } };
   } catch (e) {
-    report = { status: 'failed', summary: `[${job}] failed`, error: `${e.message}${e.cause ? ` (${e.cause.code || e.cause.message})` : ''}`, agent: job === 'sms-triage' ? 'communication' : 'operations' };
+    report = { status: 'failed', summary: `[${job}] failed: ${e.message}`.slice(0, 300), error: e.message, agent: job === 'sms-triage' ? 'communication' : 'operations' };
   }
   console.log(JSON.stringify(report));
   await api('POST', '/runs', { slug: SLUG, trigger: 'schedule', startedAt, finishedAt: new Date().toISOString(), ...report }, report.agent)

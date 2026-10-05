@@ -59,6 +59,8 @@ async function buildBrief(userId, { agent } = {}) {
     },
     inbound: {
       unansweredSms: unanswered.length,
+      // the ones Inbox Watch acts on; old threads (2+ days) and acknowledgements are low and only tracked as tasks
+      actionableSms: unanswered.filter((u) => u.urgency !== 'low').length,
       oldestWaitingMinutes: unanswered[0]?.waitingMinutes || 0,
       items: unanswered.slice(0, 5).map((u) => ({ phone: u.phone, name: u.clientName, minutes: u.waitingMinutes, last: u.lastMessage.slice(0, 120) })),
     },
