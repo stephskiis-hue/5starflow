@@ -75,11 +75,22 @@ test('qa: anything that would need a human check is an error, so it never auto-q
 
 test('content: tip and seasonal posts must cite a researched source', () => {
   const { lintItem } = require('../ai/content');
-  const base = { format: 'post', layout: 'TipPost', platforms: '["facebook"]', caption: 'Call or text 204-900-0438.', slots: { number: '04', kicker: 'OCTOBER TIP', headline: 'Feed it before winter', body: 'Late fall fertilizer after the last mow.' } };
+  const base = { format: 'story', layout: 'TipPost', platforms: '["facebook"]', caption: 'Call or text 204-900-0438.', slots: { number: '04', kicker: 'OCTOBER TIP', headline: 'Feed it before winter', body: 'Late fall fertilizer after the last mow.' } };
   assert.equal(lintItem({ ...base, pillar: 'tip', grounding: 'our blog' }).ok, false);
   assert.equal(lintItem({ ...base, pillar: 'seasonal', grounding: null }).ok, false);
   assert.deepEqual(lintItem({ ...base, pillar: 'tip', grounding: 'UMN Extension https://extension.umn.edu/lawncare/fertilizing-lawns' }).errors, []);
-  assert.deepEqual(lintItem({ ...base, pillar: 'offer', grounding: 'Owner snow offer rules' }).errors, []);
+  assert.deepEqual(lintItem({ ...base, format: 'reel', pillar: 'offer', grounding: 'Owner snow offer rules' }).errors, []);
+});
+
+test('content: tips are Facebook stories, ads are reels, Instagram gets reels only', () => {
+  const { placementErrors } = require('../ai/content');
+  assert.equal(placementErrors('post', 'tip', ['facebook']).length, 1);
+  assert.equal(placementErrors('story', 'faq', ['facebook']).length, 0);
+  assert.equal(placementErrors('post', 'offer', ['facebook']).length, 1);
+  assert.equal(placementErrors('reel', 'offer', ['facebook', 'instagram']).length, 0);
+  assert.equal(placementErrors('post', 'proof', ['facebook', 'instagram']).length, 1);   // no Instagram feed posts
+  assert.equal(placementErrors('post', 'proof', ['facebook']).length, 0);                // Facebook feed is still fine
+  assert.equal(placementErrors('story', 'seasonal', ['facebook', 'instagram']).length, 1);
 });
 
 test('renderer: required slots, photo requirement and length caps are enforced', () => {

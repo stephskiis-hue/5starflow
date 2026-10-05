@@ -37,7 +37,7 @@ The owner wants depth, not "drop the mower a bit". For every tip, seasonal or FA
 2. Find at least **two sources**, one of them primary (City of Winnipeg, Province of Manitoba, Trees Winnipeg, University of Minnesota or NDSU Extension, Environment Canada). Open the page; never cite from a search snippet. If sources disagree, go with the primary one and say less.
 3. Pull out the **specifics**: the date window, the number (inches, cm, °C, rate), the Winnipeg rule, the why, and the common mistake.
 4. Put every URL in `grounding` (the server refuses a `tip` or `seasonal` post without a source URL), e.g. `"UMN Extension https://extension.umn.edu/lawncare/fertilizing-lawns ; City of Winnipeg https://www.winnipeg.ca/yardwaste"`.
-5. Depth goes into the **caption** (3 to 6 short lines: what, when, how much, why, the mistake, the phone) or a **carousel** (one step per slide) for a full how-to. The graphic stays one idea and under about 40 words.
+5. Tips and advice are **Facebook stories**, and a story has no real caption, so the depth goes on the **frames**: a story sequence of 2 to 6 frames (`slots.slides`), one idea per frame (the hook, then what, when, how much, why, the common mistake, last frame = the ask). Each frame under about 40 words. Still write the caption (the server lints it) as the full write up.
 6. Save each verified fact once: `POST /api/ai/memory` scope `agent:research`, key `fact:<topic>`, value = fact + URL + date checked. Reuse it next time after a quick re-check. If the calendar is wrong or missing something useful, save the correction to memory (`agent:research`) and list it in your run's `learnings` so the file gets updated.
 
 ## Slots by layout (all required unless marked optional)
@@ -52,8 +52,17 @@ The owner wants depth, not "drop the mower a bit". For every tip, seasonal or FA
 - GridPost: `kicker, headline, tiles:[{num,label,photo?} x4]`.
 - StoryPoll (story only): `kicker, question, body`. ReelCover (story only): `kicker, title`, optional `photo`.
 - OfferPost: `kicker, headline, points[1-4]`, optional `photo, flag, cta_label`.
-Formats: `post` (1080x1350), `carousel` (`slots:{slides:[{layout,slots}...]}`, 3 to 10 slides, first slide = hook, last = ask), `story`/`reel_cover` (1080x1920), `group_post` (1080x1080, rewrite the text per group).
+## Where things go (owner's rule, enforced by the server)
+| Content | `format` | `platforms` | How it goes out |
+|---|---|---|---|
+| Tips, advice, seasonal how-tos, FAQs (`tip`, `seasonal`, `faq`) | `story` (1 to 6 frames) | `["facebook"]` | Facebook Story, frame by frame |
+| Ads, promos, booking pushes (`offer`) | `reel` (1 to 6 frames) | `["facebook","instagram"]` | Reel on both: the frames as photos with music from the app's library (the server also makes an MP4 fallback) |
+| Proof, reviews, founder, stories from jobs | `post` or `carousel` | `["facebook"]` | Facebook feed |
+| Anything for Instagram | `reel` only | | Instagram never gets feed posts unless the owner asks |
+Leave `format`/`platforms` out and the server picks them from the pillar. Breaking a rule is a QA error.
 
-## Weekly cadence (in season Apr to mid Nov): 5 Facebook + 4 Instagram posts incl. 1 reel cover + 1 carousel, 1 to 2 stories a day. Off season: 3 + 3.
+Formats: `post` (1080x1350), `carousel` (`slots:{slides:[{layout,slots}...]}`, 3 to 10 slides, first slide = hook, last = ask), `story` and `reel` (1080x1920, one layout or `slots.slides` with 1 to 6 frames), `reel_cover` (1080x1920), `group_post` (1080x1080, rewrite the text per group). A reel frame can be any layout; real job photos from the vault make the best reels.
+
+## Weekly cadence (in season Apr to mid Nov): 1 to 2 Facebook stories a day (tips and advice), 2 to 3 reels a week (Facebook + Instagram), 2 to 3 Facebook feed posts (proof, reviews, founder). Off season: 1 story a day, 1 to 2 reels, 1 to 2 feed posts.
 Never publish yourself: the Social agent publishes from `GET /api/ai/content/queue` whenever it runs. Don't set `scheduledFor` unless a post is date bound (an event, a deadline); the queue posts oldest first. Ads are drafted only; the owner publishes ads and approves any spend.
 After posts have been live 48h, the Social agent records `POST /api/ai/content/:id/metrics`; use `/content/performance` to decide what to make more or less of. Save durable lessons to memory (`agent:content`).

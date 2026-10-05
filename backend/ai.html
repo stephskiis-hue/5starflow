@@ -425,14 +425,18 @@
   }
   const qaBadges = (qa) => !qa ? '' : [...(qa.errors || []).map((e) => `<span class="badge b-bad">${esc(e)}</span>`), ...(qa.warnings || []).map((w) => `<span class="badge b-warn">${esc(w)}</span>`)].join(' ');
   function contentCard(c) {
-    const imgs = (c.assetIds || []).map((id) => `<img loading="lazy" src="${API}/assets/${esc(id)}" alt="" class="rounded-lg w-40 flex-none border border-white/10">`).join('');
+    const vids = c.videoAssetIds || [];
+    const imgs = (c.assetIds || []).map((id) => vids.includes(id)
+      ? `<video src="${API}/assets/${esc(id)}" controls muted playsinline preload="metadata" class="rounded-lg w-40 flex-none border border-white/10"></video>`
+      : `<img loading="lazy" src="${API}/assets/${esc(id)}" alt="" class="rounded-lg w-40 flex-none border border-white/10">`).join('');
+    const where = c.format === 'story' ? 'Facebook story' : c.format === 'reel' ? (c.platforms || []).map((p) => p === 'instagram' ? 'IG reel' : 'FB reel').join(' + ') : (c.platforms || []).join(' + ');
     const open = ['rendered', 'queued', 'qa_failed', 'draft'].includes(c.status);
     const canReject = open || c.status === 'approved';
     return `<div class="glass-card rounded-xl p-4 mb-4" data-content="${esc(c.id)}">
       <div class="flex gap-4 flex-wrap sm:flex-nowrap">
         <div class="flex gap-2 overflow-x-auto max-w-full sm:max-w-[360px] flex-none">${imgs || '<div class="w-40 h-52 rounded-lg bg-white/5 flex items-center justify-center text-xs text-zinc-500">not rendered</div>'}</div>
         <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2 flex-wrap"><span class="badge b-normal">${esc(c.layout || c.format)}</span><span class="badge b-mute">${esc((c.platforms || []).join(' + '))}</span><span class="badge ${c.status === 'qa_failed' ? 'b-bad' : c.status === 'queued' || c.status === 'approved' ? 'b-ok' : 'b-warn'}">${esc(c.status.replace('_', ' '))}</span>${c.scheduledFor ? `<span class="text-xs text-zinc-500">for ${esc(new Date(c.scheduledFor).toLocaleString())}</span>` : ''}</div>
+          <div class="flex items-center gap-2 flex-wrap"><span class="badge b-normal">${esc(c.layout || c.format)}</span><span class="badge b-mute">${esc(where)}</span><span class="badge ${c.status === 'qa_failed' ? 'b-bad' : c.status === 'queued' || c.status === 'approved' ? 'b-ok' : 'b-warn'}">${esc(c.status.replace('_', ' '))}</span>${c.scheduledFor ? `<span class="text-xs text-zinc-500">for ${esc(new Date(c.scheduledFor).toLocaleString())}</span>` : ''}</div>
           <p class="text-sm font-semibold text-zinc-100 mt-2">${esc(c.title)}</p>
           <p class="text-sm text-zinc-300 mt-2 whitespace-pre-wrap break-words p-3 rounded-lg bg-white/5">${esc(c.caption)}</p>
           ${c.grounding ? `<p class="text-xs text-zinc-500 mt-2 break-all">Source: ${esc(c.grounding)}</p>` : ''}

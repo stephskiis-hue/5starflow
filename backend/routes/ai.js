@@ -368,6 +368,7 @@ router.delete('/assets/:id', ownerOnly, async (req, res) => {
 // --------------------------------------------------------------------------- content engine
 const renderErr = (res, e) => {
   if (e instanceof RenderError) return res.status(e.code === 'RENDERER_UNAVAILABLE' ? 503 : 422).json({ error: e.message, code: e.code, details: e.details });
+  if (e.code === 'REEL_UNAVAILABLE') return res.status(503).json({ error: e.message, code: e.code });
   if (['INVALID_PHOTO', 'INVALID_CONTENT'].includes(e.code)) return res.status(422).json({ error: e.message });
   if (e.code === 'NOT_FOUND') return res.status(404).json({ error: e.message });
   if (e.code === 'BAD_STATE') return res.status(409).json({ error: e.message });
@@ -396,7 +397,10 @@ router.get('/content', async (req, res) => {
   const where = { userId: req.ai.userId };
   if (req.query.status) where.status = String(req.query.status);
   const rows = await prisma.contentItem.findMany({ where, orderBy: { updatedAt: 'desc' }, take: int(req.query.limit, 60) });
-  res.json(rows.map((r) => ({ ...r, platforms: JSON.parse(r.platforms || '[]') })));
+  // which rendered assets are videos (reels), so the dashboard and the Social agent know what to post
+  const ids = rows.flatMap((r) => (Array.isArray(r.assetIds) ? r.assetIds : []));
+  const videos = new Set(ids.length ? (await prisma.contentAsset.findMany({ where: { id: { in: ids }, kind: 'video' }, select: { id: true } })).map((a) => a.id) : []);
+  res.json(rows.map((r) => ({ ...r, platforms: JSON.parse(r.platforms || '[]'), videoAssetIds: (Array.isArray(r.assetIds) ? r.assetIds : []).filter((id) => videos.has(id)) })));
 });
 
 router.get('/content/performance', async (req, res) => res.json(await content.performanceSummary(req.ai.userId, { days: int(req.query.days, 60, 365) })));
@@ -419,9 +423,10 @@ router.patch('/content/:id', async (req, res) => {
   const b = req.body || {}; const data = {};
   for (const k of ['title', 'caption', 'captionIg', 'pillar', 'layout', 'grounding', 'note']) if (typeof b[k] === 'string') data[k] = b[k].slice(0, 5000);
   if (b.slots && typeof b.slots === 'object') data.slots = b.slots;
+  if (typeof b.format === 'string') { if (!content.FORMATS.includes(b.format)) return res.status(422).json({ error: `format must be one of ${content.FORMATS.join(', ')}` }); data.format = b.format; }
   if (Array.isArray(b.platforms)) data.platforms = JSON.stringify(b.platforms);
   if (b.scheduledFor !== undefined) data.scheduledFor = b.scheduledFor ? new Date(b.scheduledFor) : null;
-  if (Object.keys(data).some((k) => ['slots', 'layout', 'caption', 'captionIg'].includes(k))) { data.status = 'draft'; data.assetIds = Prisma.DbNull; data.qa = Prisma.DbNull; } // edited → must re-render + re-QA (Json null needs DbNull)
+  if (Object.keys(data).some((k) => ['slots', 'layout', 'caption', 'captionIg', 'format', 'platforms', 'pillar'].includes(k))) { data.status = 'draft'; data.assetIds = Prisma.DbNull; data.qa = Prisma.DbNull; } // edited → must re-render + re-QA (Json null needs DbNull)
   const r = await prisma.contentItem.updateMany({ where: { id: req.params.id, userId: req.ai.userId, status: { notIn: ['published'] } }, data });
   res.status(r.count ? 200 : 404).json({ ok: !!r.count });
 });

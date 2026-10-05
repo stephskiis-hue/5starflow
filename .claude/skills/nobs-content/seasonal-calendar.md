@@ -69,5 +69,5 @@ Primary sources, best first: City of Winnipeg (winnipeg.ca, legacy.winnipeg.ca),
 ### Turning a fact into a post that is worth reading
 - Lead with the Winnipeg specific: a date, a number, a local rule.
 - Give the **why** (one line), the **how** (a number), and the **mistake people make**.
-- One fact per graphic; the caption carries the detail in 3 to 6 short lines; a carousel (3 to 6 slides) for a full how-to ("Fall lawn plan: aerate, feed, last mow, leaves, blowout").
+- Tips and advice go out as Facebook stories: one fact per frame, 2 to 6 frames for a full how-to ("Fall lawn plan: last mow, leaves, blowout, cedars").
 - Never invent a stat. Rounded numbers from the source are fine; changed numbers are not.
