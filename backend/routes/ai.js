@@ -331,6 +331,51 @@ router.get('/customers/context', async (req, res) => {
 });
 
 
+// --------------------------------------------------------------------------- Jobber: unscheduled job
+// Introspect a Jobber GraphQL type so job/quote inputs are checked against the live schema, not guessed.
+router.get('/jobber/schema-type', async (req, res) => {
+  const { jobberGraphQL } = require('../services/jobberClient');
+  const name = String(req.query.name || 'Mutation');
+  const data = await jobberGraphQL(
+    `query($n: String!) { __type(name: $n) { name kind fields { name args { name type { name kind ofType { name kind } } } }
+       inputFields { name type { name kind ofType { name kind } } } enumValues { name } } }`,
+    { n: name }, req.ai.userId);
+  res.json(data.__type || { error: `No type ${name}` });
+});
+
+// Create a job with NO visits scheduled (it lands in Jobber's "requires scheduling" list).
+// Owner session only. Body: { jobberClientId, title, price, description?, confirm: true }.
+// DRY_RUN=true, dryRun:true or a missing confirm returns the plan only.
+router.post('/jobber/unscheduled-job', ownerOnly, async (req, res) => {
+  const { jobberGraphQL } = require('../services/jobberClient');
+  const { jobberClientId, title, price, description = '' } = req.body || {};
+  if (!jobberClientId || !title || !(Number(price) > 0)) return res.status(400).json({ error: 'jobberClientId, title and price are required' });
+
+  const props = await jobberGraphQL(
+    `query($id: EncodedId!) { client(id: $id) { name properties(first: 5) { nodes { id address { street city } } } } }`,
+    { id: jobberClientId }, req.ai.userId);
+  const property = props.client?.properties?.nodes?.[0];
+  if (!property) return res.status(404).json({ error: 'Client has no property in Jobber' });
+
+  const input = {
+    propertyId: property.id,
+    title,
+    instructions: description,
+    lineItems: [{ name: title, description, quantity: 1, unitPrice: Number(price), saveToProductsAndServices: false }],
+    invoicing: { invoicingType: 'FIXED_PRICE', invoicingSchedule: 'ON_COMPLETION' },
+  };
+  if (process.env.DRY_RUN === 'true' || req.body.dryRun || req.body.confirm !== true) {
+    return res.json({ dryRun: true, client: props.client.name, property, input });
+  }
+  const data = await jobberGraphQL(
+    `mutation($input: JobCreateAttributes!) { jobCreate(input: $input) { job { id jobNumber title } userErrors { message path } } }`,
+    { input }, req.ai.userId);
+  const out = data.jobCreate;
+  if (out?.userErrors?.length) return res.status(422).json(out);
+  await recordActivity(req.ai.userId, { agent: 'system', action: 'jobber_job_created', summary: `Unscheduled job "${title}" for ${props.client.name}`, tool: 'jobber/unscheduled-job', customerRef: jobberClientId });
+  res.json(out);
+});
+
 // --------------------------------------------------------------------------- vault (photos + graphics)
 const parseBase64 = (b64) => Buffer.from(String(b64 || '').replace(/^data:[^;]+;base64,/, ''), 'base64');
 

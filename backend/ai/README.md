@@ -64,3 +64,9 @@ the original with straighten/rotate/crop/brightness/saturation, or `{revert: tru
 Setup: enable the Drive API on the Google OAuth client, add the redirect URI `<APP_URL or localhost>/api/drive/callback`
 and set `GOOGLE_DRIVE_REDIRECT_URI`. `drive.readonly` is a restricted scope: while the OAuth app is in Testing mode
 Google expires the refresh token after 7 days (the routine then fails with "reconnect it on the Connections page").
+
+## Creating a Jobber job (owner session only)
+`GET /api/ai/jobber/schema-type?name=JobCreateAttributes` introspects the live Jobber schema (verify input fields before the first real call).
+`POST /api/ai/jobber/unscheduled-job {jobberClientId, title, price, description, confirm:true}` creates a job with no visits (shows under "requires scheduling").
+Without `confirm:true`, or when `DRY_RUN=true`, it returns the plan only. Find the client id with `GET /api/ai/customers/context?q=<name>` (`jobberClientId`).
+Example: Garth Niven `Z2lkOi8vSm9iYmVyL0NsaWVudC8xNDI1NTI1MDg=`, fall cleanup $319 (flower beds, leaf bagging and haul-away, final cut). Snow sheet: Drive "No-Bs Yardwork Snow Properties 2026/27", never put prices in it.
