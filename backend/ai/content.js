@@ -10,10 +10,13 @@ const { LAYOUTS } = require('./design/layouts');
 const { saveAsset, resolvePhotos } = require('./vault');
 const { recordAction } = require('./social');
 const { recordActivity } = require('./ledger');
+const { notify } = require('../lib/notify');
 
 const FORMAT_SIZE = { post: 'feed', carousel: 'feed', group_post: 'square', story: 'story', reel_cover: 'story' };
 const PILLARS = ['tip', 'proof', 'review', 'faq', 'offer', 'founder', 'story', 'group', 'seasonal'];
 const FORMATS = Object.keys(FORMAT_SIZE);
+// Advice posts must be researched: their `grounding` has to link the source(s) the facts came from.
+const RESEARCHED_PILLARS = ['tip', 'seasonal'];
 
 const parse = (s, d) => { try { return JSON.parse(s); } catch { return d; } };
 const out = (row) => row && ({ ...row, platforms: parse(row.platforms, []) });
@@ -39,6 +42,9 @@ function lintItem(item) {
     errors.push(...r.errors.map((e) => `Instagram caption: ${e}`));
   }
   if (item.format === 'carousel' && (slides.length < 3 || slides.length > 10)) errors.push('Carousel needs 3 to 10 slides.');
+  if (RESEARCHED_PILLARS.includes(item.pillar) && !/https?:\/\/\S+/.test(item.grounding || '')) {
+    errors.push(`A ${item.pillar} post needs research: put the source URL(s) in grounding (extension service, City of Winnipeg, Manitoba government, our own site).`);
+  }
   return { ok: errors.length === 0, errors, warnings };
 }
 
@@ -51,18 +57,22 @@ async function createContent(userId, c) {
       userId, title: String(c.title).slice(0, 160), pillar: PILLARS.includes(c.pillar) ? c.pillar : null, format, layout: c.layout || null,
       platforms: JSON.stringify(Array.isArray(c.platforms) && c.platforms.length ? c.platforms : ['facebook']),
       slots: c.slots || undefined, caption: String(c.caption || '').slice(0, 5000), captionIg: c.captionIg ? String(c.captionIg).slice(0, 2500) : null,
-      groupId: c.groupId || null, grounding: c.grounding ? String(c.grounding).slice(0, 500) : null, source: c.source || null,
+      groupId: c.groupId || null, grounding: c.grounding ? String(c.grounding).slice(0, 1000) : null, source: c.source || null,
       scheduledFor: c.scheduledFor ? new Date(c.scheduledFor) : null, status: c.status === 'idea' ? 'idea' : 'draft',
     },
   });
   return out(row);
 }
 
-/** Render every slide, store PNGs in the vault, run QA, and settle the status. */
-async function renderContent(userId, id, { autopilot = false, photos: photoOverride } = {}) {
+/**
+ * Render every slide, store PNGs in the vault, run QA, and settle the status. No owner approval: a clean render goes
+ * straight to the queue (the owner is told, and can pull it). Anything that fails QA or does not fit goes back to the
+ * agent as qa_failed with the reasons.
+ */
+async function renderContent(userId, id, { photos: photoOverride } = {}) {
   const item = await prisma.contentItem.findFirst({ where: { id, userId } });
   if (!item) throw Object.assign(new Error('content item not found'), { code: 'NOT_FOUND' });
-  // a rejected or already-published item must not be revived (or re-queued for autopilot) by a stray render call
+  // a rejected or already-published item must not be revived (or re-queued) by a stray render call
   if (['rejected', 'published', 'failed'].includes(item.status)) throw Object.assign(new Error(`cannot render an item that is ${item.status}`), { code: 'BAD_STATE' });
   const qa = lintItem(item);
   if (!qa.ok) {
@@ -91,16 +101,20 @@ async function renderContent(userId, id, { autopilot = false, photos: photoOverr
       }
     }
     const r = await renderPost({ layout, slots: clean, size, photos });
-    if (r.overflow) qa.warnings.push(`Slide ${i + 1}: text still overflows after shrinking. Shorten the copy.`);
+    if (r.overflow) qa.errors.push(`${slides.length > 1 ? `Slide ${i + 1}: t` : 'T'}ext does not fit the graphic (runs off the edge or into the footer). Shorten the copy.`);
     const { asset } = await saveAsset(userId, { kind: 'graphic', name: `${item.title}-${i + 1}.png`, buffer: r.png, tags: [layout.replace('Post', '').toUpperCase()], source: 'render', contentItemId: id });
     assetIds.push(asset.id);
   }
 
-  // Autopilot only queues CLEAN items. Any warning (missing phone in the caption, too many words, overflow...) goes to the owner.
-  // An already-approved item stays approved after a re-render.
-  const status = item.status === 'approved' ? 'approved' : autopilot && qa.warnings.length === 0 ? 'queued' : 'rendered';
+  qa.ok = qa.errors.length === 0;
+  // An already-approved (legacy) item stays approved after a re-render.
+  const status = !qa.ok ? 'qa_failed' : item.status === 'approved' ? 'approved' : 'queued';
   const row = await prisma.contentItem.update({ where: { id }, data: { assetIds, qa, status } });
-  await recordActivity(userId, { agent: 'design', action: 'rendered graphic', summary: `${item.title} (${slides.length} slide${slides.length > 1 ? 's' : ''})`, result: 'ok', source: 'design-system', runId: null });
+  await recordActivity(userId, { agent: 'design', action: 'rendered graphic', summary: `${item.title} (${slides.length} slide${slides.length > 1 ? 's' : ''})`, result: qa.ok ? 'ok' : 'qa_failed', source: 'design-system', runId: null });
+  if (status === 'queued' && item.status !== 'queued') {
+    const where = parse(item.platforms, []).join(' + ') || 'facebook';
+    await notify(userId, { category: 'content', title: `Queued to post: ${item.title}`, body: `${where}. ${item.caption}`.slice(0, 600), link: '/ai.html#content' });
+  }
   return { item: out(row), qa, rendered: assetIds.length };
 }
 
@@ -120,7 +134,7 @@ async function transition(userId, id, action, extra = {}) {
   return out(await prisma.contentItem.update({ where: { id }, data: { status: 'rejected', note: String(extra.note || '').slice(0, 500) || null } }));
 }
 
-/** Posts ready to go out now on `platform`: owner-approved, or QA-passed 'queued' items when autopilot is on. */
+/** Posts ready to go out now on `platform`: QA-passed 'queued' items (and legacy approved ones). Autopilot off = the owner paused posting. */
 async function publishQueue(userId, { platform, autopilot, limit = 10 } = {}) {
   const statuses = autopilot ? ['approved', 'queued'] : ['approved'];
   const where = { userId, status: { in: statuses }, OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }] };

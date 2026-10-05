@@ -410,7 +410,7 @@ router.post('/content', async (req, res) => {
   try {
     const item = await content.createContent(req.ai.userId, { source: req.ai.agent, ...req.body });
     let result = { item };
-    if (req.body?.render) result = await content.renderContent(req.ai.userId, item.id, { autopilot: await isAutopilot(req.ai.userId) });
+    if (req.body?.render) result = await content.renderContent(req.ai.userId, item.id);
     res.status(201).json(result);
   } catch (e) { renderErr(res, e); }
 });
@@ -427,7 +427,7 @@ router.patch('/content/:id', async (req, res) => {
 });
 
 router.post('/content/:id/render', async (req, res) => {
-  try { res.json(await content.renderContent(req.ai.userId, req.params.id, { autopilot: await isAutopilot(req.ai.userId) })); } catch (e) { renderErr(res, e); }
+  try { res.json(await content.renderContent(req.ai.userId, req.params.id)); } catch (e) { renderErr(res, e); }
 });
 
 router.post('/content/:id/approve', ownerOnly, async (req, res) => {

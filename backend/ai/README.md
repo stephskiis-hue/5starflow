@@ -31,10 +31,11 @@ Dashboard: /ai.html (admin session)
 
 ## Design system → graphics
 `ai/design/` holds the No-Bs Yardwork design system exported from the claude.ai artifact: `tokens.json`, vendored fonts + logos, and the 12 layout templates (`layouts/<Name>.html` + `.md` slot docs). `renderer.js` fills `data-slot` markers and screenshots 1080×1350 / 1080×1920 / 1080×1080 PNGs (~150 ms each). `qa.js` is the deterministic brand lint (no prices, no mid-sentence dashes, exact name, phone, banned words). To re-sync after the design system changes: re-export `project/tokens.json` and `project/components/*/preview.html`, replace the files here, re-run the render smoke (all 12 layouts) and eyeball them.
-Chromium: dev uses `npx playwright install chromium`; the Railway fallback is `@sparticuz/chromium` (optional dependency; **not yet verified on Railway**) or set `CHROMIUM_PATH`.
+Chromium: Railway builds `backend/Dockerfile` (official Playwright image, Chromium and its system libraries included). Dev uses `npx playwright install chromium`; `CHROMIUM_PATH` and `@sparticuz/chromium` remain as fallbacks.
+No owner approval: a render that passes QA (brand lint, a source URL for tip/seasonal posts, text that fits the canvas) goes straight to `queued` and the owner gets a Notification Centre note; anything else is `qa_failed` for the Content Director to fix. The owner can pull a post. The `ext-social-daily` autonomy (execute) is the pause switch for posting.
 
 ## Guardrails that live in code (not prompts)
-Daily social caps (`ai/social.js`), QA gate before content can be queued, owner-only approvals, task/memory dedup, opt-out (`isOptedOut`) on every customer SMS, Twilio signature validation on public webhooks, DRY_RUN blocks Jobber writes, Winnipeg-timezone crons.
+Daily social caps (`ai/social.js`), QA gate before content can be queued (no owner approval for content), owner-only approvals for everything else, task/memory dedup, opt-out (`isOptedOut`) on every customer SMS, Twilio signature validation on public webhooks, DRY_RUN blocks Jobber writes, Winnipeg-timezone crons.
 
 ## Status
 Done: M0 security + correctness fixes · M1 registry/ledger/tasks/memory/activity/heartbeat/API/dashboard · M2 renderer, QA, vault, content pipeline, social caps/groups, Content/Social/Vault tabs, skills + prompts · M3 communication ledger, conversation states, SMS monitor, Twilio reconcile.

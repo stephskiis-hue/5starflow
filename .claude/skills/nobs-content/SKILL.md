@@ -13,7 +13,7 @@ Read `nobs-brand` and `nobs-5starflow-api` first. Goal: keep a **pool of 7+ days
 ## Nightly loop
 1. `GET /api/ai/brief?agent=content`; `GET /api/ai/content?status=queued` and `?status=published` (don't repeat topics from the last 3 weeks); `GET /api/ai/content/performance` (what worked: weight winners up, repeated losers down).
 2. Check `rejected` items: `GET /api/ai/content?status=rejected` → each has the owner's note. Learn from it (`POST /api/ai/memory scope agent:content`).
-3. Pick topics that are true for Winnipeg **this month** (fall cleanup, last cut 2 to 2.5 in, snow plans, drainage, aeration, spring prep...). Ground every fact: a real review, a real job photo, or our own blog/website page. Put the source in `grounding`.
+3. Pick topics that are true for Winnipeg **this month**: open `seasonal-calendar.md` (next to this file) at the current month (and the next, since posts go out over the coming week). Then **research each post** (below). A real review, a real job photo or our own site still count as grounding for proof, review and offer posts.
 4. Choose audience (homeowner, property manager, commercial), pillar (`tip|proof|review|faq|offer|founder|story|group|seasonal`), and a layout that differs from the previous post.
 5. Photos: `GET /api/ai/assets?tag=BEFORE` etc. Use real ones (`"photo":"vault:<id>"`). No suitable photo → pick a layout that doesn't need one (Statement, Tip, FAQ, Compare, Review).
 6. Create + render in one call. Use the exact slot names per layout (below). Fix every lint error; do not argue with the linter.
@@ -25,9 +25,20 @@ curl -sS -X POST -H "$AUTH" -H "X-Agent: content" -H "Content-Type: application/
   "slots": {"number":"03","kicker":"WINNIPEG FALL TIP","headline":"Drop the mower. Slowly.","body":"Your last cut of the year should be 2 to 2.5 inches. Lower the deck over your last 2 or 3 mows."},
   "caption": "Winnipeg fall tip: ...\n\nCall or text 204-900-0438.",
   "captionIg": "...\n\n#Winnipeg #LawnCare #fallcleanup",
-  "grounding": "Our blog: blog-fall-cleanup-winnipeg.html, tip 2", "render": true }'
+  "grounding": "UMN Extension https://extension.umn.edu/about/our-stories/news/late-fall-lawn-care", "render": true }'
 ```
-Result `item.status`: `queued` (QA passed, autopilot on), `rendered` (waits for owner approval), `qa_failed` (read `qa.errors`, fix, `PATCH /api/ai/content/:id` then `POST /api/ai/content/:id/render`).
+Result `item.status`: `queued` (every check passed; it goes out automatically and the owner gets a note, there is **no owner approval step**) or `qa_failed` (read `qa.errors`, fix it yourself, `PATCH /api/ai/content/:id` then `POST /api/ai/content/:id/render`). Never leave a `qa_failed` item behind: fix it in the same run or reject it with a note.
+
+**Before you render, check it yourself** like the owner would: is every fact backed by the source you cite, is it useful to a Winnipeg homeowner this week, is it different from the last 3 weeks, does it read right out loud. After rendering, open the PNG (`GET /api/ai/assets/<id>`) and look at it: text fully on the graphic, nothing cut off or crammed against the footer, the right layout. The server rejects text that runs off the edge or into the footer, but you are the last eye before it posts.
+
+## Research every post (no shallow tips)
+The owner wants depth, not "drop the mower a bit". For every tip, seasonal or FAQ post:
+1. Write the question it answers in one line ("When should Winnipeg lawns get their last fertilizer, and what kind?").
+2. Find at least **two sources**, one of them primary (City of Winnipeg, Province of Manitoba, Trees Winnipeg, University of Minnesota or NDSU Extension, Environment Canada). Open the page; never cite from a search snippet. If sources disagree, go with the primary one and say less.
+3. Pull out the **specifics**: the date window, the number (inches, cm, °C, rate), the Winnipeg rule, the why, and the common mistake.
+4. Put every URL in `grounding` (the server refuses a `tip` or `seasonal` post without a source URL), e.g. `"UMN Extension https://extension.umn.edu/lawncare/fertilizing-lawns ; City of Winnipeg https://www.winnipeg.ca/yardwaste"`.
+5. Depth goes into the **caption** (3 to 6 short lines: what, when, how much, why, the mistake, the phone) or a **carousel** (one step per slide) for a full how-to. The graphic stays one idea and under about 40 words.
+6. Save each verified fact once: `POST /api/ai/memory` scope `agent:research`, key `fact:<topic>`, value = fact + URL + date checked. Reuse it next time after a quick re-check. If the calendar is wrong or missing something useful, save the correction to memory (`agent:research`) and list it in your run's `learnings` so the file gets updated.
 
 ## Slots by layout (all required unless marked optional)
 - StatementPost: `kicker, headline, body`, optional `photo`. `[[words]]` = accent colour, `\n` = new line.
@@ -44,5 +55,5 @@ Result `item.status`: `queued` (QA passed, autopilot on), `rendered` (waits for 
 Formats: `post` (1080x1350), `carousel` (`slots:{slides:[{layout,slots}...]}`, 3 to 10 slides, first slide = hook, last = ask), `story`/`reel_cover` (1080x1920), `group_post` (1080x1080, rewrite the text per group).
 
 ## Weekly cadence (in season Apr to mid Nov): 5 Facebook + 4 Instagram posts incl. 1 reel cover + 1 carousel, 1 to 2 stories a day. Off season: 3 + 3.
-Never publish yourself: the Social agent publishes from `GET /api/ai/content/queue`. Ads are drafted only; the owner publishes ads and approves any spend.
+Never publish yourself: the Social agent publishes from `GET /api/ai/content/queue` whenever it runs. Don't set `scheduledFor` unless a post is date bound (an event, a deadline); the queue posts oldest first. Ads are drafted only; the owner publishes ads and approves any spend.
 After posts have been live 48h, the Social agent records `POST /api/ai/content/:id/metrics`; use `/content/performance` to decide what to make more or less of. Save durable lessons to memory (`agent:content`).
