@@ -2,17 +2,20 @@
  * Vault ← Google Drive. Nightly, before the Night Studio curates:
  *   1. newest images first (anything added since the last sync), then
  *   2. one more page of older images (backfillPageToken) until the whole Drive has been seen.
- * Each kept photo is stored twice: the untouched original (kind "original", hidden from listings)
+ * Each kept photo is stored twice: the original (kind "original", hidden; ≤3072px, no metadata)
  * and an enhanced copy (kind "photo") that points at it, so the curator can re-edit or revert.
  * Code only filters on facts (size, screenshots, black frames); judging the photo is the curator's job.
  */
 const axios = require('axios');
 const prisma = require('../lib/prismaClient');
 const vault = require('./vault');
-const { assess, enhance } = require('./enhance');
+const { assess, enhance, prepareOriginal } = require('./enhance');
 
 const API = 'https://www.googleapis.com/drive/v3';
-const PER_RUN = Number(process.env.DRIVE_IMPORT_PER_RUN) || 30;
+// Photos live in Postgres, which shares a small plan with the app: a 30-photo burst of full camera files
+// knocked the database over on 2026-10-05. Keep runs small and paced.
+const PER_RUN = Number(process.env.DRIVE_IMPORT_PER_RUN) || 12;
+const PAUSE_MS = 1500;
 const MIN_EDGE = 600;                 // short edge; the business's own 1080×720 shots must pass
 const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 const FIELDS = 'nextPageToken, files(id, name, mimeType, size, createdTime, parents, imageMediaMetadata(width, height, time))';
@@ -46,9 +49,13 @@ function prefilter(f) {
   return null;
 }
 
-async function importDriveImages(userId, { limit = PER_RUN, log = () => {} } = {}) {
+async function importDriveImages(userId, { limit = PER_RUN } = {}) {
   const cred = await prisma.driveCredential.findUnique({ where: { userId } });
   if (!cred) return { skipped: true, summary: 'Google Drive not connected' };
+  // originals whose enhanced copy never got saved (an interrupted run) are dead weight: drop them
+  const orphans = await prisma.$executeRaw`DELETE FROM "ContentAsset" o WHERE o."userId" = ${userId} AND o.kind = 'original' AND o.source = 'drive'
+    AND NOT EXISTS (SELECT 1 FROM "ContentAsset" p WHERE p."originalId" = o.id)`;
+  if (orphans) console.log(`[driveImport] removed ${orphans} original(s) left by an interrupted run`);
   const token = await accessToken(cred);
   const http = axios.create({ baseURL: API, headers: { Authorization: `Bearer ${token}` }, timeout: 60000 });
   const folderNames = new Map();
@@ -71,9 +78,10 @@ async function importDriveImages(userId, { limit = PER_RUN, log = () => {} } = {
       const why = prefilter(f);
       if (why) { skip(why); continue; }
       try {
-        if (await importOne(f)) stats.imported++;
+        if (await importOne(f)) { stats.imported++; await new Promise((r) => setTimeout(r, PAUSE_MS)); }
       } catch (err) {
         stats.failed.push(`${f.name}: ${err.message}`);
+        if (/database|prisma|ECONNREFUSED|connection/i.test(err.message)) throw err;   // the DB is struggling: stop, don't pile on
       }
     }
     return true;
@@ -85,33 +93,39 @@ async function importDriveImages(userId, { limit = PER_RUN, log = () => {} } = {
     const taken = f.imageMediaMetadata?.time || f.createdTime?.slice(0, 10) || '';
     const notes = `Google Drive: ${folder ? folder + '/' : ''}${f.name}${taken ? ` · taken ${taken}` : ''}`.slice(0, 500);
 
-    const orig = await vault.saveAsset(userId, { kind: 'original', name: f.name, buffer: Buffer.from(data), source: 'drive', notes });
+    // everything heavy happens in memory first, so a dud never costs a big database write
+    let raw = Buffer.from(data);
+    if (vault.sniff(raw) === 'image/heic') raw = await vault.heicToJpeg(raw);
+    const bytes = await prepareOriginal(raw);
+    raw = null;
+    const a = await assess(bytes);
+    const dud = Math.min(a.width, a.height) < MIN_EDGE ? 'too small' : a.meanLuma < 12 ? 'black frame' : a.meanLuma > 248 ? 'blown out' : null;
+    if (dud) {
+      // tiny marker row so the next run doesn't download it again
+      await prisma.contentAsset.create({ data: { userId, kind: 'skipped', name: f.name.slice(0, 120), mime: 'image/jpeg', bytes: Buffer.alloc(0), size: 0, sha256: `skip:${f.id}`, source: 'drive', driveFileId: f.id } }).catch(() => {});
+      skip(dud);
+      return false;
+    }
+
+    const orig = await vault.saveAsset(userId, { kind: 'original', name: f.name.replace(/\.\w+$/, '') + '.jpg', buffer: bytes, source: 'drive', notes });
     if (orig.duplicate) {
       const enhanced = orig.asset.kind === 'original' && await prisma.contentAsset.findFirst({ where: { userId, originalId: orig.asset.id }, select: { id: true } });
       if (orig.asset.kind !== 'original' || enhanced) {
-        // already in the vault (uploaded by hand, or the same file twice in Drive): tag the Drive id so it isn't downloaded again
+        // the same photo twice in Drive: tag the Drive id so it isn't downloaded again
         await prisma.contentAsset.updateMany({ where: { id: enhanced ? enhanced.id : orig.asset.id, driveFileId: null }, data: { driveFileId: f.id } }).catch(() => {});
         skip('already in vault');
         return false;
       }
       // an earlier run stored the original but died before the enhanced copy: finish it now
     }
-    if (orig.asset.kind === 'video') { await prisma.contentAsset.delete({ where: { id: orig.asset.id } }); skip('not a photo'); return false; }
 
-    const bytes = (await prisma.contentAsset.findUnique({ where: { id: orig.asset.id }, select: { bytes: true } })).bytes;   // post-HEIC conversion
-    const a = await assess(Buffer.from(bytes));
-    if (Math.min(a.width, a.height) < MIN_EDGE || a.meanLuma < 12 || a.meanLuma > 248) {
-      await prisma.contentAsset.update({ where: { id: orig.asset.id }, data: { driveFileId: f.id, kind: 'skipped', bytes: Buffer.alloc(0), size: 0 } });
-      skip(a.meanLuma < 12 ? 'black frame' : a.meanLuma > 248 ? 'blown out' : 'too small');
-      return false;
-    }
-    const out = await enhance(Buffer.from(bytes));
+    const out = await enhance(bytes);
     await vault.saveAsset(userId, {
       kind: 'photo', name: f.name.replace(/\.\w+$/, '') + '.jpg', buffer: out.buffer, source: 'drive', notes,
       tags: vault.autoTags(folder), driveFileId: f.id, originalId: orig.asset.id,
       edits: { ...out.edits, sharpness: Math.round(a.sharpness * 100) / 100 },
     });
-    log(`imported ${f.name}`);
+    console.log(`[driveImport] imported ${f.name} (${Math.round(bytes.length / 1024)} KB original, ${Math.round(out.buffer.length / 1024)} KB enhanced)`);
     return true;
   }
 

@@ -447,8 +447,14 @@
     const btn = document.getElementById('drive-import-btn'), out = document.getElementById('drive-result');
     btn.disabled = true; btn.textContent = 'Importing…'; out.textContent = 'Downloading and enhancing photos. This can take a few minutes.';
     try {
-      const r = await (await fetch('/api/drive/import', { method: 'POST' })).json();
-      out.textContent = r.skipped ? 'An import is already running.' : (r.result?.summary || r.error || 'Done');
+      const before = (await (await fetch('/api/drive/status')).json()).lastSyncAt;
+      await fetch('/api/drive/import', { method: 'POST' });
+      // runs on the server in the background: check back until the sync time moves (max ~10 min)
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 10000));
+        const s = await (await fetch('/api/drive/status')).json();
+        if (s.lastSyncAt !== before || s.lastError) break;
+      }
     } catch (err) { out.textContent = 'Import failed: ' + err.message; }
     loadStatus();
   }

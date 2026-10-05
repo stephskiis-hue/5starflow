@@ -65,12 +65,14 @@ router.get('/status', requireAuth, async (req, res) => {
   res.json(c ? { connected: true, email: c.email, lastSyncAt: c.lastSyncAt, importedCount: c.importedCount, backfillDone: c.backfillDone, lastError: c.lastError } : { connected: false });
 });
 
-// POST /api/drive/import — run the import now (same code path as the nightly cron)
-router.post('/import', requireAuth, async (req, res) => {
+// POST /api/drive/import — start the import now (same code path as the nightly cron). It runs in the
+// background: a batch takes minutes, longer than a browser should hold a request open.
+router.post('/import', requireAuth, (req, res) => {
   const { runRoutine } = require('../ai/runner');
   const { driveImportTick } = require('../ai/driveImport');
-  const r = await runRoutine('vault-drive-import', driveImportTick, { trigger: 'manual', userId: req.user.userId });
-  res.status(r.ok ? 200 : 502).json(r);
+  runRoutine('vault-drive-import', driveImportTick, { trigger: 'manual', userId: req.user.userId })
+    .catch((err) => console.error('[drive] import failed:', err.message));
+  res.status(202).json({ started: true });
 });
 
 // POST /api/drive/disconnect — forget the tokens (imported photos stay in the vault)

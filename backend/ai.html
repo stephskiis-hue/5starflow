@@ -505,9 +505,10 @@
     const ed = e.target.closest('[data-aedit]');
     if (ed) { ed.disabled = true; try { await api('/assets/' + ed.closest('[data-asset]').dataset.asset + '/edit', { method: 'POST', body: ed.dataset.aedit === 'revert' ? { revert: true } : {} }); loadVault(); } catch (err) { toast(err.message); ed.disabled = false; } return; }
     if (e.target.id === 'v-drive') {
-      e.target.disabled = true; e.target.textContent = 'Importing…'; $('v-status').textContent = 'Downloading and enhancing new Drive photos. This can take a few minutes.';
-      try { const r = await api('/routines/vault-drive-import/run', { method: 'POST' }); toast(r.skipped ? 'An import is already running' : (r.result && r.result.summary) || r.error || 'Done'); } catch (err) { toast(err.message); }
-      return loadVault();
+      e.target.disabled = true; e.target.textContent = 'Importing…'; $('v-status').textContent = 'Importing new Drive photos in the background (12 per run).';
+      try { await fetch('/api/drive/import', { method: 'POST' }); toast('Import started. New photos appear here over the next few minutes.'); } catch (err) { toast(err.message); }
+      setTimeout(loadVault, 60000);
+      return;
     }
     const d = e.target.closest('[data-adel]');
     if (d && confirm('Delete this photo? Posts already rendered from it keep their graphics.')) { try { await api('/assets/' + d.closest('[data-asset]').dataset.asset, { method: 'DELETE' }); loadVault(); } catch (err) { toast(err.message); } }

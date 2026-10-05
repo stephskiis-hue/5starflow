@@ -4,7 +4,13 @@
  */
 const sharp = require('sharp');
 
+// the server shares a small box with Postgres: no libvips cache, one thread
+sharp.cache(false);
+sharp.concurrency(1);
+
 const MAX_EDGE = 2048;
+const ORIGINAL_EDGE = 3072;              // stored "original": plenty to re-crop from, a fraction of a 12 MP camera file
+const ORIGINAL_MAX_BYTES = 3 * 1024 * 1024;
 // decode to raw pixels so every later step sees the real (post-rotation) dimensions, with no lossy re-encode
 async function raw(pipeline) {
   const { data, info } = await pipeline.raw().toBuffer({ resolveWithObject: true });
@@ -12,6 +18,17 @@ async function raw(pipeline) {
 }
 
 const clamp = (n, lo, hi, d) => (Number.isFinite(Number(n)) ? Math.min(hi, Math.max(lo, Number(n))) : d);
+
+/**
+ * The copy kept as the "original": the camera file when it is already small, otherwise a ≤3072px JPEG (q90).
+ * Either way rotation is baked in and metadata (GPS) dropped, so nothing in the vault can locate a house.
+ */
+async function prepareOriginal(buffer) {
+  const m = await sharp(buffer, { failOn: 'none' }).metadata();
+  const small = buffer.length <= ORIGINAL_MAX_BYTES && Math.max(m.width || 0, m.height || 0) <= ORIGINAL_EDGE;
+  const img = sharp(buffer, { failOn: 'none' }).rotate().resize(ORIGINAL_EDGE, ORIGINAL_EDGE, { fit: 'inside', withoutEnlargement: true });
+  return small && m.format === 'png' ? img.png().toBuffer() : img.jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+}
 
 /** { width, height, sharpness, meanLuma, contrast } — cheap signals for skipping duds and choosing the tone pass. */
 async function assess(buffer) {
@@ -32,7 +49,8 @@ async function needsTone(img) {
  */
 async function enhance(buffer, edits = {}) {
   const applied = {};
-  let { img, w, h } = await raw(sharp(buffer, { failOn: 'none' }).rotate());   // EXIF orientation first
+  // EXIF orientation first; never decode more than the original size into raw pixels
+  let { img, w, h } = await raw(sharp(buffer, { failOn: 'none' }).rotate().resize(ORIGINAL_EDGE, ORIGINAL_EDGE, { fit: 'inside', withoutEnlargement: true }));
 
   const quarter = [90, 180, 270].includes(Number(edits.rotate)) ? Number(edits.rotate) : 0;
   if (quarter) { ({ img, w, h } = await raw(img.rotate(quarter))); applied.rotate = quarter; }
@@ -70,4 +88,4 @@ async function enhance(buffer, edits = {}) {
   return { buffer: data, width: info.width, height: info.height, edits: applied };
 }
 
-module.exports = { assess, enhance, MAX_EDGE };
+module.exports = { assess, enhance, prepareOriginal, MAX_EDGE };
