@@ -12,15 +12,14 @@ if ((Test-Path $lock) -and ((Get-Item $lock).LastWriteTime -gt (Get-Date).AddMin
 
 New-Item -ItemType File -Force -Path $lock | Out-Null
 try {
-  # The Ollama tray app can be quit or not started yet; start the server ourselves rather than fail the run.
-  $ollamaUrl = if ($env:OLLAMA_URL) { $env:OLLAMA_URL -replace '//localhost', '//127.0.0.1' } else { 'http://127.0.0.1:11434' }
-  $up = { try { Invoke-RestMethod "$ollamaUrl/api/tags" -TimeoutSec 5 | Out-Null; $true } catch { $false } }
-  if (-not (& $up)) {
-    Write-FsfLog 'ollama-worker' "$Job Ollama not answering at $ollamaUrl, starting 'ollama serve'"
-    Start-Process -FilePath 'ollama' -ArgumentList 'serve' -WindowStyle Hidden
-    foreach ($i in 1..20) { Start-Sleep -Seconds 2; if (& $up) { break } }
-  }
   $script = Join-Path $PSScriptRoot '..\..\..\scripts\ollama-worker.js'
+  # Ollama's tray app starts the server at login; if it is not up (closed, or the PC just woke), start it.
+  $up = { try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', 11434); $c.Close(); $true } catch { $false } }
+  if (-not (& $up)) {
+    Write-FsfLog 'ollama-worker' "$Job ollama not listening, starting ollama serve"
+    Start-Process -FilePath 'ollama' -ArgumentList 'serve' -WindowStyle Hidden
+    for ($i = 0; $i -lt 15 -and -not (& $up); $i++) { Start-Sleep -Seconds 2 }
+  }
   Write-FsfLog 'ollama-worker' "$Job start"
   $code = Invoke-FsfNative 'ollama-worker' 'node' @('--no-warnings', $script, '--job', $Job)
   Write-FsfLog 'ollama-worker' "$Job exited $code"

@@ -9,8 +9,8 @@ const path = require('path');
 const SLUG = 'local-ollama-worker';
 const API = (process.env.FIVESTARFLOW_URL || '').replace(/\/$/, '');
 const TOKEN = process.env.FIVESTARFLOW_TOKEN || process.env.AI_TOKEN;
-// 127.0.0.1, not localhost: Node can resolve localhost to ::1 while Ollama only listens on IPv4.
-const OLLAMA = (process.env.OLLAMA_URL || 'http://127.0.0.1:11434').replace(/\/$/, '').replace('//localhost', '//127.0.0.1');
+// 127.0.0.1, not localhost: Node 18 on Windows resolves localhost to ::1 first and Ollama only listens on IPv4.
+const OLLAMA = (process.env.OLLAMA_URL || 'http://127.0.0.1:11434').replace('//localhost', '//127.0.0.1').replace(/\/$/, '');
 const MODEL = process.env.OLLAMA_MODEL || 'qwen3:4b';
 const MAX_SMS = Number(process.env.OLLAMA_MAX_SMS || 10);
 const job = (process.argv.find((a, i) => process.argv[i - 1] === '--job') || '').trim();
