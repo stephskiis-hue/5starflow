@@ -53,7 +53,7 @@ Primary sources, best first: City of Winnipeg (winnipeg.ca, legacy.winnipeg.ca),
 - **Snow mold in three steps:** shorter final cut, no heavy late nitrogen (skip fall feeding if snow mold keeps coming back), deal with leaf litter. Source: https://extension.umn.edu/news/fall-lawn-care-3 (the page blocks bots; open it in Chrome to confirm). A figure of "80% less damage" circulates for these steps but was not confirmed on the page; don't use it until you see it there.
 - **Leaves:** mulch light cover with the mower, remove heavy cover (it blocks light and traps moisture). Compost or use in beds. Yard waste goes in brown paper bags (not plastic). Sources: UMN late fall link above and https://www.winnipeg.ca/yardwaste
 - **Irrigation blowout** before the first hard freeze. Source: UMN late fall link above.
-- **Evergreens (cedars):** deep soak until freeze up. Burlap screen on the south, southwest and windward sides, top open; never wrap tight. 3 to 4 inches of bark mulch at the base. Anti-desiccant sprays don't work. Source: https://extension.umn.edu/planting-and-growing-guides/protecting-trees-and-shrubs-winter
+- **Evergreens (cedars):** water a little less in September, then water thoroughly in October until freeze up. Burlap barrier on the south, southwest and windward sides; if injured on all sides, surround it but leave the top open. 4 to 6 inches of mulch prevents heaving. Anti-desiccant sprays are not effective. Source (checked Oct 5 2026): https://extension.umn.edu/planting-and-growing-guides/protecting-trees-and-shrubs-winter
 - **Snow plan sign ups** (ComparePost, monthly contracts only).
 
 ## November
