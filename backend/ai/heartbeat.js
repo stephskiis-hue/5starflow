@@ -7,7 +7,7 @@ const prisma = require('../lib/prismaClient');
 const { createTask } = require('./tasks');
 const { recordActivity } = require('./ledger');
 const { notify } = require('../lib/notify');
-const { localHour } = require('../lib/tz');
+const { localHour, dayBounds, toDateString } = require('../lib/tz');
 const requests = require('./requests');
 
 const GRACE = 1.5;          // alert after 1.5x the expected interval
@@ -22,18 +22,26 @@ async function heartbeatTick({ userId }) {
   for (const r of routines) {
     if (r.slug === 'routine-heartbeat') continue; // can't watch itself
     const limitMs = Math.max(MIN_GAP_MIN, r.expectedEveryMinutes * GRACE) * 60000;
-    const baseline = (r.lastRunAt || r.createdAt).getTime();
+    let baseline = (r.lastRunAt || r.createdAt).getTime();
+    // Daytime-only routines (MSI Task Scheduler jobs) are silent overnight by design: outside their hours
+    // nothing is due, and inside them the clock starts at the window opening, not at last night's run.
+    const hours = r.config?.activeHours;
+    if (Array.isArray(hours) && hours.length === 2) {
+      const hour = localHour(new Date(now));
+      if (hour < hours[0] || hour >= hours[1]) continue;
+      baseline = Math.max(baseline, dayBounds(toDateString(new Date(now))).start.getTime() + hours[0] * 3600000);
+    }
     if (now - baseline <= limitMs) continue;
 
     // one ledger row + one task per gap, not per heartbeat
     if (r.lastStatus === 'missed') continue;
     missed++;
-    const hours = Math.round((now - baseline) / 3600000);
-    await prisma.routineRun.create({ data: { routineId: r.id, userId, status: 'missed', trigger: 'heartbeat', source: 'backend', summary: `No run reported for ${hours}h (expected every ${r.expectedEveryMinutes} min)`, finishedAt: new Date() } });
-    await prisma.routine.update({ where: { id: r.id }, data: { lastStatus: 'missed', lastSummary: `Missed: nothing for ${hours}h` } });
+    const silentH = Math.round((now - baseline) / 3600000);
+    await prisma.routineRun.create({ data: { routineId: r.id, userId, status: 'missed', trigger: 'heartbeat', source: 'backend', summary: `No run reported for ${silentH}h (expected every ${r.expectedEveryMinutes} min)`, finishedAt: new Date() } });
+    await prisma.routine.update({ where: { id: r.id }, data: { lastStatus: 'missed', lastSummary: `Missed: nothing for ${silentH}h` } });
     const external = r.kind !== 'backend';
     await createTask(userId, {
-      dedupKey: `routine-missed:${r.slug}`, title: `${r.name} hasn't run in ${hours}h`, source: 'routine', routineSlug: r.slug, agent: r.agent,
+      dedupKey: `routine-missed:${r.slug}`, title: `${r.name} hasn't run in ${silentH}h`, source: 'routine', routineSlug: r.slug, agent: r.agent,
       urgency: external ? 'high' : 'urgent',
       reason: external
         ? 'A Claude routine went quiet. Most likely cause: the Claude plan weekly usage limit (runs get rejected in seconds), or the routine was paused.'
@@ -41,8 +49,8 @@ async function heartbeatTick({ userId }) {
       whatNeeds: external ? 'Check the routine in Claude (Run now / usage). Consider fewer or lighter runs.' : 'Check Railway logs for this routine.',
       recommended: external ? 'Open Routines → this routine → recent runs.' : 'Redeploy or check logs.',
     });
-    notify(userId, { category: 'routine', urgent: !external, routineSlug: r.slug, title: `${r.name} hasn't run in ${hours}h`, body: external ? 'A Claude routine went quiet (plan usage limit or paused?).' : 'A backend scheduler stopped running.', link: '/ai.html#routines' });
-    await recordActivity(userId, { agent: 'system', routineSlug: r.slug, action: 'routine missed', summary: `${r.name} silent for ${hours}h`, result: 'failed', source: 'heartbeat' });
+    notify(userId, { category: 'routine', urgent: !external, routineSlug: r.slug, title: `${r.name} hasn't run in ${silentH}h`, body: external ? 'A Claude routine went quiet (plan usage limit or paused?).' : 'A backend scheduler stopped running.', link: '/ai.html#routines' });
+    await recordActivity(userId, { agent: 'system', routineSlug: r.slug, action: 'routine missed', summary: `${r.name} silent for ${silentH}h`, result: 'failed', source: 'heartbeat' });
   }
 
   const stuck = await checkStuckRequests(userId, now);

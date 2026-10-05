@@ -4,19 +4,20 @@
 #   ollama-worker.ps1 -Job morning-summary   (daily 5:30 am)
 param([Parameter(Mandatory = $true)][ValidateSet('sms-triage', 'morning-summary')][string]$Job)
 $ErrorActionPreference = 'Stop'
-$envFile = Join-Path $HOME '.5starflow\env'
-Get-Content $envFile | ForEach-Object {
-  if ($_ -match '^\s*([A-Z_]+)\s*=\s*(.+?)\s*$') { Set-Item -Path "Env:$($Matches[1])" -Value $Matches[2] }
-}
+. (Join-Path $PSScriptRoot 'common.ps1')
+try { Import-FsfEnv } catch { Write-FsfLog 'ollama-worker' "$Job aborted: $($_.Exception.Message)"; exit 1 }
 
-$lock = Join-Path $HOME ".5starflow\ollama-$Job.lock"
-if ((Test-Path $lock) -and ((Get-Item $lock).LastWriteTime -gt (Get-Date).AddMinutes(-30))) { exit 0 }   # a run is in progress
+$lock = Join-Path $FsfDir "ollama-$Job.lock"
+if ((Test-Path $lock) -and ((Get-Item $lock).LastWriteTime -gt (Get-Date).AddMinutes(-30))) { Write-FsfLog 'ollama-worker' "$Job skip: a run is in progress"; exit 0 }
 
 New-Item -ItemType File -Force -Path $lock | Out-Null
 try {
   $script = Join-Path $PSScriptRoot '..\..\..\scripts\ollama-worker.js'
-  $log = Join-Path $HOME '.5starflow\ollama-worker.log'
-  node $script --job $Job *>> $log
+  Write-FsfLog 'ollama-worker' "$Job start"
+  $code = Invoke-FsfNative 'ollama-worker' 'node' @('--no-warnings', $script, '--job', $Job)
+  Write-FsfLog 'ollama-worker' "$Job exited $code"
+} catch {
+  Write-FsfLog 'ollama-worker' "$Job failed: $($_.Exception.Message)"
 } finally {
   Remove-Item $lock -Force -ErrorAction SilentlyContinue
 }
