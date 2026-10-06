@@ -53,7 +53,7 @@ Nothing texts or emails the owner daily. Every update goes through `lib/notify.j
 ## Google Drive photo import
 `ai/driveImport.js` (routine `vault-drive-import`, nightly 1:30 am, before the Night Studio) reads the Drive connected on
 the Connections page (`routes/drive.js`, scope `drive.readonly`, `DriveCredential`). Each run imports up to
-`DRIVE_IMPORT_PER_RUN` (30) photos: anything new since the last sync first, then one page of the older backlog
+`DRIVE_IMPORT_PER_RUN` (12) photos: anything new since the last sync first, then one page of the older backlog
 (`backfillPageToken`) until the whole Drive has been seen. Code only drops facts-based rejects (short edge under 600px, screenshots,
 over 15 MB, black or blown-out frames); the curator judges the rest.
 Every photo is stored twice: the untouched original (`kind: 'original'`, hidden from listings) and an enhanced copy
@@ -64,3 +64,6 @@ the original with straighten/rotate/crop/brightness/saturation, or `{revert: tru
 Setup: enable the Drive API on the Google OAuth client, add the redirect URI `<APP_URL or localhost>/api/drive/callback`
 and set `GOOGLE_DRIVE_REDIRECT_URI`. `drive.readonly` is a restricted scope: while the OAuth app is in Testing mode
 Google expires the refresh token after 7 days (the routine then fails with "reconnect it on the Connections page").
+Storage: photo bytes live in Postgres, whose Railway volume is small. The import stops once the vault holds
+`VAULT_MAX_MB` (default 150) and says so on the Connections card; originals are capped at 3072px. On 2026-10-05
+an unbounded first import filled the volume and Postgres would not start.

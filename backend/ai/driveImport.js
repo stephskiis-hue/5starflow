@@ -16,6 +16,9 @@ const API = 'https://www.googleapis.com/drive/v3';
 // knocked the database over on 2026-10-05. Keep runs small and paced.
 const PER_RUN = Number(process.env.DRIVE_IMPORT_PER_RUN) || 12;
 const PAUSE_MS = 1500;
+// Hard ceiling on photo bytes kept in Postgres. Railway's volume is small (it filled up on 2026-10-05 and
+// Postgres would not start), so the import stops well before the disk does.
+const VAULT_MAX_BYTES = (Number(process.env.VAULT_MAX_MB) || 150) * 1024 * 1024;
 const MIN_EDGE = 600;                 // short edge; the business's own 1080×720 shots must pass
 const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 const FIELDS = 'nextPageToken, files(id, name, mimeType, size, createdTime, parents, imageMediaMetadata(width, height, time))';
@@ -69,10 +72,13 @@ async function importDriveImages(userId, { limit = PER_RUN } = {}) {
   const skip = (why) => { stats.skipped[why] = (stats.skipped[why] || 0) + 1; };
   const baseQ = `trashed = false and (${IMAGE_MIMES.map((m) => `mimeType = '${m}'`).join(' or ')})`;
 
+  let stored = Number((await prisma.$queryRaw`SELECT COALESCE(SUM(size), 0)::bigint AS n FROM "ContentAsset" WHERE "userId" = ${userId}`)[0].n);
+  const full = () => stored >= VAULT_MAX_BYTES;
+
   async function processPage(files) {
     const known = new Set((await prisma.contentAsset.findMany({ where: { userId, driveFileId: { in: files.map((f) => f.id) } }, select: { driveFileId: true } })).map((r) => r.driveFileId));
     for (const f of files) {
-      if (stats.imported >= limit) return false;                     // page not finished
+      if (stats.imported >= limit || full()) return false;          // page not finished
       stats.seen++;
       if (known.has(f.id)) { stats.known++; continue; }
       const why = prefilter(f);
@@ -125,6 +131,7 @@ async function importDriveImages(userId, { limit = PER_RUN } = {}) {
       tags: vault.autoTags(folder), driveFileId: f.id, originalId: orig.asset.id,
       edits: { ...out.edits, sharpness: Math.round(a.sharpness * 100) / 100 },
     });
+    stored += bytes.length + out.buffer.length;
     console.log(`[driveImport] imported ${f.name} (${Math.round(bytes.length / 1024)} KB original, ${Math.round(out.buffer.length / 1024)} KB enhanced)`);
     return true;
   }
@@ -142,7 +149,7 @@ async function importDriveImages(userId, { limit = PER_RUN } = {}) {
 
   // 2) walk the older backlog one page at a time, newest to oldest
   let backfillPageToken = cred.backfillPageToken, backfillDone = cred.backfillDone;
-  while (!backfillDone && stats.imported < limit) {
+  while (!backfillDone && stats.imported < limit && !full()) {
     let data;
     try {
       ({ data } = await http.get('/files', { params: { q: baseQ, orderBy: 'createdTime desc', pageSize: 100, fields: FIELDS, pageToken: backfillPageToken || undefined, includeItemsFromAllDrives: true, supportsAllDrives: true } }));
@@ -157,8 +164,14 @@ async function importDriveImages(userId, { limit = PER_RUN } = {}) {
 
   await prisma.driveCredential.update({
     where: { id: cred.id },
-    data: { lastSyncAt: new Date(), backfillPageToken, backfillDone, importedCount: { increment: stats.imported }, lastError: stats.failed.length ? stats.failed.slice(0, 3).join('; ').slice(0, 500) : null },
+    data: {
+      lastSyncAt: new Date(), backfillPageToken, backfillDone, importedCount: { increment: stats.imported },
+      lastError: full() ? `Vault storage limit reached (${Math.round(stored / 1048576)} MB of ${Math.round(VAULT_MAX_BYTES / 1048576)} MB). Delete unused photos or raise VAULT_MAX_MB after enlarging the database volume.`
+        : stats.failed.length ? stats.failed.slice(0, 3).join('; ').slice(0, 500) : null,
+    },
   });
+  stats.storedMb = Math.round(stored / 1048576);
+  stats.full = full();
   return stats;
 }
 
@@ -178,9 +191,9 @@ async function driveImportTick(ctx) {
   if (s.failed.length) console.warn('[driveImport] failures:', s.failed.slice(0, 5));
   return {
     items_found: s.imported,
-    requires_attention: s.failed.length,
     actions_taken: s.imported ? [`Imported and enhanced ${s.imported} Drive photo(s) for curation`] : [],
-    summary: `${s.imported} imported, ${s.known} already had${skipped ? `, skipped ${skipped}` : ''}${s.failed.length ? `, ${s.failed.length} failed` : ''}`,
+    requires_attention: s.failed.length + (s.full ? 1 : 0),
+    summary: `${s.imported} imported, ${s.known} already had${skipped ? `, skipped ${skipped}` : ''}${s.failed.length ? `, ${s.failed.length} failed` : ''}; vault ${s.storedMb} MB${s.full ? ' (storage limit reached, import paused)' : ''}`,
   };
 }
 
