@@ -14,7 +14,7 @@ const RESPONSE_MAX = 4000;
 const MAX_ATTACHMENTS = 6;
 
 // Attach vault assets (uploaded through POST /assets) to a request. Unknown ids are rejected.
-async function createRequest(userId, body, attachments = []) {
+async function createRequest(userId, body, attachments = [], source = 'dashboard') {
   const text = String(body || '').trim();
   const ids = [...new Set((Array.isArray(attachments) ? attachments : []).map(String))].slice(0, MAX_ATTACHMENTS);
   if (!text && !ids.length) throw new Error('Request is empty');
@@ -22,7 +22,7 @@ async function createRequest(userId, body, attachments = []) {
     const found = await prisma.contentAsset.count({ where: { userId, id: { in: ids } } });
     if (found !== ids.length) throw new Error('One of the attached files was not found');
   }
-  return prisma.ownerRequest.create({ data: { userId, body: clip(text, BODY_MAX), attachments: ids.length ? ids : undefined } });
+  return prisma.ownerRequest.create({ data: { userId, body: clip(text, BODY_MAX), attachments: ids.length ? ids : undefined, source } });
 }
 
 // Rows carry asset ids; the routine and the dashboard need name/type to show or download them.

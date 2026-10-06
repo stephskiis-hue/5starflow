@@ -1,9 +1,10 @@
-# Runs from Windows Task Scheduler every hour, 6 am to 10 pm (install-request-gate.ps1 registers it).
+# Runs from Windows Task Scheduler every 5 minutes, 6 am to 10 pm (install-request-gate.ps1 registers it).
 # Costs zero Claude tokens when nothing is pending: it only starts a Claude session when
 # /api/ai/requests/pending-count is above 0. Every run leaves one line in ~/.5starflow/request-gate.log.
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'common.ps1')
 function Log($msg) { Write-FsfLog 'request-gate' $msg }
+$quiet = (Get-Date).Minute -ge 5   # log "pending 0" once an hour, not every 5 min
 try { Import-FsfEnv } catch { Log "aborted: $($_.Exception.Message)"; exit 1 }
 
 # Keep this checkout (skills, playbooks, prompts) current so every MSI routine follows the latest rules.
@@ -17,7 +18,7 @@ $headers = @{ Authorization = "Bearer $env:FIVESTARFLOW_TOKEN"; 'X-Agent' = 'orc
 try {
   $pending = (Invoke-RestMethod -Uri "$env:FIVESTARFLOW_URL/api/ai/requests/pending-count" -Headers $headers -TimeoutSec 20).pending
 } catch { Log "pending-count failed: $($_.Exception.Message)"; exit 1 }
-if ($pending -lt 1) { Log 'pending 0'; exit 0 }
+if ($pending -lt 1) { if (-not $quiet) { Log 'pending 0' }; exit 0 }
 
 $claude = if ($env:CLAUDE_BIN) { $env:CLAUDE_BIN } else { 'claude' }
 Log "pending ${pending}, starting $claude"
