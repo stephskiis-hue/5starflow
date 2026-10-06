@@ -461,8 +461,9 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
     // match it against an OperatorProposal (YES/NO <code>) or a slash command.
     // Matching here means it's NOT a client reply, so we skip the rest.
     let operatorHandled = false;
+    let fromApprover = false;
     try {
-      const fromApprover = await isFromApprover({ userId, fromPhone: normalizedFrom });
+      fromApprover = await isFromApprover({ userId, fromPhone: normalizedFrom });
       if (fromApprover) {
         // Rain recommendation reply first ("YES Wednesday" / "NO") — natural language,
         // no shortcode needed. Falls through to the generic YES/NO <code> + slash handler.
@@ -492,6 +493,24 @@ app.post('/api/marketing/inbound-sms', twilioLimiter, express.urlencoded({ exten
       console.error('[inbound-sms] operator routing failed:', opErr.message);
     }
     if (operatorHandled) return;
+
+    // Anything else the owner texts is an instruction: queue it like a dashboard request (the MSI
+    // request gate picks it up within minutes) and confirm receipt so the owner knows it landed.
+    // Bare acknowledgements ("ok", "thanks", a YES with nothing pending) are not work.
+    if (fromApprover) {
+      const ACKS = /^(ok(ay)?|k|thanks?( you)?|ty|thx|cool|great|perfect|got it|yes|y|no|n|sounds good)[.!\s]*$/i;
+      if (!ACKS.test(Body.trim())) {
+        try {
+          const r = await require('./ai/requests').createRequest(userId, Body.trim(), [], 'sms');
+          await require('./ai/ledger').recordActivity(userId, { agent: 'orchestrator', action: 'owner request added', summary: r.body.slice(0, 300), source: 'sms', result: 'pending' });
+          await require('./services/operatorService').notifyOwner(userId, 'Got it, queued for Claude. You will get a text back when it is done or if I need you.');
+          console.log(`[inbound-sms] Owner text queued as request ${r.id}`);
+        } catch (reqErr) {
+          console.error('[inbound-sms] could not queue owner request:', reqErr.message);
+        }
+      }
+      return;
+    }
 
     // Sentiment tagging — classify genuine client replies (skip opt-outs) so
     // promoters/detractors can be segmented for loyalty + upsell. Tags the client

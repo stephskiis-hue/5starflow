@@ -206,11 +206,12 @@ router.post('/requests/claim', async (req, res) => {
 });
 
 // The owner asked to be told when a request is finished or stuck. Never lets a text failure break the report.
-// Done lands in the Notification Centre only; stuck/failed ones are texted.
+// Done lands in the Notification Centre only; stuck/failed ones are texted. A request the owner texted in
+// gets every outcome texted back: the text thread is where they are waiting for the answer.
 function notifyRequestOutcome(userId, r) {
   const label = { done: 'Done', needs_owner: 'Needs you', failed: 'FAILED' }[r.status];
   const what = (r.body || 'your photo/video post').replace(/\s+/g, ' ').slice(0, 60);
-  notify(userId, { category: 'request', urgent: r.status !== 'done', title: `${label}: ${what}`, body: (r.response || '').replace(/\s+/g, ' ').slice(0, 200), link: '/index.html#requests-card' });
+  notify(userId, { category: 'request', urgent: r.status !== 'done' || r.source === 'sms', title: `${label}: ${what}`, body: (r.response || '').replace(/\s+/g, ' ').slice(0, 200), link: '/index.html#requests-card' });
 }
 
 // After a post goes live: one call logs it (content item for metrics, an owner_post action, activity). Owner posts don't use the daily caps.

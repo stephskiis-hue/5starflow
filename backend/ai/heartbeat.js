@@ -12,7 +12,7 @@ const requests = require('./requests');
 
 const GRACE = 1.5;          // alert after 1.5x the expected interval
 const MIN_GAP_MIN = 10;
-const REQUEST_STUCK_MIN = 90;   // the MSI gate checks hourly, so 90 min means at least one check missed it
+const REQUEST_STUCK_MIN = 30;   // the MSI gate checks every 5 min, so 30 min means several checks missed it
 
 async function heartbeatTick({ userId }) {
   const now = Date.now();
@@ -59,7 +59,7 @@ async function heartbeatTick({ userId }) {
   return { items_found: routines.length, requires_attention: attention, summary };
 }
 
-// The request inbox runs on the MSI PC (Task Scheduler, hourly 6 am to 10 pm) and is not heartbeat-watched
+// The request inbox runs on the MSI PC (Task Scheduler, every 5 min 6 am to 10 pm) and is not heartbeat-watched
 // like a routine, so a request sitting on "Waiting" is the signal that the gate or Claude on the MSI is down.
 // Only during the gate's hours, so a request typed at night is not flagged before the first morning check.
 async function checkStuckRequests(userId, now) {

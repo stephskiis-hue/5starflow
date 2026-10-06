@@ -707,6 +707,7 @@ model OwnerRequest {
   userId      String
   body        String
   attachments Json?                                           // vault ContentAsset ids (photos/videos) the owner attached
+  source      String    @default("dashboard")              // dashboard | sms (texted from the owner's phone; outcome is texted back)
   status      String    @default("pending")                // pending | working | done | needs_owner | failed | cancelled
   claimedAt   DateTime?
   claimedBy   String?
