@@ -2,44 +2,24 @@
  * Vault ← Google Drive. Nightly, before the Night Studio curates:
  *   1. newest images first (anything added since the last sync), then
  *   2. one more page of older images (backfillPageToken) until the whole Drive has been seen.
- * Each kept photo is stored twice: the original (kind "original", hidden; ≤3072px, no metadata)
- * and an enhanced copy (kind "photo") that points at it, so the curator can re-edit or revert.
+ * Each kept photo becomes a metadata-only row (kind "photo") that points at the Drive file and records the
+ * enhancement edits; the pixels stay on Drive and are re-made on demand (driveStore.js), so Postgres stays small.
  * Code only filters on facts (size, screenshots, black frames); judging the photo is the curator's job.
  */
 const axios = require('axios');
 const prisma = require('../lib/prismaClient');
 const vault = require('./vault');
 const { assess, enhance, prepareOriginal } = require('./enhance');
+const { accessToken } = require('./driveStore');
 
 const API = 'https://www.googleapis.com/drive/v3';
-// Photos live in Postgres, which shares a small plan with the app: a 30-photo burst of full camera files
-// knocked the database over on 2026-10-05. Keep runs small and paced.
+// Photos stay on Drive; only metadata rows go in Postgres. Keep runs small and paced anyway: each photo is
+// downloaded and analysed here once.
 const PER_RUN = Number(process.env.DRIVE_IMPORT_PER_RUN) || 12;
 const PAUSE_MS = 1500;
-// Hard ceiling on photo bytes kept in Postgres. Railway's volume is small (it filled up on 2026-10-05 and
-// Postgres would not start), so the import stops well before the disk does.
-const VAULT_MAX_BYTES = (Number(process.env.VAULT_MAX_MB) || 150) * 1024 * 1024;
 const MIN_EDGE = 600;                 // short edge; the business's own 1080×720 shots must pass
 const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 const FIELDS = 'nextPageToken, files(id, name, mimeType, size, createdTime, parents, imageMediaMetadata(width, height, time))';
-
-async function accessToken(cred) {
-  if (cred.accessToken && cred.tokenExpiry && cred.tokenExpiry.getTime() - Date.now() > 5 * 60000) return cred.accessToken;
-  if (!cred.refreshToken) throw new Error('Google Drive needs to be reconnected (no refresh token)');
-  try {
-    const { data } = await axios.post('https://oauth2.googleapis.com/token', {
-      client_id: process.env.GOOGLE_CLIENT_ID, client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      refresh_token: cred.refreshToken, grant_type: 'refresh_token',
-    }, { timeout: 20000 });
-    const tokenExpiry = new Date(Date.now() + (data.expires_in || 3600) * 1000);
-    await prisma.driveCredential.update({ where: { id: cred.id }, data: { accessToken: data.access_token, tokenExpiry } });
-    return data.access_token;
-  } catch (err) {
-    const reason = [400, 401].includes(err.response?.status) ? `Google Drive access expired or was revoked (${err.response.data?.error || err.response.status}): reconnect it on the Connections page` : `Drive token refresh failed: ${err.message}`;
-    await prisma.driveCredential.update({ where: { id: cred.id }, data: { lastError: reason } });
-    throw new Error(reason);
-  }
-}
 
 const isScreenshot = (f) => /screen ?shot|screen_?cap|scrn/i.test(f.name)
   || (f.mimeType === 'image/png' && f.imageMediaMetadata?.width && Math.max(f.imageMediaMetadata.width, f.imageMediaMetadata.height) / Math.min(f.imageMediaMetadata.width, f.imageMediaMetadata.height) > 1.9);
@@ -55,10 +35,6 @@ function prefilter(f) {
 async function importDriveImages(userId, { limit = PER_RUN } = {}) {
   const cred = await prisma.driveCredential.findUnique({ where: { userId } });
   if (!cred) return { skipped: true, summary: 'Google Drive not connected' };
-  // originals whose enhanced copy never got saved (an interrupted run) are dead weight: drop them
-  const orphans = await prisma.$executeRaw`DELETE FROM "ContentAsset" o WHERE o."userId" = ${userId} AND o.kind = 'original' AND o.source = 'drive'
-    AND NOT EXISTS (SELECT 1 FROM "ContentAsset" p WHERE p."originalId" = o.id)`;
-  if (orphans) console.log(`[driveImport] removed ${orphans} original(s) left by an interrupted run`);
   const token = await accessToken(cred);
   const http = axios.create({ baseURL: API, headers: { Authorization: `Bearer ${token}` }, timeout: 60000 });
   const folderNames = new Map();
@@ -72,13 +48,10 @@ async function importDriveImages(userId, { limit = PER_RUN } = {}) {
   const skip = (why) => { stats.skipped[why] = (stats.skipped[why] || 0) + 1; };
   const baseQ = `trashed = false and (${IMAGE_MIMES.map((m) => `mimeType = '${m}'`).join(' or ')})`;
 
-  let stored = Number((await prisma.$queryRaw`SELECT COALESCE(SUM(size), 0)::bigint AS n FROM "ContentAsset" WHERE "userId" = ${userId}`)[0].n);
-  const full = () => stored >= VAULT_MAX_BYTES;
-
   async function processPage(files) {
     const known = new Set((await prisma.contentAsset.findMany({ where: { userId, driveFileId: { in: files.map((f) => f.id) } }, select: { driveFileId: true } })).map((r) => r.driveFileId));
     for (const f of files) {
-      if (stats.imported >= limit || full()) return false;          // page not finished
+      if (stats.imported >= limit) return false;          // page not finished
       stats.seen++;
       if (known.has(f.id)) { stats.known++; continue; }
       const why = prefilter(f);
@@ -113,26 +86,13 @@ async function importDriveImages(userId, { limit = PER_RUN } = {}) {
       return false;
     }
 
-    const orig = await vault.saveAsset(userId, { kind: 'original', name: f.name.replace(/\.\w+$/, '') + '.jpg', buffer: bytes, source: 'drive', notes });
-    if (orig.duplicate) {
-      const enhanced = orig.asset.kind === 'original' && await prisma.contentAsset.findFirst({ where: { userId, originalId: orig.asset.id }, select: { id: true } });
-      if (orig.asset.kind !== 'original' || enhanced) {
-        // the same photo twice in Drive: tag the Drive id so it isn't downloaded again
-        await prisma.contentAsset.updateMany({ where: { id: enhanced ? enhanced.id : orig.asset.id, driveFileId: null }, data: { driveFileId: f.id } }).catch(() => {});
-        skip('already in vault');
-        return false;
-      }
-      // an earlier run stored the original but died before the enhanced copy: finish it now
-    }
-
     const out = await enhance(bytes);
     await vault.saveAsset(userId, {
-      kind: 'photo', name: f.name.replace(/\.\w+$/, '') + '.jpg', buffer: out.buffer, source: 'drive', notes,
-      tags: vault.autoTags(folder), driveFileId: f.id, originalId: orig.asset.id,
+      name: f.name.replace(/\.\w+$/, '') + '.jpg', notes, tags: vault.autoTags(folder),
+      remote: { driveFileId: f.id, size: Number(f.size) || bytes.length, width: out.width, height: out.height },
       edits: { ...out.edits, sharpness: Math.round(a.sharpness * 100) / 100 },
     });
-    stored += bytes.length + out.buffer.length;
-    console.log(`[driveImport] imported ${f.name} (${Math.round(bytes.length / 1024)} KB original, ${Math.round(out.buffer.length / 1024)} KB enhanced)`);
+    console.log(`[driveImport] indexed ${f.name} (${Math.round(bytes.length / 1024)} KB on Drive, nothing stored in Postgres)`);
     return true;
   }
 
@@ -149,7 +109,7 @@ async function importDriveImages(userId, { limit = PER_RUN } = {}) {
 
   // 2) walk the older backlog one page at a time, newest to oldest
   let backfillPageToken = cred.backfillPageToken, backfillDone = cred.backfillDone;
-  while (!backfillDone && stats.imported < limit && !full()) {
+  while (!backfillDone && stats.imported < limit) {
     let data;
     try {
       ({ data } = await http.get('/files', { params: { q: baseQ, orderBy: 'createdTime desc', pageSize: 100, fields: FIELDS, pageToken: backfillPageToken || undefined, includeItemsFromAllDrives: true, supportsAllDrives: true } }));
@@ -166,12 +126,9 @@ async function importDriveImages(userId, { limit = PER_RUN } = {}) {
     where: { id: cred.id },
     data: {
       lastSyncAt: new Date(), backfillPageToken, backfillDone, importedCount: { increment: stats.imported },
-      lastError: full() ? `Vault storage limit reached (${Math.round(stored / 1048576)} MB of ${Math.round(VAULT_MAX_BYTES / 1048576)} MB). Delete unused photos or raise VAULT_MAX_MB after enlarging the database volume.`
-        : stats.failed.length ? stats.failed.slice(0, 3).join('; ').slice(0, 500) : null,
+      lastError: stats.failed.length ? stats.failed.slice(0, 3).join('; ').slice(0, 500) : null,
     },
   });
-  stats.storedMb = Math.round(stored / 1048576);
-  stats.full = full();
   return stats;
 }
 
@@ -191,9 +148,9 @@ async function driveImportTick(ctx) {
   if (s.failed.length) console.warn('[driveImport] failures:', s.failed.slice(0, 5));
   return {
     items_found: s.imported,
-    actions_taken: s.imported ? [`Imported and enhanced ${s.imported} Drive photo(s) for curation`] : [],
-    requires_attention: s.failed.length + (s.full ? 1 : 0),
-    summary: `${s.imported} imported, ${s.known} already had${skipped ? `, skipped ${skipped}` : ''}${s.failed.length ? `, ${s.failed.length} failed` : ''}; vault ${s.storedMb} MB${s.full ? ' (storage limit reached, import paused)' : ''}`,
+    actions_taken: s.imported ? [`Indexed ${s.imported} Drive photo(s) for curation (kept on Drive)`] : [],
+    requires_attention: s.failed.length,
+    summary: `${s.imported} imported, ${s.known} already had${skipped ? `, skipped ${skipped}` : ''}${s.failed.length ? `, ${s.failed.length} failed` : ''}`,
   };
 }
 

@@ -345,11 +345,19 @@ router.post('/assets', async (req, res) => {
 });
 
 router.get('/assets', async (req, res) => {
-  res.json(await vault.listAssets(req.ai.userId, { kind: req.query.kind, tag: req.query.tag, q: req.query.q, limit: int(req.query.limit, 60), minQuality: req.query.minQuality, usable: req.query.usable === 'true', uncurated: req.query.uncurated === 'true', pair: req.query.pair, source: req.query.source }));
+  res.json(await vault.listAssets(req.ai.userId, { kind: req.query.kind, tag: req.query.tag, q: req.query.q, limit: int(req.query.limit, 60), minQuality: req.query.minQuality, usable: req.query.usable === 'true', random: req.query.random === 'true', uncurated: req.query.uncurated === 'true', pair: req.query.pair, source: req.query.source }));
+});
+
+// One-time: drop the stored bytes of Drive photos (they stay on Drive). dryRun defaults to true.
+router.post('/vault/offload-drive', async (req, res) => {
+  res.json(await require('../ai/driveStore').offloadDriveBytes(req.ai.userId, { dryRun: req.body?.dryRun !== false }));
 });
 
 router.get('/assets/:id', async (req, res) => {
-  const a = await vault.getAssetBytes(req.ai.userId, req.params.id);
+  const width = Math.min(parseInt(req.query.w, 10) || 0, 1200) || undefined;      // ?w=400 for gallery thumbnails of Drive photos
+  let a;
+  try { a = await vault.getAssetBytes(req.ai.userId, req.params.id, { width }); }
+  catch (e) { return res.status(502).json({ error: `Could not load this photo from Google Drive: ${e.message}` }); }
   if (!a) return res.status(404).json({ error: 'Asset not found' });
   res.set({ 'Content-Type': a.mime, 'Cache-Control': 'private, max-age=86400', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': `inline; filename="${a.name.replace(/"/g, '')}"` });
   res.send(Buffer.from(a.bytes));

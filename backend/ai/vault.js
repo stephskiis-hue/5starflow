@@ -59,7 +59,20 @@ async function heicToJpeg(buffer) {
   }
 }
 
-async function saveAsset(userId, { kind = 'photo', name, buffer, tags = [], source = 'upload', notes = null, contentItemId = null, driveFileId = null, originalId = null, edits = null }) {
+async function saveAsset(userId, { kind = 'photo', name, buffer, tags = [], source = 'upload', notes = null, contentItemId = null, driveFileId = null, originalId = null, edits = null, remote = null }) {
+  if (remote) {
+    // metadata-only row for a photo that stays on Google Drive: no bytes in Postgres
+    const existingRemote = await prisma.contentAsset.findFirst({ where: { userId, driveFileId: remote.driveFileId }, select: assetSelect });
+    if (existingRemote) return { asset: existingRemote, duplicate: true };
+    const cleanName = String(name || 'drive photo').replace(/[^\w.\- ]+/g, '').slice(0, 120) || 'drive photo';
+    const tagList = [...new Set([...(tags || []).map((t) => String(t).toUpperCase().slice(0, 30)), ...autoTags(cleanName, notes)])].slice(0, 20);
+    const asset = await prisma.contentAsset.create({
+      data: { userId, kind: 'photo', name: cleanName, mime: 'image/jpeg', bytes: Buffer.alloc(0), size: remote.size || 0, sha256: `drive:${remote.driveFileId}`, width: remote.width || null, height: remote.height || null,
+        tags: JSON.stringify(tagList), source: 'drive', notes, driveFileId: remote.driveFileId, edits: edits ? JSON.stringify(edits) : null },
+      select: assetSelect,
+    });
+    return { asset, duplicate: false };
+  }
   if (!Buffer.isBuffer(buffer) || !buffer.length) throw Object.assign(new Error('empty file'), { code: 'INVALID_ASSET' });
   if (buffer.length > MAX_BYTES) throw Object.assign(new Error(`file too large (max ${MAX_BYTES / 1048576} MB)`), { code: 'INVALID_ASSET' });
   let mime = sniff(buffer);                         // trust the bytes, not the client's claim
@@ -89,7 +102,7 @@ async function saveAsset(userId, { kind = 'photo', name, buffer, tags = [], sour
 
 const assetSelect = { quality: true, private: true, pairKey: true, driveFileId: true, originalId: true, edits: true, id: true, userId: true, kind: true, name: true, mime: true, size: true, width: true, height: true, tags: true, source: true, notes: true, contentItemId: true, createdAt: true };
 
-async function listAssets(userId, { kind, tag, q, limit = 60, minQuality, usable, uncurated, pair, source } = {}) {
+async function listAssets(userId, { kind, tag, q, limit = 60, minQuality, usable, uncurated, pair, source, random } = {}) {
   const where = { userId, kind: { notIn: ['original', 'skipped'] } };   // originals behind enhanced copies + Drive rejects stay hidden
   if (minQuality) where.quality = { gte: Number(minQuality) };
   if (usable) { where.private = false; where.quality = { gte: 3 }; }     // what the renderer is allowed to use
@@ -99,12 +112,31 @@ async function listAssets(userId, { kind, tag, q, limit = 60, minQuality, usable
   if (source) where.source = String(source);
   if (tag) where.tags = { contains: `"${String(tag).toUpperCase()}"` };
   if (q) where.name = { contains: q, mode: 'insensitive' };
-  const rows = await prisma.contentAsset.findMany({ where, orderBy: { createdAt: 'desc' }, take: Math.min(limit, 200), select: assetSelect });
-  return rows.map((r) => ({ ...r, tags: JSON.parse(r.tags || '[]') }));
+  const take = Math.min(limit, 200);
+  let rows;
+  if (random) {
+    // random pick without loading every row: take a window at a random offset, then shuffle it
+    const total = await prisma.contentAsset.count({ where });
+    const skip = Math.max(0, Math.floor(Math.random() * Math.max(1, total - take * 3)));
+    rows = (await prisma.contentAsset.findMany({ where, orderBy: { id: 'asc' }, skip, take: take * 3, select: assetSelect }))
+      .sort(() => Math.random() - 0.5).slice(0, take);
+  } else {
+    rows = await prisma.contentAsset.findMany({ where, orderBy: { createdAt: 'desc' }, take, select: assetSelect });
+  }
+  return rows.map((r) => ({ ...r, tags: JSON.parse(r.tags || '[]'), ...(r.driveFileId ? { driveUrl: `https://drive.google.com/file/d/${r.driveFileId}/view` } : {}) }));
 }
 
-async function getAssetBytes(userId, id) {
-  return prisma.contentAsset.findFirst({ where: { id, userId, kind: { not: 'skipped' } }, select: { id: true, mime: true, bytes: true, name: true, private: true } });
+// A Drive photo has a driveFileId and no stored bytes: the pixels are fetched from Drive (see driveStore.js).
+const isRemote = (row) => !!row.driveFileId && (!row.bytes || !row.bytes.length);
+
+async function getAssetBytes(userId, id, { width } = {}) {
+  const row = await prisma.contentAsset.findFirst({ where: { id, userId, kind: { not: 'skipped' } }, select: { id: true, mime: true, bytes: true, name: true, private: true, driveFileId: true, edits: true } });
+  if (!row) return null;
+  if (!isRemote(row)) return row;
+  let edits = null;
+  try { edits = row.edits ? JSON.parse(row.edits) : null; } catch { /* unreadable edits: plain enhancement */ }
+  const bytes = await require('./driveStore').fetchDrivePhoto(userId, row.driveFileId, edits, { width });
+  return { ...row, mime: 'image/jpeg', bytes };
 }
 
 /** { photo: "vault:<id>" } → { photo: "data:image/...;base64,..." } for the renderer. */
@@ -124,11 +156,19 @@ async function resolvePhotos(userId, refs = {}) {
 
 /** Re-enhance an imported photo from its original (edits never stack); revert restores the original untouched. */
 async function editAsset(userId, id, edits = {}) {
-  const asset = await prisma.contentAsset.findFirst({ where: { id, userId }, select: { id: true, originalId: true } });
+  const asset = await prisma.contentAsset.findFirst({ where: { id, userId }, select: { id: true, originalId: true, driveFileId: true, bytes: true } });
   if (!asset) return null;
-  if (!asset.originalId) throw Object.assign(new Error('this photo has no stored original to edit from'), { code: 'INVALID_ASSET' });
-  const original = await prisma.contentAsset.findFirst({ where: { id: asset.originalId, userId }, select: { bytes: true, mime: true } });
+  let original;
+  if (asset.originalId) original = await prisma.contentAsset.findFirst({ where: { id: asset.originalId, userId }, select: { bytes: true, mime: true } });
+  else if (asset.driveFileId) original = { bytes: await require('./driveStore').downloadOriginal(userId, asset.driveFileId), mime: 'image/jpeg' };
+  else throw Object.assign(new Error('this photo has no stored original to edit from'), { code: 'INVALID_ASSET' });
   if (!original) throw Object.assign(new Error('the original for this photo is missing'), { code: 'INVALID_ASSET' });
+  if (asset.driveFileId && !asset.originalId) {
+    // Drive-backed: keep it metadata-only. Record the new edits; the pixels are re-made from Drive on demand.
+    let applied = { reverted: true };
+    if (!edits.revert) applied = (await require('./enhance').enhance(Buffer.from(original.bytes), edits)).edits;
+    return prisma.contentAsset.update({ where: { id }, data: { edits: JSON.stringify(applied) }, select: assetSelect });
+  }
   let bytes = Buffer.from(original.bytes), mime = original.mime, applied = { reverted: true }, dims;
   if (!edits.revert) {
     const out = await require('./enhance').enhance(bytes, edits);
@@ -156,4 +196,4 @@ async function updateAsset(userId, id, { tags, notes, name, quality, private: pr
   return r.count > 0;
 }
 
-module.exports = { sniff, heicToJpeg, saveAsset, listAssets, getAssetBytes, resolvePhotos, updateAsset, editAsset, dimensions, autoTags, MAX_BYTES };
+module.exports = { isRemote, sniff, heicToJpeg, saveAsset, listAssets, getAssetBytes, resolvePhotos, updateAsset, editAsset, dimensions, autoTags, MAX_BYTES };
