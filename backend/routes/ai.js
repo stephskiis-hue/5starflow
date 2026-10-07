@@ -217,6 +217,28 @@ router.post('/audiences/import', async (req, res) => {
   res.status(201).json({ id: audience.id, imported: rows.length, smsEligible: rows.filter((r) => r.smsAllowed).length });
 });
 
+// List audiences with sizes.
+router.get('/audiences', async (req, res) => {
+  const rows = await prisma.audienceList.findMany({ where: { userId: req.ai.userId }, orderBy: { createdAt: 'desc' }, include: { _count: { select: { contacts: true } } } });
+  res.json({ audiences: rows.map((a) => ({ id: a.id, name: a.name, contacts: a._count.contacts, createdAt: a.createdAt })) });
+});
+
+// Remove from audience `from` every contact whose phone already appears in audience `keep` (match on last 10 digits), so one send reaches everyone once. dryRun=true only counts.
+router.post('/audiences/dedupe', async (req, res) => {
+  const { keep, from, dryRun } = req.body || {};
+  const userId = req.ai.userId;
+  const [a, b] = await Promise.all([keep, from].map((n) => prisma.audienceList.findFirst({ where: { userId, name: String(n || '') }, include: { contacts: { select: { id: true, phone: true } } } })));
+  if (!a || !b) return res.status(404).json({ error: 'audience not found', keep: !!a, from: !!b });
+  const k10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
+  const have = new Set(a.contacts.map((c) => k10(c.phone)).filter((x) => x.length === 10));
+  const dupIds = b.contacts.filter((c) => have.has(k10(c.phone))).map((c) => c.id);
+  if (!dryRun && dupIds.length) {
+    await prisma.audienceContact.deleteMany({ where: { id: { in: dupIds } } });
+    await recordActivity(userId, { agent: 'orchestrator', action: 'audience deduped', summary: `Removed ${dupIds.length} from "${b.name}" already in "${a.name}"`, source: req.ai.actor, result: 'ok' });
+  }
+  res.json({ keep: { name: a.name, contacts: a.contacts.length }, from: { name: b.name, before: b.contacts.length, after: b.contacts.length - (dryRun ? 0 : dupIds.length) }, duplicates: dupIds.length, dryRun: !!dryRun });
+});
+
 router.post('/requests', ownerOnly, async (req, res) => {
   try {
     const r = await requests.createRequest(req.ai.userId, req.body?.body, req.body?.attachments);
