@@ -241,6 +241,34 @@ router.post('/audiences/dedupe', async (req, res) => {
   res.json({ keep: { name: a.name, contacts: a.contacts.length }, from: { name: b.name, before: b.contacts.length, after: b.contacts.length - (dryRun ? 0 : dupIds.length) }, duplicates: dupIds.length, dryRun: !!dryRun });
 });
 
+// Build one audience from several: each phone appears once (last 10 digits). A record with a name beats a nameless one; otherwise the earlier source wins. Sources are left untouched; re-running replaces the target.
+router.post('/audiences/merge', async (req, res) => {
+  const { name, sources } = req.body || {};
+  const userId = req.ai.userId;
+  if (!name || !Array.isArray(sources) || sources.length < 2) return res.status(400).json({ error: 'name and sources[] (2+) required' });
+  const lists = await Promise.all(sources.map((n) => prisma.audienceList.findFirst({ where: { userId, name: String(n) }, include: { contacts: true } })));
+  if (lists.some((l) => !l)) return res.status(404).json({ error: 'audience not found', missing: sources.filter((_, i) => !lists[i]) });
+  const k10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
+  const hasName = (c) => c.firstName && !/^\+?\d/.test(c.clientName || '');
+  const best = new Map();
+  for (const l of lists) for (const c of l.contacts) {
+    const k = k10(c.phone); if (k.length !== 10) continue;
+    const cur = best.get(k);
+    if (!cur || (!hasName(cur) && hasName(c))) best.set(k, c);
+  }
+  const rows = [...best.values()].map((c) => ({ jobberClientId: c.jobberClientId, clientName: c.clientName, firstName: hasName(c) ? c.firstName : '', phone: c.phone, smsAllowed: c.smsAllowed }));
+  const out = await prisma.$transaction(async (tx) => {
+    const existing = await tx.audienceList.findFirst({ where: { userId, name: String(name).trim() } });
+    if (existing) await tx.audienceContact.deleteMany({ where: { audienceListId: existing.id } });
+    const list = existing || await tx.audienceList.create({ data: { userId, name: String(name).trim() } });
+    await tx.audienceContact.createMany({ data: rows.map((r) => ({ ...r, audienceListId: list.id })), skipDuplicates: true });
+    return list;
+  }, { timeout: 60000 });
+  const total = lists.reduce((n, l) => n + l.contacts.length, 0);
+  await recordActivity(userId, { agent: 'orchestrator', action: 'audience merged', summary: `${name}: ${rows.length} unique from ${sources.join(' + ')}`, source: req.ai.actor, result: 'ok' });
+  res.status(201).json({ id: out.id, unique: rows.length, duplicatesRemoved: total - rows.length, named: rows.filter((r) => r.firstName).length, nameless: rows.filter((r) => !r.firstName).length, smsEligible: rows.filter((r) => r.smsAllowed).length });
+});
+
 router.post('/requests', ownerOnly, async (req, res) => {
   try {
     const r = await requests.createRequest(req.ai.userId, req.body?.body, req.body?.attachments);

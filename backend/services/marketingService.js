@@ -31,7 +31,7 @@
  *   - jobberGraphQL() from jobberClient.js
  *
  * Safety guards:
- *   - MAX_RECIPIENTS (500)         — rejects oversized audiences (enforced at route)
+ *   - MAX_RECIPIENTS (1000)        — rejects oversized audiences (enforced at route)
  *   - Circuit breaker (10 fails)   — pauses dispatch if 10 consecutive sends fail
  *   - Global timeout (10 min)      — dispatch loop hands off remaining to retry worker
  */
@@ -48,7 +48,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // ---------------------------------------------------------------------------
 // Safety + retry constants
 // ---------------------------------------------------------------------------
-const MAX_RECIPIENTS            = 500;
+const MAX_RECIPIENTS            = 1000;
 const MAX_CONSECUTIVE_FAILURES  = 10;
 const CAMPAIGN_TIMEOUT_MS       = 10 * 60 * 1000; // 10 minutes per dispatch pass
 
