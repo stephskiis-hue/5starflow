@@ -202,8 +202,10 @@ router.post('/audiences/import', async (req, res) => {
     const key = String(c.phone || '').replace(/\D/g, '').slice(-10);
     if (key.length !== 10 || seen.has(key)) continue;
     seen.add(key);
-    const clientName = String(c.clientName || '').trim() || `+1${key}`;
-    rows.push({ jobberClientId: `ext:${key}`, clientName, firstName: String(c.firstName || clientName.split(/\s+/)[0] || '').slice(0, 60), phone: `+1${key}`, smsAllowed: !!c.smsAllowed });
+    const named = String(c.clientName || '').trim();
+    const clientName = named || `+1${key}`;
+    // no name → empty firstName, so {firstName} falls back to "there" instead of printing a phone number
+    rows.push({ jobberClientId: `ext:${key}`, clientName, firstName: named ? String(c.firstName || named.split(/\s+/)[0]).slice(0, 60) : '', phone: `+1${key}`, smsAllowed: !!c.smsAllowed });
   }
   const userId = req.ai.userId;
   const audience = await prisma.$transaction(async (tx) => {
