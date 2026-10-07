@@ -32,27 +32,28 @@ for (const [num, name, date, missed, preview] of rows) {
   const d = isoDate(date);
   const prev = byKey.get(key);
   const stop = /^\s*(stop|unsubscribe|stopall|cancel|end|quit)\s*$/i.test(preview || '');
-  const textedWith = !missed && !SERVICE_TEXT.test(preview || '') && !TOLL_FREE.test(key);
+  const textedWith = !SERVICE_TEXT.test(preview || '') && !TOLL_FREE.test(key);   // calls/voicemails count; toll-free and automated service numbers are dropped
   if (!prev) byKey.set(key, { key, name: name || '', last: d, textedWith, optedOut: stop, preview: preview || '' });
   else { prev.textedWith ||= textedWith; prev.optedOut ||= stop; if (!prev.name && name) prev.name = name; if (d > prev.last) prev.last = d; }
 }
 
-const list = [...byKey.values()].sort((a, b) => (a.last < b.last ? 1 : -1));
+const dropped = [...byKey.values()].filter((p) => !p.textedWith || p.optedOut).length;
+const list = [...byKey.values()].filter((p) => p.textedWith && !p.optedOut).sort((a, b) => (a.last < b.last ? 1 : -1));
 const cell = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 const csv = [['phone', 'name', 'last_conversation', 'texted_with', 'opted_out', 'last_message']]
-  .concat(list.map((p) => [`+1${p.key}`, p.name, p.last, p.textedWith ? 'yes' : 'no (call/voicemail/service only)', p.optedOut ? 'yes' : '', p.preview]))
+  .concat(list.map((p) => [`+1${p.key}`, p.name, p.last, 'yes', p.optedOut ? 'yes' : '', p.preview]))
   .map((r) => r.map(cell).join(',')).join('\r\n');
 const out = path.join(DIR, 'textnow-all-numbers.csv');
 fs.writeFileSync(out, '﻿' + csv);
 console.log(`${list.length} unique numbers → ${out}`);
-console.log(`  SMS-eligible (real text exchange, not toll-free/service, not STOP): ${list.filter((p) => p.textedWith && !p.optedOut).length}`);
+console.log(`  left off: ${dropped} (toll-free, automated service texts, or STOP)`);
 console.log(`  rows with no number yet (named contacts not resolved / groups): ${unresolved}`);
 
 if (process.argv.includes('--import')) {
   const API = (process.env.FIVESTARFLOW_URL || '').replace(/\/$/, '');
   const TOKEN = process.env.FIVESTARFLOW_TOKEN || process.env.AI_TOKEN;
   if (!API || !TOKEN) { console.error('Set FIVESTARFLOW_URL and FIVESTARFLOW_TOKEN (see ~/.5starflow/env)'); process.exit(1); }
-  const contacts = list.map((p) => ({ phone: `+1${p.key}`, clientName: p.name, smsAllowed: p.textedWith && !p.optedOut }));
+  const contacts = list.map((p) => ({ phone: `+1${p.key}`, clientName: p.name, smsAllowed: true }));
   fetch(`${API}/api/ai/audiences/import`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` }, body: JSON.stringify({ name: 'All TextNow Numbers', contacts }) })
     .then(async (r) => { console.log(r.status, await r.text()); })
     .catch((e) => { console.error(e.message); process.exit(1); });
