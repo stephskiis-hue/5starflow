@@ -192,6 +192,31 @@ router.post('/notify', async (req, res) => {
   res.status(201).json({ ok: !!n, id: n?.id });
 });
 
+// Import an external phone list (e.g. the TextNow export) as a named audience. Re-importing under the same name replaces its contacts.
+router.post('/audiences/import', async (req, res) => {
+  const { name, contacts } = req.body || {};
+  if (!name || !Array.isArray(contacts) || !contacts.length) return res.status(400).json({ error: 'name and contacts[] required' });
+  const seen = new Set();
+  const rows = [];
+  for (const c of contacts) {
+    const key = String(c.phone || '').replace(/\D/g, '').slice(-10);
+    if (key.length !== 10 || seen.has(key)) continue;
+    seen.add(key);
+    const clientName = String(c.clientName || '').trim() || `+1${key}`;
+    rows.push({ jobberClientId: `ext:${key}`, clientName, firstName: String(c.firstName || clientName.split(/\s+/)[0] || '').slice(0, 60), phone: `+1${key}`, smsAllowed: !!c.smsAllowed });
+  }
+  const userId = req.ai.userId;
+  const audience = await prisma.$transaction(async (tx) => {
+    const existing = await tx.audienceList.findFirst({ where: { userId, name: String(name).trim() } });
+    if (existing) await tx.audienceContact.deleteMany({ where: { audienceListId: existing.id } });
+    const list = existing || await tx.audienceList.create({ data: { userId, name: String(name).trim() } });
+    await tx.audienceContact.createMany({ data: rows.map((r) => ({ ...r, audienceListId: list.id })) });
+    return list;
+  }, { timeout: 60000 });
+  await recordActivity(userId, { agent: 'orchestrator', action: 'audience imported', summary: `${name}: ${rows.length} contacts (${rows.filter((r) => r.smsAllowed).length} SMS-eligible)`, source: req.ai.actor, result: 'ok' });
+  res.status(201).json({ id: audience.id, imported: rows.length, smsEligible: rows.filter((r) => r.smsAllowed).length });
+});
+
 router.post('/requests', ownerOnly, async (req, res) => {
   try {
     const r = await requests.createRequest(req.ai.userId, req.body?.body, req.body?.attachments);
