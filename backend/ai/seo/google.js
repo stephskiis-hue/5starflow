@@ -108,7 +108,15 @@ async function indexNow(origin, urls) {
   return { status: res.status, ok: res.status === 200 || res.status === 202 };
 }
 
+/** Google's "API has not been used in project N / it is disabled" error: the enable link, or null. */
+function apiDisabledLink(err) {
+  const msg = String(err?.message || err || '');
+  if (!/has not been used in project|is disabled|SERVICE_DISABLED|accessNotConfigured/i.test(msg)) return null;
+  return msg.match(/https:\/\/console\.developers\.google\.com\/apis\/api\/searchconsole\.googleapis\.com\/overview\?project=\d+/)?.[0]
+    || 'https://console.cloud.google.com/apis/library/searchconsole.googleapis.com';
+}
+
 /** Outward writes (sitemap submit, IndexNow) respect DRY_RUN unless SEO_SUBMIT=on overrides it. */
 const submitAllowed = () => process.env.SEO_SUBMIT === 'on' || (process.env.SEO_SUBMIT !== 'off' && process.env.DRY_RUN !== 'true');
 
-module.exports = { loadSeo, saveState, getAuth, listSites, searchAnalytics, queryAll, listSitemaps, submitSitemap, inspectUrl, indexNow, submitAllowed };
+module.exports = { apiDisabledLink, loadSeo, saveState, getAuth, listSites, searchAnalytics, queryAll, listSitemaps, submitSitemap, inspectUrl, indexNow, submitAllowed };

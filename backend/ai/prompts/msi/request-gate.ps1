@@ -11,6 +11,21 @@ try { Import-FsfEnv } catch { Log "aborted: $($_.Exception.Message)"; exit 1 }
 # Fast-forward only: local edits or a diverged branch are left alone, and a failed pull never blocks the inbox.
 $null = Invoke-FsfNative 'request-gate' 'git' @('-C', (Join-Path $PSScriptRoot '..\..\..\..'), 'pull', '--ff-only', '--quiet')
 
+# Once a day, at the first check after 7 pm: rebuild the website's sitemaps and blog index from the real files
+# (seo_site.py nightly, site folder in seo-site.json) so the 3 AM deploy uploads them. Zero Claude tokens.
+# Its own log is ~/.5starflow/seo-site.log; a failure is logged and never blocks the inbox.
+try {
+  $seoStamp = Join-Path $FsfDir 'seo-site-nightly.stamp'
+  $today = Get-Date -Format 'yyyy-MM-dd'
+  $doneToday = (Test-Path $seoStamp) -and ((Get-Content $seoStamp -Raw).Trim() -eq $today)
+  if ((Get-Date).Hour -ge 19 -and -not $doneToday) {
+    Set-Content -Path $seoStamp -Value $today
+    $py = if ($env:PYTHON_BIN) { $env:PYTHON_BIN } elseif (Get-Command python -ErrorAction SilentlyContinue) { 'python' } else { 'py' }
+    $code = Invoke-FsfNative 'seo-nightly' $py @((Join-Path $PSScriptRoot 'seo_site.py'), 'nightly')
+    Log "seo nightly exited $code"
+  }
+} catch { Log "seo nightly failed to start: $($_.Exception.Message)" }
+
 $lock = Join-Path $FsfDir 'request-inbox.lock'
 if ((Test-Path $lock) -and ((Get-Item $lock).LastWriteTime -gt (Get-Date).AddHours(-2))) { Log 'skip: a run is in progress'; exit 0 }
 

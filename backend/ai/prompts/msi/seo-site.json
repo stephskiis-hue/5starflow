@@ -1,0 +1,5 @@
+{
+  "siteDir": "C:\\Users\\steph\\Desktop\\No-Bs Yardwork\\Website Stuff\\public_html",
+  "exclude": ["/lawn-care-premium", "/premium-packages", "/basic-packages"],
+  "_comment": "exclude: live duplicate pages kept out of the sitemap until they are 301'd (same set the old sitemap left out). seo_site.py reads this file; request-gate.ps1 runs 'seo_site.py nightly' once a day."
+}

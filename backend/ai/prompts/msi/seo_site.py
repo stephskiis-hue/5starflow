@@ -5,6 +5,7 @@ No-Bs Yardwork site helper for the SEO Growth Engine (runs on the MSI PC, standa
 Site files (local public_html, uploaded by _deploy.py):
   build-sitemaps <public_html>   rebuild sitemap.xml, blog-sitemap.xml and sitemap_index.xml from the real files
   blog-index <public_html>       rebuild posts.json from every live post + a static link list in blog.html
+  nightly [<public_html>]        both of the above (request-gate.ps1 runs it once a day); site folder from seo-site.json
 
 5StarFlow API (FIVESTARFLOW_URL / FIVESTARFLOW_TOKEN from ~/.5starflow/env or the environment):
   check                          is the API reachable and is Search Console connected?
@@ -31,6 +32,9 @@ from pathlib import Path
 
 FSF_DIR = Path.home() / '.5starflow'
 PENDING = FSF_DIR / 'seo-pending.jsonl'
+STATE_FILE = FSF_DIR / 'sitemap-state.json'          # outside the site folder, so the deploy never uploads it
+BACKUP_DIR = FSF_DIR / 'seo-backup'
+CONFIG = json.loads((Path(__file__).with_name('seo-site.json')).read_text(encoding='utf-8')) if Path(__file__).with_name('seo-site.json').exists() else {}
 ORIGIN = os.environ.get('SITE_ORIGIN', 'https://www.no-bs-yardwork.com').rstrip('/')
 SKIP_DIRS = {'images', 'img', 'css', 'js', 'fonts', 'assets', 'admin', 'cgi-bin', 'tag', 'drafts', 'node_modules', '.git', '.well-known'}
 SKIP_FILES = re.compile(r'^(_|\.)|^(404|500|403)\.html?$|^google[0-9a-f]+\.html$|^thank-?you', re.I)
@@ -212,10 +216,10 @@ def redirect_sources(root):
 def scan_pages(root):
     """Every indexable page: [(path, file, src)], plus what was left out and why."""
     redirected = redirect_sources(root)
-    excluded_list = set()
+    excluded_list = {clean_path(p) for p in CONFIG.get('exclude', [])}
     ex = root / '_sitemap-exclude.txt'
     if ex.exists():
-        excluded_list = {clean_path(l.strip()) for l in ex.read_text(encoding='utf-8').splitlines() if l.strip() and not l.startswith('#')}
+        excluded_list |= {clean_path(l.strip()) for l in ex.read_text(encoding='utf-8').splitlines() if l.strip() and not l.startswith('#')}
     pages, skipped = [], []
     for f in sorted(root.rglob('*.htm*')):
         rel = f.relative_to(root)
@@ -228,7 +232,7 @@ def scan_pages(root):
         canon_path = clean_path(re.sub(r'^https?://[^/]+', '', canon.group(1))) if canon else None
         reason = None
         if path in excluded_list:
-            reason = 'listed in _sitemap-exclude.txt'
+            reason = 'excluded (seo-site.json or _sitemap-exclude.txt)'
         elif path in redirected:
             reason = '301 in .htaccess'
         elif 'noindex' in robots:
@@ -264,20 +268,36 @@ def write_if_changed(path, text, dry):
     if old == text:
         return False
     if not dry:
+        if old is not None:
+            day = BACKUP_DIR / dt.date.today().isoformat()
+            day.mkdir(parents=True, exist_ok=True)
+            if not (day / path.name).exists():
+                (day / path.name).write_text(old, encoding='utf-8')
         path.write_text(text, encoding='utf-8')
     return True
 
 
-def cmd_build_sitemaps(args):
-    if not args:
-        out({'ok': False, 'error': 'usage: build-sitemaps <public_html> [--dry-run]'}, 2)
-    root, dry = Path(args[0]), '--dry-run' in args
+def site_root(args, usage):
+    path = next((a for a in args if not a.startswith('--')), None) or os.environ.get('SEO_SITE_DIR') or CONFIG.get('siteDir')
+    if not path:
+        out({'ok': False, 'error': f'usage: {usage}'}, 2)
+    root = Path(path)
     if not root.is_dir():
         out({'ok': False, 'error': f'{root} is not a folder'}, 2)
+    return root, '--dry-run' in args
+
+
+def cmd_build_sitemaps(args):
+    root, dry = site_root(args, 'build-sitemaps <public_html> [--dry-run]')
+    out(build_sitemaps(root, dry))
+
+
+def build_sitemaps(root, dry):
     pages, skipped = scan_pages(root)
     # lastmod changes only when the page text changes (deploy timestamps are not edits)
-    state_file = root / '_sitemap-state.json'
-    state = json.loads(state_file.read_text(encoding='utf-8')) if state_file.exists() else {}
+    all_state = json.loads(STATE_FILE.read_text(encoding='utf-8')) if STATE_FILE.exists() else {}
+    legacy = root / '_sitemap-state.json'
+    state = all_state.get(str(root.resolve())) or (json.loads(legacy.read_text(encoding='utf-8')) if legacy.exists() else {})
     today = dt.date.today().isoformat()
     blog, other = [], []
     for path, f, src in pages:
@@ -311,9 +331,11 @@ def cmd_build_sitemaps(args):
     if robots.exists() and 'sitemap_index.xml' not in robots.read_text(encoding='utf-8', errors='replace'):
         warnings.append('robots.txt does not list sitemap_index.xml: add "Sitemap: https://www.no-bs-yardwork.com/sitemap_index.xml"')
     if not dry:
-        state_file.write_text(json.dumps(state, indent=1, sort_keys=True), encoding='utf-8')
+        FSF_DIR.mkdir(exist_ok=True)
+        all_state[str(root.resolve())] = state
+        STATE_FILE.write_text(json.dumps(all_state, indent=1, sort_keys=True), encoding='utf-8')
     log(f'build-sitemaps pages={len(other)} posts={len(blog)} skipped={len(skipped)} changed={changed}')
-    out({'ok': True, 'dryRun': dry, 'pages': len(other), 'posts': len(blog), 'changed': changed, 'skipped': skipped, 'warnings': warnings})
+    return {'ok': True, 'dryRun': dry, 'pages': len(other), 'posts': len(blog), 'changed': changed, 'skipped': skipped, 'warnings': warnings}
 
 
 def post_facts(path, f, src, existing):
@@ -339,9 +361,11 @@ def post_facts(path, f, src, existing):
 
 
 def cmd_blog_index(args):
-    if not args:
-        out({'ok': False, 'error': 'usage: blog-index <public_html> [--dry-run]'}, 2)
-    root, dry = Path(args[0]), '--dry-run' in args
+    root, dry = site_root(args, 'blog-index <public_html> [--dry-run]')
+    out(blog_index(root, dry))
+
+
+def blog_index(root, dry):
     posts_file = root / 'posts.json'
     current = json.loads(posts_file.read_text(encoding='utf-8')) if posts_file.exists() else []
     by_url = {clean_path(p.get('url', '')).lstrip('/'): p for p in current}
@@ -379,7 +403,43 @@ def cmd_blog_index(args):
             changed.append('blog.html')
     note = '; '.join(notes) or None
     log(f'blog-index posts={len(posts)} added={len(added)} changed={changed}')
-    out({'ok': True, 'dryRun': dry, 'posts': len(posts), 'addedToPostsJson': added, 'changed': changed, 'note': note})
+    return {'ok': True, 'dryRun': dry, 'posts': len(posts), 'addedToPostsJson': added, 'changed': changed, 'note': note}
+
+
+def report_run(body):
+    """Best effort: the ledger entry is nice to have, the rebuilt files are what matters."""
+    env_file = FSF_DIR / 'env'
+    configured = (os.environ.get('FIVESTARFLOW_URL') and os.environ.get('FIVESTARFLOW_TOKEN')) or \
+        (env_file.exists() and 'FIVESTARFLOW_TOKEN' in env_file.read_text(encoding='utf-8', errors='replace'))
+    if not configured:
+        log('nightly: no FIVESTARFLOW_URL / TOKEN, run not reported')
+        return 0, {}
+    return api('POST', '/runs', body, prefix='/api/ai')
+
+
+def cmd_nightly(args):
+    """Run by request-gate.ps1 once a day: blog index, then sitemaps, so the 3 AM deploy uploads them. Zero Claude tokens."""
+    root, dry = site_root(args, 'nightly [<public_html>] [--dry-run]  (or siteDir in seo-site.json / SEO_SITE_DIR)')
+    try:
+        idx = blog_index(root, dry)
+        maps = build_sitemaps(root, dry)
+    except Exception as e:                       # never let a bad file stop the gate; report it instead
+        log(f'nightly failed: {e}')
+        report = {'slug': 'ext-seo-site-nightly', 'status': 'failed', 'summary': f'Sitemap rebuild failed: {e}'[:500], 'error': str(e)[:500]}
+        if not dry:
+            report_run(report)
+        out({'ok': False, 'error': str(e)}, 1)
+    changed = idx['changed'] + maps['changed']
+    summary = (f"{maps['pages']} pages + {maps['posts']} posts in the sitemaps; "
+               + (f"rewrote {', '.join(changed)}" if changed else 'nothing changed')
+               + (f"; added {len(idx['addedToPostsJson'])} post(s) to posts.json" if idx['addedToPostsJson'] else '')
+               + ('; the 3 AM deploy uploads them' if changed else ''))
+    log(f'nightly {summary}')
+    if not dry:
+        report_run({'slug': 'ext-seo-site-nightly', 'status': 'completed' if changed else 'skipped', 'summary': summary[:500],
+                              'result': {'items_found': maps['pages'] + maps['posts'], 'actions_taken': [f'rewrote {c}' for c in changed],
+                                         'skipped': len(maps['skipped']), 'notes': '; '.join(filter(None, [idx.get('note')] + maps['warnings']))[:190]}})
+    out({'ok': True, 'summary': summary, 'blogIndex': idx, 'sitemaps': maps})
 
 
 def cmd_run(args):
@@ -400,6 +460,7 @@ def cmd_run(args):
 COMMANDS = {
     'check': cmd_check, 'assignment': cmd_assignment, 'skip': cmd_skip, 'published': cmd_published, 'progress': cmd_progress,
     'report': cmd_report, 'sitemaps-check': cmd_sitemaps_check, 'run': cmd_run, 'build-sitemaps': cmd_build_sitemaps, 'blog-index': cmd_blog_index,
+    'nightly': cmd_nightly,
 }
 
 if __name__ == '__main__':

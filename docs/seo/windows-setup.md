@@ -11,13 +11,13 @@ helper script and the skill stay current without touching the PC again.
 - `~/.5starflow/env` already has `FIVESTARFLOW_URL` and `FIVESTARFLOW_TOKEN`. Add one line: `FSF_REPO=<path to this 5starflow checkout>`.
 - `python <FSF_REPO>\backend\ai\prompts\msi\seo_site.py check` must print `"ok": true`. Its `instructions` list says what is still missing on the server side (step 1).
 - Back up `SITE` (zip it) before step 2.
+- Search Console needs two clicks first (step 1): the API switch in Google Cloud and the user in Search Console.
 
 ## 1. Search Console access (the owner, 2 minutes; Claude in Chrome can click it)
-1. Open SEO Growth in 5StarFlow. The setup card shows the service account email.
-2. Search Console > the `https://www.no-bs-yardwork.com/` property > Settings > Users and permissions > Add user > that email > permission **Full** (Restricted cannot submit sitemaps).
-3. If the card says there is no service account: Google Cloud console > IAM & Admin > Service Accounts > create one, add a JSON key, enable "Google Search Console API" in that project, then put `GOOGLE_CLIENT_EMAIL` and `GOOGLE_PRIVATE_KEY` on Railway.
-4. Railway variables: `SEO_SUBMIT=on` (production runs with DRY_RUN, which would otherwise only log sitemap submits), `GSC_SITE_URL=https://www.no-bs-yardwork.com/`, and confirm `SERPER_API_KEY` is set (keyword discovery + weekly Google and map-pack rank checks; about 150 calls a week).
-5. Press **Sync now** on SEO Growth. The setup card disappears when it works.
+Checked on production 2026-10-10: the service account is `google-analytics-api-service@axial-analyzer-420702.iam.gserviceaccount.com` (it signs in fine), `SERPER_API_KEY` is set and DRY_RUN is off, so no Railway variable is needed. Two things are missing:
+1. **Turn the API on:** open https://console.developers.google.com/apis/api/searchconsole.googleapis.com/overview?project=944252538921 signed in as the Google account that owns that Cloud project, and press **Enable**.
+2. **Give it access:** Search Console > property `https://www.no-bs-yardwork.com/` > Settings > Users and permissions > **Add user** > `google-analytics-api-service@axial-analyzer-420702.iam.gserviceaccount.com` > permission **Full** (Restricted cannot submit sitemaps).
+3. Press **Sync now** on SEO Growth (or wait for 6:07 am). The setup card disappears when it works; the first sync backfills 16 months.
 
 ## 2. One-time site fixes (found by the first crawl; each one is also a task on SEO Growth > Index health)
 Open SEO Growth > Index health for the current lists. On 2026-10-10 they were:
@@ -39,22 +39,17 @@ Open SEO Growth > Index health for the current lists. On 2026-10-10 they were:
 3. A small style for `.seo-post-list` in the page CSS (a simple two-column list under the cards is fine; it must stay visible, not `display:none`).
 Then `python seo_site.py blog-index "SITE" --dry-run` should list the 11 posts it adds.
 
-## 3. `_deploy.py` (the 3 AM upload)
-Before the upload:
-```
-python <FSF_REPO>\backend\ai\prompts\msi\seo_site.py blog-index "SITE"
-python <FSF_REPO>\backend\ai\prompts\msi\seo_site.py build-sitemaps "SITE"
-```
-`build-sitemaps` writes `sitemap.xml` (pages), `blog-sitemap.xml` (posts) and `sitemap_index.xml` from the files that are really there: clean URLs, lastmod that only moves when a page's text changes (it keeps `_sitemap-state.json`), and it leaves out noindex pages, `.htaccess` 301 sources, canonical-elsewhere pages, case duplicates and anything listed in `_sitemap-exclude.txt`. Both commands only rewrite files that changed, so the deploy uploads them only when needed.
-Make sure those five files are in the upload set when changed (`sitemap.xml`, `blog-sitemap.xml`, `sitemap_index.xml`, `posts.json`, `blog.html`), and that `_sitemap-state.json`, `_sitemap-exclude.txt`, `_blog-*` and `.htaccess`-backup files are never uploaded.
-After a successful upload:
-```
-python <FSF_REPO>\backend\ai\prompts\msi\seo_site.py sitemaps-check
-```
-That tells 5StarFlow to re-read the live sitemaps and submit any that changed to Google (and new URLs to Bing via IndexNow). Log the JSON line to `_deploy.log`. The server also checks daily at 6:23 am, so a missed call is caught the next morning.
+## 3. Sitemaps + blog index: automatic (nothing to install)
+`request-gate.ps1` (already on Task Scheduler, already pulling this repo) runs `seo_site.py nightly` once a day at its first check after 7 pm. It rebuilds, from the files that are really in `SITE`:
+- `sitemap.xml` (pages), `blog-sitemap.xml` (posts) and `sitemap_index.xml`: clean URLs, a lastmod that only moves when a page's text changes, and none of the noindex pages, `.htaccess` 301 sources, canonical-elsewhere pages, case duplicates or pages excluded in `backend/ai/prompts/msi/seo-site.json` (the three duplicate lawn-care package pages until they are 301'd);
+- `posts.json` from every live `blog-*.html` (adds the posts that were missing), plus the static list and the `POSTS` array in `blog.html` once the markers from 2b exist.
+
+Files are only rewritten when they change; the previous copy goes to `~/.5starflow/seo-backup/<date>/`, the state file is `~/.5starflow/sitemap-state.json` (outside `SITE`, so it is never uploaded) and the log is `~/.5starflow/seo-site.log`. The 3 AM `_deploy.py` uploads the changed files as usual; the server re-reads the live sitemaps at 6:23 am and submits them to Google. The site folder is `siteDir` in `seo-site.json`; override with `SEO_SITE_DIR` (and `PYTHON_BIN` if `python` is not on the PATH) in `~/.5starflow/env`.
+
+Optional, for same-morning submission: at the end of a successful `_deploy.py` upload run `python <FSF_REPO>\backend\ai\prompts\msi\seo_site.py sitemaps-check` and log its JSON line to `_deploy.log`.
 
 ## 4. `_blog-autopilot.py`
-- **One generator:** replace its own sitemap / posts.json / `POSTS` editing with the two `seo_site.py` calls from step 3, run right after it writes the post (so the post, the image, posts.json, blog.html and the sitemaps go up together by FTP, as today).
+- **Sitemaps:** it can keep writing `blog-sitemap.xml` and `posts.json` as today; the nightly rebuild reconciles them. Better: after writing a post call `python <FSF_REPO>\backend\ai\prompts\msi\seo_site.py nightly` so the post, its image, posts.json, blog.html and the sitemaps go up together by FTP right away.
 - **Template:** canonical = the clean URL; internal links to clean URLs; keep the Article + BreadcrumbList JSON-LD and add `dateModified`.
 - **`--refresh <slug>`:** overwrite the existing `blog-<slug>.html` in place (same URL), keep `datePublished`, set `dateModified` to today, keep the image unless a new one is asked for. Do not add a new posts.json entry.
 - **`--page <slug>`:** a landing page at `SITE\<slug>.html` built from an existing service page (e.g. `weed-control-winnipeg.html`: same header, nav, footer, quote form, LocalBusiness schema), not added to posts.json or the blog. Add it to the site nav/services page in the same run.
@@ -68,6 +63,6 @@ Add a short section at the top:
 Claude desktop app > Scheduled tasks > the blog task: replace its prompt with the block in `backend/ai/prompts/blog-autopilot.md`, model Sonnet, keep the schedule (daily). It then reads `nobs-seo` from the repo on every run, so later improvements arrive through `git pull`.
 
 ## 7. Check it worked
-- `seo_site.py build-sitemaps "SITE" --dry-run` lists every page (no `.html` URLs) and what it skipped and why.
+- `python seo_site.py nightly --dry-run` lists every page (no `.html` URLs), what it skipped and why, and what it would rewrite.
 - After the next run: SEO Growth > Content log shows the post; Index health shows the sitemaps as submitted and, within a few days, "Google read it"; the issue list shrinks as the fixes go live (tasks close themselves).
 - `~/.5starflow/seo-site.log` has one line per helper call; `~/.5starflow/seo-pending.jsonl` should stay empty (it holds publish reports that could not be sent).

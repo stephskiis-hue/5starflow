@@ -150,9 +150,11 @@ router.get('/gsc-status', async (req, res) => {
     } catch (err) { out.error = err.message; }
   }
   const steps = out.instructions;
+  const disabled = g.apiDisabledLink(out.error);
+  if (disabled) { out.apiDisabled = disabled; steps.push(`Turn on the Search Console API: open ${disabled} and press Enable (signed in as the owner of that Google Cloud project).`); }
   if (!email) steps.push('Create a Google Cloud service account (console.cloud.google.com > IAM & Admin > Service Accounts), add a JSON key, and set GOOGLE_CLIENT_EMAIL and GOOGLE_PRIVATE_KEY on Railway.', 'In the same Google Cloud project, enable the "Google Search Console API".');
   else if (auth?.error) steps.push(`The service account could not sign in (${auth.error}). Check GOOGLE_PRIVATE_KEY on Railway (keep the \\n line breaks).`);
-  if (email && !out.propertyFound) steps.push(`Search Console > Settings > Users and permissions > Add user: ${email} — permission "Full".`, 'If Google says the API is disabled, enable "Google Search Console API" in the service account\'s Google Cloud project.');
+  if (email && !out.propertyFound) steps.push(`Search Console > Settings > Users and permissions > Add user: ${email} — permission "Full".`);
   if (out.propertyFound && !out.canSubmit) steps.push(`Change ${email || 'the account'} to "Full" (it is ${out.permissionLevel}); Restricted users cannot submit sitemaps.`);
   if (!out.submitAllowed) steps.push('DRY_RUN is on, so sitemap submits are only logged. Set SEO_SUBMIT=on on Railway to let them through.');
   if (!out.serper) steps.push('Set SERPER_API_KEY on Railway for keyword discovery and weekly Google + map-pack rank checks.');

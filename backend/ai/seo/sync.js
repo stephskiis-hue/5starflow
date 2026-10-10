@@ -80,7 +80,17 @@ async function gscSyncTick(ctx) {
       'Open SEO Growth in 5StarFlow and follow the setup card.');
     return { skipped: true, summary: 'Search Console not connected' };
   }
-  const { sites, site } = await resolveProperty(auth, seo);
+  let sites; let site;
+  try {
+    ({ sites, site } = await resolveProperty(auth, seo));
+  } catch (err) {
+    const link = g.apiDisabledLink(err);
+    if (!link) throw err;
+    await setupTask(`Google: ${err.message.replace(/^Search Console GET \/sites: /, '')}`,
+      `1. Open ${link} (signed in as the owner of that Google Cloud project) and press Enable.\n2. Search Console > Settings > Users and permissions > Add user: ${auth.email} with permission "Full".`);
+    await g.saveState(seo.row.id, { gsc: { via: auth.via, email: auth.email, property: seo.property, found: false, apiDisabled: link, checkedAt: new Date().toISOString() } });
+    return { skipped: true, summary: 'Search Console API is turned off in the service account\'s Google Cloud project' };
+  }
   if (!site) {
     await setupTask(`The ${auth.via === 'service_account' ? `service account ${auth.email}` : 'Google login'} can see ${sites.length ? sites.map((s) => s.siteUrl).join(', ') : 'no Search Console properties'}, not ${seo.property}.`,
       auth.via === 'service_account' ? `Search Console > Settings > Users and permissions > Add user: ${auth.email}, permission "Full".` : 'Reconnect Google with the account that owns the property.');
