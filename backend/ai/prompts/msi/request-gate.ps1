@@ -11,6 +11,19 @@ try { Import-FsfEnv } catch { Log "aborted: $($_.Exception.Message)"; exit 1 }
 # Fast-forward only: local edits or a diverged branch are left alone, and a failed pull never blocks the inbox.
 $null = Invoke-FsfNative 'request-gate' 'git' @('-C', (Join-Path $PSScriptRoot '..\..\..\..'), 'pull', '--ff-only', '--quiet')
 
+# The blog task prompt finds this checkout through FSF_REPO in ~/.5starflow/env: add it once.
+try {
+  if (-not $env:FSF_REPO) {
+    $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..\..')).Path
+    $envFile = Join-Path $FsfDir 'env'
+    $raw = [IO.File]::ReadAllText($envFile)
+    $sep = if ($raw.Length -and -not $raw.EndsWith("`n")) { "`r`n" } else { '' }   # never glue onto the token line
+    Add-Content -Path $envFile -Value "${sep}FSF_REPO=$repo"
+    $env:FSF_REPO = $repo
+    Log "added FSF_REPO=$repo to ~/.5starflow/env"
+  }
+} catch { Log "could not add FSF_REPO: $($_.Exception.Message)" }
+
 # Once a day, at the first check after 7 pm: rebuild the website's sitemaps and blog index from the real files
 # (seo_site.py nightly, site folder in seo-site.json) so the 3 AM deploy uploads them. Zero Claude tokens.
 # Its own log is ~/.5starflow/seo-site.log; a failure is logged and never blocks the inbox.
