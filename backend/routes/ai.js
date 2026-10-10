@@ -599,6 +599,8 @@ router.post('/social/groups', async (req, res) => {
   if (['unknown', 'allowed', 'restricted', 'banned'].includes(b.promoPolicy)) fields.promoPolicy = b.promoPolicy;
   if (Number.isFinite(Number(b.relevance))) fields.relevance = Math.min(5, Math.max(1, Number(b.relevance)));
   if (Number.isFinite(Number(b.cooldownDays))) fields.cooldownDays = Math.min(60, Math.max(1, Number(b.cooldownDays)));
+  if (b.lastPostedAt && !Number.isNaN(Date.parse(b.lastPostedAt))) fields.lastPostedAt = new Date(b.lastPostedAt);   // history imports only: a normal post sets this through the confirmed group_post
+  if (Number.isFinite(Number(b.postsCount)) && Number(b.postsCount) >= 0) fields.postsCount = Math.floor(Number(b.postsCount));
   if (b.leadsDelta) fields.leads = { increment: Math.max(0, parseInt(b.leadsDelta, 10) || 0) };
   fields.lastCheckedAt = new Date();
   const row = await prisma.socialGroup.upsert({
