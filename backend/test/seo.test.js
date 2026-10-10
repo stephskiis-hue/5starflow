@@ -258,3 +258,48 @@ test('assign: a missing service page comes before area pages, even off season', 
   assert.equal(out[0].keyword.keyword, 'lawn aeration winnipeg');
   assert.doesNotMatch(out[0].why, /off season/);
 });
+
+// --------------------------------------------------------------------------- site access (server-side fallback for the PC)
+const sa = require('../ai/seo/siteAccess');
+const ORIGIN = 'https://www.no-bs-yardwork.com';
+
+test('site access: the verification tag goes right after <head> and keeps CRLF', () => {
+  assert.equal(sa.verificationContent('<meta name="google-site-verification" content="AbC_123-xyz" />'), 'AbC_123-xyz');
+  const html = '﻿<!DOCTYPE html>\r\n<html>\r\n<head lang="en">\r\n  <title>No-Bs</title>\r\n</head>\r\n</html>';
+  const out = sa.withVerificationTag(html, 'AbC_123-xyz');
+  assert.ok(out.startsWith('﻿<!DOCTYPE html>\r\n<html>\r\n<head lang="en">\r\n  <meta name="google-site-verification" content="AbC_123-xyz" />\r\n  <title>'));
+  assert.equal(sa.withVerificationTag(out, 'AbC_123-xyz'), out);
+  assert.equal(sa.withVerificationTag('<html><body>no head</body></html>', 'x'), null);
+});
+
+test('site access: the .htaccess block lands after the first RewriteEngine On, once, rules untouched', () => {
+  const text = 'Options -MultiViews\r\nRewriteEngine On\r\nRewriteCond %{REQUEST_FILENAME}.html -f\r\nRewriteRule ^(.*)$ $1.html [L]\r\n';
+  const out = sa.withSeoRedirects(text, ORIGIN);
+  const lines = out.split('\r\n');
+  assert.deepEqual(lines.slice(0, 2), ['Options -MultiViews', 'RewriteEngine On']);
+  assert.deepEqual(lines.slice(2, 10), sa.seoRedirectLines(ORIGIN));
+  assert.equal(lines[5], 'RewriteRule ^ https://www.no-bs-yardwork.com%{REQUEST_URI} [L,R=301]');
+  assert.ok(out.endsWith('RewriteCond %{REQUEST_FILENAME}.html -f\r\nRewriteRule ^(.*)$ $1.html [L]\r\n'));
+  assert.ok(!out.includes('\n\n') && !/[^\r]\n/.test(out));
+  assert.equal(sa.withSeoRedirects(out, ORIGIN), out);
+  const none = sa.withSeoRedirects('ErrorDocument 404 /404.html\n', ORIGIN);
+  assert.ok(none.startsWith(`RewriteEngine On\n${sa.HTACCESS_MARK}\n`) && none.endsWith('\n\nErrorDocument 404 /404.html\n'));
+});
+
+test('site access: the live check passes the right answers and reverts on 5xx, loops and wrong targets', () => {
+  const checks = sa.htaccessChecks(ORIGIN);
+  const bare = checks.find((c) => c.url === 'https://no-bs-yardwork.com/');
+  assert.equal(bare.to, `${ORIGIN}/`);
+  const home = checks[0];
+  const hop = (url, status, location = null) => ({ url, status, location });
+  assert.ok(sa.judge(home, [hop(home.url, 200)]).ok);
+  assert.ok(sa.judge(bare, [hop(bare.url, 301, `${ORIGIN}/`), hop(`${ORIGIN}/`, 200)]).ok);
+  assert.deepEqual(sa.judge(home, [hop(home.url, 500)]), { ok: false, fatal: true, line: `500  ${home.url}`, why: 'server error' });
+  const loop = sa.judge(bare, [hop(bare.url, 301, 'https://a/'), hop('https://a/', 301, 'https://b/'), hop('https://b/', 301, 'https://c/'), hop('https://c/', 301, 'https://a/')]);
+  assert.ok(!loop.ok && loop.fatal && loop.why === 'redirect loop');
+  const wrong = sa.judge(bare, [hop(bare.url, 301, `${ORIGIN}/home`), hop(`${ORIGIN}/home`, 200)]);
+  assert.ok(!wrong.ok && !wrong.fatal && /expected/.test(wrong.why));
+  const notYet = sa.judge(bare, [hop(bare.url, 200)]);
+  assert.ok(!notYet.ok && !notYet.fatal);
+  assert.ok(!sa.judge(home, [hop(home.url, 301, `${ORIGIN}/x`), hop(`${ORIGIN}/x`, 200)]).ok);
+});

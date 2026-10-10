@@ -15,6 +15,8 @@ Background on why: `docs/seo/windows-setup.md`.
 - `REPO` = this checkout (`FSF_REPO` in `~/.5starflow/env`; the request gate adds it)
 
 ## 1. Search Console access (Claude in Chrome)
+First run `python REPO\backend\ai\prompts\msi\seo_site.py check`. If it already shows `"propertyFound": true`, 5StarFlow verified the site itself: skip this step.
+
 1. Open https://search.google.com/search-console/users?resource_id=https%3A%2F%2Fwww.no-bs-yardwork.com%2F
 2. Add user: `google-analytics-api-service@axial-analyzer-420702.iam.gserviceaccount.com`, permission **Full**, then save.
 3. If a `sc-domain:no-bs-yardwork.com` property also exists in the property picker, add the same user there too.
@@ -24,6 +26,8 @@ Background on why: `docs/seo/windows-setup.md`.
 Zip `SITE` to `~\.5starflow\site-backup-<date>.zip`. Keep a separate copy of `SITE\.htaccess` as `~\.5starflow\htaccess-<date>.bak`.
 
 ## 3. `.htaccess` redirects (verify live, revert on any error)
+If `SITE\.htaccess` (or the live one) already contains `# --- SEO: one address for the whole site`, 5StarFlow applied the block from the server and `seo_site.py nightly` copied it here: skip the edit and the upload, only run the curl table below.
+
 Edit `SITE\.htaccess`. Put these lines directly after the first `RewriteEngine On`, or add `RewriteEngine On` at the top if there is none. Do not touch the existing rules.
 ```
 # --- SEO: one address for the whole site (added by the SEO setup) ---

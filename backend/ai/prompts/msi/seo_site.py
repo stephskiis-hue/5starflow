@@ -6,7 +6,8 @@ Site files (local public_html, uploaded by _deploy.py):
   build-sitemaps <public_html>   rebuild sitemap.xml, blog-sitemap.xml and sitemap_index.xml from the real files
   blog-index <public_html>       rebuild posts.json from every live post + a static link list in blog.html
   fix-pages [<public_html>]      self-canonicals on the clean URL, broken /blog/<page> links (needs "fixPages": true)
-  nightly [<public_html>]        fix-pages, blog-index, build-sitemaps (request-gate.ps1 runs it once a day); site folder from seo-site.json
+  nightly [<public_html>]        copy the Search Console tag / .htaccess redirects 5StarFlow put on the live site, then
+                                 fix-pages, blog-index, build-sitemaps (request-gate.ps1 runs it once a day); site folder from seo-site.json
 
 5StarFlow API (FIVESTARFLOW_URL / FIVESTARFLOW_TOKEN from ~/.5starflow/env or the environment):
   check                          is the API reachable and is Search Console connected?
@@ -351,6 +352,52 @@ def fix_pages(root, dry):
     return {'ok': True, 'dryRun': dry, 'changed': changed, 'canonicalFixed': canon_fixed, 'canonicalAdded': canon_added, 'linksFixed': links_fixed, 'unreadable': unreadable}
 
 
+HTACCESS_MARK = '# --- SEO: one address for the whole site (added by the SEO setup) ---'
+HTACCESS_LINE = re.compile(r'^(#[^\r\n]*|RewriteCond [^\r\n]+|RewriteRule [^\r\n]+)$')
+
+
+def api_configured():
+    env_file = FSF_DIR / 'env'
+    return bool((os.environ.get('FIVESTARFLOW_URL') and os.environ.get('FIVESTARFLOW_TOKEN')) or
+                (env_file.exists() and 'FIVESTARFLOW_TOKEN' in env_file.read_text(encoding='utf-8', errors='replace')))
+
+
+def sync_site_access(root, dry):
+    """
+    Keep this copy in step with what 5StarFlow did on the live site itself (ai/seo/siteAccess.js), so the deploy never
+    undoes it: the Search Console verification tag in index.html, and an .htaccess redirect block that passed the live check.
+    """
+    if not api_configured():
+        return {'ok': True, 'off': True, 'changed': []}
+    status, sa = api('GET', '/site-access', timeout=30)
+    if status != 200:
+        return {'ok': False, 'error': f'site-access answered {status}', 'changed': []}
+    changed = []
+    content = (sa.get('verification') or {}).get('content') or ''
+    page = root / 'index.html'
+    if re.fullmatch(r'[\w-]{10,100}', content) and page.exists():
+        src = page.read_bytes().decode('utf-8')
+        head = re.search(r'<head\b[^>]*>', src, re.I)
+        if f'content="{content}"' not in src and head:
+            eol = '\r\n' if '\r\n' in src else '\n'
+            new = src[:head.end()] + f'{eol}  <meta name="google-site-verification" content="{content}" />' + src[head.end():]
+            if write_bytes_if_changed(page, new.encode('utf-8'), dry):
+                changed.append('index.html')
+    ht = sa.get('htaccess') or {}
+    lines = ht.get('lines') or []
+    rules = root / '.htaccess'
+    if ht.get('state') == 'applied' and lines and lines[0] == HTACCESS_MARK and all(HTACCESS_LINE.match(l) for l in lines) and rules.exists():
+        src = rules.read_bytes().decode('utf-8')
+        if HTACCESS_MARK not in src:
+            eol = '\r\n' if '\r\n' in src else '\n'
+            block = eol.join(lines)
+            on = re.search(r'^[ \t]*RewriteEngine[ \t]+On[ \t]*(?=\r?$)', src, re.I | re.M)
+            new = src[:on.end()] + eol + block + src[on.end():] if on else f'RewriteEngine On{eol}{block}{eol}{eol}{src}'
+            if write_bytes_if_changed(rules, new.encode('utf-8'), dry):
+                changed.append('.htaccess')
+    return {'ok': True, 'dryRun': dry, 'changed': changed}
+
+
 def site_root(args, usage):
     path = next((a for a in args if not a.startswith('--')), None) or os.environ.get('SEO_SITE_DIR') or CONFIG.get('siteDir')
     if not path:
@@ -482,10 +529,7 @@ def blog_index(root, dry):
 
 def report_run(body):
     """Best effort: the ledger entry is nice to have, the rebuilt files are what matters."""
-    env_file = FSF_DIR / 'env'
-    configured = (os.environ.get('FIVESTARFLOW_URL') and os.environ.get('FIVESTARFLOW_TOKEN')) or \
-        (env_file.exists() and 'FIVESTARFLOW_TOKEN' in env_file.read_text(encoding='utf-8', errors='replace'))
-    if not configured:
+    if not api_configured():
         log('nightly: no FIVESTARFLOW_URL / TOKEN, run not reported')
         return 0, {}
     return api('POST', '/runs', body, prefix='/api/ai')
@@ -495,6 +539,7 @@ def cmd_nightly(args):
     """Run by request-gate.ps1 once a day: blog index, then sitemaps, so the 3 AM deploy uploads them. Zero Claude tokens."""
     root, dry = site_root(args, 'nightly [<public_html>] [--dry-run]  (or siteDir in seo-site.json / SEO_SITE_DIR)')
     try:
+        live = sync_site_access(root, dry)
         fixes = fix_pages(root, dry)
         idx = blog_index(root, dry)
         maps = build_sitemaps(root, dry)
@@ -504,8 +549,10 @@ def cmd_nightly(args):
         if not dry:
             report_run(report)
         out({'ok': False, 'error': str(e)}, 1)
-    changed = fixes['changed'] + idx['changed'] + maps['changed']
+    changed = live['changed'] + fixes['changed'] + idx['changed'] + maps['changed']
     fix_note = ', '.join(filter(None, [
+        f"copied {' + '.join(live['changed'])} from the live site" if live['changed'] else None,
+        f"live-site sync: {live['error']}" if live.get('error') else None,
         f"fixed {len(fixes.get('canonicalFixed', []))} canonical(s)" if fixes.get('canonicalFixed') else None,
         f"added {len(fixes.get('canonicalAdded', []))} canonical(s)" if fixes.get('canonicalAdded') else None,
         f"fixed {fixes['linksFixed']} broken /blog/ link(s)" if fixes.get('linksFixed') else None]))
@@ -518,7 +565,7 @@ def cmd_nightly(args):
         report_run({'slug': 'ext-seo-site-nightly', 'status': 'completed' if changed else 'skipped', 'summary': summary[:500],
                               'result': {'items_found': maps['pages'] + maps['posts'], 'actions_taken': [f'rewrote {c}' for c in changed],
                                          'skipped': len(maps['skipped']), 'notes': '; '.join(filter(None, [idx.get('note')] + maps['warnings']))[:190]}})
-    out({'ok': True, 'summary': summary, 'pageFixes': fixes, 'blogIndex': idx, 'sitemaps': maps})
+    out({'ok': True, 'summary': summary, 'liveSite': live, 'pageFixes': fixes, 'blogIndex': idx, 'sitemaps': maps})
 
 
 def cmd_fix_pages(args):
