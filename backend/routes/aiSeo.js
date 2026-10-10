@@ -168,7 +168,15 @@ const siteLog = (req, action, out) => recordActivity(req.ai.userId, { agent: age
   summary: [out.status, out.property, out.ftp?.ftp, out.error].filter(Boolean).join(' · ').slice(0, 300), result: ['ok', 'verified', 'applied', 'already', 'plan', 'needs_tag'].includes(out.status) ? 'ok' : out.status, runId: null })
   .catch(() => {});
 
-router.get('/site-access', async (req, res) => res.json(await siteAccess.status(req.ai.userId)));
+router.get('/site-access', async (req, res) => {
+  let out = await siteAccess.status(req.ai.userId);
+  // seo_site.py nightly reads this to put the tag in the PC's index.html: fetch the token first if there is none yet
+  if (!out.verification) {
+    const own = await siteAccess.ensureOwnership(req.ai.userId).catch((err) => ({ status: 'error', error: err.message }));
+    out = { ...(await siteAccess.status(req.ai.userId)), ownership: own.status, enableLink: own.enableLink || undefined };
+  }
+  res.json(out);
+});
 
 // Search Console without adding a user: the service account verifies the site itself. apply=true puts the tag on the live homepage over FTP.
 router.post('/site-access/verify', async (req, res) => {

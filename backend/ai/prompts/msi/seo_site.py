@@ -5,9 +5,10 @@ No-Bs Yardwork site helper for the SEO Growth Engine (runs on the MSI PC, standa
 Site files (local public_html, uploaded by _deploy.py):
   build-sitemaps <public_html>   rebuild sitemap.xml, blog-sitemap.xml and sitemap_index.xml from the real files
   blog-index <public_html>       rebuild posts.json from every live post + a static link list in blog.html
+  sync-live [<public_html>]      only the live-site copy step of nightly (request-gate.ps1 runs it hourly)
   fix-pages [<public_html>]      self-canonicals on the clean URL, broken /blog/<page> links (needs "fixPages": true)
   nightly [<public_html>]        copy the Search Console tag / .htaccess redirects 5StarFlow put on the live site, then
-                                 fix-pages, blog-index, build-sitemaps (request-gate.ps1 runs it once a day); site folder from seo-site.json
+                                 fix-pages, blog.html markers, blog-index, build-sitemaps (request-gate.ps1 runs it once a day); site folder from seo-site.json
 
 5StarFlow API (FIVESTARFLOW_URL / FIVESTARFLOW_TOKEN from ~/.5starflow/env or the environment):
   check                          is the API reachable and is Search Console connected?
@@ -398,6 +399,84 @@ def sync_site_access(root, dry):
     return {'ok': True, 'dryRun': dry, 'changed': changed}
 
 
+def closing_bracket(src, i):
+    """Index of the ] that closes the [ at src[i], skipping JS strings and comments. None if it never closes."""
+    depth, j, n = 0, i, len(src)
+    while j < n:
+        c = src[j]
+        if c in '\'"`':
+            j += 1
+            while j < n and src[j] != c:
+                j += 2 if src[j] == '\\' else 1
+        elif src.startswith('//', j):
+            j = src.find('\n', j)
+            if j < 0:
+                return None
+        elif src.startswith('/*', j):
+            j = src.find('*/', j)
+            if j < 0:
+                return None
+            j += 1
+        elif c == '[':
+            depth += 1
+        elif c == ']':
+            depth -= 1
+            if depth == 0:
+                return j
+        j += 1
+    return None
+
+
+POST_LIST_CSS = [
+    '/* --- SEO post list --- */',
+    '.seo-post-list { list-style: none; margin: 40px 0 0; padding: 24px 0 0; border-top: 1px solid var(--divider-color); columns: 2; column-gap: 40px; }',
+    '.seo-post-list li { break-inside: avoid; padding: 8px 0; }',
+    '.seo-post-list a { color: var(--primary-color); font-weight: 600; }',
+    '.seo-post-list a:hover { color: var(--accent-color); }',
+    '.seo-post-list time { display: block; font-size: 13px; color: var(--text-color); }',
+    '@media (max-width: 768px) { .seo-post-list { columns: 1; } }',
+]
+
+
+def add_blog_markers(root, dry):
+    """
+    pc-request.md step 4 without the PC's Claude (only with "fixPages": true): the markers blog_index fills, i.e. a
+    crawlable list of every post under the cards and the POSTS array kept in step with posts.json, plus a small style
+    for the list. Each part is added only where the page still has its known shape, and the array only when its
+    closing bracket is found with strings and comments skipped; anything else is left for the owner and noted.
+    """
+    blog = root / 'blog.html'
+    if not CONFIG.get('fixPages') or not blog.exists():
+        return {'ok': True, 'changed': [], 'notes': []}
+    src = blog.read_bytes().decode('utf-8')
+    new, notes = src, []
+    eol = '\r\n' if '\r\n' in src else '\n'
+    start, end = '<!-- seo:post-list:start -->', '<!-- seo:post-list:end -->'
+    if start not in new:
+        anchor = re.search(r'<div id="blog-pagination">\s*</div>', new)
+        if anchor:
+            line_start = new.rfind('\n', 0, anchor.start()) + 1
+            indent = re.match(r'[ \t]*', new[line_start:]).group(0)
+            new = new[:anchor.end()] + f'{eol}{eol}{indent}{start}{eol}{indent}{end}' + new[anchor.end():]
+        else:
+            notes.append('no <div id="blog-pagination"> to put the post list under')
+    a, b = '/* seo:posts:start */', '/* seo:posts:end */'
+    arr = re.search(r'var POSTS\s*=\s*\[', new)
+    if a not in new and arr:
+        close = closing_bracket(new, arr.end() - 1)
+        if close is not None and re.match(r'\s*;', new[close + 1:]):
+            new = new[:arr.end() - 1] + a + new[arr.end() - 1:close + 1] + b + new[close + 1:]
+        else:
+            notes.append('the end of var POSTS = [...] was not found; array left as it is')
+    style_end = new.find('</style>')
+    if POST_LIST_CSS[0] not in new and start in new and 0 <= style_end < new.find('</head>'):
+        line_start = new.rfind('\n', 0, style_end) + 1
+        indent = re.match(r'[ \t]*', new[line_start:]).group(0) + '  '
+        new = new[:line_start] + ''.join(f'{indent}{l}{eol}' for l in POST_LIST_CSS) + new[line_start:]
+    changed = ['blog.html'] if new != src and write_bytes_if_changed(blog, new.encode('utf-8'), dry) else []
+    return {'ok': True, 'dryRun': dry, 'changed': changed, 'notes': notes}
+
+
 def site_root(args, usage):
     path = next((a for a in args if not a.startswith('--')), None) or os.environ.get('SEO_SITE_DIR') or CONFIG.get('siteDir')
     if not path:
@@ -541,6 +620,7 @@ def cmd_nightly(args):
     try:
         live = sync_site_access(root, dry)
         fixes = fix_pages(root, dry)
+        markers = add_blog_markers(root, dry)
         idx = blog_index(root, dry)
         maps = build_sitemaps(root, dry)
     except Exception as e:                       # never let a bad file stop the gate; report it instead
@@ -549,10 +629,11 @@ def cmd_nightly(args):
         if not dry:
             report_run(report)
         out({'ok': False, 'error': str(e)}, 1)
-    changed = live['changed'] + fixes['changed'] + idx['changed'] + maps['changed']
+    changed = list(dict.fromkeys(live['changed'] + fixes['changed'] + markers['changed'] + idx['changed'] + maps['changed']))
     fix_note = ', '.join(filter(None, [
         f"copied {' + '.join(live['changed'])} from the live site" if live['changed'] else None,
         f"live-site sync: {live['error']}" if live.get('error') else None,
+        'added the blog.html post-list markers' if markers['changed'] else None,
         f"fixed {len(fixes.get('canonicalFixed', []))} canonical(s)" if fixes.get('canonicalFixed') else None,
         f"added {len(fixes.get('canonicalAdded', []))} canonical(s)" if fixes.get('canonicalAdded') else None,
         f"fixed {fixes['linksFixed']} broken /blog/ link(s)" if fixes.get('linksFixed') else None]))
@@ -564,8 +645,16 @@ def cmd_nightly(args):
     if not dry:
         report_run({'slug': 'ext-seo-site-nightly', 'status': 'completed' if changed else 'skipped', 'summary': summary[:500],
                               'result': {'items_found': maps['pages'] + maps['posts'], 'actions_taken': [f'rewrote {c}' for c in changed],
-                                         'skipped': len(maps['skipped']), 'notes': '; '.join(filter(None, [idx.get('note')] + maps['warnings']))[:190]}})
-    out({'ok': True, 'summary': summary, 'liveSite': live, 'pageFixes': fixes, 'blogIndex': idx, 'sitemaps': maps})
+                                         'skipped': len(maps['skipped']), 'notes': '; '.join(filter(None, markers['notes'] + [idx.get('note')] + maps['warnings']))[:190]}})
+    out({'ok': True, 'summary': summary, 'liveSite': live, 'pageFixes': fixes, 'blogMarkers': markers, 'blogIndex': idx, 'sitemaps': maps})
+
+
+def cmd_sync_live(args):
+    root, dry = site_root(args, 'sync-live [<public_html>] [--dry-run]')
+    r = sync_site_access(root, dry)
+    if r['changed']:
+        log(f"sync-live copied {', '.join(r['changed'])} from the live site")
+    out(r, 0 if r['ok'] else 1)
 
 
 def cmd_fix_pages(args):
@@ -591,7 +680,7 @@ def cmd_run(args):
 COMMANDS = {
     'check': cmd_check, 'assignment': cmd_assignment, 'skip': cmd_skip, 'published': cmd_published, 'progress': cmd_progress,
     'report': cmd_report, 'sitemaps-check': cmd_sitemaps_check, 'run': cmd_run, 'build-sitemaps': cmd_build_sitemaps, 'blog-index': cmd_blog_index,
-    'nightly': cmd_nightly, 'fix-pages': cmd_fix_pages,
+    'nightly': cmd_nightly, 'fix-pages': cmd_fix_pages, 'sync-live': cmd_sync_live,
 }
 
 if __name__ == '__main__':
