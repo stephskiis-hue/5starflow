@@ -4,7 +4,7 @@
  */
 const prisma = require('../lib/prismaClient');
 const { Prisma } = require('@prisma/client');
-const { renderPost, RenderError } = require('./design/renderer');
+const { renderPost, storyProblems, RenderError } = require('./design/renderer');
 const { makeReel } = require('./design/reel');
 const { lintContent } = require('./design/qa');
 const { LAYOUTS } = require('./design/layouts');
@@ -12,6 +12,7 @@ const { saveAsset, resolvePhotos } = require('./vault');
 const { recordAction } = require('./social');
 const { recordActivity } = require('./ledger');
 const { notify } = require('../lib/notify');
+const { createTask } = require('./tasks');
 
 const FORMAT_SIZE = { post: 'feed', carousel: 'feed', group_post: 'square', story: 'story', reel: 'story', reel_cover: 'story' };
 // formats that may hold several frames in slots.slides (a story sequence, a reel's scenes, a carousel)
@@ -102,6 +103,7 @@ async function renderContent(userId, id, { photos: photoOverride } = {}) {
   const size = FORMAT_SIZE[item.format] || 'feed';
   const assetIds = [];
   const pngs = [];
+  const storyAudit = [];
   const slides = slidesOf(item);
   for (let i = 0; i < slides.length; i++) {
     const { layout, slots } = slides[i];
@@ -122,6 +124,11 @@ async function renderContent(userId, id, { photos: photoOverride } = {}) {
     }
     const r = await renderPost({ layout, slots: clean, size, photos });
     if (r.overflow) qa.errors.push(`${slides.length > 1 ? `Slide ${i + 1}: t` : 'T'}ext does not fit the graphic (runs off the edge or into the footer). Shorten the copy.`);
+    // a story must fill a 1080x1920 phone screen with legible type, or Facebook shows it small and "zoomed out"
+    if (item.format === 'story') {
+      storyAudit.push({ slide: i + 1, layout, width: r.width, height: r.height, ...r.story });
+      for (const p of storyProblems(r)) qa.errors.push(slides.length > 1 ? `Slide ${i + 1}: ${p}` : p);
+    }
     const { asset } = await saveAsset(userId, { kind: 'graphic', name: `${item.title}-${i + 1}.png`, buffer: r.png, tags: [layout.replace('Post', '').toUpperCase()], source: 'render', contentItemId: id });
     assetIds.push(asset.id);
     pngs.push(r.png);
@@ -133,6 +140,7 @@ async function renderContent(userId, id, { photos: photoOverride } = {}) {
   }
 
   qa.ok = qa.errors.length === 0;
+  if (storyAudit.length) qa.story = storyAudit;
   // An already-approved (legacy) item stays approved after a re-render.
   const status = !qa.ok ? 'qa_failed' : item.status === 'approved' ? 'approved' : 'queued';
   const row = await prisma.contentItem.update({ where: { id }, data: { assetIds, qa, status } });
@@ -162,7 +170,10 @@ async function transition(userId, id, action, extra = {}) {
 
 // Travels with every queue item so the Social agent follows the owner's placement rules even with an old copy of its skill.
 const HOW_TO_POST = {
-  story: 'Facebook Story only (never Instagram). Post each image in uploadAssetIds as its own story frame, in order. No caption needed.',
+  story: 'Facebook Story only (never Instagram). Post each image in uploadAssetIds as its own story frame, in order, uploaded as is (1080x1920, never cropped, resized or screenshotted). No caption needed. '
+    + 'BEFORE Share: screenshot the composer preview. The graphic must fill the story frame edge to edge: no coloured, blurred or blank band on any side, the footer and phone number fully visible. '
+    + 'If it shows smaller than the frame, use the composer\'s zoom or resize control until it fills the frame exactly, or discard and upload again. Never share a shrunken frame. '
+    + 'AFTER Share: open the live story, screenshot it and check the same thing. Report it in published as check: {fillsFrame, textReadable, notes}.',
   reel: 'Reel on this platform. In the Reels composer upload the images in uploadAssetIds as photos (3 to 4 seconds each) and add music from the platform\'s own music library (upbeat, clean). Use the stored caption (captionIg on Instagram). If the composer refuses photos, upload fallbackVideoAssetId (MP4) as the Reel and add music there.',
   feed: 'Normal Facebook post (never an Instagram feed post) with the stored caption and the images in uploadAssetIds.',
 };
@@ -193,7 +204,16 @@ async function publishQueue(userId, { platform, autopilot, limit = 10 } = {}) {
  * Record that `platform` published the item. The item only becomes 'published' once every platform it targets has
  * posted. The daily cap is checked FIRST (recordAction throws CapError) so a capped post is never marked live.
  */
-async function markPublished(userId, id, { platform, postUrl, groupId }) {
+/** What is wrong with a posted story, from the Social agent's look at the live story (empty = it looks right). */
+function storyCheckProblems(check) {
+  if (!check || typeof check !== 'object') return ['No post-publish check was reported, so nobody confirmed the story fills the screen.'];
+  const out = [];
+  if (check.fillsFrame !== true) out.push('The story does not fill the screen (zoomed out, or a band around the graphic).');
+  if (check.textReadable !== true) out.push('The text on the story is not clearly readable.');
+  return out;
+}
+
+async function markPublished(userId, id, { platform, postUrl, groupId, check }) {
   const item = await prisma.contentItem.findFirst({ where: { id, userId } });
   if (!item) throw Object.assign(new Error('content item not found'), { code: 'NOT_FOUND' });
   if (!['approved', 'queued'].includes(item.status)) throw Object.assign(new Error(`item is ${item.status}, not publishable`), { code: 'BAD_STATE' });
@@ -207,6 +227,19 @@ async function markPublished(userId, id, { platform, postUrl, groupId }) {
   await recordAction(userId, { platform: apiPlatform, kind, contentItemId: id, groupId: groupId || item.groupId, target: postUrl, summary: item.title, url: postUrl });
 
   done[target] = { postUrl: postUrl || null, at: new Date().toISOString() };
+  if (item.format === 'story') {
+    const c = check && typeof check === 'object' ? check : null;
+    done[target].check = c ? { fillsFrame: c.fillsFrame === true, textReadable: c.textReadable === true, notes: String(c.notes || '').slice(0, 300) || null } : null;
+    const problems = storyCheckProblems(c);
+    // already live, so it still counts as published; the owner gets a task to pull and repost it
+    if (problems.length) {
+      await createTask(userId, {
+        dedupKey: `story-check:${id}`, title: `Check the story "${item.title}": it may look zoomed out`, source: 'social', agent: 'social', urgency: 'high',
+        whatHappened: `${problems.join(' ')}${c?.notes ? ` Agent notes: ${c.notes}` : ''} ${postUrl || ''}`.trim(),
+        whatNeeds: 'Look at the story on Facebook. If it is shrunk or hard to read, delete it and put the item back in the queue to repost.',
+      });
+    }
+  }
   const targets = platforms.filter((p) => p !== 'group');
   const allDone = (targets.length ? targets : [target]).every((p) => done[p]);
   return out(await prisma.contentItem.update({
@@ -236,4 +269,4 @@ async function performanceSummary(userId, { days = 60 } = {}) {
   return Object.entries(agg).map(([k, a]) => ({ key: k, posts: a.n, measured: a.measured, avgScore: a.measured ? +(a.score / a.measured).toFixed(1) : null })).sort((a, b) => (b.avgScore ?? -1) - (a.avgScore ?? -1));
 }
 
-module.exports = { createContent, renderContent, transition, publishQueue, markPublished, recordMetrics, performanceSummary, lintItem, placementErrors, FORMATS, PILLARS, RenderError };
+module.exports = { createContent, renderContent, transition, publishQueue, markPublished, recordMetrics, performanceSummary, lintItem, placementErrors, storyCheckProblems, FORMATS, PILLARS, RenderError };
