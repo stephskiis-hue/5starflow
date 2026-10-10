@@ -466,18 +466,42 @@
 
   // ---------------------------------------------------------------- SOCIAL
   async function loadSocial() {
-    const [b, groups, actions] = await Promise.all([api('/social/budget'), api('/social/groups'), api('/social/actions?limit=25')]);
-    const kinds = Object.keys(b.caps);
-    const meter = (m) => `<div class="mb-2"><div class="flex justify-between text-xs text-zinc-400"><span>${esc(m.k.replace('_', ' '))}</span><span>${m.used}/${m.cap}</span></div><div class="h-1.5 rounded-full bg-white/10"><div class="h-1.5 rounded-full ${m.used >= m.cap ? 'bg-red-400' : 'bg-secondary'}" style="width:${Math.min(100, (m.used / m.cap) * 100)}%"></div></div></div>`;
-    const plat = (p) => `<div class="glass-card rounded-xl p-4"><h3 class="text-sm font-bold text-zinc-200 mb-3 capitalize">${p} today</h3>${kinds.map((k) => meter({ k, ...b.budget[p][k] })).join('')}</div>`;
+    const [t, groups, week, threads] = await Promise.all([api('/social/today'), api('/social/groups'), api('/social/week'), api('/social/threads?limit=40')]);
+    const link = (u, label) => (/^https?:\/\//i.test(u || '') ? `<a href="${esc(u)}" target="_blank" rel="noopener" class="text-secondary underline break-all">${esc(label || 'open')}</a>` : '');
+    const hhmm = (d) => new Date(d).toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const kindName = (k) => k.replace('_', ' ');
+    const shiftBadge = (s) => `<span class="badge ${({ done: 'b-ok', running: 'b-warn', failed: 'b-bad', needs_owner: 'b-bad', due: 'b-mute' })[s.status] || 'b-mute'}">${esc(s.kind)}: ${esc(s.status)}${s.attempts > 1 ? ' (' + s.attempts + 'x)' : ''}</span>`;
+    const meter = (k, m) => {
+      const pct = (n) => Math.min(100, (n / m.cap) * 100);
+      const hit = m.used >= m.cap;
+      return `<div class="mb-2"><div class="flex justify-between text-xs text-zinc-400"><span>${esc(kindName(k))}</span><span>${m.used} done${m.target ? ` · goal ${m.target}` : ''} · cap ${m.cap}</span></div>
+        <div class="relative h-2 rounded-full bg-white/10"><div class="h-2 rounded-full ${hit ? 'bg-amber-400' : m.target && m.used >= m.target ? 'bg-emerald-400' : 'bg-secondary'}" style="width:${pct(m.used)}%"></div>${m.target ? `<div class="absolute top-[-2px] h-3 w-0.5 bg-white/60" style="left:${pct(m.target)}%" title="goal"></div>` : ''}</div></div>`;
+    };
+    const plat = (p) => {
+      const rows = Object.entries(t.budget[p]).filter(([, m]) => m.target > 0 || m.used > 0);
+      return `<div class="glass-card rounded-xl p-4"><h3 class="text-sm font-bold text-zinc-200 mb-3 capitalize">${p} today</h3>${rows.map(([k, m]) => meter(k, m)).join('') || '<p class="text-sm text-zinc-500">Nothing yet.</p>'}</div>`;
+    };
+    const stBadge = { done: 'b-ok', reserved: 'b-warn', failed: 'b-bad', unverified: 'b-bad' };
     const memb = { member: 'b-ok', requested: 'b-warn', unknown: 'b-mute', declined: 'b-bad', banned: 'b-bad', left: 'b-mute' };
+    const thrBadge = { open: 'b-warn', quoted: 'b-ok', followed: 'b-normal', won: 'b-ok', lost: 'b-mute', held: 'b-bad' };
+    const totalDone = t.actions.filter((a) => a.status === 'done').length;
+    const log = t.actions.map((a) => `<div class="py-2 border-b border-white/5 last:border-0 text-sm">
+        <div class="flex items-center gap-2 flex-wrap"><span class="text-xs text-zinc-500 w-12 flex-none">${esc(hhmm(a.createdAt))}</span><span class="badge b-normal flex-none">${esc(a.platform)}</span><span class="text-zinc-200 font-semibold">${esc(kindName(a.kind))}</span><span class="badge ${stBadge[a.status] || 'b-mute'}">${esc(a.status)}</span>${link(a.url, 'our result')}${link(a.target, 'what we acted on')}</div>
+        ${a.text ? `<div class="text-zinc-400 mt-1 pl-14 break-words">“${esc(a.text)}”</div>` : ''}${a.summary && a.status !== 'reserved' ? `<div class="text-xs text-zinc-500 pl-14">${esc(a.summary)}</div>` : ''}</div>`).join('');
+    const weekRows = week.days.map((d) => {
+      const pct = d.target ? Math.min(100, Math.round((d.total / d.target) * 100)) : 0;
+      return `<div class="flex items-center gap-3 py-1.5 text-sm"><span class="w-24 text-zinc-400 flex-none">${esc(d.day.slice(5))}</span><div class="flex-1 h-2 rounded-full bg-white/10"><div class="h-2 rounded-full ${pct >= 80 ? 'bg-emerald-400' : pct >= 40 ? 'bg-secondary' : 'bg-amber-400'}" style="width:${pct}%"></div></div><span class="w-28 text-right text-zinc-300 flex-none">${d.total} of ${d.target} goal</span></div>${d.problems.length ? `<div class="text-xs text-red-300 pl-28 mb-1">${esc(d.problems.join(', '))}</div>` : (d.total < d.target && d.shifts.length === 0 ? '<div class="text-xs text-amber-300 pl-28 mb-1">no shift ran (PC off or browser down)</div>' : '')}`;
+    }).join('');
     $('tab-social').innerHTML = `
-      <p class="text-sm text-zinc-500 mb-4">Daily caps are enforced by the server, not the agent's good intentions. ${esc(b.date)}.</p>
+      <p class="text-sm text-zinc-500 mb-4">Daily caps are enforced by the server, not the agent's good intentions. ${esc(t.date)}. The white tick on each bar is today's goal.</p>
+      <div class="glass-card rounded-xl p-4 mb-4 flex items-center gap-3 flex-wrap"><span class="text-sm font-bold text-zinc-200">Shifts today</span>${t.shifts.length ? t.shifts.map(shiftBadge).join('') : '<span class="text-sm text-zinc-500">none started yet. Morning runs at 7:30, midday 12:30, evening 18:30 (the PC catches up if it was off).</span>'}<span class="ml-auto text-sm text-zinc-300">${totalDone} actions done</span></div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">${plat('facebook')}${plat('instagram')}</div>
+      <div class="glass-card rounded-xl p-5 mb-6"><h3 class="text-sm font-bold text-zinc-200 mb-3">Live action log (${t.actions.length})</h3>${log || '<p class="text-sm text-zinc-500">Nothing yet today. Every comment, like, follow, join and post lands here with the exact words and a link you can click to check it.</p>'}</div>
+      <div class="glass-card rounded-xl p-5 mb-6"><h3 class="text-sm font-bold text-zinc-200 mb-3">Leads (${threads.length})</h3>
+        ${threads.length ? `<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-zinc-500"><th class="py-1 pr-3">Who</th><th class="pr-3">Wants</th><th class="pr-3">Where</th><th class="pr-3">Status</th><th class="pr-3">Jobber</th><th>Thread</th></tr></thead><tbody>${threads.map((x) => `<tr class="border-t border-white/5"><td class="py-2 pr-3 text-zinc-100">${esc(x.person || '—')}<div class="text-xs text-zinc-500">${esc(ago(x.createdAt))} · ${esc(x.source)}</div></td><td class="pr-3 text-zinc-300">${esc(x.need)}</td><td class="pr-3 text-zinc-300">${esc(x.neighbourhood)}</td><td class="pr-3"><span class="badge ${thrBadge[x.status] || 'b-mute'}">${esc(x.status)}</span></td><td class="pr-3 text-zinc-400">${esc(x.jobberRequestId || '—')}</td><td>${link(x.url, 'open')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="text-sm text-zinc-500">No lead threads yet.</p>'}</div>
       <div class="glass-card rounded-xl p-5 mb-6"><h3 class="text-sm font-bold text-zinc-200 mb-3">Groups (${groups.length})</h3>
-        ${groups.length ? `<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-zinc-500"><th class="py-1 pr-3">Group</th><th class="pr-3">Status</th><th class="pr-3">Promo</th><th class="pr-3">Last post</th><th class="pr-3">Posts</th><th>Leads</th></tr></thead><tbody>${groups.map((g) => `<tr class="border-t border-white/5"><td class="py-2 pr-3 text-zinc-100">${esc(g.name)}${g.promoNotes ? `<div class="text-xs text-zinc-500">${esc(g.promoNotes)}</div>` : ''}</td><td class="pr-3"><span class="badge ${memb[g.membership] || 'b-mute'}">${esc(g.membership)}</span></td><td class="pr-3 text-zinc-300">${esc(g.promoPolicy)}</td><td class="pr-3 text-zinc-400">${g.lastPostedAt ? esc(ago(g.lastPostedAt)) : '—'}</td><td class="pr-3 text-zinc-300">${g.postsCount}</td><td class="text-zinc-300">${g.leads}</td></tr>`).join('')}</tbody></table></div>` : '<p class="text-sm text-zinc-500">No groups recorded yet. The Social agent adds each group (with its rules) the first time it visits.</p>'}</div>
-      <div class="glass-card rounded-xl p-5"><h3 class="text-sm font-bold text-zinc-200 mb-3">Recent actions</h3>
-        ${actions.length ? actions.map((a) => `<div class="flex items-start gap-3 py-2 border-b border-white/5 last:border-0 text-sm"><span class="badge b-normal flex-none">${esc(a.platform)}</span><span class="text-zinc-300 flex-1 min-w-0 break-words">${esc(a.kind.replace('_', ' '))}${a.target ? ' · ' + esc(a.target) : ''}${a.summary ? ' · ' + esc(a.summary) : ''}</span><span class="text-xs text-zinc-500 flex-none">${esc(ago(a.createdAt))}</span></div>`).join('') : '<p class="text-sm text-zinc-500">No social actions yet.</p>'}</div>`;
+        ${groups.length ? `<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-zinc-500"><th class="py-1 pr-3">Group</th><th class="pr-3">Status</th><th class="pr-3">Promo</th><th class="pr-3">Last post</th><th class="pr-3">Posts</th><th>Leads</th></tr></thead><tbody>${groups.map((g) => `<tr class="border-t border-white/5"><td class="py-2 pr-3 text-zinc-100">${g.url ? link(g.url, g.name) : esc(g.name)}${g.promoNotes ? `<div class="text-xs text-zinc-500">${esc(g.promoNotes)}</div>` : ''}</td><td class="pr-3"><span class="badge ${memb[g.membership] || 'b-mute'}">${esc(g.membership)}</span></td><td class="pr-3 text-zinc-300">${esc(g.promoPolicy)}</td><td class="pr-3 text-zinc-400">${g.lastPostedAt ? esc(ago(g.lastPostedAt)) : '—'}</td><td class="pr-3 text-zinc-300">${g.postsCount}</td><td class="text-zinc-300">${g.leads}</td></tr>`).join('')}</tbody></table></div>` : '<p class="text-sm text-zinc-500">No groups recorded yet. The Social agent adds each group (with its rules) the first time it visits.</p>'}</div>
+      <div class="glass-card rounded-xl p-5"><h3 class="text-sm font-bold text-zinc-200 mb-2">Last 7 days</h3>${weekRows}</div>`;
   }
 
   // ---------------------------------------------------------------- VAULT
