@@ -227,3 +227,11 @@ test('assign: content type rotation skips the last two used', () => {
   assert.equal(chooseContentType('aeration benefits', []).contentType, 'cost guide');
   assert.equal(chooseContentType('aeration cost', [h('cost guide', 1)]).contentType, 'cost guide');
 });
+
+test('google: an API-disabled error yields the enable link, other errors do not', () => {
+  const { apiDisabledLink } = require('../ai/seo/google');
+  const msg = 'Search Console GET /sites: Google Search Console API has not been used in project 944252538921 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/searchconsole.googleapis.com/overview?project=944252538921 then retry.';
+  assert.equal(apiDisabledLink(new Error(msg)), 'https://console.developers.google.com/apis/api/searchconsole.googleapis.com/overview?project=944252538921');
+  assert.equal(apiDisabledLink(new Error('User does not have sufficient permission for site')), null);
+  assert.equal(apiDisabledLink(null), null);
+});

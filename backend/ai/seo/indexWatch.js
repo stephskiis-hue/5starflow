@@ -80,7 +80,7 @@ async function submitSitemaps(userId, { auth, property, roots, rows, gscList, no
       out.push({ url: root, submitted: true, why, treeHash });
     } catch (err) {
       out.push({ url: root, submitted: false, why, reason: err.message, status: err.status });
-      if (err.status === 403) await createTask(userId, { dedupKey: 'seo:gsc-permission', source: 'seo', agent: 'research', routineSlug: SLUG, urgency: 'high',
+      if (err.status === 403 && !g.apiDisabledLink(err)) await createTask(userId, { dedupKey: 'seo:gsc-permission', source: 'seo', agent: 'research', routineSlug: SLUG, urgency: 'high',
         title: 'Give the 5StarFlow service account Full access in Search Console', whatHappened: `Google refused the sitemap submit: ${err.message}`,
         whatNeeds: `Search Console > Settings > Users and permissions > Add user: ${process.env.GOOGLE_CLIENT_EMAIL || '(service account email)'} with permission "Full".` });
     }

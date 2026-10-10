@@ -35,8 +35,11 @@ async function loadSeo(userId) {
   const global = await prisma.seoSettings.findFirst({ where: { userId: null } }).catch(() => null);
   const siteUrl = row.siteUrl || global?.siteUrl || process.env.GSC_SITE_URL || '';
   const origin = siteOrigin(process.env.GSC_SITE_URL || siteUrl);
-  const property = process.env.GSC_SITE_URL || row.siteProperty || global?.siteProperty || `${origin}/`;
-  return { row, global, origin, property, cfg: mergeConfig(row.growthConfig), state: row.growthState || {} };
+  const state = row.growthState || {};
+  const configured = process.env.GSC_SITE_URL || row.siteProperty || global?.siteProperty || `${origin}/`;
+  // the sync found which property this account can really see (e.g. the URL-prefix one, not the sc-domain one): use it
+  const property = state.gsc?.found && state.gsc.property ? state.gsc.property : configured;
+  return { row, global, origin, property, configuredProperty: configured, cfg: mergeConfig(row.growthConfig), state };
 }
 
 async function saveState(rowId, patch) {
@@ -108,7 +111,15 @@ async function indexNow(origin, urls) {
   return { status: res.status, ok: res.status === 200 || res.status === 202 };
 }
 
+/** Google's "API has not been used in project N / it is disabled" error: the enable link, or null. */
+function apiDisabledLink(err) {
+  const msg = String(err?.message || err || '');
+  if (!/has not been used in project|is disabled|SERVICE_DISABLED|accessNotConfigured/i.test(msg)) return null;
+  return msg.match(/https:\/\/console\.developers\.google\.com\/apis\/api\/searchconsole\.googleapis\.com\/overview\?project=\d+/)?.[0]
+    || 'https://console.cloud.google.com/apis/library/searchconsole.googleapis.com';
+}
+
 /** Outward writes (sitemap submit, IndexNow) respect DRY_RUN unless SEO_SUBMIT=on overrides it. */
 const submitAllowed = () => process.env.SEO_SUBMIT === 'on' || (process.env.SEO_SUBMIT !== 'off' && process.env.DRY_RUN !== 'true');
 
-module.exports = { loadSeo, saveState, getAuth, listSites, searchAnalytics, queryAll, listSitemaps, submitSitemap, inspectUrl, indexNow, submitAllowed };
+module.exports = { apiDisabledLink, loadSeo, saveState, getAuth, listSites, searchAnalytics, queryAll, listSitemaps, submitSitemap, inspectUrl, indexNow, submitAllowed };
