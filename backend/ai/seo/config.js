@@ -41,6 +41,10 @@ const AREAS = [
 
 const BRAND_TERMS = ['no bs', 'nobs', 'no bull', 'nobsyardwork', 'no b s'];
 
+// Searches that look like ours but are not customers: jobs, equipment shopping, other cities, chat prompts.
+const OFF_TOPIC = /\b(jobs?|hiring|careers?|salary|employment|resume|machines?|equipment|tractors?|vehicles?|trucks?|blowers?|attachments?|for sale|rentals?|rent|buy|used|amazon|home depot|walmart|costco|canadian tire|kijiji|marketplace|reddit|recommend|toronto|calgary|edmonton|regina|saskatoon|brandon|vancouver|ottawa|montreal|minneapolis|fargo|software|app|franchise|license|licence|course|school)\b/i;
+const isOffTopic = (s) => OFF_TOPIC.test(String(s || ''));
+
 // Blog post types the writer knows (same names as CONTENT_TYPES in _blog-autopilot.py).
 const CONTENT_TYPES = ['cost guide', 'how-to', 'tips', 'comparison', 'timing guide'];
 
@@ -75,4 +79,4 @@ function mergeConfig(stored, env = process.env) {
 
 const clusterById = (id) => CLUSTERS.find((c) => c.id === id) || null;
 
-module.exports = { DEFAULT_ORIGIN, CLUSTERS, AREAS, BRAND_TERMS, CONTENT_TYPES, DISCOVERY_TEMPLATES, DEFAULT_GROWTH_CONFIG, mergeConfig, clusterById };
+module.exports = { DEFAULT_ORIGIN, CLUSTERS, AREAS, BRAND_TERMS, OFF_TOPIC, isOffTopic, CONTENT_TYPES, DISCOVERY_TEMPLATES, DEFAULT_GROWTH_CONFIG, mergeConfig, clusterById };

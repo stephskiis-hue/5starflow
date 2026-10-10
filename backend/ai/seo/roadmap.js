@@ -10,7 +10,7 @@ const prisma = require('../../lib/prismaClient');
 const { createTask, completeByDedupKey } = require('../tasks');
 const { OPEN_TASK_STATES } = require('../constants');
 const { toDateString } = require('../../lib/tz');
-const { CLUSTERS, AREAS, clusterById } = require('./config');
+const { CLUSTERS, AREAS, clusterById, isOffTopic } = require('./config');
 const kw = require('./keywords');
 const { calibrate, scoreKeyword, findCannibalization } = require('./scoring');
 const { nextStatus } = require('./lifecycle');
@@ -115,7 +115,7 @@ async function rescore(userId, { now = new Date() } = {}) {
   for (const q of [...byQuery.values()].sort((a, b) => b.impressions - a.impressions)) {
     if (kw.isBranded(q.query)) continue;
     let hit = kw.matchQuery(q.query, index);
-    if (!hit && q.impressions >= 5 && ideas.length < 100) {
+    if (!hit && q.impressions >= 5 && ideas.length < 100 && !isOffTopic(q.query)) {
       const d = kw.describeKeyword(q.query);
       if (d.cluster !== 'other' && d.matchKey) { ideas.push(q.query); hit = { id: `new:${d.matchKey}`, matchKey: d.matchKey }; index.push(hit); }
     }
@@ -199,6 +199,12 @@ async function roadmapTick(ctx) {
   const actions = [];
   const seo = await g.loadSeo(userId);
   const seeded = await seedKeywords(userId);
+  // ideas found before the off-topic filter existed (or that slipped in from Search Console) are retired, never deleted
+  const stray = (await prisma.seoKeyword.findMany({ where: { userId, status: { in: ['idea', 'planned'] }, source: { in: ['serper', 'gsc'] }, pinned: false } })).filter((k) => isOffTopic(k.keyword));
+  if (stray.length) {
+    await prisma.seoKeyword.updateMany({ where: { id: { in: stray.map((k) => k.id) } }, data: { status: 'retired', statusChangedAt: new Date(), notes: 'auto: off-topic (jobs, equipment, another city)' } });
+    actions.push(`retired ${stray.length} off-topic idea(s)`);
+  }
   const imported = await importExistingPages(userId);
   if (seeded) actions.push(`seeded ${seeded} keyword(s)`);
   if (imported) actions.push(`imported ${imported} existing post(s) as published keywords`);
@@ -259,7 +265,7 @@ async function roadmapTick(ctx) {
     const index = (await prisma.seoKeyword.findMany({ where: { userId }, select: { id: true, matchKey: true } }));
     const usable = ideas.filter((s) => {
       const d = kw.describeKeyword(s);
-      if (d.cluster === 'other' || d.cluster === 'brand' || d.matchKey.split(' ').length > 8) return false;
+      if (d.cluster === 'other' || d.cluster === 'brand' || isOffTopic(s) || d.matchKey.split(' ').length > 7) return false;
       const hit = kw.matchQuery(s, index);
       if (hit) { if (markAuto.has(d.matchKey)) markAuto.add(hit.matchKey); return false; }   // a variant of a keyword we already track
       index.push({ id: d.matchKey, matchKey: d.matchKey });

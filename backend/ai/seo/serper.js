@@ -50,10 +50,12 @@ function ourOrganicRank(data, host) {
 }
 
 /** Our map-pack rank in a /places response, matched by website host or business name. */
-function ourPlacesRank(data, host, names = ['no bs yardwork', 'no-bs yardwork', 'no b.s. yardwork']) {
+const squash = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+function ourPlacesRank(data, host, names = ['nobsyardwork']) {
   const bare = host.replace(/^www\./, '');
   const list = data.places || [];
-  const i = list.findIndex((p) => (p.website && p.website.includes(bare)) || names.some((n) => String(p.title || '').toLowerCase().includes(n)));
+  const i = list.findIndex((p) => (p.website && p.website.includes(bare)) || names.some((n) => squash(p.title).includes(n)));
   return i >= 0 ? (list[i].position || i + 1) : null;
 }
 
