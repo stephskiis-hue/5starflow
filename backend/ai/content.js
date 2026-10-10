@@ -178,17 +178,38 @@ const HOW_TO_POST = {
   feed: 'Normal Facebook post (never an Instagram feed post) with the stored caption and the images in uploadAssetIds.',
 };
 
+/**
+ * A story only goes out with frames that passed the story audit at render time (fills the 1080x1920 screen, readable
+ * type, clear of Facebook's top and bottom bars). Anything else is held back from the queue and re-rendered.
+ */
+const storyAudited = (r) => r.format !== 'story'
+  || (r.qa?.ok === true && Array.isArray(r.qa.story) && r.qa.story.length > 0 && r.qa.story.length === (r.assetIds || []).length
+    && r.qa.story.every((s) => s.width === 1080 && s.height === 1920));
+
+const rerendering = new Set();
+/** Stories rendered before the audit existed (or with a stale audit) are held back and re-rendered with the current design. */
+function rerenderStale(userId, rows) {
+  for (const r of rows) {
+    if (rerendering.has(r.id)) continue;
+    rerendering.add(r.id);
+    setImmediate(() => renderContent(userId, r.id)
+      .catch((e) => console.warn(`[content] re-render of story ${r.id} failed:`, e.message))
+      .finally(() => rerendering.delete(r.id)));
+  }
+}
+
 /** Posts ready to go out now on `platform`: QA-passed 'queued' items (and legacy approved ones). Autopilot off = the owner paused posting. */
 async function publishQueue(userId, { platform, autopilot, limit = 10 } = {}) {
   const statuses = autopilot ? ['approved', 'queued'] : ['approved'];
   const where = { userId, status: { in: statuses }, OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }] };
   if (platform) where.platforms = { contains: `"${platform}"` };
-  const rows = (await prisma.contentItem.findMany({ where, orderBy: [{ scheduledFor: 'asc' }, { createdAt: 'asc' }], take: 60 })).map(out)
+  const candidates = (await prisma.contentItem.findMany({ where, orderBy: [{ scheduledFor: 'asc' }, { createdAt: 'asc' }], take: 60 })).map(out)
     // an item with a caption for Facebook AND Instagram stays in the queue for a platform until it was posted THERE
     .filter((r) => !platform || !(r.publishedOn || {})[platform])
     // Instagram gets reels only, whatever an older item says
-    .filter((r) => platform !== 'instagram' || r.format === 'reel')
-    .slice(0, Math.min(limit, 30));
+    .filter((r) => platform !== 'instagram' || r.format === 'reel');
+  rerenderStale(userId, candidates.filter((r) => !storyAudited(r)));
+  const rows = candidates.filter(storyAudited).slice(0, Math.min(limit, 30));
   const ids = rows.flatMap((r) => r.assetIds || []);
   const videos = new Set(ids.length ? (await prisma.contentAsset.findMany({ where: { id: { in: ids }, kind: 'video' }, select: { id: true } })).map((a) => a.id) : []);
   // Spell out for the Social agent what to upload and where. story = the PNG frames in order. reel = the PNG frames
@@ -269,4 +290,4 @@ async function performanceSummary(userId, { days = 60 } = {}) {
   return Object.entries(agg).map(([k, a]) => ({ key: k, posts: a.n, measured: a.measured, avgScore: a.measured ? +(a.score / a.measured).toFixed(1) : null })).sort((a, b) => (b.avgScore ?? -1) - (a.avgScore ?? -1));
 }
 
-module.exports = { createContent, renderContent, transition, publishQueue, markPublished, recordMetrics, performanceSummary, lintItem, placementErrors, storyCheckProblems, FORMATS, PILLARS, RenderError };
+module.exports = { createContent, renderContent, transition, publishQueue, markPublished, recordMetrics, performanceSummary, lintItem, placementErrors, storyCheckProblems, storyAudited, FORMATS, PILLARS, RenderError };

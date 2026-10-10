@@ -207,3 +207,14 @@ test('vault: HEIC is told apart from MP4/MOV clips and converted to a real JPEG'
   assert.equal(sniff(await heicToJpeg(heic)), 'image/jpeg');
   await assert.rejects(heicToJpeg(Buffer.from('\x00\x00\x00\x18ftypheic\x00\x00\x00\x00junkjunk', 'binary')), { code: 'INVALID_ASSET' });
 });
+
+test('content: only stories whose frames passed the story audit go out', () => {
+  const { storyAudited } = require('../ai/content');
+  const frame = { width: 1080, height: 1920, fill: 0.88, minFontPx: 44, safeZoneHit: false };
+  assert.equal(storyAudited({ format: 'feed', qa: null, assetIds: ['a'] }), true);                         // not a story
+  assert.equal(storyAudited({ format: 'story', qa: { ok: true, story: [frame, frame] }, assetIds: ['a', 'b'] }), true);
+  assert.equal(storyAudited({ format: 'story', qa: { ok: true, errors: [] }, assetIds: ['a'] }), false);     // rendered before the audit
+  assert.equal(storyAudited({ format: 'story', qa: { ok: false, story: [frame] }, assetIds: ['a'] }), false);
+  assert.equal(storyAudited({ format: 'story', qa: { ok: true, story: [frame] }, assetIds: ['a', 'b'] }), false);   // frames and audit disagree
+  assert.equal(storyAudited({ format: 'story', qa: { ok: true, story: [{ ...frame, height: 1350 }] }, assetIds: ['a'] }), false);
+});
