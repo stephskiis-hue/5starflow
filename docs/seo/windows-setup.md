@@ -35,6 +35,7 @@ Open SEO Growth > Index health for the current lists. On 2026-10-10 they were:
 | Internal links use `.html` (each one is a redirect hop) | Optional but good: nav/footer links to the clean URLs |
 
 ### 2b. blog.html markers (once)
+Automatic now: `seo_site.py nightly` adds the markers (the list goes under `<div id="blog-pagination">`), wraps the array and adds a `.seo-post-list` style using the site's CSS variables, only where the page still has this shape. The steps below are the manual fallback.
 `blog-index` keeps three things in sync from the real post files: `posts.json`, the page's own `var POSTS = [...]` array, and a crawlable `<ul>` of every post (search engines do not wait for the JS cards). Add, once:
 1. Just before `<div id="blog-posts-container">`: `<!-- seo:post-list:start -->` and `<!-- seo:post-list:end -->` on two lines.
 2. Wrap the array literal: `var POSTS = /* seo:posts:start */[` ... `]/* seo:posts:end */;`

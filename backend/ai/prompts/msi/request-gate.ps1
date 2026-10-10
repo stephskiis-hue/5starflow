@@ -24,6 +24,15 @@ try {
   }
 } catch { Log "could not add FSF_REPO: $($_.Exception.Message)" }
 
+$py = if ($env:PYTHON_BIN) { $env:PYTHON_BIN } elseif (Get-Command python -ErrorAction SilentlyContinue) { 'python' } else { 'py' }
+
+# Hourly: copy what 5StarFlow put on the live site itself (Search Console tag, .htaccess redirects) into the site
+# folder, so the 3 AM deploy keeps it. One API call, zero Claude tokens; quiet unless something was copied.
+if (-not $quiet) {
+  try { $null = Invoke-FsfNative 'seo-sync-live' $py @((Join-Path $PSScriptRoot 'seo_site.py'), 'sync-live') }
+  catch { Log "seo sync-live failed to start: $($_.Exception.Message)" }
+}
+
 # Once a day, at the first check after 7 pm: rebuild the website's sitemaps and blog index from the real files
 # (seo_site.py nightly, site folder in seo-site.json) so the 3 AM deploy uploads them. Zero Claude tokens.
 # Its own log is ~/.5starflow/seo-site.log; a failure is logged and never blocks the inbox.
@@ -33,7 +42,6 @@ try {
   $doneToday = (Test-Path $seoStamp) -and ((Get-Content $seoStamp -Raw).Trim() -eq $today)
   if ((Get-Date).Hour -ge 19 -and -not $doneToday) {
     Set-Content -Path $seoStamp -Value $today
-    $py = if ($env:PYTHON_BIN) { $env:PYTHON_BIN } elseif (Get-Command python -ErrorAction SilentlyContinue) { 'python' } else { 'py' }
     $code = Invoke-FsfNative 'seo-nightly' $py @((Join-Path $PSScriptRoot 'seo_site.py'), 'nightly')
     Log "seo nightly exited $code"
   }

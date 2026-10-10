@@ -68,6 +68,8 @@ Don't try a second variant. That decision goes to the owner.
 Then fix the links that point at the redirected pages. On `lawn-care-premium.html`, the link `lawn-care-basic.html` is a 404; point it at `/lawn-care-winnipeg`. Change only `href` values.
 
 ## 4. `blog.html`: crawlable post list
+If `SITE\blog.html` already contains `<!-- seo:post-list:start -->` and `/* seo:posts:start */`, `seo_site.py nightly` did this step on its own: skip to item 5 (check it in Chrome).
+
 1. Just before `<div id="blog-posts-container">`, add two lines: `<!-- seo:post-list:start -->` and `<!-- seo:post-list:end -->`.
 2. Change `var POSTS = [` to `var POSTS = /* seo:posts:start */[`, and its closing `];` to `]/* seo:posts:end */;`.
 3. Add a small visible style for `.seo-post-list` in the page's CSS, using the site's existing variables: a two-column list of links under the cards, one column on mobile. It must not be hidden.
