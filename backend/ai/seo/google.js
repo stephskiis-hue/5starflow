@@ -35,8 +35,11 @@ async function loadSeo(userId) {
   const global = await prisma.seoSettings.findFirst({ where: { userId: null } }).catch(() => null);
   const siteUrl = row.siteUrl || global?.siteUrl || process.env.GSC_SITE_URL || '';
   const origin = siteOrigin(process.env.GSC_SITE_URL || siteUrl);
-  const property = process.env.GSC_SITE_URL || row.siteProperty || global?.siteProperty || `${origin}/`;
-  return { row, global, origin, property, cfg: mergeConfig(row.growthConfig), state: row.growthState || {} };
+  const state = row.growthState || {};
+  const configured = process.env.GSC_SITE_URL || row.siteProperty || global?.siteProperty || `${origin}/`;
+  // the sync found which property this account can really see (e.g. the URL-prefix one, not the sc-domain one): use it
+  const property = state.gsc?.found && state.gsc.property ? state.gsc.property : configured;
+  return { row, global, origin, property, configuredProperty: configured, cfg: mergeConfig(row.growthConfig), state };
 }
 
 async function saveState(rowId, patch) {

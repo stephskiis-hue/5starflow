@@ -138,7 +138,7 @@ router.get('/gsc-status', async (req, res) => {
   const auth = await g.getAuth(seo);
   const email = process.env.GOOGLE_CLIENT_EMAIL || null;
   const out = { auth: auth ? { via: auth.via, email: auth.email, error: auth.error || null, canWrite: !!auth.canWrite } : null, serviceAccountEmail: email,
-    configuredProperty: seo.property, origin: seo.origin, sites: [], propertyFound: false, permissionLevel: null, canSubmit: false,
+    configuredProperty: seo.configuredProperty, origin: seo.origin, sites: [], propertyFound: false, permissionLevel: null, canSubmit: false,
     submitAllowed: g.submitAllowed(), dryRun: process.env.DRY_RUN === 'true', serper: !!process.env.SERPER_API_KEY, indexNow: !!process.env.INDEXNOW_KEY,
     lastSync: { at: seo.state.lastSyncAt || null, dataThrough: seo.state.dataThrough || null, firstIncompleteDate: seo.state.firstIncompleteDate || null },
     inspectionsToday: seo.state.inspections?.date === new Date().toISOString().slice(0, 10) ? seo.state.inspections.n : 0, instructions: [] };

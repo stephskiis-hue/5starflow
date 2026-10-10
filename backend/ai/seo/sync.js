@@ -24,7 +24,7 @@ const monthEnd = (m) => { const d = asDate(m); d.setUTCMonth(d.getUTCMonth() + 1
 async function resolveProperty(auth, seo) {
   const sites = await g.listSites(auth);
   const host = new URL(seo.origin).hostname.replace(/^www\./, '');
-  const exact = sites.find((s) => s.siteUrl === seo.property);
+  const exact = sites.find((s) => s.siteUrl === seo.configuredProperty) || sites.find((s) => s.siteUrl === seo.property);
   const match = exact || sites.find((s) => s.siteUrl === `${seo.origin}/`) || sites.find((s) => s.siteUrl === `sc-domain:${host}`)
     || sites.find((s) => s.siteUrl.includes(host));
   return { sites, site: match || null };
