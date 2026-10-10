@@ -19,6 +19,13 @@ if ($todo.Count -lt 1) { if (-not $quiet) { Log "nothing due ($($due.day))" }; e
 $shift = $todo[0]
 
 if ($env:SOCIAL_GATE_DRYRUN -eq '1') { Log "DRYRUN: would run the $($shift.kind) shift (attempt $($shift.attempts + 1), late=$($shift.late))"; exit 0 }
+# Claude plan limit hit earlier ("You've hit your limit, resets 8:10pm"): wait it out quietly instead of burning the shift's attempts.
+$limitFile = Join-Path $FsfDir 'claude-limit-until.txt'
+if (Test-Path $limitFile) {
+  $until = [datetime]::Parse((Get-Content $limitFile -Raw).Trim())
+  if ((Get-Date) -lt $until) { if (-not $quiet) { Log "waiting for the Claude plan limit to reset at $($until.ToString('h:mm tt')), $($shift.kind) stays due" }; exit 0 }
+  Remove-Item $limitFile -Force -ErrorAction SilentlyContinue
+}
 if (Test-FsfChromeBusy) { Log "skip: Chrome is busy with another run (chrome.lock), $($shift.kind) stays due"; exit 0 }
 
 Lock-FsfChrome
@@ -41,6 +48,14 @@ try {
   $tail = ($r.out -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 8) -join "`n  "
   Log "claude exited $($r.code). Last lines:`n  $tail"
 
+  if ($r.out -match "hit your limit[^
+]*resets\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)") {
+    $h = [int]$Matches[1] % 12; if ($Matches[3] -eq 'pm') { $h += 12 }
+    $until = (Get-Date).Date.AddHours($h).AddMinutes($(if ($Matches[2]) { [int]$Matches[2] } else { 0 })).AddMinutes(2)
+    if ($until -lt (Get-Date)) { $until = $until.AddDays(1) }
+    Set-Content -Path $limitFile -Value $until.ToString('o')
+    Log "Claude plan limit hit, pausing the gate until $($until.ToString('h:mm tt'))"
+  }
   # The agent reports its own result (POST /social/shift-finish). The gate only steps in when it did not.
   if ($r.out -match 'SHIFT_RESULT:\s*browser_unavailable') {
     Log 'browser unavailable: restarting Chrome for the next try'
