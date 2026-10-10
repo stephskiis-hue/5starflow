@@ -235,3 +235,26 @@ test('google: an API-disabled error yields the enable link, other errors do not'
   assert.equal(apiDisabledLink(new Error('User does not have sufficient permission for site')), null);
   assert.equal(apiDisabledLink(null), null);
 });
+
+test('config: off-topic searches (jobs, equipment, other cities) are filtered', () => {
+  const { isOffTopic } = require('../ai/seo/config');
+  for (const q of ['lawn care jobs hiring near me', 'snow removal machine', 'lawn watering tractor', 'snow removal equipment', 'lawn care calgary', 'recommend top lawn fertilizing companies near me']) assert.ok(isOffTopic(q), q);
+  for (const q of ['lawn aeration and overseeding near me', 'snow removal cost winnipeg', 'lawn watering schedule', 'fence installation near me']) assert.ok(!isOffTopic(q), q);
+});
+
+test('serper: our map-pack listing is found whatever the punctuation', () => {
+  const { ourPlacesRank } = require('../ai/seo/serper');
+  const places = (title, website) => ({ places: [{ title: 'Other Co', position: 1 }, { title, website, position: 2 }] });
+  assert.equal(ourPlacesRank(places('No.BS Yardworks'), 'www.no-bs-yardwork.com'), 2);
+  assert.equal(ourPlacesRank(places('No-BS Yardwork & Landscaping'), 'www.no-bs-yardwork.com'), 2);
+  assert.equal(ourPlacesRank(places('Green Co', 'https://www.no-bs-yardwork.com/'), 'www.no-bs-yardwork.com'), 2);
+  assert.equal(ourPlacesRank(places('Green Co'), 'www.no-bs-yardwork.com'), null);
+});
+
+test('assign: a missing service page comes before area pages, even off season', () => {
+  const svc = K({ keyword: 'lawn aeration winnipeg', kind: 'service', intent: 'transactional', priority: 4, scoreParts: { season: 0.8, why: 'off season' } });
+  const area = K({ keyword: 'lawn care charleswood', kind: 'area', cluster: 'lawn-care', priority: 6, signals: { autocomplete: true }, scoreParts: { season: 1 } });
+  const out = pickAssignment({ keywords: [svc, area], cfg, modes: ['page'], now: NOW, pillars: { 'lawn-care': '/lawn-care-winnipeg' } });
+  assert.equal(out[0].keyword.keyword, 'lawn aeration winnipeg');
+  assert.doesNotMatch(out[0].why, /off season/);
+});

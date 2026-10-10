@@ -67,7 +67,8 @@ function pickAssignment({ keywords, pages = {}, history = [], cfg, modes, now = 
         else why = `close to the top 3; ${why}`;
       }
     } else if (!k.targetPath && OPEN.includes(k.status) && (k.kind === 'service' || k.kind === 'area')) {
-      if (k.kind === 'service' && !pillars[k.cluster]) { mode = 'page'; mult *= 1.2; why = `no ${clusterById(k.cluster)?.label || k.cluster} page exists yet; ${why}`; }
+      // a service page needs months to rank, so build it ahead of its season (season weight neutralized) and before area pages
+      if (k.kind === 'service' && !pillars[k.cluster]) { mode = 'page'; mult *= 1.5 / (k.scoreParts?.season || 1); why = `no ${clusterById(k.cluster)?.label || k.cluster} page exists yet, build it before the season; ${why}`.replace(/; off season/, ''); }
       if (k.kind === 'area' && areaRoom && (k.pinned || (k.impressions28 || 0) >= 20 || k.signals?.autocomplete)) { mode = 'page'; why = `people search for this neighbourhood; ${why}`; }
     }
     if (!mode || !allowed.includes(mode)) continue;
