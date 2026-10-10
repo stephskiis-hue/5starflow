@@ -161,6 +161,36 @@ router.get('/gsc-status', async (req, res) => {
   res.json(out);
 });
 
+// --------------------------------------------------------------------------- the live site, when the MSI PC can't (ai/seo/siteAccess.js)
+const siteAccess = require('../ai/seo/siteAccess');
+const { recordActivity } = require('../ai/ledger');
+const siteLog = (req, action, out) => recordActivity(req.ai.userId, { agent: agentOf(req) === 'owner' ? 'owner' : 'research', action, source: 'seo',
+  summary: [out.status, out.property, out.ftp?.ftp, out.error].filter(Boolean).join(' · ').slice(0, 300), result: ['ok', 'verified', 'applied', 'already', 'plan', 'needs_tag'].includes(out.status) ? 'ok' : out.status, runId: null })
+  .catch(() => {});
+
+router.get('/site-access', async (req, res) => res.json(await siteAccess.status(req.ai.userId)));
+
+// Search Console without adding a user: the service account verifies the site itself. apply=true puts the tag on the live homepage over FTP.
+router.post('/site-access/verify', async (req, res) => {
+  const out = await siteAccess.ensureOwnership(req.ai.userId, { apply: req.body?.apply === true });
+  await siteLog(req, 'search console ownership', out);
+  res.json(out);
+});
+
+// The .htaccess SEO redirects: apply=false shows the plan; apply=true uploads, checks live, and puts the old file back on any failure.
+router.post('/site-access/htaccess', async (req, res) => {
+  const out = await siteAccess.applyHtaccess(req.ai.userId, { apply: req.body?.apply === true });
+  if (req.body?.apply === true) await siteLog(req, '.htaccess redirects', out);
+  if (out.status === 'applied') lightCheck(req.ai.userId, 'htaccess');
+  res.json(out);
+});
+
+router.post('/site-access/htaccess/revert', async (req, res) => {
+  const out = await siteAccess.revertHtaccess(req.ai.userId);
+  await siteLog(req, '.htaccess put back', out);
+  res.json(out);
+});
+
 // --------------------------------------------------------------------------- owner knobs
 router.patch('/config', ownerOnly, async (req, res) => {
   const seo = await g.loadSeo(req.ai.userId);

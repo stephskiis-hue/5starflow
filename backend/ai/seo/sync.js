@@ -91,9 +91,17 @@ async function gscSyncTick(ctx) {
     await g.saveState(seo.row.id, { gsc: { via: auth.via, email: auth.email, property: seo.property, found: false, apiDisabled: link, checkedAt: new Date().toISOString() } });
     return { skipped: true, summary: 'Search Console API is turned off in the service account\'s Google Cloud project' };
   }
+  // not a user yet: the service account verifies the site itself (homepage meta tag), no Search Console login needed
+  let own = null;
+  if (!site && auth.via === 'service_account') {
+    own = await require('./siteAccess').ensureOwnership(userId, { apply: true }).catch((err) => ({ status: 'error', error: err.message }));
+    if (own.status === 'verified') ({ sites, site } = await resolveProperty(auth, seo));
+  }
   if (!site) {
+    const ownNote = !own ? '' : own.status === 'api_disabled' ? `\nOr turn on the Site Verification API (${own.enableLink}) and 5StarFlow verifies the site itself.`
+      : own.status === 'needs_tag' ? `\nOr: once the homepage carries ${own.tag} (seo_site.py nightly adds it on the PC), the next sync verifies the site itself.` : `\nSelf-verification: ${own.status}${own.error ? ` (${own.error})` : ''}.`;
     await setupTask(`The ${auth.via === 'service_account' ? `service account ${auth.email}` : 'Google login'} can see ${sites.length ? sites.map((s) => s.siteUrl).join(', ') : 'no Search Console properties'}, not ${seo.property}.`,
-      auth.via === 'service_account' ? `Search Console > Settings > Users and permissions > Add user: ${auth.email}, permission "Full".` : 'Reconnect Google with the account that owns the property.');
+      (auth.via === 'service_account' ? `Search Console > Settings > Users and permissions > Add user: ${auth.email}, permission "Full".` : 'Reconnect Google with the account that owns the property.') + ownNote);
     await g.saveState(seo.row.id, { gsc: { via: auth.via, email: auth.email, property: seo.property, found: false, sites: sites.map((s) => s.siteUrl), checkedAt: new Date().toISOString() } });
     return { skipped: true, summary: `Search Console property ${seo.property} not visible to ${auth.email || 'the Google login'}` };
   }
