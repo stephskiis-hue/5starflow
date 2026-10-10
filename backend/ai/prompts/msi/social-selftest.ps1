@@ -93,9 +93,9 @@ Check 'qa parity (lint)' {
 }
 
 Check 'media fetch' {
-  $list = Invoke-FsfApi 'GET' '/api/ai/assets?limit=1&usable=true' $null 'social-selftest'
+  $list = Invoke-FsfApi 'GET' '/api/ai/assets?limit=1' $null 'social-selftest'
   $first = @($list.assets + $list) | Where-Object { $_.id } | Select-Object -First 1
-  if (-not $first) { return @{ ok = $true; detail = 'vault empty, nothing to fetch (not a failure)' } }
+  if (-not $first) { return @{ ok = $true; detail = 'vault is empty, nothing to fetch' } }
   $dest = Join-Path $FsfDir 'media'; New-Item -ItemType Directory -Force -Path $dest | Out-Null
   $file = Join-Path $dest 'selftest.bin'
   Invoke-WebRequest -Uri "$env:FIVESTARFLOW_URL/api/ai/assets/$($first.id)" -Headers @{ Authorization = "Bearer $env:FIVESTARFLOW_TOKEN" } -OutFile $file -TimeoutSec 60
