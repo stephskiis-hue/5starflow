@@ -30,6 +30,9 @@ const op = require('../services/operatorService');
 const vault = require('../ai/vault');
 const content = require('../ai/content');
 const social = require('../ai/social');
+const socialShifts = require('../ai/socialShifts');
+const { toDateString, dayBounds } = require('../lib/tz');
+const THREAD_STATUS = ['open', 'quoted', 'followed', 'won', 'lost', 'held'];
 const { Prisma } = require('@prisma/client');
 const { renderPost, RenderError } = require('../ai/design/renderer');
 const { describeLayouts } = require('../ai/design/layouts');
@@ -596,6 +599,8 @@ router.post('/social/groups', async (req, res) => {
   if (['unknown', 'allowed', 'restricted', 'banned'].includes(b.promoPolicy)) fields.promoPolicy = b.promoPolicy;
   if (Number.isFinite(Number(b.relevance))) fields.relevance = Math.min(5, Math.max(1, Number(b.relevance)));
   if (Number.isFinite(Number(b.cooldownDays))) fields.cooldownDays = Math.min(60, Math.max(1, Number(b.cooldownDays)));
+  if (b.lastPostedAt && !Number.isNaN(Date.parse(b.lastPostedAt))) fields.lastPostedAt = new Date(b.lastPostedAt);   // history imports only: a normal post sets this through the confirmed group_post
+  if (Number.isFinite(Number(b.postsCount)) && Number(b.postsCount) >= 0) fields.postsCount = Math.floor(Number(b.postsCount));
   if (b.leadsDelta) fields.leads = { increment: Math.max(0, parseInt(b.leadsDelta, 10) || 0) };
   fields.lastCheckedAt = new Date();
   const row = await prisma.socialGroup.upsert({
@@ -603,6 +608,137 @@ router.post('/social/groups', async (req, res) => {
     update: fields, create: { userId: req.ai.userId, platform, name: String(b.name).slice(0, 160), ...fields, leads: typeof fields.leads === 'number' ? fields.leads : 0 },
   });
   res.status(201).json(row);
+});
+
+// --- server-enforced outreach: reserve (server says yes/no) → act in Chrome → confirm with the link
+router.post('/social/actions/reserve', async (req, res) => {
+  try {
+    const row = await social.reserveAction(req.ai.userId, req.body || {});
+    res.status(201).json({ ok: true, actionId: row.id, expiresAt: row.expiresAt, action: row });
+  } catch (e) {
+    if (e.code === 'CAP_REACHED') return res.status(409).json({ ok: false, error: e.message, code: e.code, kind: e.kind, cap: e.cap });
+    if (e.code === 'REFUSED') return res.status(422).json({ ok: false, error: e.message, code: e.code, reasons: e.reasons });
+    if (e.code === 'INVALID_ACTION') return res.status(422).json({ ok: false, error: e.message, code: e.code, reasons: [e.message] });
+    throw e;
+  }
+});
+
+router.patch('/social/actions/:id', async (req, res) => {
+  try {
+    const row = await social.confirmAction(req.ai.userId, req.params.id, req.body || {});
+    await recordActivity(req.ai.userId, { agent: 'social', action: `${row.kind.replace('_', ' ')} on ${row.platform}`, summary: [row.target, row.summary].filter(Boolean).join(': '), result: row.status === 'done' ? 'ok' : row.status, source: row.platform });
+    res.json(row);
+  } catch (e) {
+    if (e.code === 'NOT_FOUND') return res.status(404).json({ error: e.message });
+    if (e.code === 'ALREADY_CLOSED') return res.status(409).json({ error: e.message });
+    if (e.code === 'INVALID_ACTION') return res.status(422).json({ error: e.message });
+    throw e;
+  }
+});
+
+// The dashboard's Social tab, and the agent's "what is still short today".
+router.get('/social/today', async (req, res) => {
+  const day = req.query.date || toDateString();
+  const { start, end } = dayBounds(day);
+  const [budget, actions, shifts, groups, openThreads] = await Promise.all([
+    social.getBudget(req.ai.userId, { date: req.query.date }),
+    prisma.socialAction.findMany({ where: { userId: req.ai.userId, createdAt: { gte: start, lt: end }, status: { not: 'skipped' } }, orderBy: { createdAt: 'desc' }, take: 200 }),
+    prisma.socialShift.findMany({ where: { userId: req.ai.userId, day }, orderBy: { kind: 'asc' } }),
+    prisma.socialGroup.groupBy({ by: ['membership'], where: { userId: req.ai.userId }, _count: { _all: true } }),
+    prisma.socialThread.count({ where: { userId: req.ai.userId, status: { in: ['open', 'quoted'] } } }),
+  ]);
+  res.json({ ...budget, actions, shifts, groups: Object.fromEntries(groups.map((g) => [g.membership, g._count._all])), openThreads });
+});
+
+router.get('/social/week', async (req, res) => {
+  const days = [];
+  for (let i = 6; i >= 0; i--) days.push(toDateString(new Date(Date.now() - i * 86400000)));
+  const { start } = dayBounds(days[0]);
+  const [rows, shifts] = await Promise.all([
+    prisma.socialAction.findMany({ where: { userId: req.ai.userId, createdAt: { gte: start }, status: { in: ['done', 'unverified'] } }, select: { createdAt: true, platform: true, kind: true } }),
+    prisma.socialShift.findMany({ where: { userId: req.ai.userId, day: { in: days } } }),
+  ]);
+  const target = Object.values(social.SOCIAL_TARGETS).reduce((n, t) => n + Object.values(t).reduce((a, b) => a + b, 0), 0);
+  const out = days.map((day) => {
+    const done = rows.filter((r) => toDateString(r.createdAt) === day);
+    const byKind = {}; for (const r of done) byKind[r.kind] = (byKind[r.kind] || 0) + 1;
+    const sh = shifts.filter((x) => x.day === day);
+    const problems = sh.filter((x) => ['failed', 'needs_owner'].includes(x.status)).map((x) => `${x.kind}: ${x.status}${x.error ? ` (${x.error})` : ''}`);
+    return { day, total: done.length, target, byKind, shifts: sh.map((x) => ({ kind: x.kind, status: x.status, attempts: x.attempts })), problems };
+  });
+  res.json({ days: out });
+});
+
+// --- shifts: the MSI gate asks what is due, claims it, runs Claude, and reports back
+router.get('/social/shift-due', async (req, res) => {
+  const [{ day, due, shifts }, budget] = await Promise.all([socialShifts.shiftDue(req.ai.userId), social.getBudget(req.ai.userId)]);
+  const remaining = {};
+  for (const [platform, kinds] of Object.entries(budget.budget)) { remaining[platform] = {}; for (const [k, v] of Object.entries(kinds)) if (v.toTarget > 0) remaining[platform][k] = { toTarget: v.toTarget, untilCap: v.remaining }; }
+  res.json({ day, due, shifts: shifts.map((s) => ({ kind: s.kind, status: s.status, attempts: s.attempts })), remaining, dryRun: req.query.dryRun === '1' });
+});
+
+router.post('/social/shift-claim', async (req, res) => {
+  try {
+    const row = await socialShifts.claimShift(req.ai.userId, String(req.body?.kind || ''));
+    if (!row) return res.status(409).json({ ok: false, error: 'That shift is not open (done, running, out of attempts or outside its hours)' });
+    res.json({ ok: true, shiftId: row.id, kind: row.kind, attempt: row.attempts, day: row.day });
+  } catch (e) { if (e.code === 'INVALID_ACTION') return res.status(422).json({ error: e.message }); throw e; }
+});
+
+router.post('/social/shift-finish', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const row = await socialShifts.finishShift(req.ai.userId, String(b.shiftId || ''), b);
+    if (!row) return res.status(404).json({ error: 'No such shift' });
+    if (row.status === 'needs_owner') {
+      await createTask(req.ai.userId, { dedupKey: 'social-needs-owner', title: 'Social agent needs you: Facebook or Instagram login', source: 'routine', routineSlug: 'ext-social-daily', agent: 'social', urgency: 'urgent', reason: 'The browser hit a login, 2FA, CAPTCHA or checkpoint page. The agent never types passwords.', whatHappened: row.error || row.summary || '', whatNeeds: 'Open Chrome on the MSI and sign in to Facebook / Instagram, then the next shift continues by itself.' });
+      notify(req.ai.userId, { category: 'routine', urgent: true, routineSlug: 'ext-social-daily', title: 'Social agent is stuck on a Facebook/Instagram login. Please sign in on the MSI Chrome.', link: '/ai.html#social' });
+    } else if (row.status === 'failed' && row.attempts >= socialShifts.MAX_ATTEMPTS) {
+      await createTask(req.ai.userId, { dedupKey: `social-shift-failed:${row.day}:${row.kind}`, title: `Social ${row.kind} shift failed ${row.attempts} times today`, source: 'routine', routineSlug: 'ext-social-daily', agent: 'social', urgency: 'high', reason: row.error || 'The browser was not available.', whatNeeds: 'Check ~/.5starflow/social-gate.log on the MSI (Chrome closed, extension signed out, or the PC was off).' });
+    }
+    res.json({ ok: true, shift: row });
+  } catch (e) { if (e.code === 'INVALID_ACTION') return res.status(422).json({ error: e.message }); throw e; }
+});
+
+// --- lead threads: what we started, so follow-ups happen and nothing is handled twice
+router.post('/social/threads', async (req, res) => {
+  const b = req.body || {};
+  if (!b.url) return res.status(400).json({ error: 'url required' });
+  const fields = {};
+  for (const k of ['person', 'need', 'neighbourhood', 'source', 'notes']) if (typeof b[k] === 'string') fields[k] = b[k].slice(0, 500);
+  if (['facebook', 'instagram'].includes(b.platform)) fields.platform = b.platform;
+  if (THREAD_STATUS.includes(b.status)) fields.status = b.status;
+  if (typeof b.jobberRequestId === 'string') fields.jobberRequestId = b.jobberRequestId.slice(0, 80);
+  const url = String(b.url).slice(0, 500);
+  const row = await prisma.socialThread.upsert({ where: { userId_url: { userId: req.ai.userId, url } }, update: fields, create: { userId: req.ai.userId, url, ...fields } });
+  res.status(201).json(row);
+});
+
+router.get('/social/threads', async (req, res) => {
+  const where = { userId: req.ai.userId }; if (req.query.status) where.status = String(req.query.status);
+  res.json(await prisma.socialThread.findMany({ where, orderBy: { createdAt: 'desc' }, take: int(req.query.limit, 100, 300) }));
+});
+
+router.get('/social/threads/due', async (req, res) => {
+  const now = Date.now();
+  res.json(await prisma.socialThread.findMany({ where: { userId: req.ai.userId, status: { in: ['open', 'quoted'] }, followedUpAt: null, createdAt: { lte: new Date(now - 2 * 86400000), gte: new Date(now - 5 * 86400000) } }, orderBy: { createdAt: 'asc' }, take: 20 }));
+});
+
+router.get('/social/threads/seen', async (req, res) => {
+  const url = String(req.query.url || '');
+  if (!url) return res.status(400).json({ error: 'url required' });
+  const thread = await prisma.socialThread.findUnique({ where: { userId_url: { userId: req.ai.userId, url: url.slice(0, 500) } } });
+  const acted = await prisma.socialAction.count({ where: { userId: req.ai.userId, target: url.slice(0, 200), status: { in: ['done', 'reserved'] } } });
+  res.json({ seen: !!thread || acted > 0, thread, actions: acted });
+});
+
+router.patch('/social/threads/:id', async (req, res) => {
+  const b = req.body || {}; const data = {};
+  if (THREAD_STATUS.includes(b.status)) { data.status = b.status; if (b.status === 'followed') data.followedUpAt = new Date(); }
+  if (typeof b.jobberRequestId === 'string') data.jobberRequestId = b.jobberRequestId.slice(0, 80);
+  if (typeof b.notes === 'string') data.notes = b.notes.slice(0, 500);
+  const r = await prisma.socialThread.updateMany({ where: { id: req.params.id, userId: req.ai.userId }, data });
+  res.status(r.count ? 200 : 404).json({ ok: !!r.count });
 });
 
 // --------------------------------------------------------------------------- SEO Growth Engine

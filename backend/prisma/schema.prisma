@@ -867,12 +867,57 @@ model SocialAction {
   groupId       String?
   contentItemId String?
   summary       String   @default("")
-  status        String   @default("done")                    // done | failed | skipped
-  url           String?
+  status        String   @default("done")                    // reserved | done | failed | skipped | unverified
+  url           String?                                      // link to OUR result (the comment / post / join)
+  text          String?                                      // the exact words posted (what the server linted)
+  expiresAt     DateTime?                                    // reserved rows stop counting against the cap after this
+  shiftId       String?
   createdAt     DateTime @default(now())
 
   @@index([userId, platform, kind, createdAt])
   @@index([userId, createdAt])
+  @@index([userId, groupId])
+}
+
+// A lead conversation the Social agent started or joined. Drives follow-ups (2 to 5 days later) and "already handled" checks.
+model SocialThread {
+  id              String    @id @default(cuid())
+  userId          String
+  platform        String    @default("facebook")
+  url             String                                     // the post / conversation link, unique per user
+  person          String    @default("")
+  need            String    @default("")                     // service asked about
+  neighbourhood   String    @default("")
+  source          String    @default("")                     // inbox | search | group:<name> | hashtag
+  status          String    @default("open")                 // open | quoted | followed | won | lost | held
+  jobberRequestId String?
+  notes           String    @default("")
+  followedUpAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, url])
+  @@index([userId, status, createdAt])
+}
+
+// One scheduled run of the Social agent on the MSI (morning | midday | evening | studio) for one Winnipeg day.
+// The MSI gate asks the server what is due, claims it, runs Claude, and the server records the outcome.
+model SocialShift {
+  id         String    @id @default(cuid())
+  userId     String
+  day        String                                          // YYYY-MM-DD, Winnipeg
+  kind       String                                          // morning | midday | evening | studio
+  status     String    @default("due")                       // due | running | done | failed | needs_owner
+  attempts   Int       @default(0)
+  claimedAt  DateTime?
+  finishedAt DateTime?
+  summary    String?
+  error      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([userId, day, kind])
+  @@index([userId, day])
 }
 
 // ---------------------------------------------------------------------------

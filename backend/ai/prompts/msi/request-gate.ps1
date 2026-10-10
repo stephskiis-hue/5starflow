@@ -19,11 +19,15 @@ try {
   $pending = (Invoke-RestMethod -Uri "$env:FIVESTARFLOW_URL/api/ai/requests/pending-count" -Headers $headers -TimeoutSec 20).pending
 } catch { Log "pending-count failed: $($_.Exception.Message)"; exit 1 }
 if ($pending -lt 1) { if (-not $quiet) { Log 'pending 0' }; exit 0 }
+if (Test-FsfChromeBusy) { Log "skip: Chrome is busy with another run (chrome.lock), $pending request(s) stay pending"; exit 0 }
 
 $claude = if ($env:CLAUDE_BIN) { $env:CLAUDE_BIN } else { 'claude' }
 Log "pending ${pending}, starting $claude"
 New-Item -ItemType File -Force -Path $lock | Out-Null
+Lock-FsfChrome
 try {
+  $chrome = Ensure-FsfChrome -Log 'request-gate'
+  if ($chrome -eq 'missing') { [void](Ensure-FsfChrome -Restart -Log 'request-gate') }
   $promptFile = Join-Path $PSScriptRoot '..\request-inbox.md'
   $prompt = ((Get-Content $promptFile -Raw) -split '```')[1].Trim()
   $code = Invoke-FsfNative 'request-gate' $claude @('-p', $prompt, '--chrome', '--dangerously-skip-permissions', '--model', 'sonnet')
@@ -32,4 +36,5 @@ try {
   Log "claude failed to start: $($_.Exception.Message)"
 } finally {
   Remove-Item $lock -Force -ErrorAction SilentlyContinue
+  Unlock-FsfChrome
 }
