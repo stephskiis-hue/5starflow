@@ -191,8 +191,9 @@ async function getSearchConsoleData(settings) {
   let authHeader;
   const saClient = await getServiceAccountClient();
   if (saClient) {
-    const hdrs = await saClient.getRequestHeaders();
-    authHeader = hdrs.Authorization;
+    // google-auth-library v10 returns a fetch Headers object here, so read the token directly
+    const { token } = await saClient.getAccessToken();
+    authHeader = token ? `Bearer ${token}` : undefined;
   } else if (settings.googleAccessToken) {
     if (settings.googleTokenExpiry && new Date(settings.googleTokenExpiry) < new Date()) {
       console.log('[seoService] Google OAuth token expired — skipping Search Console');

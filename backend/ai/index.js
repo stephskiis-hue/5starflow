@@ -26,6 +26,9 @@ const RUNNABLE = {
   'vault-drive-import':         { risk: 'safe',     fn: (ctx) => require('./driveImport').driveImportTick(ctx) },
   'review-delivery-queue':      { risk: 'sends',    fn: () => require('../services/deliveryQueue').processPendingReviews() },
   'weather-morning-rain-check': { risk: 'texts-owner', fn: () => require('../services/weatherService').morningCheckTick() },
+  'seo-gsc-sync':               { risk: 'safe',     fn: (ctx) => require('./seo/sync').gscSyncTick(ctx) },
+  'seo-index-watch':            { risk: 'safe',     fn: (ctx) => require('./seo/indexWatch').indexWatchTick(ctx) },
+  'seo-roadmap':                { risk: 'spends',   fn: (ctx) => require('./seo/roadmap').roadmapTick(ctx) },
   'seo-weekly-audit':           { risk: 'spends',   fn: async () => { const r = await require('../services/seoService').runWeeklyAudit(); if (r?.error) throw new Error(`SEO audit failed: ${r.error}`); return r || { skipped: true, summary: 'Audit did not run' }; } },
 };
 
@@ -60,6 +63,22 @@ async function startAiOs() {
     require('../lib/prismaClient').commMessage.count({ where: { userId } })
       .then((n) => (n === 0 ? require('../lib/commLedger').backfillComm(userId).then((k) => console.log(`[ai] Comm ledger backfilled (${k} messages)`)) : null))
       .catch((e) => console.warn('[ai] ledger backfill failed:', e.message));
+    // SEO Growth Engine: Search Console data first, then the crawl/index check, roadmap + Serper weekly
+    cron.schedule('7 6 * * *', () => runRoutine('seo-gsc-sync', (ctx) => require('./seo/sync').gscSyncTick(ctx), { maxRuntimeMinutes: 30 }), { timezone: 'America/Winnipeg' });
+    cron.schedule('23 6 * * *', () => runRoutine('seo-index-watch', (ctx) => require('./seo/indexWatch').indexWatchTick(ctx), { maxRuntimeMinutes: 30 }), { timezone: 'America/Winnipeg' });
+    cron.schedule('37 6 * * 1', () => runRoutine('seo-roadmap', (ctx) => require('./seo/roadmap').roadmapTick(ctx), { maxRuntimeMinutes: 30 }), { timezone: 'America/Winnipeg' });
+    // first boot with the engine: crawl, seed + import the existing posts, pull Search Console
+    setTimeout(async () => {
+      try {
+        const prisma = require('../lib/prismaClient');
+        if (await prisma.seoPage.count({ where: { userId } }) === 0) {
+          await runRoutine('seo-index-watch', (ctx) => require('./seo/indexWatch').indexWatchTick(ctx), { trigger: 'manual', maxRuntimeMinutes: 30 });
+          await runRoutine('seo-roadmap', (ctx) => require('./seo/roadmap').roadmapTick(ctx), { trigger: 'manual', maxRuntimeMinutes: 30 });
+        }
+        const row = await prisma.seoSettings.findUnique({ where: { userId } });
+        if (!row?.growthState?.lastSyncAt) await runRoutine('seo-gsc-sync', (ctx) => require('./seo/sync').gscSyncTick(ctx), { trigger: 'manual', maxRuntimeMinutes: 30 });
+      } catch (e) { console.warn('[ai] SEO bootstrap failed:', e.message); }
+    }, 5 * 60_000);
     cron.schedule('20 3 * * *', async () => {
       const r = await pruneOld(userId).catch((e) => ({ error: e.message }));
       console.log('[ai] housekeeping', JSON.stringify(r));

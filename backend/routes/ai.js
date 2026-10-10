@@ -741,6 +741,9 @@ router.patch('/social/threads/:id', async (req, res) => {
   res.status(r.count ? 200 : 404).json({ ok: !!r.count });
 });
 
+// --------------------------------------------------------------------------- SEO Growth Engine
+router.use('/seo', require('./aiSeo'));
+
 router.use((err, req, res, next) => {
   logger.error('ai', `${req.method} ${req.originalUrl}: ${err.message}`, null, req.ai?.userId).catch(() => {});
   res.status(500).json({ error: err.message });
