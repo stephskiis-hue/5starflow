@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>SEO Growth — 5StarFlow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#aac7ff",
+            "on-surface": "#e5e2e1",
+            "on-background": "#e5e2e1",
+            "inverse-primary": "#005db8",
+            "error": "#ffb4ab",
+            "surface-variant": "#353534",
+            "on-primary": "#003064",
+            "surface": "#131313",
+            "surface-dim": "#131313",
+            "surface-bright": "#3a3939",
+            "inverse-on-surface": "#313030",
+            "on-surface-variant": "#8b91a0",
+            "background": "#131313",
+            "secondary-container": "#09bf49",
+            "surface-container-high": "#2a2a2a",
+            "surface-container-lowest": "#0e0e0e",
+            "surface-container-low": "#1c1b1b",
+            "inverse-surface": "#e5e2e1",
+            "surface-tint": "#aac7ff",
+            "primary-container": "#3e90ff",
+            "tertiary-container": "#c863fb",
+            "primary-fixed-dim": "#aac7ff",
+            "tertiary-fixed-dim": "#e9b3ff",
+            "on-error": "#690005",
+            "outline-variant": "#414754",
+            "surface-container": "#201f1f",
+            "error-container": "#93000a",
+            "on-error-container": "#ffdad6",
+            "secondary": "#47e266",
+            "tertiary": "#e9b3ff",
+            "outline": "#8b91a0",
+            "surface-container-highest": "#353534"
+          },
+          fontFamily: {
+            "headline": ["Inter"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          },
+          borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+        },
+      },
+    }
+  </script>
+  <style>
+    body { background-color: #000000; color: #e5e2e1; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+    .glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .tab-active { background: rgba(170,199,255,0.15); color: #aac7ff; border-color: rgba(170,199,255,0.3); }
+    /* Mobile sidebar slide-in */
+    .mob-menu-btn { display: none; }
+    .mob-sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 54; backdrop-filter: blur(2px); }
+    @media (max-width: 640px) {
+      .mob-menu-btn { display: flex; }
+      aside { transform: translateX(-110%) !important; transition: transform 0.3s cubic-bezier(0.4,0,0.2,1) !important; z-index: 56 !important; }
+      aside.mob-open { transform: translateX(0) !important; }
+      main { padding-left: 1rem !important; padding-right: 1rem !important; padding-bottom: 2rem !important; }
+      /* Wide data tables scroll horizontally instead of squishing on mobile */
+      table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      table th, table td { white-space: nowrap; }
+    }
+    /* Mobile icon tab bar */
+    .mob-tab { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; min-height: 52px; border-radius: 14px; transition: background 0.15s; cursor: pointer; border: none; background: transparent; gap: 2px; padding: 6px 2px; }
+    .mob-tab.active { background: rgba(170,199,255,0.15); }
+    .mob-tab .mob-tab-icon { font-size: 22px; color: #8b91a0; transition: color 0.15s; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .mob-tab.active .mob-tab-icon { color: #aac7ff; font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .mob-tab .mob-tab-label { font-size: 9px; font-weight: 600; color: #8b91a0; letter-spacing: 0.03em; transition: color 0.15s; }
+    .mob-tab.active .mob-tab-label { color: #aac7ff; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    .badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; padding:2px 8px; border-radius:9999px; }
+    .b-urgent { background:rgba(255,180,171,.15); color:#ffb4ab; } .b-high { background:rgba(251,191,36,.15); color:#fbbf24; }
+    .b-normal { background:rgba(170,199,255,.12); color:#aac7ff; } .b-low { background:rgba(139,145,160,.15); color:#8b91a0; }
+    .b-ok { background:rgba(71,226,102,.12); color:#47e266; } .b-bad { background:rgba(255,180,171,.15); color:#ffb4ab; } .b-warn { background:rgba(251,191,36,.15); color:#fbbf24; } .b-mute { background:rgba(255,255,255,.06); color:#8b91a0; }
+    .dot { width:8px; height:8px; border-radius:9999px; display:inline-block; flex:none; }
+    .btn { padding:.45rem .9rem; border-radius:.75rem; font-size:.75rem; font-weight:700; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.05); color:#d4d4d8; transition:all .15s; }
+    .btn:hover { background:rgba(255,255,255,.1); } .btn:disabled { opacity:.5; cursor:not-allowed; }
+    .btn-go { background:rgba(71,226,102,.15); color:#47e266; border-color:rgba(71,226,102,.3); } .btn-go:hover { background:rgba(71,226,102,.25); }
+    .btn-no { background:rgba(255,180,171,.1); color:#ffb4ab; border-color:rgba(255,180,171,.25); }
+    .tabs-scroll { display:flex; gap:.5rem; overflow-x:auto; padding-bottom:.25rem; }
+    .tabs-scroll::-webkit-scrollbar { display:none; } .tabs-scroll { scrollbar-width:none; }
+    .tabs-scroll button { flex:none; }
+    @media (max-width: 640px) { .tabs-scroll { margin-left:-.25rem; margin-right:-.25rem; } }
+      .viz-tip { display:none; position:fixed; z-index:80; pointer-events:none; background:#1a1a19; border:1px solid rgba(255,255,255,.1); border-radius:.6rem; padding:.45rem .6rem; font-size:12px; color:#c3c2b7; box-shadow:0 8px 24px rgba(0,0,0,.5); }
+    .viz-tip b { color:#f0efec; font-weight:600; }
+    .hit { cursor:default; outline:none; } .hit:focus-visible { stroke:#c3c2b7; stroke-width:1; }
+  </style>
+</head>
+<body class="bg-black min-h-screen">
+
+  <!-- Sidebar -->
+  <aside class="fixed left-6 top-6 bottom-6 w-64 rounded-[3rem] border-t border-white/10 bg-zinc-900/60 backdrop-blur-2xl flex flex-col h-[calc(100vh-3rem)] p-4 shadow-[0_40px_40px_-5px_rgba(0,0,0,0.6)] z-50">
+    <div class="mb-8 px-4 pt-4">
+      <img src="/images/logo.png" alt="5StarFlow" style="height:36px;width:auto;display:block;margin:0 auto 0.5rem;">
+      <h1 class="text-xl font-bold text-zinc-100 tracking-tighter">Command Center</h1>
+      <p class="text-xs text-zinc-500 font-medium mt-1">5StarFlow</p>
+    </div>
+
+    <nav class="flex-1 space-y-0.5 overflow-y-auto" id="main-nav">
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/index.html">
+        <span class="material-symbols-outlined text-[20px]">home</span>
+        <span class="text-sm font-medium tracking-tight">Home</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/ai.html">
+        <span class="material-symbols-outlined text-[20px]">smart_toy</span>
+        <span class="text-sm font-medium tracking-tight">AI Command</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/review-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">rate_review</span>
+        <span class="text-sm font-medium tracking-tight">Review Requests</span>
+        <span class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary/10 text-secondary hidden" id="sidebar-pending"></span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/weather-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">thunderstorm</span>
+        <span class="text-sm font-medium tracking-tight">Rain Alerts</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/seo-dashboard.html">
+        <span class="material-symbols-outlined text-[20px]">search_check</span>
+        <span class="text-sm font-medium tracking-tight">SEO Audit</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-100 rounded-xl relative before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-secondary before:rounded-full hover:bg-white/5 transition-all duration-200" href="/seo-growth.html">
+        <span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">trending_up</span>
+        <span class="text-sm font-medium tracking-tight">SEO Growth</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/website-audit.html">
+        <span class="material-symbols-outlined text-[20px]">speed</span>
+        <span class="text-sm font-medium tracking-tight">Website Audit</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/marketing.html">
+        <span class="material-symbols-outlined text-[20px]" >campaign</span>
+        <span class="text-sm font-medium tracking-tight">SMS Marketing</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/connections.html">
+        <span class="material-symbols-outlined text-[20px]">hub</span>
+        <span class="text-sm font-medium tracking-tight">App Connections</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/message-settings.html">
+        <span class="material-symbols-outlined text-[20px]">edit_note</span>
+        <span class="text-sm font-medium tracking-tight">Message Templates</span>
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/settings.html">
+        <span class="material-symbols-outlined text-[20px]">settings</span>
+        <span class="text-sm font-medium tracking-tight">Settings</span>
+      </a>
+      <a id="admin-nav-link" class="hidden flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 rounded-xl transition-all duration-200" href="/admin.html">
+        <span class="material-symbols-outlined text-[20px]">manage_accounts</span>
+        <span class="text-sm font-medium tracking-tight">User Management</span>
+      </a>
+    </nav>
+
+    <div class="mt-auto px-2 pt-4 border-t border-white/5">
+      <div class="flex items-center gap-3 p-2">
+        <div class="w-9 h-9 rounded-full bg-surface-container-highest flex items-center justify-center text-sm font-bold text-zinc-100 flex-shrink-0" id="user-avatar">?</div>
+        <div class="flex-1 overflow-hidden">
+          <p class="text-sm font-semibold text-zinc-100 truncate" id="user-email">Loading...</p>
+          <p class="text-xs text-zinc-500 truncate" id="user-role">Administrator</p>
+        </div>
+        <button onclick="logout()" class="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex-shrink-0" title="Log out">
+          <span class="material-symbols-outlined text-[18px]">logout</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Mobile sidebar backdrop -->
+  <div class="mob-sidebar-backdrop" id="mob-sidebar-backdrop" onclick="closeMobSidebar()"></div>
+
+  <main class="pl-80 pr-12 py-10 min-h-screen">
+    <div class="mb-6 flex flex-wrap items-center gap-3">
+      <button onclick="openMobSidebar()" class="mob-menu-btn w-10 h-10 items-center justify-center rounded-xl bg-white/5 border border-white/10 text-zinc-300 hover:bg-white/10 transition-colors flex-shrink-0" aria-label="Open menu">
+        <span class="material-symbols-outlined text-[22px]">menu</span>
+      </button>
+      <div class="flex-1 min-w-0">
+        <h2 class="text-2xl font-black text-zinc-100 tracking-tight">SEO Growth</h2>
+        <p class="text-sm text-on-surface-variant mt-0.5" id="freshness">Keywords we are working on, how they rank, and what the blog writes next</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button class="btn" id="btn-sync" title="Pull the latest Search Console data and rescore">Sync now</button>
+        <button class="btn" id="btn-sitemaps" title="Re-crawl the site, check the sitemaps and submit them to Google">Check site + sitemaps</button>
+        <button class="btn" id="btn-replan" title="Serper rank check + keyword discovery (uses Serper credits)">Re-plan</button>
+      </div>
+    </div>
+
+    <div id="err-banner" class="hidden mb-6 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm font-medium"></div>
+    <div id="setup-card" class="hidden mb-6"></div>
+
+    <div class="tabs-scroll mb-6" id="tab-bar" role="tablist">
+      <button data-tab="overview" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200">Overview</button>
+      <button data-tab="keywords" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200">Keywords</button>
+      <button data-tab="roadmap"  class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200">Roadmap</button>
+      <button data-tab="content"  class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200">Content log</button>
+      <button data-tab="health"   class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200">Index health <span id="badge-health" class="badge b-warn hidden ml-1"></span></button>
+      <button data-tab="report"   class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200">Weekly recaps</button>
+    </div>
+
+    <section id="tab-overview"></section>
+    <section id="tab-keywords" class="hidden"></section>
+    <section id="tab-roadmap" class="hidden"></section>
+    <section id="tab-content" class="hidden"></section>
+    <section id="tab-health" class="hidden"></section>
+    <section id="tab-report" class="hidden"></section>
+  </main>
+
+  <div id="viz-tip" class="viz-tip" role="status" aria-live="polite"></div>
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl bg-zinc-800 text-zinc-100 text-sm border border-white/10 shadow-xl hidden z-[70]"></div>
+
+<script>
+  const API = '/api/ai';
+  const TABS = ['overview', 'keywords', 'roadmap', 'content', 'health', 'report'];
+  const STATUS = {
+    idea: ['Idea', 'b-mute'], planned: ['Planned', 'b-normal'], assigned: ['Writing', 'b-warn'], published: ['Published', 'b-normal'],
+    indexed: ['Indexed', 'b-normal'], ranking: ['Top 20', 'b-ok'], page1: ['Page 1', 'b-ok'], top3: ['Top 3', 'b-ok'], stalled: ['Stalled', 'b-warn'], retired: ['Retired', 'b-mute'],
+  };
+  const MODE = { new: ['New post', 'b-normal'], refresh: ['Refresh', 'b-warn'], page: ['Landing page', 'b-ok'] };
+  const state = { tab: 'overview', data: null, kwFilter: 'active', kwQ: '', showTable: false };
+
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const $ = (id) => document.getElementById(id);
+  const num = (n) => (n == null ? '—' : n >= 10000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K' : Number(n).toLocaleString());
+  const pos = (p) => (p == null ? '—' : Number(p).toFixed(1));
+  const day = (d) => (d ? new Date(d).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' }) : '—');
+  const pathOf = (u) => (u ? String(u).replace(/^https?:\/\/[^/]+/, '') || '/' : '');
+
+  async function api(path, opts = {}) {
+    const res = await fetch(API + path, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...opts, body: opts.body ? JSON.stringify(opts.body) : undefined });
+    if (res.status === 401) { window.location.href = '/login.html'; throw new Error('Not signed in'); }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+    return data;
+  }
+  function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), 3600); }
+  function showErr(msg) { const b = $('err-banner'); if (!msg) return b.classList.add('hidden'); b.textContent = msg; b.classList.remove('hidden'); }
+  function ago(d) {
+    if (!d) return 'never';
+    const s = Math.max(0, (Date.now() - new Date(d).getTime()) / 1000);
+    if (s < 90) return 'just now'; if (s < 3600) return Math.round(s / 60) + ' min ago';
+    if (s < 86400) return Math.round(s / 3600) + ' h ago'; return Math.round(s / 86400) + ' d ago';
+  }
+  const badge = (map, key) => { const [l, c] = map[key] || [key, 'b-mute']; return `<span class="badge ${c}">${esc(l)}</span>`; };
+  const card = (title, body, extra = '') => `<div class="glass-card rounded-xl p-5 sm:p-6 mb-6 ${extra}"><h3 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-4">${esc(title)}</h3>${body}</div>`;
+  const empty = (msg) => `<p class="text-sm text-zinc-500">${esc(msg)}</p>`;
+
+  // ---------------------------------------------------------------- charts (inline SVG, one series each, no dual axis)
+  const tip = { el: null };
+  function showTip(evt, html) {
+    const t = tip.el || (tip.el = $('viz-tip'));
+    t.innerHTML = html; t.style.display = 'block';
+    const r = evt.target.getBoundingClientRect();
+    const x = Math.min(window.innerWidth - t.offsetWidth - 8, Math.max(8, r.left + r.width / 2 - t.offsetWidth / 2));
+    t.style.left = x + 'px'; t.style.top = Math.max(8, r.top - t.offsetHeight - 8) + 'px';
+  }
+  function hideTip() { if (tip.el) tip.el.style.display = 'none'; }
+  function niceMax(v) { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const n = v / p; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p; }
+
+  /** Weekly columns (clicks) or a line (impressions). Post weeks get a dot under the axis. */
+  function weeklyChart(weeks, key, kind) {
+    if (!weeks.length) return empty('No Search Console data yet.');
+    // size the drawing to the card it lands in, so 11px text stays 11px on a phone and on a wide screen
+    const iw = window.innerWidth;
+    const W = Math.max(280, Math.round(iw < 640 ? iw - 74 : iw >= 1024 ? (iw - 400) / 2 - 50 : iw - 420));
+    const H = 180, L = 40, R = 8, T = 10, B = 36;
+    const max = niceMax(Math.max(...weeks.map((w) => w[key])));
+    const band = (W - L - R) / weeks.length;
+    const x = (i) => L + band * i + band / 2;
+    const y = (v) => T + (H - T - B) * (1 - v / max);
+    const ticks = [0, max / 2, max];
+    let svg = `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="${key} per week">`;
+    for (const t of ticks) svg += `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="#2c2c2a" stroke-width="1"/><text x="${L - 6}" y="${y(t) + 4}" text-anchor="end" font-size="11" fill="#898781">${num(t)}</text>`;
+    const color = kind === 'bar' ? '#3987e5' : '#199e70';
+    if (kind === 'line') {
+      const pts = weeks.map((w, i) => `${x(i)},${y(w[key])}`).join(' ');
+      svg += `<polygon points="${L + band / 2},${y(0)} ${pts} ${x(weeks.length - 1)},${y(0)}" fill="${color}" opacity="0.1"/>`;
+      svg += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+      const last = weeks.length - 1;
+      svg += `<circle cx="${x(last)}" cy="${y(weeks[last][key])}" r="4" fill="${color}" stroke="#101010" stroke-width="2"/>`;
+    }
+    weeks.forEach((w, i) => {
+      const v = w[key];
+      if (kind === 'bar') {
+        const bw = Math.min(24, band - 2), top = y(v), h = Math.max(0, y(0) - top), r = Math.min(4, h);
+        const x0 = x(i) - bw / 2;
+        svg += h > 0 ? `<path d="M${x0},${y(0)} V${top + r} Q${x0},${top} ${x0 + r},${top} H${x0 + bw - r} Q${x0 + bw},${top} ${x0 + bw},${top + r} V${y(0)} Z" fill="${color}" opacity="${w.final ? 1 : 0.55}"/>` : '';
+      }
+      if (w.posts || w.refreshes) svg += `<circle cx="${x(i)}" cy="${H - B + 12}" r="3.5" fill="#c3c2b7"/>`;
+      if (i % Math.ceil(weeks.length / (W < 400 ? 3 : 6)) === 0) svg += `<text x="${x(i)}" y="${H - 4}" text-anchor="middle" font-size="11" fill="#898781">${day(w.start)}</text>`;
+      const label = `<b>${num(v)}</b> ${key}<br><span>Week of ${day(w.start)}${w.final ? '' : ' (preliminary)'}</span>${w.posts ? `<br><span>${w.posts} new post${w.posts > 1 ? 's' : ''}</span>` : ''}${w.refreshes ? `<br><span>${w.refreshes} refresh${w.refreshes > 1 ? 'es' : ''}</span>` : ''}`;
+      svg += `<rect class="hit" x="${L + band * i}" y="${T}" width="${band}" height="${H - T}" fill="transparent" tabindex="0" data-tip="${esc(label)}"/>`;
+    });
+    svg += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="#383835" stroke-width="1"/></svg>`;
+    return svg;
+  }
+
+  /** Position over the last weeks (lower is better, so the y-axis is flipped). */
+  function sparkline(history) {
+    const pts = (history || []).map((h) => (h.imp >= 10 && h.pos) || h.serp || null);
+    const vals = pts.filter((v) => v != null);
+    if (vals.length < 2) return '<span class="text-zinc-600 text-xs">—</span>';
+    const W = 84, H = 26, P = 4;
+    const lo = Math.min(...vals), hi = Math.max(...vals), span = Math.max(1, hi - lo);
+    const x = (i) => P + ((W - 2 * P) * i) / Math.max(1, pts.length - 1);
+    const y = (v) => P + ((H - 2 * P) * (v - lo)) / span;          // best position at the top
+    const line = pts.map((v, i) => (v == null ? null : `${x(i)},${y(v)}`)).filter(Boolean).join(' ');
+    const li = pts.map((v, i) => (v == null ? -1 : i)).filter((i) => i >= 0).pop();
+    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-label="position trend"><polyline points="${line}" fill="none" stroke="#3987e5" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${x(li)}" cy="${y(pts[li])}" r="3.5" fill="#3987e5" stroke="#101010" stroke-width="2"/></svg>`;
+  }
+
+  // ---------------------------------------------------------------- tabs
+  function switchTab(tab, push = true) {
+    if (!TABS.includes(tab)) tab = 'overview';
+    state.tab = tab;
+    document.querySelectorAll('#tab-bar button').forEach((b) => {
+      const on = b.dataset.tab === tab;
+      b.classList.toggle('tab-active', on);
+      b.classList.toggle('bg-white/5', !on); b.classList.toggle('text-zinc-400', !on);
+    });
+    TABS.forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== tab));
+    if (push) history.replaceState(null, '', '#' + tab);
+    render();
+  }
+  $('tab-bar').addEventListener('click', (e) => { const b = e.target.closest('button[data-tab]'); if (b) switchTab(b.dataset.tab); });
+  window.addEventListener('hashchange', () => { if (location.hash.slice(1) !== state.tab) switchTab(location.hash.slice(1), false); });
+  window.addEventListener('resize', () => { clearTimeout(render._r); render._r = setTimeout(render, 200); });
+
+  async function load() {
+    try {
+      state.data = await api('/seo/progress');
+      showErr('');
+      render();
+    } catch (err) { showErr(err.message); }
+  }
+
+  function render() {
+    const d = state.data;
+    if (!d) return;
+    const g = d.gsc;
+    $('freshness').textContent = d.kpis.dataThrough
+      ? `Search Console data through ${day(d.kpis.dataThrough)}${d.kpis.preliminary.length ? ` (${d.kpis.preliminary.length} newer day${d.kpis.preliminary.length > 1 ? 's' : ''} still preliminary)` : ''} · synced ${ago(d.sync.lastSyncAt)} · site checked ${ago(d.sync.lastIndexWatchAt)}`
+      : 'Keywords we are working on, how they rank, and what the blog writes next';
+    renderSetup(d);
+    const issues = d.issues.length;
+    $('badge-health').textContent = issues; $('badge-health').classList.toggle('hidden', !issues);
+    ({ overview: renderOverview, keywords: renderKeywords, roadmap: renderRoadmap, content: renderContent, health: renderHealth, report: renderReports })[state.tab](d);
+  }
+
+  function renderSetup(d) {
+    const el = $('setup-card');
+    const need = !d.gsc?.found || !d.submit.allowed || !d.serper.enabled;
+    if (!need) return el.classList.add('hidden');
+    api('/seo/gsc-status').then((s) => {
+      if (!s.instructions.length) return el.classList.add('hidden');
+      el.innerHTML = `<div class="rounded-xl p-5 bg-amber-500/10 border border-amber-500/20">
+        <div class="flex items-center gap-2 mb-2 text-amber-300 font-bold text-sm"><span class="material-symbols-outlined text-[18px]">build</span>Finish setting up</div>
+        ${s.serviceAccountEmail ? `<p class="text-sm text-zinc-300 mb-2">Service account: <code class="text-zinc-100 break-all">${esc(s.serviceAccountEmail)}</code> <button class="btn ml-1" data-copy="${esc(s.serviceAccountEmail)}">Copy</button></p>` : ''}
+        <ol class="list-decimal ml-5 space-y-1 text-sm text-zinc-300">${s.instructions.map((i) => `<li>${esc(i)}</li>`).join('')}</ol>
+        ${s.sites?.length ? `<p class="text-xs text-zinc-500 mt-3">Properties this account can see: ${s.sites.map((x) => esc(`${x.siteUrl} (${x.permissionLevel})`)).join(', ')}</p>` : ''}
+      </div>`;
+      el.classList.remove('hidden');
+    }).catch(() => {});
+  }
+
+  function stat(label, value, delta, goodWhenUp = true, note = '') {
+    let dl = '';
+    if (delta != null && delta !== 0) {
+      const up = delta > 0; const good = up === goodWhenUp;
+      dl = `<span class="text-xs font-semibold ${good ? 'text-[#0ca30c]' : 'text-[#ec835a]'}"><span class="material-symbols-outlined text-[14px] align-[-2px]">${up ? 'arrow_upward' : 'arrow_downward'}</span>${num(Math.abs(delta))}</span>`;
+    }
+    return `<div class="glass-card rounded-xl p-4"><p class="text-xs text-on-surface-variant">${esc(label)}</p><p class="text-2xl font-bold text-zinc-100 mt-1">${value}</p><p class="text-xs text-zinc-500 mt-1 flex gap-2 items-center flex-wrap">${dl}<span>${esc(note)}</span></p></div>`;
+  }
+
+  function renderOverview(d) {
+    const k = d.kpis;
+    const t = d.tracked;
+    const tiles = `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+      ${stat('Clicks, last 28 days', num(k.current.clicks), k.change.clicks, true, k.previous.days ? 'vs the 28 days before' : '')}
+      ${stat('Impressions, last 28 days', num(k.current.impressions), k.change.impressions, true, k.previous.days ? 'vs the 28 days before' : '')}
+      ${stat('Average position', pos(k.current.position), k.change.position, false, 'lower is better')}
+      ${stat('Pages indexed', `${d.coverage.indexed}<span class="text-base text-zinc-500">/${d.coverage.inSitemap}</span>`, null, true, d.coverage.unknown ? `${d.coverage.unknown} not checked yet` : 'pages in the sitemaps')}
+    </div>
+    <div class="grid grid-cols-3 gap-3 mb-6">
+      ${stat('Keywords in top 3', t.now.top3, t.now.top3 - t.fourWeeksAgo.top3, true, 'vs 4 weeks ago')}
+      ${stat('In top 10', t.now.top10, t.now.top10 - t.fourWeeksAgo.top10, true, 'vs 4 weeks ago')}
+      ${stat('In top 20', t.now.top20, t.now.top20 - t.fourWeeksAgo.top20, true, 'vs 4 weeks ago')}
+    </div>`;
+    const charts = `<div class="grid lg:grid-cols-2 gap-6">
+      ${card('Clicks per week', weeklyChart(d.weekly, 'clicks', 'bar') + '<p class="text-xs text-zinc-500 mt-2">Dots under the axis mark weeks with a new post or refresh. Faded weeks are still preliminary.</p>')}
+      ${card('Impressions per week', weeklyChart(d.weekly, 'impressions', 'line') + '<p class="text-xs text-zinc-500 mt-2">How often Google showed the site in results.</p>')}
+    </div>
+    <div class="mb-6"><button class="btn" id="toggle-table">${state.showTable ? 'Hide' : 'Show'} the weekly numbers as a table</button>
+      ${state.showTable ? `<div class="glass-card rounded-xl p-4 mt-3 overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-on-surface-variant text-xs"><th class="py-1 pr-4">Week of</th><th class="pr-4">Clicks</th><th class="pr-4">Impressions</th><th class="pr-4">New posts</th><th>Refreshes</th></tr></thead><tbody>
+        ${d.weekly.map((w) => `<tr class="border-t border-white/5"><td class="py-1 pr-4">${day(w.start)}${w.final ? '' : ' *'}</td><td class="pr-4">${num(w.clicks)}</td><td class="pr-4">${num(w.impressions)}</td><td class="pr-4">${w.posts}</td><td>${w.refreshes}</td></tr>`).join('')}</tbody></table></div>` : ''}</div>`;
+    const report = d.reports[0];
+    const recap = card('Latest weekly recap', report ? `<p class="text-xs text-zinc-500 mb-2">${day(report.createdAt)} · by the ${esc(report.author)} agent</p><div class="text-sm text-zinc-200 whitespace-pre-line">${esc(report.narrative)}</div>${report.nextFocus ? `<p class="text-sm text-zinc-300 mt-3"><b>Next focus:</b> ${esc(report.nextFocus)}</p>` : ''}`
+      : empty(d.reportDue?.postsSince ? 'The first recap is written a week after the first post.' : 'No recap yet. The blog run writes one every week.'));
+    const movers = card('Biggest moves (4 weeks)', d.movers.length ? `<ul class="space-y-2">${d.movers.map((m) => `<li class="flex items-center gap-3 text-sm"><span class="material-symbols-outlined text-[18px] ${m.change > 0 ? 'text-[#0ca30c]' : 'text-[#ec835a]'}">${m.change > 0 ? 'trending_up' : 'trending_down'}</span><span class="flex-1 text-zinc-200">${esc(m.keyword)}</span><span class="text-zinc-400 tabular-nums">${pos(m.from)} → <b class="text-zinc-100">${pos(m.to)}</b></span></li>`).join('')}</ul>` : empty('Needs a few weeks of rank history.'));
+    const next = card('What the blog writes next', d.roadmap.length ? `<ul class="space-y-3">${d.roadmap.slice(0, 5).map((r) => `<li class="text-sm"><div class="flex flex-wrap items-center gap-2">${badge(MODE, r.mode)}<b class="text-zinc-100">${esc(r.keyword)}</b><span class="text-xs text-zinc-500">${esc(r.contentType || '')}</span></div><p class="text-xs text-zinc-400 mt-1">${esc(r.why)}</p></li>`).join('')}</ul>` : empty('Nothing queued: the next run picks its own topic and reports it.'));
+    $('tab-overview').innerHTML = tiles + charts + `<div class="grid lg:grid-cols-2 gap-6">${recap}${next}</div>` + movers + statusStrip(d);
+  }
+
+  function statusStrip(d) {
+    const g = d.gsc;
+    const rows = [
+      ['Search Console', g?.found ? `${esc(g.property)} via ${g.via === 'service_account' ? 'service account' : 'Google login'} (${esc(g.permission || '?')})` : 'not connected'],
+      ['Sitemap submits', d.submit.allowed ? 'on' : 'logged only (DRY_RUN; set SEO_SUBMIT=on)'],
+      ['Serper', d.serper.enabled ? `${d.serper.week?.calls || 0} of ${d.serper.budget} calls used this week` : 'not set up'],
+      ['Keywords tracked', `${d.keywordsTotal} total · ${Object.entries(d.statusCounts).map(([s, n]) => `${n} ${(STATUS[s] || [s])[0].toLowerCase()}`).join(', ')}`],
+      ['Last rank check', ago(d.sync.lastRoadmapAt)],
+    ];
+    return card('Engine status', `<dl class="grid sm:grid-cols-[180px_1fr] gap-x-4 gap-y-2 text-sm">${rows.map(([k, v]) => `<dt class="text-on-surface-variant">${k}</dt><dd class="text-zinc-200">${v}</dd>`).join('')}</dl>`);
+  }
+
+  function renderKeywords(d) {
+    const filters = [['active', 'Working on'], ['ranking', 'Ranking'], ['stalled', 'Stalled'], ['ideas', 'Ideas'], ['all', 'All']];
+    const f = state.kwFilter;
+    const q = state.kwQ.toLowerCase();
+    let list = [...d.focus, ...d.ideas.filter((i) => !d.focus.some((x) => x.id === i.id))];
+    if (f === 'active') list = list.filter((k) => k.targetPath || k.pinned || k.status === 'assigned');
+    if (f === 'ranking') list = list.filter((k) => ['ranking', 'page1', 'top3'].includes(k.status));
+    if (f === 'stalled') list = list.filter((k) => k.status === 'stalled');
+    if (f === 'ideas') list = list.filter((k) => ['idea', 'planned'].includes(k.status));
+    if (q) list = list.filter((k) => k.keyword.includes(q));
+    const bar = `<div class="flex flex-wrap gap-2 mb-4 items-center">${filters.map(([id, l]) => `<button class="btn ${f === id ? 'tab-active' : ''}" data-kwf="${id}">${l}</button>`).join('')}
+      <input id="kw-q" value="${esc(state.kwQ)}" placeholder="Search keywords" class="ml-auto bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-zinc-200 w-full sm:w-56"/></div>`;
+    const rows = list.map((k) => `<tr class="border-t border-white/5 align-top" data-kw="${esc(k.id)}">
+      <td class="py-2 pr-3"><div class="text-zinc-100 font-medium">${esc(k.keyword)}${k.pinned ? ' <span class="material-symbols-outlined text-[14px] text-amber-300 align-[-2px]" title="Pinned">push_pin</span>' : ''}</div><div class="text-xs text-zinc-500">${esc(k.cluster)} · ${esc(k.kind)}</div></td>
+      <td class="pr-3">${badge(STATUS, k.status)}</td>
+      <td class="pr-3 text-xs">${k.targetPath ? `<a class="text-primary hover:underline" href="${esc(d.origin + k.targetPath)}" target="_blank" rel="noopener">${esc(k.targetPath)}</a>` : '<span class="text-zinc-600">no page yet</span>'}</td>
+      <td class="pr-3 tabular-nums text-zinc-400">${pos(k.baseline)} → <b class="text-zinc-100">${pos(k.current)}</b>${k.best ? `<div class="text-xs text-zinc-500">best ${pos(k.best)}</div>` : ''}${k.currentFrom === 'serper' ? '<div class="text-xs text-zinc-500">from the rank check</div>' : ''}</td>
+      <td class="pr-3 tabular-nums">${k.serp ?? '—'}${k.map ? `<div class="text-xs text-zinc-500">map #${k.map}</div>` : ''}</td>
+      <td class="pr-3 tabular-nums">${num(k.impressions28)}<div class="text-xs text-zinc-500">${num(k.clicks28)} clicks</div></td>
+      <td class="pr-3">${sparkline(k.history)}</td>
+      <td class="whitespace-nowrap"><button class="btn" data-act="${k.pinned ? 'unpin' : 'pin'}" title="${k.pinned ? 'Unpin' : 'Pin: write about this soon'}"><span class="material-symbols-outlined text-[16px]">push_pin</span></button>
+        <button class="btn" data-act="${k.rankTrack ? 'untrack' : 'track'}" title="${k.rankTrack ? 'Stop the weekly rank check' : 'Check its Google + map rank weekly'}"><span class="material-symbols-outlined text-[16px]">${k.rankTrack ? 'visibility_off' : 'visibility'}</span></button>
+        <button class="btn" data-act="retire" title="Stop working on this keyword"><span class="material-symbols-outlined text-[16px]">block</span></button></td></tr>`).join('');
+    const add = `<form id="kw-add" class="flex flex-wrap gap-2 mt-4"><input id="kw-new" placeholder="Add a keyword to target, e.g. snow removal transcona" class="flex-1 min-w-[220px] bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-zinc-200"/><label class="flex items-center gap-2 text-sm text-zinc-400"><input type="checkbox" id="kw-pin" checked class="rounded bg-white/5 border-white/20"/> pin it</label><button class="btn btn-go" type="submit">Add</button></form>`;
+    $('tab-keywords').innerHTML = card(`Keywords (${list.length})`, bar + (list.length ? `<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-on-surface-variant text-xs"><th class="pb-2 pr-3">Keyword</th><th class="pr-3">Stage</th><th class="pr-3">Page</th><th class="pr-3">Position (start → now)</th><th class="pr-3">Google rank</th><th class="pr-3">28 days</th><th class="pr-3">Trend</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : empty('No keywords match.')) + add
+      + '<p class="text-xs text-zinc-500 mt-3">Position comes from Search Console once a keyword has 10+ impressions; before that the weekly Serper check (Google from Winnipeg) fills in. "map #" is the Google Maps 3-pack.</p>');
+  }
+
+  function renderRoadmap(d) {
+    const res = d.reserved ? `<p class="text-sm text-zinc-300 mb-4"><span class="material-symbols-outlined text-[16px] align-[-3px] text-amber-300">edit</span> Being written now: <b>${esc(d.reserved.keyword)}</b> (${esc((MODE[d.reserved.mode] || [d.reserved.mode])[0])})</p>` : '';
+    const next = card('Next up (in order)', res + (d.roadmap.length ? `<ol class="space-y-3">${d.roadmap.map((r, i) => `<li class="flex gap-3 text-sm"><span class="text-zinc-500 w-5 text-right tabular-nums">${i + 1}.</span><div class="flex-1"><div class="flex flex-wrap items-center gap-2">${badge(MODE, r.mode)}<b class="text-zinc-100">${esc(r.keyword)}</b><span class="text-xs text-zinc-500">${esc(r.contentType || '')}${r.targetPath ? ' · ' + esc(r.targetPath) : ''}</span><span class="text-xs text-zinc-600 ml-auto tabular-nums">score ${r.score}</span></div><p class="text-xs text-zinc-400 mt-1">${esc(r.why)}</p></div></li>`).join('')}</ol>` : empty('No candidates right now.'))
+      + `<p class="text-xs text-zinc-500 mt-4">The daily blog run takes the top item. Up to ${d.config.refreshPerWeek} refreshes and ${d.config.pagesPerWeek} landing page a week; head terms like "service + Winnipeg" are kept for service pages.</p>`);
+    const season = (s) => (s >= 1.5 ? '<span class="badge b-ok">season soon</span>' : s >= 1.25 ? '<span class="badge b-ok">in season</span>' : s === 1 ? '<span class="badge b-mute">all year</span>' : '<span class="badge b-mute">off season</span>');
+    const clusters = card('Services', `<div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">${d.clusters.map((c) => `<div class="rounded-xl bg-white/[0.03] border border-white/5 p-4">
+      <div class="flex items-center gap-2 mb-1"><b class="text-zinc-100 text-sm">${esc(c.label)}</b>${season(c.season)}</div>
+      <p class="text-xs text-zinc-400 mb-2">${c.pillarPath ? `Service page <a class="text-primary hover:underline" href="${esc(d.origin + c.pillarPath)}" target="_blank" rel="noopener">${esc(c.pillarPath)}</a>${c.pillarPosition ? ` · position ${pos(c.pillarPosition)}` : ''}` : `<span class="text-amber-300">No service page yet</span>${c.plannedPillar ? ` (planned ${esc(c.plannedPillar)})` : ''}`}</p>
+      <p class="text-xs text-zinc-500">${c.posts} post${c.posts === 1 ? '' : 's'} · ${c.keywords} keyword${c.keywords === 1 ? '' : 's'} · ${num(c.impressions28)} impressions</p>
+      <p class="text-xs text-zinc-500 mt-1">${Object.entries(c.counts).map(([s, n]) => `${n} ${(STATUS[s] || [s])[0].toLowerCase()}`).join(' · ') || '—'}</p></div>`).join('')}</div>`);
+    const ideas = card('Keyword ideas', d.ideas.length ? `<ul class="divide-y divide-white/5">${d.ideas.map((k) => `<li class="py-2 flex flex-wrap items-center gap-2 text-sm" data-kw="${esc(k.id)}">${badge(STATUS, k.status)}<span class="text-zinc-100">${esc(k.keyword)}</span><span class="text-xs text-zinc-500">${esc(k.kind)} · from ${esc(k.source)}</span><span class="text-xs text-zinc-400 basis-full sm:basis-auto sm:ml-2">${esc(k.why)}</span><span class="ml-auto"><button class="btn" data-act="${k.pinned ? 'unpin' : 'pin'}">${k.pinned ? 'Unpin' : 'Pin'}</button> <button class="btn" data-act="retire">Not for us</button></span></li>`).join('')}</ul>` : empty('Ideas arrive from Search Console and the weekly Serper discovery.'));
+    $('tab-roadmap').innerHTML = next + clusters + ideas;
+  }
+
+  function renderContent(d) {
+    const verdict = (c) => (c.indexVerdict === 'PASS' ? '<span class="badge b-ok">Indexed</span>' : c.indexVerdict ? `<span class="badge b-warn" title="${esc(c.coverageState || '')}">Not indexed</span>` : '<span class="badge b-mute">Not checked</span>');
+    const rows = d.content.map((c) => `<tr class="border-t border-white/5 align-top"><td class="py-2 pr-3 whitespace-nowrap text-zinc-400">${day(c.publishedAt)}</td>
+      <td class="pr-3">${badge(MODE, c.mode)}${c.kind !== 'blog' ? ` <span class="badge b-mute">${esc(c.kind)}</span>` : ''}</td>
+      <td class="pr-3"><a class="text-zinc-100 hover:underline" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.title || c.path)}</a><div class="text-xs text-zinc-500">${esc(c.keyword)}${c.contentType ? ' · ' + esc(c.contentType) : ''}${c.unassigned ? ' · picked by the writer' : ''}</div></td>
+      <td class="pr-3">${verdict(c)}<div class="text-xs text-zinc-500 mt-1">${c.lastCrawlTime ? 'crawled ' + day(c.lastCrawlTime) : c.inSitemap ? 'in sitemap' : 'not in sitemap yet'}</div></td>
+      <td class="pr-3 tabular-nums">${pos(c.position)}${c.serp ? `<div class="text-xs text-zinc-500">Google #${c.serp}</div>` : ''}</td><td class="tabular-nums">${num(c.impressions28)}</td></tr>`).join('');
+    $('tab-content').innerHTML = card(`What the engine published (${d.content.length})`, d.content.length
+      ? `<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-on-surface-variant text-xs"><th class="pb-2 pr-3">Date</th><th class="pr-3">Type</th><th class="pr-3">Page</th><th class="pr-3">Google</th><th class="pr-3">Position</th><th>Impressions 28d</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      : empty('Every post, refresh and landing page the blog run reports shows up here, with whether Google indexed it.'));
+  }
+
+  function renderHealth(d) {
+    const c = d.coverage;
+    const cov = `<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">${stat('In the sitemaps', c.inSitemap)}${stat('Indexed by Google', c.indexed)}${stat('Not indexed', c.notIndexed)}${stat('Not checked yet', c.unknown)}</div>`;
+    const maps = card('Sitemaps', d.sitemaps.length ? `<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-on-surface-variant text-xs"><th class="pb-2 pr-3">File</th><th class="pr-3">URLs</th><th class="pr-3">Last changed</th><th class="pr-3">We submitted</th><th class="pr-3">Google read it</th><th>Errors</th></tr></thead><tbody>
+      ${d.sitemaps.map((s) => `<tr class="border-t border-white/5"><td class="py-2 pr-3"><a class="text-primary hover:underline" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(pathOf(s.url))}</a>${s.isIndex ? ' <span class="badge b-mute">index</span>' : ''}${s.httpStatus && s.httpStatus !== 200 ? ` <span class="badge b-bad">${s.httpStatus}</span>` : ''}</td>
+        <td class="pr-3 tabular-nums">${s.urlCount}</td><td class="pr-3">${day(s.hashChangedAt)}</td><td class="pr-3">${s.lastSubmittedAt ? ago(s.lastSubmittedAt) : '—'}</td><td class="pr-3">${s.gscLastDownloaded ? ago(s.gscLastDownloaded) : '—'}${s.gscIsPending ? ' <span class="badge b-warn">pending</span>' : ''}</td><td>${s.gscErrors || s.gscWarnings ? `${s.gscErrors || 0} errors, ${s.gscWarnings || 0} warnings` : '—'}</td></tr>`).join('')}</tbody></table></div>` : empty('Not checked yet.'));
+    const issues = card(`Problems to fix (${d.issues.length})`, d.issues.length ? d.issues.map((t) => `<details class="border-t border-white/5 py-3"><summary class="cursor-pointer text-sm text-zinc-100 flex items-center gap-2"><span class="badge b-${esc(t.urgency)}">${esc(t.urgency)}</span>${esc(t.title)}</summary>
+      ${t.whatHappened ? `<pre class="text-xs text-zinc-400 whitespace-pre-wrap mt-2 font-sans">${esc(t.whatHappened)}</pre>` : ''}${t.whatNeeds ? `<p class="text-sm text-zinc-300 mt-2"><b>Fix:</b> ${esc(t.whatNeeds)}</p>` : ''}${t.recommended ? `<pre class="text-xs text-zinc-300 bg-black/40 rounded-lg p-3 mt-2 overflow-x-auto">${esc(t.recommended)}</pre>` : ''}</details>`).join('')
+      + '<p class="text-xs text-zinc-500 mt-3">These close by themselves once the daily check sees the fix. They are also in AI Command > Tasks.</p>' : empty('No problems found on the last check.'));
+    const can = card('Pages competing for the same search', d.cannibalization.length ? `<ul class="space-y-3">${d.cannibalization.slice(0, 15).map((x) => `<li class="text-sm"><b class="text-zinc-100">${esc(x.keyword)}</b><div class="text-xs text-zinc-400">${x.pages.map((p) => `${esc(p.page)} (${p.share}%)`).join(' vs ')}</div></li>`).join('')}</ul>` : empty('None found.'));
+    $('tab-health').innerHTML = cov + issues + maps + can;
+  }
+
+  function renderReports(d) {
+    $('tab-report').innerHTML = d.reports.length ? d.reports.map((r) => card(`Week ending ${day(r.periodEnd)}`, `<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+      ${stat('Clicks (28 days)', num(r.metrics?.kpis?.current?.clicks), r.metrics?.kpis?.change?.clicks)}${stat('Impressions', num(r.metrics?.kpis?.current?.impressions), r.metrics?.kpis?.change?.impressions)}
+      ${stat('Average position', pos(r.metrics?.kpis?.current?.position), r.metrics?.kpis?.change?.position, false)}${stat('Posts this week', (r.metrics?.postsSinceLastReport || []).length)}</div>
+      <div class="text-sm text-zinc-200 whitespace-pre-line">${esc(r.narrative)}</div>${r.nextFocus ? `<p class="text-sm text-zinc-300 mt-3"><b>Next focus:</b> ${esc(r.nextFocus)}</p>` : ''}
+      ${(r.metrics?.postsSinceLastReport || []).length ? `<ul class="mt-3 text-xs text-zinc-400 space-y-1">${r.metrics.postsSinceLastReport.map((p) => `<li>${esc((MODE[p.mode] || [p.mode])[0])}: <a class="text-primary hover:underline" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.keyword)}</a></li>`).join('')}</ul>` : ''}`)).join('')
+      : card('Weekly recaps', empty('Once a week the blog run writes a short recap: what moved, what was published, what comes next. The numbers are taken by the server, not written by the AI.'));
+  }
+
+  // ---------------------------------------------------------------- actions
+  document.addEventListener('click', async (e) => {
+    if (e.target.closest('#toggle-table')) { state.showTable = !state.showTable; return render(); }
+    const f = e.target.closest('[data-kwf]');
+    if (f) { state.kwFilter = f.dataset.kwf; return render(); }
+    const copy = e.target.closest('[data-copy]');
+    if (copy) { navigator.clipboard?.writeText(copy.dataset.copy); return toast('Copied'); }
+    const act = e.target.closest('[data-act]');
+    if (act) {
+      const id = act.closest('[data-kw]').dataset.kw;
+      const body = { pin: { pinned: true }, unpin: { pinned: false }, track: { rankTrack: true }, untrack: { rankTrack: false }, retire: { status: 'retired' } }[act.dataset.act];
+      if (act.dataset.act === 'retire' && !confirm('Stop working on this keyword?')) return;
+      try { await api('/seo/keywords/' + id, { method: 'PATCH', body }); toast('Saved'); load(); } catch (err) { toast(err.message); }
+    }
+  });
+  document.addEventListener('input', (e) => { if (e.target.id === 'kw-q') { state.kwQ = e.target.value; clearTimeout(render._t); render._t = setTimeout(() => { render(); const i = $('kw-q'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250); } });
+  document.addEventListener('submit', async (e) => {
+    if (e.target.id !== 'kw-add') return;
+    e.preventDefault();
+    const v = $('kw-new').value.trim();
+    if (!v) return;
+    try { await api('/seo/keywords', { method: 'POST', body: { keyword: v, pin: $('kw-pin').checked } }); toast('Added'); load(); } catch (err) { toast(err.message); }
+  });
+  ['pointerover', 'focusin'].forEach((ev) => document.addEventListener(ev, (e) => { const h = e.target.closest?.('.hit'); if (h) showTip(e, h.dataset.tip); }));
+  ['pointerout', 'focusout'].forEach((ev) => document.addEventListener(ev, (e) => { if (e.target.closest?.('.hit')) hideTip(); }));
+
+  async function runAction(btn, path, label) {
+    btn.disabled = true; const t = btn.textContent; btn.textContent = 'Working…';
+    try { const r = await api(path, { method: 'POST' }); toast(r.result?.summary || `${label} done`); await load(); }
+    catch (err) { toast(err.message); } finally { btn.disabled = false; btn.textContent = t; }
+  }
+  $('btn-sync').addEventListener('click', (e) => runAction(e.currentTarget, '/routines/seo-gsc-sync/run', 'Sync'));
+  $('btn-sitemaps').addEventListener('click', (e) => runAction(e.currentTarget, '/seo/sitemaps/check?full=1', 'Site check'));
+  $('btn-replan').addEventListener('click', (e) => runAction(e.currentTarget, '/routines/seo-roadmap/run', 'Re-plan'));
+
+  // ---------------------------------------------------------------- shell (same helpers as the other dashboard pages)
+  async function logout() { try { const r = await fetch('/auth/logout', { method: 'POST' }); const d = await r.json(); window.location.href = d.redirect || '/login.html'; } catch { window.location.href = '/login.html'; } }
+  function openMobSidebar() { document.querySelector('aside').classList.add('mob-open'); $('mob-sidebar-backdrop').style.display = 'block'; }
+  function closeMobSidebar() { document.querySelector('aside').classList.remove('mob-open'); $('mob-sidebar-backdrop').style.display = 'none'; }
+
+  (async function init() {
+    try {
+      const res = await fetch('/api/admin/me', { credentials: 'include' });
+      if (res.status === 401) return (window.location.href = '/login.html');
+      const me = await res.json();
+      $('user-email').textContent = me.email || ''; $('user-avatar').textContent = (me.email || '?').charAt(0).toUpperCase();
+      $('user-role').textContent = me.role === 'admin' ? 'Administrator' : 'Client';
+      if (me.role === 'admin') $('admin-nav-link').classList.remove('hidden');
+    } catch {}
+    switchTab(location.hash.slice(1) || 'overview', false);
+    await load();
+    setInterval(() => { if (!document.hidden) load(); }, 60000);
+  })();
+</script>
+</body>
+</html>

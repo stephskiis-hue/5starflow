@@ -8,6 +8,8 @@
 - [ ] Confirm: do you reply to customers from Jobber/your phone (ledger can't see those)? Where does the website contact form go? Google OAuth app Testing vs Production (Gmail read scope)?
 - [ ] Verify the graphic renderer on Railway (chromium); fall back to rendering on the MSI if needed.
 
+- [ ] SEO Growth Engine: add the service account as a **Full** user in Search Console; Railway `SEO_SUBMIT=on`, `GSC_SITE_URL`, confirm `SERPER_API_KEY`; then on the MSI follow `docs/seo/windows-setup.md` (sitemap + blog-index hooks in `_deploy.py`, site fixes, new blog task prompt).
+
 ## Code
 - [ ] Gmail monitor in the backend (needs `gmail.readonly` + Production OAuth) — until then Inbox Watch uses the Gmail connector.
 - [ ] Website inquiries: register Jobber `REQUEST_CREATE` webhook → CommMessage/Task; or a form endpoint.
@@ -19,4 +21,5 @@
 - [ ] Facebook group memory UI (edit rules/promo policy from the dashboard).
 - [x] Pure-logic unit tests (`npm test`, 15 tests: classifier, QA lint, renderer validation/escaping, tz, ledger). Still missing: DB-backed tests for caps, task dedup, publish flow (verified by smoke scripts only).
 - [ ] marketing.html (from the merged SMS-status branch): campaign progress poll never stops for rows that never get a delivery receipt, and the conversation thread doesn't show `deliveryStatus` (a carrier-rejected direct reply looks sent).
+- [ ] SEO: neighbourhood evidence from real jobs (capped Jobber query of property postal codes per area) to gate area pages; year-over-year seasonality from `SeoQueryMonth` once 12 months exist.
 - [ ] Re-run the adversarial review's verification stage: it hit a session limit, so only the security findings got the full 3-skeptic vote; the others were checked by hand and fixed.

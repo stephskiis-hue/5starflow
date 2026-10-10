@@ -605,6 +605,9 @@ router.post('/social/groups', async (req, res) => {
   res.status(201).json(row);
 });
 
+// --------------------------------------------------------------------------- SEO Growth Engine
+router.use('/seo', require('./aiSeo'));
+
 router.use((err, req, res, next) => {
   logger.error('ai', `${req.method} ${req.originalUrl}: ${err.message}`, null, req.ai?.userId).catch(() => {});
   res.status(500).json({ error: err.message });

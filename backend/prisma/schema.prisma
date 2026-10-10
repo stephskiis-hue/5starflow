@@ -259,6 +259,8 @@ model SeoSettings {
   ga4PropertyId      String?  // GA4 property ID e.g. "properties/123456789"
   auditEnabled       Boolean  @default(true)
   deepAnalysis       Boolean  @default(false) // true = Sonnet (~4¢), false = Haiku (~0.7¢)
+  growthConfig       Json?    // SEO Growth Engine knobs the owner can change (ai/seo/config.js mergeConfig)
+  growthState        Json?    // SEO Growth Engine machine state: sync cursors, Serper budget, inspection counts
   updatedAt          DateTime @updatedAt
   createdAt          DateTime @default(now())
 }
@@ -926,4 +928,203 @@ model NotificationSettings {
   digestDay   Int     @default(6)         // 0=Sun .. 6=Sat
   digestHour  Int     @default(15)        // local business time
   urgentSms   Boolean @default(true)
+}
+
+// ---------------------------------------------------------------------------
+// SEO Growth Engine (backend/ai/seo/*). Paths are canonical site paths ("/blog-x", "/"):
+// no host, no ".html", original case kept. Search Console days are Pacific time.
+// ---------------------------------------------------------------------------
+
+// Search Console [date] totals. Includes anonymized queries, so it is the source of the headline numbers.
+model SeoDailyTotal {
+  userId      String
+  date        DateTime @db.Date
+  clicks      Int
+  impressions Int
+  ctr         Float
+  position    Float
+  final       Boolean  @default(false) // false = Google may still revise this day
+
+  @@id([userId, date])
+}
+
+// Search Console [date, query, page]; kept SEO_STATS_RETENTION_DAYS (default 120), older history in SeoQueryMonth.
+model SeoQueryStat {
+  userId      String
+  date        DateTime @db.Date
+  query       String
+  page        String
+  clicks      Int
+  impressions Int
+  position    Float
+  final       Boolean  @default(false)
+
+  @@id([userId, date, query, page])
+}
+
+// Search Console [query, page] per calendar month: the 16-month backfill and history past retention.
+model SeoQueryMonth {
+  userId      String
+  month       DateTime @db.Date // first day of the month
+  query       String
+  page        String
+  clicks      Int
+  impressions Int
+  position    Float // impression-weighted
+
+  @@id([userId, month, query, page])
+}
+
+// One keyword the business wants to win, with its lifecycle and the numbers that move it.
+model SeoKeyword {
+  id                  String    @id @default(cuid())
+  userId              String
+  keyword             String
+  matchKey            String // keywords.matchKey(): dedup + query matching
+  cluster             String // config.CLUSTERS id | brand | other
+  intent              String    @default("informational") // transactional | commercial | informational
+  kind                String    @default("blog") // blog | service | area: which kind of page should own it
+  area                String? // neighbourhood for area keywords
+  source              String    @default("seed") // seed | gsc | serper | import | owner | claude
+  status              String    @default("idea") // idea|planned|assigned|published|indexed|ranking|page1|top3|stalled|retired
+  statusChangedAt     DateTime  @default(now())
+  pinned              Boolean   @default(false)
+  rankTrack           Boolean   @default(false) // weekly Serper rank + map-pack check
+  priority            Float     @default(0)
+  scoreParts          Json? // {upside,stage,intent,season,confidence,clusterBoost,why}
+  signals             Json? // Serper discovery: {autocomplete, paa, related, competitors[]}
+  targetPath          String?
+  clicks28            Int       @default(0)
+  impressions28       Int       @default(0)
+  position28          Float?
+  baselinePosition    Float?
+  baselineImpressions Int?
+  baselineAt          DateTime?
+  bestPosition        Float?
+  bestPositionAt      DateTime?
+  serpPosition        Int? // Serper organic rank (Winnipeg), null = not in top 30
+  mapPackPosition     Int? // Serper places rank, null = not in the map pack
+  serpCheckedAt       DateTime?
+  history             Json? // weekly [{w,pos,imp,clk,serp,map}] capped at 80
+  lockedUntil         DateTime?
+  lockedBy            String?
+  lastAssignedAt      DateTime?
+  publishedAt         DateTime?
+  notes               String    @default("")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([userId, matchKey])
+  @@index([userId, status])
+  @@index([userId, cluster])
+}
+
+// Every URL the engine knows about: from the crawl, the sitemaps, Search Console or a publish report.
+model SeoPage {
+  id                String    @id @default(cuid())
+  userId            String
+  path              String
+  kind              String    @default("other") // home | service | area | blog | hub | other
+  title             String?
+  h1                String?
+  primaryKeyword    String?
+  secondaryKeywords Json?
+  cluster           String?
+  contentType       String?
+  wordCount         Int?
+  source            String    @default("crawl") // crawl | sitemap | gsc | published | owner
+  inSitemap         Boolean   @default(false)
+  sitemapUrl        String?
+  inPostsJson       Boolean?
+  inlinks           Int       @default(0)
+  httpStatus        Int?
+  redirectTo        String?
+  canonical         String?
+  canonicalOk       Boolean?
+  noindex           Boolean   @default(false)
+  contentHash       String?
+  contentChangedAt  DateTime?
+  indexVerdict      String? // PASS | PARTIAL | FAIL | NEUTRAL (URL Inspection)
+  coverageState     String?
+  googleCanonical   String?
+  lastCrawlTime     DateTime?
+  lastInspectedAt   DateTime?
+  indexedAt         DateTime?
+  clicks28          Int       @default(0)
+  impressions28     Int       @default(0)
+  position28        Float?
+  publishedAt       DateTime?
+  refreshedAt       DateTime?
+  lastCheckedAt     DateTime?
+  excluded          Boolean   @default(false) // owner: not a real page; never in tasks
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([userId, path])
+  @@index([userId, kind])
+}
+
+// Live sitemap files and what Google says about them.
+model SeoSitemap {
+  id                String    @id @default(cuid())
+  userId            String
+  url               String
+  isIndex           Boolean   @default(false)
+  parentUrl         String?
+  urlCount          Int       @default(0)
+  contentHash       String?
+  hashChangedAt     DateTime?
+  submittedHash     String?
+  httpStatus        Int?
+  lastFetchedAt     DateTime?
+  lastSubmittedAt   DateTime?
+  gscLastSubmitted  DateTime?
+  gscLastDownloaded DateTime?
+  gscIsPending      Boolean?
+  gscErrors         Int?
+  gscWarnings       Int?
+  gscSubmittedUrls  Int?
+  lastError         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([userId, url])
+}
+
+// One unit of work handed to the blog writer (new post, refresh or landing page). brief is frozen.
+model SeoAssignment {
+  id            String    @id @default(cuid())
+  userId        String
+  keywordId     String
+  keywordText   String
+  cluster       String?
+  mode          String // new | refresh | page
+  contentType   String?
+  status        String    @default("reserved") // reserved | published | expired | skipped
+  brief         Json
+  targetPath    String?
+  reservedBy    String?
+  expiresAt     DateTime
+  publishedPath String?
+  publishedAt   DateTime?
+  skipReason    String?
+  createdAt     DateTime  @default(now())
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+// Weekly recap shown on seo-growth.html. metrics is snapshotted by the server, the narrative by Claude.
+model SeoProgressReport {
+  id          String   @id @default(cuid())
+  userId      String
+  periodStart DateTime
+  periodEnd   DateTime
+  metrics     Json
+  narrative   String
+  nextFocus   String   @default("")
+  author      String   @default("content")
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
 }

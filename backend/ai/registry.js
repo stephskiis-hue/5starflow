@@ -40,6 +40,12 @@ const BACKEND = [
     purpose: 'Pulls new photos from the connected Google Drive into the vault (newest first, then the older backlog), auto-enhances them and keeps the original so the curator can re-edit or revert.', expectedEveryMinutes: 2160, config: { files: ['ai/driveImport.js', 'ai/enhance.js'] } },
   { slug: 'pricing-learner', name: 'Price learner', agent: 'research', schedule: 'Daily 2:15 am', category: 'learning', learningEnabled: true,
     purpose: 'Learns what the business actually charges from the owner\'s own texts (min / median / max per service) so replies can eventually quote it.', expectedEveryMinutes: 2160, config: { quiet: true, files: ['ai/learning/pricing.js'] } },
+  { slug: 'seo-gsc-sync', name: 'Search Console sync', agent: 'research', schedule: 'Daily 6:07 am', category: 'seo',
+    purpose: 'Pulls clicks, impressions and positions per query and page from Search Console (16-month backfill), then rescores the keyword roadmap.', expectedEveryMinutes: 2160, config: { files: ['ai/seo/sync.js', 'ai/seo/roadmap.js'] } },
+  { slug: 'seo-index-watch', name: 'Sitemap + index watch', agent: 'research', schedule: 'Daily 6:23 am, plus after every post and deploy', category: 'seo',
+    purpose: 'Crawls the live site and its sitemaps, submits changed sitemaps to Google, URL-inspects new pages, and raises tasks for redirects, missing pages, bad canonicals, duplicates and pages Google has not indexed.', expectedEveryMinutes: 2160, config: { files: ['ai/seo/indexWatch.js', 'ai/seo/crawl.js'] } },
+  { slug: 'seo-roadmap', name: 'Keyword roadmap (Serper)', agent: 'research', schedule: 'Monday 6:37 am', category: 'seo', researchEnabled: true,
+    purpose: 'Weekly Google + map-pack rank check for tracked keywords and Serper keyword discovery, then rescores what the blog should write next.', expectedEveryMinutes: 10080, config: { files: ['ai/seo/roadmap.js', 'ai/seo/serper.js'] } },
   { slug: 'routine-heartbeat', name: 'Routine heartbeat', agent: 'system', schedule: 'Every 15 min', category: 'ai-os',
     purpose: 'Flags any routine that should have reported but has gone quiet (e.g. a Claude routine blocked by the plan limit).', expectedEveryMinutes: 60, config: { quiet: true, files: ['ai/heartbeat.js'] } },
 ];
@@ -73,6 +79,8 @@ const EXTERNAL = [
     purpose: 'Claims requests typed on the dashboard home page or texted from the owner\'s phone, does the work (Claude in Chrome on the MSI), and reports the result back. Unmonitored by the heartbeat on purpose: it only runs when there is work. Prompt: ai/prompts/request-inbox.md' },
   { slug: 'local-ollama-worker', name: 'Local model worker (Ollama on MSI)', agent: 'communication', kind: 'local_ollama', schedule: 'SMS triage every 30 min 6 am to 10 pm, morning note 5:30 am Winnipeg (MSI Task Scheduler)', category: 'inbox', autonomy: 'draft', expectedEveryMinutes: 120, config: { activeHours: [6, 22] },
     purpose: 'Drafts SMS reply tasks and the morning note on a local Ollama model so Claude tokens go to connector and Chrome work. Never sends. Script: scripts/ollama-worker.js, scheduler: ai/prompts/msi/ollama-worker.ps1' },
+  { slug: 'ext-blog-autopilot', name: 'Blog autopilot (SEO assignments)', agent: 'content', kind: 'claude_desktop', schedule: 'Daily (MSI Claude scheduled task)', category: 'seo', autonomy: 'execute', researchEnabled: true,
+    purpose: 'Takes the day\'s SEO assignment (new post, refresh or landing page), researches and writes it, publishes through _blog-autopilot.py, reports it, and writes the weekly recap. Prompt: ai/prompts/blog-autopilot.md, skill: nobs-seo' },
   { slug: 'ext-social-daily', externalId: 'trig_01JL7wxcDHNL3wRYrY8yiGMY', name: 'No-Bs social media daily (Claude in Chrome)', agent: 'social', kind: 'claude_desktop', schedule: 'Daily 7:45 am Winnipeg (MSI PC)', category: 'social', autonomy: 'execute', enabled: false,
     purpose: 'Facebook + Instagram inbox, leads, groups, stories and weekly content using Claude in Chrome.' },
 ];

@@ -47,6 +47,7 @@ backend/
     gmail.js                     — Gmail OAuth2 connect flow
     analytics.js                 — GA4 + Search Console data
     seo.js                       — SEO audit runs, proposals, change apply
+    aiSeo.js                     — /api/ai/seo/* SEO Growth Engine (assignments, keywords, progress, sitemap checks)
     websiteAudit.js              — FTP-based website audit (pull, audit, push)
     leaderboard.js               — Loyalty/referral leaderboard
   services/
@@ -84,6 +85,7 @@ backend/
     settings.html                — Account settings
     message-settings.html        — Customize review request email/SMS
     seo-dashboard.html           — SEO audit results + proposal approval
+    seo-growth.html              — SEO Growth: keyword roadmap, rank tracking, content log, index health, weekly recaps
     website-audit.html           — FTP audit scanner
     admin.html                   — Admin panel (admin role only)
 ```
@@ -96,7 +98,8 @@ ai/registry.js      Routine Registry seed (backend jobs + the Claude routines on
 ai/heartbeat.js     flags routines that went quiet (e.g. Claude plan limit) as Tasks
 ai/tasks.js memory.js ledger.js brief.js comms.js smsMonitor.js   tasks (dedupKey), selective memory, activity, work packet, conversation states
 ai/design/          design-system layouts + renderer.js (Playwright) + qa.js (brand lint)   ai/vault.js content.js social.js (daily caps)
-ai/prompts/         prompts for the Claude routines (Night Studio, Social Shift, Inbox Watch, Morning Brief)
+ai/prompts/         prompts for the Claude routines (Night Studio, Social Shift, Inbox Watch, Morning Brief, Blog Autopilot)
+ai/seo/             SEO Growth Engine: Search Console sync, site/sitemap/index watch, Serper keyword roadmap, blog assignments (see ai/README.md)
 .claude/skills/nobs-*   skills the routines load (api, brand, content, facebook, communication, research)
 ```
 Rules: deterministic work stays in code, Claude only reasons/writes; do not rebuild a working routine — wrap it in `runRoutine`; new customer-facing sends must go through `sendSmsSafely`/`logComm` and check `isOptedOut`; social caps are enforced server-side in `ai/social.js`; `/api/ai` mounts BEFORE `requireAuth` and authenticates itself.
@@ -180,6 +183,10 @@ GOOGLE_API_KEY
 GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY  # service account
 SERPER_API_KEY                    # competitor SERP lookups
 SEO_TRIGGER_SECRET                # webhook secret for manual SEO run
+GSC_SITE_URL                      # Search Console property, e.g. https://www.no-bs-yardwork.com/ (else SeoSettings)
+SEO_SUBMIT                        # on = submit sitemaps / IndexNow even with DRY_RUN=true; off = never
+INDEXNOW_KEY                      # optional; the key file <key>.txt must be on the site root
+SERPER_WEEKLY_BUDGET, SEO_INSPECT_PER_RUN, SEO_CRAWL_MAX_URLS, SEO_STATS_RETENTION_DAYS, SEO_BACKFILL=off
 GA                                # GA4 property ID shorthand
 
 # AI
