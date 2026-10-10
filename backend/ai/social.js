@@ -12,6 +12,7 @@
 const prisma = require('../lib/prismaClient');
 const { toDateString, dayBounds } = require('../lib/tz');
 const { lintContent, PHONE } = require('./design/qa');
+const { lintOutreach, lintKindFor } = require('./outreachLint');
 
 // per platform, per Winnipeg calendar day
 const DAILY_CAPS = { comment: 10, dm: 5, like: 20, follow: 10, group_join: 5, group_post: 3, page_post: 2, story: 3 };
@@ -88,8 +89,10 @@ function checkReservation(a, ctx = {}) {
   if (NEEDS_TARGET.has(a.kind) && !a.target) reasons.push(`"${a.kind}" needs a target link so it can be checked and never repeated.`);
 
   if (text) {
+    // two linters, both must pass: the content pipeline's brand rules and the stricter outreach gate ported from HQ qa.py
     const lint = lintContent({ caption: text, platform: 'group_no_phone' });
-    reasons.push(...lint.errors);
+    const outreach = lintOutreach(text, lintKindFor(a.kind, a.platform));
+    reasons.push(...new Set([...lint.errors, ...outreach.errors]));
     const promo = a.kind === 'group_post' || a.kind === 'page_post' || (a.kind === 'comment' && a.promo === true);
     if (promo && !text.includes(PHONE)) reasons.push(`Promo text must include ${PHONE}.`);
     if (a.kind === 'comment' && a.promo !== true && /\d{3}[-. ]\d{3}[-. ]\d{4}/.test(text)) reasons.push('Casual engagement comments must not include a phone number (set promo: true for lead comments).');

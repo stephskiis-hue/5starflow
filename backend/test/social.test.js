@@ -122,7 +122,6 @@ test('social: group posts need membership, promo allowed, no cooldown, and never
   const rested = await reserve(db, { kind: 'group_post', groupId: 'g3', text });
   assert.equal(rested.status, 'reserved');
 });
-});
 
 test('social: the exact same group text is refused even after the cooldown passes', async () => {
   const g = member({ lastPostedAt: new Date(Date.now() - 30 * 86400000) });
@@ -196,4 +195,49 @@ test('shifts: a crashed run (stale claim) is released; failures retry after a ga
 test('shifts: past the deadline a shift is dropped, not run at night', () => {
   assert.deepEqual(shifts.openShifts(at('22:30'), []), []);
   assert.ok(!shifts.openShifts(at('16:30'), []).some((s) => s.kind === 'morning'));
+});
+
+// Verdicts recorded from HQ/tools/qa.py (the rules the HQ routines ran on) on Oct 10 2026. The server must agree on every one.
+// "LONG:n" stands for an n character string (length is only a warning in HQ, so it must not block here either).
+const HQ_PARITY = [
+  ["comment", "Great looking yard, those edges are sharp!", false],
+  ["comment", "We do it for $50 total", true],
+  ["comment", "Only 50 dollars for the whole yard", true],
+  ["comment", "Get 15% off this week", true],
+  ["comment", "Ask about our discount", true],
+  ["comment", "We guarantee the results", true],
+  ["comment", "Free estimates every time", false],
+  ["comment", "Free quote, call or text 204-900-0438", false],
+  ["comment", "Free mulch with every job", true],
+  ["comment", "Cheapest in Winnipeg", true],
+  ["comment", "Nice work — looks great", true],
+  ["comment", "Nice work – looks great", true],
+  ["comment", "Nice work - looks great", true],
+  ["comment", "Nice work -- looks great", true],
+  ["comment", "24-hour response, No-Bs Yardwork", false],
+  ["comment", "Call No Bs Yardwork today", true],
+  ["comment", "Call no-bs yardwork today", true],
+  ["comment", "Call No-Bs Yardwork on 204-900-0438", false],
+  ["comment", "Call No-Bs Yardwork on (204) 900-0438", false],
+  ["comment", "Call No-Bs Yardwork on 204-900-9999", true],
+  ["comment", "See facebook.com/No.BS.Yardworks for more", false],
+  ["comment", "Love this 😊", false],
+  ["comment", "Love this 😊👍", true],
+  ["comment", "Rated 5 ★ by neighbours", false],
+  ["comment", "LONG:700", false],
+  ["dm", "Thanks for reaching out! What is the best phone number to reach you?", false],
+  ["dm", "Our price is $100", true],
+  ["group_post", "Fall cleanups booking now in Winnipeg. No-Bs Yardwork, call or text 204-900-0438. 🍂🍃🍁", true],
+  ["group_post", "Fall cleanups booking now in Winnipeg. No-Bs Yardwork, call or text 204-900-0438.", false],
+  ["story", "Snow contracts open. Priority or budget friendly plans. No-Bs Yardwork", false],
+  ["fb_post", "Spring is coming. No-Bs Yardwork, call or text 204-900-0438. Use promo code SPRING", true],
+  ["ig_caption", "Before and after. No-Bs Yardwork #lawncare #winnipeg #yardwork #fallcleanup #curbappeal", false],
+];
+test('outreach lint: agrees with HQ qa.py on every recorded sample', () => {
+  const { lintOutreach } = require('../ai/outreachLint');
+  for (const [kind, text, fail] of HQ_PARITY) {
+    const t = text.startsWith('LONG:') ? 'x'.repeat(Number(text.slice(5))) : text;
+    const errors = lintOutreach(t, kind).errors;
+    assert.equal(errors.length > 0, fail, kind + ': ' + JSON.stringify(t.slice(0, 50)) + ' -> ' + (errors.join(' | ') || 'passed'));
+  }
 });
