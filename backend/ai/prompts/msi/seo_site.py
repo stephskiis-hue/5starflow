@@ -5,7 +5,8 @@ No-Bs Yardwork site helper for the SEO Growth Engine (runs on the MSI PC, standa
 Site files (local public_html, uploaded by _deploy.py):
   build-sitemaps <public_html>   rebuild sitemap.xml, blog-sitemap.xml and sitemap_index.xml from the real files
   blog-index <public_html>       rebuild posts.json from every live post + a static link list in blog.html
-  nightly [<public_html>]        both of the above (request-gate.ps1 runs it once a day); site folder from seo-site.json
+  fix-pages [<public_html>]      self-canonicals on the clean URL, broken /blog/<page> links (needs "fixPages": true)
+  nightly [<public_html>]        fix-pages, blog-index, build-sitemaps (request-gate.ps1 runs it once a day); site folder from seo-site.json
 
 5StarFlow API (FIVESTARFLOW_URL / FIVESTARFLOW_TOKEN from ~/.5starflow/env or the environment):
   check                          is the API reachable and is Search Console connected?
@@ -277,6 +278,79 @@ def write_if_changed(path, text, dry):
     return True
 
 
+LINK_TAG_RE = re.compile(r'<link\b[^>]*>', re.I)
+HREF_RE = re.compile(r'''((?<![\w-])href\s*=\s*)(["'])([^"']*)\2''', re.I)
+
+
+def write_bytes_if_changed(path, data, dry):
+    """Like write_if_changed for page files: exact bytes, so Windows line endings and a BOM survive."""
+    old = path.read_bytes()
+    if old == data:
+        return False
+    if not dry:
+        day = BACKUP_DIR / dt.date.today().isoformat()
+        day.mkdir(parents=True, exist_ok=True)
+        if not (day / path.name).exists():
+            (day / path.name).write_bytes(old)
+        path.write_bytes(data)
+    return True
+
+
+def fix_pages(root, dry):
+    """
+    Mechanical on-page fixes the daily crawl keeps flagging (only with "fixPages": true in seo-site.json):
+    - a canonical that points at the page's own .html URL (which 301s) becomes the clean URL; a missing one is added;
+      a canonical that points at a different page is a decision for the owner and is never touched;
+    - internal links to /blog/<page> where <page>.html sits at the site root become /<page> (they 500 today).
+    Pages outside the sitemap (excluded duplicates, noindex, redirected) are left alone.
+    """
+    if not CONFIG.get('fixPages'):
+        return {'ok': True, 'off': True, 'changed': []}
+    pages, _ = scan_pages(root)
+    root_pages = {f.stem.lower() for f in root.glob('*.htm*')}
+    fix_links = not (root / 'blog').is_dir()          # a real /blog/ folder would make /blog/<x> valid
+    link_re = re.compile(r'^(?:https?://(?:www\.)?' + re.escape(ORIGIN.split('://', 1)[1].replace('www.', '', 1)) + r')?/?blog/([a-z0-9-]+?)(?:\.html?)?/?$', re.I)
+    changed, canon_fixed, canon_added, links_fixed, unreadable = [], [], [], 0, []
+    for path, f, _src in pages:
+        raw = f.read_bytes()
+        try:
+            src = raw.decode('utf-8')
+        except UnicodeDecodeError:
+            unreadable.append(path)
+            continue
+        new = src
+        want = ORIGIN + ('/' if path == '/' else path)
+        tag = next((m for m in LINK_TAG_RE.finditer(new) if re.search(r'''rel\s*=\s*["']?canonical''', m.group(0), re.I)), None)
+        if tag:
+            h = HREF_RE.search(tag.group(0))
+            href = h.group(3) if h else ''
+            same_page = clean_path(re.sub(r'^https?://[^/]+', '', href)).lower() == path.lower() if href else False
+            if h and same_page and href != want:
+                fixed_tag = tag.group(0)[:h.start(3)] + want + tag.group(0)[h.end(3):]
+                new = new[:tag.start()] + fixed_tag + new[tag.end():]
+                canon_fixed.append(path)
+        else:
+            head_end = re.search(r'</head\s*>', new, re.I)
+            if head_end:
+                line_start = new.rfind('\n', 0, head_end.start()) + 1
+                indent = re.match(r'[ \t]*', new[line_start:]).group(0)
+                eol = '\r\n' if '\r\n' in new else '\n'
+                new = new[:line_start] + f'{indent}  <link rel="canonical" href="{want}" />{eol}' + new[line_start:]
+                canon_added.append(path)
+        if fix_links:
+            def relink(m):
+                nonlocal links_fixed
+                lm = link_re.match(m.group(3))
+                if lm and not lm.group(1).lower().startswith('blog-') and lm.group(1).lower() in root_pages:
+                    links_fixed += 1
+                    return f'{m.group(1)}{m.group(2)}/{lm.group(1)}{m.group(2)}'
+                return m.group(0)
+            new = HREF_RE.sub(relink, new)
+        if new != src and write_bytes_if_changed(f, new.encode('utf-8'), dry):
+            changed.append(f.name)
+    return {'ok': True, 'dryRun': dry, 'changed': changed, 'canonicalFixed': canon_fixed, 'canonicalAdded': canon_added, 'linksFixed': links_fixed, 'unreadable': unreadable}
+
+
 def site_root(args, usage):
     path = next((a for a in args if not a.startswith('--')), None) or os.environ.get('SEO_SITE_DIR') or CONFIG.get('siteDir')
     if not path:
@@ -421,6 +495,7 @@ def cmd_nightly(args):
     """Run by request-gate.ps1 once a day: blog index, then sitemaps, so the 3 AM deploy uploads them. Zero Claude tokens."""
     root, dry = site_root(args, 'nightly [<public_html>] [--dry-run]  (or siteDir in seo-site.json / SEO_SITE_DIR)')
     try:
+        fixes = fix_pages(root, dry)
         idx = blog_index(root, dry)
         maps = build_sitemaps(root, dry)
     except Exception as e:                       # never let a bad file stop the gate; report it instead
@@ -429,8 +504,12 @@ def cmd_nightly(args):
         if not dry:
             report_run(report)
         out({'ok': False, 'error': str(e)}, 1)
-    changed = idx['changed'] + maps['changed']
-    summary = (f"{maps['pages']} pages + {maps['posts']} posts in the sitemaps; "
+    changed = fixes['changed'] + idx['changed'] + maps['changed']
+    fix_note = ', '.join(filter(None, [
+        f"fixed {len(fixes.get('canonicalFixed', []))} canonical(s)" if fixes.get('canonicalFixed') else None,
+        f"added {len(fixes.get('canonicalAdded', []))} canonical(s)" if fixes.get('canonicalAdded') else None,
+        f"fixed {fixes['linksFixed']} broken /blog/ link(s)" if fixes.get('linksFixed') else None]))
+    summary = ((fix_note + '; ' if fix_note else '') + f"{maps['pages']} pages + {maps['posts']} posts in the sitemaps; "
                + (f"rewrote {', '.join(changed)}" if changed else 'nothing changed')
                + (f"; added {len(idx['addedToPostsJson'])} post(s) to posts.json" if idx['addedToPostsJson'] else '')
                + ('; the 3 AM deploy uploads them' if changed else ''))
@@ -439,7 +518,12 @@ def cmd_nightly(args):
         report_run({'slug': 'ext-seo-site-nightly', 'status': 'completed' if changed else 'skipped', 'summary': summary[:500],
                               'result': {'items_found': maps['pages'] + maps['posts'], 'actions_taken': [f'rewrote {c}' for c in changed],
                                          'skipped': len(maps['skipped']), 'notes': '; '.join(filter(None, [idx.get('note')] + maps['warnings']))[:190]}})
-    out({'ok': True, 'summary': summary, 'blogIndex': idx, 'sitemaps': maps})
+    out({'ok': True, 'summary': summary, 'pageFixes': fixes, 'blogIndex': idx, 'sitemaps': maps})
+
+
+def cmd_fix_pages(args):
+    root, dry = site_root(args, 'fix-pages [<public_html>] [--dry-run]')
+    out(fix_pages(root, dry))
 
 
 def cmd_run(args):
@@ -460,7 +544,7 @@ def cmd_run(args):
 COMMANDS = {
     'check': cmd_check, 'assignment': cmd_assignment, 'skip': cmd_skip, 'published': cmd_published, 'progress': cmd_progress,
     'report': cmd_report, 'sitemaps-check': cmd_sitemaps_check, 'run': cmd_run, 'build-sitemaps': cmd_build_sitemaps, 'blog-index': cmd_blog_index,
-    'nightly': cmd_nightly,
+    'nightly': cmd_nightly, 'fix-pages': cmd_fix_pages,
 }
 
 if __name__ == '__main__':

@@ -1,5 +1,7 @@
 # SEO Growth Engine: setup on the MSI PC (for the local Claude)
 
+> The step-by-step version the owner's request points to is `docs/seo/pc-request.md`. This file is the background.
+
 The 5StarFlow backend now plans the blog (keywords from Serper, Search Console and the site crawl), checks every
 page and sitemap daily, submits sitemaps to Google and shows progress on **SEO Growth** (`/seo-growth.html`).
 This file is the one-time work on the PC where the site lives:
@@ -27,8 +29,8 @@ Open SEO Growth > Index health for the current lists. On 2026-10-10 they were:
 | `sitemap.xml` frozen since 2026-04-18 with 16 `.html` URLs that 301 | step 3 rebuilds it from the real files on every deploy |
 | `https://no-bs-yardwork.com/` answers 200 (duplicate site) | `.htaccess`, top: `RewriteEngine On` / `RewriteCond %{HTTPS} off [OR]` / `RewriteCond %{HTTP_HOST} !^www\. [NC]` / `RewriteRule ^ https://www.no-bs-yardwork.com%{REQUEST_URI} [L,R=301]` |
 | Duplicate pages: `/premium-lawn-care` = `/lawn-care-premium` = `/premium-packages`; `/basic-packages` vs `/lawn-care-winnipeg`; `/Spring-Fall-Cleanups` = `/spring-fall-cleanups` | Compare them, keep the best one (ask the owner if unsure), merge anything useful into it, then `Redirect 301 /lawn-care-premium /premium-lawn-care` (etc.) in `.htaccess`, and fix the links that point at the old ones. `build-sitemaps` reads these redirects and keeps them out of the sitemap |
-| 20 pages whose canonical is a `.html` URL (which redirects) or missing | Every page: `<link rel="canonical" href="https://www.no-bs-yardwork.com/<file name without .html>">` (home: `.../`) |
-| Broken links: `/lawn-care-basic` (404, linked from lawn-care-premium), `blog/partnership-opportunities` (500, a relative link on the spring/fall cleanup page) | Point them at real pages; use root-relative links (`/partnership-opportunities`) |
+| 20 pages whose canonical is a `.html` URL (which redirects) or missing | **Automatic** since 2026-10-10: the nightly job (`fixPages` in `seo-site.json`) sets every self-canonical to the clean URL and adds missing ones; canonicals that point at another page are left for the owner |
+| Broken links: `/lawn-care-basic` (404, linked from lawn-care-premium), `.../blog/partnership-opportunities` (500, on the spring/fall cleanup page) | The `/blog/<page>` link is fixed by the nightly job; `lawn-care-basic` is handled in `pc-request.md` step 3 |
 | 11 live posts missing from posts.json and blog.html; 35 posts with no link to them | step 2b + `blog-index` (step 3) |
 | Internal links use `.html` (each one is a redirect hop) | Optional but good: nav/footer links to the clean URLs |
 
