@@ -5,7 +5,8 @@ const assert = require('node:assert/strict');
 
 const { classifyConversation } = require('../ai/comms');
 const { lintContent } = require('../ai/design/qa');
-const { buildHtml, validate } = require('../ai/design/renderer');
+const { buildHtml, validate, storyProblems, pngSize } = require('../ai/design/renderer');
+const { storyCheckProblems } = require('../ai/content');
 const { toDateString, localHour, tzOffsetFor, dayBounds } = require('../lib/tz');
 const { normalizeResult, classifyError } = require('../ai/ledger');
 const { autoTags } = require('../ai/vault');
@@ -104,6 +105,34 @@ test('renderer: required slots, photo requirement and length caps are enforced',
 test('renderer: story-only layouts ignore the default size', () => {
   const { w, h } = buildHtml('StoryPoll', { kicker: 'K', question: 'Q', body: 'B' }, 'feed');
   assert.deepEqual([w, h], [1080, 1920]);
+});
+
+test('renderer: story size adds size-story to feed layouts', () => {
+  const { w, h, html } = buildHtml('TipPost', { number: '04', kicker: 'K', headline: 'Stop snow mold now.', body: 'B' }, 'story');
+  assert.deepEqual([w, h], [1080, 1920]);
+  assert.match(html, /class="post size-story"/);
+});
+
+test('renderer: story audit flags wrong size, empty frames, small text and the safe zones', () => {
+  const good = { width: 1080, height: 1920, layout: 'TipPost', story: { fill: 0.8, minFontPx: 48, minFontSlot: 'body', safeZoneHit: false } };
+  assert.deepEqual(storyProblems(good), []);
+  assert.match(storyProblems({ ...good, width: 1080, height: 1350 }).join(), /1080x1920/);
+  assert.match(storyProblems({ ...good, story: { ...good.story, fill: 0.4 } }).join(), /mostly empty/);
+  assert.deepEqual(storyProblems({ ...good, layout: 'StoryPoll', story: { ...good.story, fill: 0.3 } }), []);   // room for the poll sticker
+  assert.match(storyProblems({ ...good, story: { ...good.story, minFontPx: 30 } }).join(), /"body".*too small/);
+  assert.match(storyProblems({ ...good, story: { ...good.story, safeZoneHit: true } }).join(), /story buttons/);
+});
+
+test('renderer: pngSize reads the IHDR header', () => {
+  const b = Buffer.alloc(24); b.writeUInt32BE(1080, 16); b.writeUInt32BE(1920, 20);
+  assert.deepEqual(pngSize(b), { width: 1080, height: 1920 });
+});
+
+test('content: a posted story needs a passing check from the Social agent', () => {
+  assert.equal(storyCheckProblems(undefined).length, 1);
+  assert.match(storyCheckProblems({ fillsFrame: false, textReadable: true }).join(), /does not fill/);
+  assert.match(storyCheckProblems({ fillsFrame: true }).join(), /readable/);
+  assert.deepEqual(storyCheckProblems({ fillsFrame: true, textReadable: true }), []);
 });
 
 test('renderer: slot text cannot inject HTML', () => {

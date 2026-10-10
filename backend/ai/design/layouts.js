@@ -13,7 +13,7 @@ const LAYOUTS = {
   ComparePost:     { label: 'Compare',       sizes: ALL,      required: ['kicker', 'headline', 'a_label', 'a_big', 'a_items', 'b_label', 'b_big', 'b_items'], lists: { a_items: [1, 4], b_items: [1, 4] }, use: 'Our two plans side by side, or monthly vs per visit. Never a price.' },
   FounderPost:     { label: 'Founder',       sizes: ALL,      required: ['kicker', 'headline', 'body', 'signature', 'photo'], photos: ['photo'], photoRequired: ['photo'], use: 'Steph and Ben in their own words, with a real photo.' },
   GridPost:        { label: 'Grid',          sizes: ALL,      required: ['kicker', 'headline', 'tiles'], lists: { tiles: [4, 4] }, use: 'Four services, jobs or steps in one post. tiles: [{num,label,photo?}] x4.' },
-  StoryPoll:       { label: 'Story poll',    sizes: ['story'], required: ['kicker', 'question', 'body'], use: 'Story question with room for the poll sticker (add the sticker in the app).' },
+  StoryPoll:       { label: 'Story poll',    sizes: ['story'], required: ['kicker', 'question', 'body'], sparseOk: true, use: 'Story question with room for the poll sticker (add the sticker in the app).' },
   ReelCover:       { label: 'Reel cover',    sizes: ['story'], required: ['kicker', 'title'], photos: ['photo'], use: 'Reel first frame and grid cover over a real job photo.' },
   OfferPost:       { label: 'Offer',         sizes: ALL,      required: ['kicker', 'headline', 'points'], photos: ['photo'], lists: { points: [1, 4] }, use: 'Seasonal booking push / paid ad. Optional flag ("SPOTS FILLING UP").' },
 };

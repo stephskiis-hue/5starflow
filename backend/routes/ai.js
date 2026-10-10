@@ -34,7 +34,7 @@ const socialShifts = require('../ai/socialShifts');
 const { toDateString, dayBounds } = require('../lib/tz');
 const THREAD_STATUS = ['open', 'quoted', 'followed', 'won', 'lost', 'held'];
 const { Prisma } = require('@prisma/client');
-const { renderPost, RenderError } = require('../ai/design/renderer');
+const { renderPost, storyProblems, RenderError } = require('../ai/design/renderer');
 const { describeLayouts } = require('../ai/design/layouts');
 const { lintContent } = require('../ai/design/qa');
 
@@ -491,7 +491,8 @@ router.post('/content/preview', async (req, res) => {
   try {
     const { layout, slots, size, photos } = req.body || {};
     const r = await renderPost({ layout, slots: slots || {}, size: size || 'feed', photos: await vault.resolvePhotos(req.ai.userId, photos || {}) });
-    res.set({ 'Content-Type': 'image/png', 'X-Fit-Steps': String(r.fitSteps), 'X-Overflow': String(r.overflow) }).send(r.png);
+    const story = r.story ? { 'X-Story-Audit': JSON.stringify(r.story), 'X-Story-Problems': JSON.stringify(storyProblems(r)) } : {};
+    res.set({ 'Content-Type': 'image/png', 'X-Fit-Steps': String(r.fitSteps), 'X-Overflow': String(r.overflow), ...story }).send(r.png);
   } catch (e) { renderErr(res, e); }
 });
 

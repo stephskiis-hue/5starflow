@@ -189,8 +189,9 @@ async function closeBrowser() {
   if (p) { try { (await p).close(); } catch { /* already gone */ } }
 }
 
-// Runs inside the page: shrink [data-fit] text until nothing spills out of the post or onto the footer.
-const FIT_SCRIPT = () => {
+// Runs inside the page: shrink [data-fit] text until nothing spills out of the post or onto the footer
+// (and, on a story canvas, out of the zones Facebook covers with its own buttons).
+const FIT_SCRIPT = (safe) => {
   const post = document.querySelector('.post');
   const fits = [...document.querySelectorAll('[data-fit]')];
   const footEl = document.querySelector('.foot') || document.querySelector('.g') || document.querySelector('.bar');
@@ -202,8 +203,19 @@ const FIT_SCRIPT = () => {
     return fits.some((el) => {
       const r = el.getBoundingClientRect();
       if (r.width === 0) return false;
-      const spillsFoot = footEl && !footEl.contains(el) && r.bottom > footTop + 1 && r.top < footTop;
+      // same 24px of air above the footer that slotOverflow demands, so the loop keeps shrinking until the final check passes
+      const spillsFoot = footEl && !footEl.contains(el) && r.bottom > footTop - 24 && r.top < footTop;
       return r.right > pr.right - 8 || r.left < pr.left + 8 || r.bottom > pr.bottom - 8 || el.scrollWidth > el.clientWidth + 2 || spillsFoot;
+    }) || inSafeZone();
+  };
+  // any slot text (shrinkable or not, e.g. a kicker pushed up by a long question) under the story's own buttons
+  const inSafeZone = () => {
+    if (!safe) return false;
+    const pr = post.getBoundingClientRect();
+    return [...post.querySelectorAll('[data-slot], [data-slot-list] > *')].some((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0 || !el.textContent.trim()) return false;
+      return r.top < pr.top + safe.top || r.bottom > pr.bottom - safe.bottom;
     });
   };
   // Slots without [data-fit] can't shrink, but long copy in them can still push a column off the canvas or under the footer.
@@ -228,8 +240,59 @@ const FIT_SCRIPT = () => {
   return { fitSteps: steps, overflow: overflowing() || slotOverflow() };
 };
 
+// Story safe zones: Facebook draws its own header (top) and reply bar (bottom) over these.
+const STORY_SAFE = { top: 220, bottom: 300 };
+
+// Runs inside the page on a 1920-tall canvas: how much of the safe area the content fills, the smallest text, and
+// whether any text sits under the app's own buttons. A sparse frame with small type reads as "zoomed out" on a phone.
+const STORY_AUDIT = (safe) => {
+  const post = document.querySelector('.post');
+  const pr = post.getBoundingClientRect();
+  let top = Infinity; let bottom = -Infinity; let minFontPx = Infinity; let minFontSlot = null; let safeZoneHit = false;
+  for (const el of post.querySelectorAll('[data-slot], [data-slot-list] > *, [data-slot-bg]')) {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) continue;
+    const isText = el.hasAttribute('data-slot') || el.closest('[data-slot-list]');
+    const hasText = isText && el.textContent.trim();
+    const hasPhoto = el.hasAttribute('data-slot-bg') && getComputedStyle(el).backgroundImage !== 'none';
+    if (!hasText && !hasPhoto) continue;
+    top = Math.min(top, r.top - pr.top); bottom = Math.max(bottom, r.bottom - pr.top);
+    if (hasText) {
+      // reading copy (4+ words) must be phone-legible; short letter-spaced kickers and labels are accents
+      const fs = parseFloat(getComputedStyle(el).fontSize);
+      if (el.getAttribute('data-slot') !== 'kicker' && el.textContent.trim().split(/\s+/).length >= 4 && fs < minFontPx) {
+        minFontPx = fs; minFontSlot = el.getAttribute('data-slot') || el.parentElement.getAttribute('data-slot-list');
+      }
+      if (r.top - pr.top < safe.top || r.bottom - pr.top > pr.height - safe.bottom) safeZoneHit = true;
+    }
+  }
+  const safeHeight = pr.height - safe.top - safe.bottom;
+  const fill = bottom > top ? Math.min(1, (bottom - top) / safeHeight) : 0;
+  return { fill: +fill.toFixed(2), minFontPx: Number.isFinite(minFontPx) ? +minFontPx.toFixed(1) : null, minFontSlot, safeZoneHit };
+};
+
+/** Width and height from a PNG's IHDR chunk (bytes 16-23). */
+function pngSize(buf) {
+  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+}
+
+// Thresholds a story frame must meet before it can be queued.
+const STORY_MIN_FILL = 0.45;
+const STORY_MIN_FONT_PX = 34;
+
+/** Plain-language reasons a story render is not good enough to post (empty = fine). */
+function storyProblems({ width, height, story, layout }) {
+  const out = [];
+  if (width !== 1080 || height !== 1920) out.push(`Story image is ${width}x${height}, must be 1080x1920 or Facebook shows it zoomed out.`);
+  if (!story) return out;
+  if (story.fill < STORY_MIN_FILL && !LAYOUTS[layout]?.sparseOk) out.push(`Story frame is mostly empty (content fills ${Math.round(story.fill * 100)}% of the screen). Use a story-first layout or bigger, fuller copy.`);
+  if (story.minFontPx != null && story.minFontPx < STORY_MIN_FONT_PX) out.push(`"${story.minFontSlot}" text is too small to read on a phone (${story.minFontPx}px, needs ${STORY_MIN_FONT_PX}px+). Shorten the copy so it can stay big.`);
+  if (story.safeZoneHit) out.push('Text sits under Facebook\'s story buttons (top 220px or bottom 300px).');
+  return out;
+}
+
 /**
- * @returns {Promise<{png: Buffer, width, height, fitSteps, overflow, layout, size}>}
+ * @returns {Promise<{png: Buffer, width, height, fitSteps, overflow, layout, size, story?}>}
  */
 async function renderPost({ layout, slots = {}, size = 'feed', photos = {} }) {
   const { w, h, html } = buildHtml(layout, slots, size, photos);
@@ -239,13 +302,15 @@ async function renderPost({ layout, slots = {}, size = 'feed', photos = {} }) {
     const page = await ctx.newPage();
     await page.setContent(html, { waitUntil: 'load' });
     await page.evaluate(() => document.fonts.ready);
-    const fit = await page.evaluate(FIT_SCRIPT);
+    const fit = await page.evaluate(FIT_SCRIPT, h === 1920 ? STORY_SAFE : null);
+    const story = h === 1920 ? await page.evaluate(STORY_AUDIT, STORY_SAFE) : undefined;
     const el = await page.$('.post');
     const png = await el.screenshot({ type: 'png' });
-    return { png, width: w, height: h, layout, size, ...fit };
+    const { width, height } = pngSize(png);   // what was actually captured, not what was asked for
+    return { png, width, height, layout, size, ...fit, ...(story ? { story } : {}) };
   } finally {
     await ctx.close();
   }
 }
 
-module.exports = { renderPost, buildHtml, validate, closeBrowser, RenderError, MAX_PHOTO_BYTES };
+module.exports = { renderPost, buildHtml, validate, closeBrowser, storyProblems, pngSize, RenderError, MAX_PHOTO_BYTES, STORY_MIN_FILL, STORY_MIN_FONT_PX };
