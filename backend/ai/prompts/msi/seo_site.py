@@ -303,14 +303,15 @@ def fix_pages(root, dry):
     Mechanical on-page fixes the daily crawl keeps flagging (only with "fixPages": true in seo-site.json):
     - a canonical that points at the page's own .html URL (which 301s) becomes the clean URL; a missing one is added;
       a canonical that points at a different page is a decision for the owner and is never touched;
-    - internal links to /blog/<page> where <page>.html sits at the site root become /<page> (they 500 today).
+    - internal links to /blog/<page> where <page>.html sits at the site root and not in the blog/ folder become /<page>
+      (they 500 today).
     Pages outside the sitemap (excluded duplicates, noindex, redirected) are left alone.
     """
     if not CONFIG.get('fixPages'):
         return {'ok': True, 'off': True, 'changed': []}
     pages, _ = scan_pages(root)
     root_pages = {f.stem.lower() for f in root.glob('*.htm*')}
-    fix_links = not (root / 'blog').is_dir()          # a real /blog/ folder would make /blog/<x> valid
+    blog_dir = root / 'blog'                          # a page that really is in blog/ makes /blog/<x> valid: leave those
     link_re = re.compile(r'^(?:https?://(?:www\.)?' + re.escape(ORIGIN.split('://', 1)[1].replace('www.', '', 1)) + r')?/?blog/([a-z0-9-]+?)(?:\.html?)?/?$', re.I)
     changed, canon_fixed, canon_added, links_fixed, unreadable = [], [], [], 0, []
     for path, f, _src in pages:
@@ -339,15 +340,16 @@ def fix_pages(root, dry):
                 eol = '\r\n' if '\r\n' in new else '\n'
                 new = new[:line_start] + f'{indent}  <link rel="canonical" href="{want}" />{eol}' + new[line_start:]
                 canon_added.append(path)
-        if fix_links:
-            def relink(m):
-                nonlocal links_fixed
-                lm = link_re.match(m.group(3))
-                if lm and not lm.group(1).lower().startswith('blog-') and lm.group(1).lower() in root_pages:
-                    links_fixed += 1
-                    return f'{m.group(1)}{m.group(2)}/{lm.group(1)}{m.group(2)}'
-                return m.group(0)
-            new = HREF_RE.sub(relink, new)
+        def relink(m):
+            nonlocal links_fixed
+            lm = link_re.match(m.group(3))
+            slug = lm.group(1) if lm else ''
+            if lm and not slug.lower().startswith('blog-') and slug.lower() in root_pages \
+                    and not any((blog_dir / n).exists() for n in (f'{slug}.html', f'{slug}.htm', slug)):
+                links_fixed += 1
+                return f'{m.group(1)}{m.group(2)}/{slug}{m.group(2)}'
+            return m.group(0)
+        new = HREF_RE.sub(relink, new)
         if new != src and write_bytes_if_changed(f, new.encode('utf-8'), dry):
             changed.append(f.name)
     return {'ok': True, 'dryRun': dry, 'changed': changed, 'canonicalFixed': canon_fixed, 'canonicalAdded': canon_added, 'linksFixed': links_fixed, 'unreadable': unreadable}
