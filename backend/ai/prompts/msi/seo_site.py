@@ -396,7 +396,11 @@ def sync_site_access(root, dry):
             new = src[:on.end()] + eol + block + src[on.end():] if on else f'RewriteEngine On{eol}{block}{eol}{eol}{src}'
             if write_bytes_if_changed(rules, new.encode('utf-8'), dry):
                 changed.append('.htaccess')
-    return {'ok': True, 'dryRun': dry, 'changed': changed}
+    report = {'indexHasTag': bool(content) and page.exists() and f'content="{content}"' in page.read_bytes().decode('utf-8'),
+              'htaccessHasBlock': rules.exists() and HTACCESS_MARK in rules.read_bytes().decode('utf-8'), 'changed': changed}
+    if not dry:                                   # so 5StarFlow can see the copy is ready before the 3 AM deploy
+        api('POST', '/site-access/pc-report', report, timeout=30)
+    return {'ok': True, 'dryRun': dry, **report}
 
 
 def closing_bracket(src, i):
