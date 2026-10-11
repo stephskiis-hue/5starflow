@@ -1,6 +1,6 @@
 {
   "siteDir": "C:\\Users\\steph\\Desktop\\No-Bs Yardwork\\Website Stuff\\public_html",
-  "exclude": ["/lawn-care-premium", "/premium-packages", "/basic-packages"],
+  "exclude": ["/lawn-care-premium", "/premium-packages", "/basic-packages", "/package_1", "/thanks", "/spring-cleanup-email", "/project-single", "/service-single"],
   "fixPages": true,
-  "_comment": "exclude: live duplicate pages kept out of the sitemap until they are 301'd (same set the old sitemap left out). seo_site.py reads this file; request-gate.ps1 runs 'seo_site.py nightly' once a day."
+  "_comment": "exclude: pages kept out of the sitemap (they stay live): duplicates until they are 301'd, the old orphan packages page, the form thank-you page, an email template and two empty theme demo pages. seo_site.py reads this file; request-gate.ps1 runs 'seo_site.py nightly' once a day."
 }
