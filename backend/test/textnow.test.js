@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { normalizeMessage, harvest, e164, toIso, last10 } = require('../lib/textnow');
+const { normalizeMessage, harvest, e164, toIso, last10, maskPath, shapeOf, CHALLENGE_RE } = require('../lib/textnow');
 const { urgentCheck, agreementScore } = require('../ai/textnow');
 const { classifyConversation } = require('../ai/comms');
 
@@ -76,4 +76,29 @@ test('classifyConversation: STOP is an opt-out on both channels, and an owner re
   assert.equal(classifyConversation([inMsg('stop', 30)], Date.now(), { channel: 'textnow' }).reason, 'opt-out');
   const answered = classifyConversation([inMsg('Can you skip tomorrow?', 60), outMsg('Sure, skipping it', 30)], Date.now(), { channel: 'textnow' });
   assert.equal(answered.state, 'WAITING_ON_CUSTOMER');
+});
+
+test('maskPath: ids, numbers and the account name are masked; query values are dropped', () => {
+  const a = maskPath('https://www.textnow.com/api/users/stephskiis/messages?page_size=100&start_message_id=998877&token=abc');
+  assert.deepEqual(a, { host: 'www.textnow.com', path: '/api/users/:user/messages', query: ['page_size', 'start_message_id', 'token'] });
+  assert.equal(maskPath('/messaging/+12045551234').path, '/messaging/:n');
+  assert.equal(maskPath('/api/v3/conversations/3f2a9c1e-77aa-4b1c-9d00-aabbccddeeff/x').path, '/api/v3/conversations/:id/x');
+  assert.equal(maskPath('/thread/dana@example.com').path, '/thread/:n');
+  assert.ok(!JSON.stringify(a).includes('stephskiis') && !JSON.stringify(a).includes('998877'));
+});
+
+test('shapeOf: keeps key names and types, never a value', () => {
+  const body = { messages: [{ id: 5, message: 'secret text', contact_value: '+12045551234', read: true, '+12045551234': { a: 1 } }], next: null };
+  const shape = shapeOf(body);
+  const out = JSON.stringify(shape);
+  assert.deepEqual(shape.messages.item.message, 'string');
+  assert.equal(shape.messages._array, 1);
+  for (const leak of ['secret text', '2045551234']) assert.ok(!out.includes(leak), `leaked ${leak}`);
+  assert.ok(out.includes(':key'));
+});
+
+test('CHALLENGE_RE: spots bot checks but not an ordinary inbox', () => {
+  assert.ok(CHALLENGE_RE.test('Just a moment... checking your browser'));
+  assert.ok(CHALLENGE_RE.test('Please verify you are human'));
+  assert.ok(!CHALLENGE_RE.test('Messages Calls Voicemail New conversation'));
 });

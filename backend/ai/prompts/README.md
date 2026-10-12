@@ -37,6 +37,7 @@ Setup on the MSI (once): `powershell -ExecutionPolicy Bypass -File backend\ai\pr
 1. `cd backend && node scripts/textnow-watch.js --login`. A window opens: sign in to TextNow yourself (the script never types a password or solves a captcha). It then does a first read.
 2. `node scripts/textnow-watch.js --backfill` to load the whole history. The first daily Claude run then does a one-time "study" pass over it (FAQs, your reply style, customer facts).
 3. That is all. The next request-gate tick picks up the schedule. If TextNow logs out, 5StarFlow raises a task and texts you once a day until you repeat step 1. `node scripts/textnow-watch.js --dry` reads and prints without posting.
+If the first read fails with `parse_error` (TextNow's page made no calls the watcher understands), run `node scripts/textnow-watch.js --probe`: it opens TextNow, asks you to click one conversation, and prints which calls the page made (names and data shapes only, no message text, cookies or tokens; also saved to `~/.5starflow/textnow-probe.json`). Paste that into the chat and the reader gets fixed from the real output.
 Change how often you hear from it: PATCH the `ext-textnow-insight` routine config `digestEveryDays` (1 = daily, 2 = every other day). Cadence of the watcher itself is the `$tnDue` window in `request-gate.ps1`.
 
 ## Blog autopilot (SEO assignments, Claude desktop task on the MSI)
