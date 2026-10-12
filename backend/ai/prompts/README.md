@@ -33,7 +33,7 @@ Setup on the MSI (once, after `~/.5starflow/env` exists): `powershell -Execution
 
 ## TextNow Watch (the owner's TextNow line, read-only for now)
 `local-textnow-watch` reads textnow.com/messaging with its own headless browser profile (`~/.5starflow/textnow-profile`, not the Chrome that Claude drives) and posts new messages to 5StarFlow. `request-gate.ps1` starts it every 2 hours from 7 am to 9 pm (zero Claude tokens; log `~/.5starflow/textnow-watch.log`). `ext-textnow-insight` is the daily Claude in Chrome run (prompt `textnow-insight.md`): first quiet check after 7 pm, up to 3 tries a day, skipped while an owner request is pending, Chrome is busy or the Claude plan limit is waiting to reset.
-Setup on the MSI (once; the repo, `~/.5starflow/env` and `npm install` in `backend/` already exist from the other routines):
+Setup on the MSI (once): `powershell -ExecutionPolicy Bypass -File backend\ai\prompts\msi\install-textnow-watch.ps1` does everything below (checks the server has the feature, `npm install`, opens the TextNow sign-in window for you, loads the history, shows what 5StarFlow sees). The manual steps, if you prefer:
 1. `cd backend && node scripts/textnow-watch.js --login`. A window opens: sign in to TextNow yourself (the script never types a password or solves a captcha). It then does a first read.
 2. `node scripts/textnow-watch.js --backfill` to load the whole history. The first daily Claude run then does a one-time "study" pass over it (FAQs, your reply style, customer facts).
 3. That is all. The next request-gate tick picks up the schedule. If TextNow logs out, 5StarFlow raises a task and texts you once a day until you repeat step 1. `node scripts/textnow-watch.js --dry` reads and prints without posting.
