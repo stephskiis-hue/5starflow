@@ -45,4 +45,37 @@ function toIso(v) {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-module.exports = { digits, last10, e164, normalizeMessage, harvest, toIso };
+// ---- probe helpers: describe what TextNow's web app does WITHOUT keeping any personal data -------------------------
+// URL → { host, path, query } with ids, numbers and the account name masked and query VALUES dropped.
+function maskPath(u) {
+  let url;
+  try { url = new URL(u, 'https://placeholder.invalid'); } catch { return { host: '', path: String(u).slice(0, 120), query: [] }; }
+  const segs = url.pathname.split('/').map((seg, i, all) => {
+    if (!seg) return seg;
+    let s = seg; try { s = decodeURIComponent(seg); } catch { /* keep raw */ }
+    if (all[i - 1] === 'users') return ':user';
+    if (s.includes('@') || /^\+?\d[\d().\s-]*$/.test(s)) return ':n';
+    if (/^[0-9a-f]{8,}(-[0-9a-f]{4,})*$/i.test(s) || /^[A-Za-z0-9_-]{20,}$/.test(s)) return ':id';
+    return s;
+  });
+  return { host: url.hostname === 'placeholder.invalid' ? '' : url.hostname, path: segs.join('/'), query: [...url.searchParams.keys()].sort() };
+}
+
+// JSON value → its shape only: key names, array lengths, primitive TYPES. Never a value.
+function shapeOf(v, depth = 0) {
+  if (v === null) return 'null';
+  if (Array.isArray(v)) return depth < 6 && v.length ? { _array: v.length, item: shapeOf(v[0], depth + 1) } : { _array: v.length };
+  if (typeof v === 'object') {
+    if (depth >= 6) return 'object';
+    const keys = Object.keys(v);
+    const out = {};
+    for (const k of keys.slice(0, 40)) out[/^[+\d][\d\s().+-]*$/.test(k) || k.length > 40 ? ':key' : k] = shapeOf(v[k], depth + 1);
+    if (keys.length > 40) out._keys = keys.length;
+    return out;
+  }
+  return typeof v;
+}
+
+const CHALLENGE_RE = /captcha|verify (that )?you are (a )?human|unusual (activity|traffic)|just a moment|checking your browser|access denied|cloudflare/i;
+
+module.exports = { digits, last10, e164, normalizeMessage, harvest, toIso, maskPath, shapeOf, CHALLENGE_RE };

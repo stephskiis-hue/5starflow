@@ -42,6 +42,7 @@ try {
   & $node.Source 'scripts\textnow-watch.js' '--login' 2>&1 | ForEach-Object { Write-Host "  $_" }
   $loginCode = $LASTEXITCODE
   $ErrorActionPreference = $prev
+  if ($loginCode -eq 3) { throw "Signed in, but the watcher could not read TextNow's page (its calls may differ from what we expected). Run:  node backend\scripts\textnow-watch.js --probe   then click one conversation when asked, and paste the output into the chat." }
   if ($loginCode -ne 0) { throw "The first read did not finish (exit $loginCode). If TextNow showed a captcha or verification, complete it in the window and re-run this script." }
 
   Write-Host '5/6 Loading the TextNow history (this can take several minutes; it pages slowly on purpose)...'
