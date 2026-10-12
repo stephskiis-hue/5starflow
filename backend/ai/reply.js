@@ -14,6 +14,7 @@ const { lintContent } = require('./design/qa');
 const { createTask, completeByDedupKey } = require('./tasks');
 const { recordActivity } = require('./ledger');
 const { localHour } = require('../lib/tz');
+const { convTaskKey } = require('../lib/taskKeys');
 
 const HOLDING = "Thanks for reaching out! Steph will get back to you today with the details.";
 const MAX_LEN = 320;
@@ -28,7 +29,7 @@ async function sendAiReply(userId, { phone, body, reason }) {
   const conv = classifyConversation(msgs);
   if (!NEEDS_US.has(conv.state)) return { sent: false, code: 'NOT_WAITING', error: `conversation is ${conv.state}: nothing to answer` };
   if (conv.state === 'ESCALATION_REQUIRED') {
-    await createTask(userId, { dedupKey: `sms:${key}`, title: `${msgs[0].clientName || phone} needs you personally`, source: 'sms', agent: 'communication', urgency: 'urgent', reason: conv.reason, whatHappened: String(conv.lastMessage).slice(0, 300), whatNeeds: 'Handle personally. The AI does not answer complaints.' });
+    await createTask(userId, { dedupKey: convTaskKey('sms', key), title: `${msgs[0].clientName || phone} needs you personally`, source: 'sms', agent: 'communication', urgency: 'urgent', reason: conv.reason, whatHappened: String(conv.lastMessage).slice(0, 300), whatNeeds: 'Handle personally. The AI does not answer complaints.' });
     return { sent: false, code: 'ESCALATION', error: 'complaint or dispute: left for the owner' };
   }
 
@@ -73,14 +74,14 @@ async function sendAiReply(userId, { phone, body, reason }) {
   const who = msgs.find((m) => m.clientName)?.clientName || phone;
   if (money) {
     await createTask(userId, {
-      dedupKey: `sms:${key}`, title: `${who} asked about money`, source: 'sms', agent: 'communication', urgency: 'high', status: 'APPROVAL',
+      dedupKey: convTaskKey('sms', key), title: `${who} asked about money`, source: 'sms', agent: 'communication', urgency: 'high', status: 'APPROVAL',
       customerName: msgs.find((m) => m.clientName)?.clientName, customerKey: phone, reason: 'Money topic: the AI sent a holding reply and left the answer to you.',
       whatHappened: `Customer said: "${unanswered.slice(0, 240)}"`, whatNeeds: 'Reply with the details (price, quote, payment).', proposedResponse: String(body || '').slice(0, 300),
       context: { money: true, phoneKey: key, phone },
     });
-    await prisma.task.updateMany({ where: { userId, dedupKey: `sms:${key}` }, data: { status: 'APPROVAL', context: { money: true, phoneKey: key, phone } } });
+    await prisma.task.updateMany({ where: { userId, dedupKey: convTaskKey('sms', key) }, data: { status: 'APPROVAL', context: { money: true, phoneKey: key, phone } } });
   } else {
-    await completeByDedupKey(userId, `sms:${key}`);
+    await completeByDedupKey(userId, convTaskKey('sms', key));
   }
   await recordActivity(userId, { agent: 'communication', action: kind === 'holding' ? 'sent holding reply (money topic)' : 'replied to customer', summary: `${who}: ${text.slice(0, 120)}`, result: result.dryRun ? 'skipped' : 'ok', source: 'sms', approval: kind === 'holding' ? 'pending' : 'auto', customerRef: key });
   return { sent: true, kind, dryRun: !!result.dryRun, body: text };

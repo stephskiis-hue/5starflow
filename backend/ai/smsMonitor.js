@@ -10,6 +10,7 @@ const { createTask, updateTask, completeByDedupKey, URGENCY_RANK } = require('./
 const { logComm } = require('../lib/commLedger');
 const { recordActivity } = require('./ledger');
 const { notify } = require('../lib/notify');
+const { convTaskKey, isLegacySmsKey } = require('../lib/taskKeys');
 
 const CREATE_AFTER_MIN = 10;     // give the owner a moment before raising a task
 const STALE_MIN = 48 * 60;       // older than this = probably handled elsewhere (phone, Jobber): low-priority task, never an alert
@@ -31,17 +32,35 @@ function alertWaiting(userId, who, c) {
   notify(userId, { category: 'customer', urgent: true, title: `${who} has been waiting ${waitLabel(c.waitingMinutes)} for a reply`, body: String(c.lastMessage || '').slice(0, 160), link: '/marketing.html' });
 }
 
+// Tasks the Ollama worker filed as sms:<E.164> before keys were unified: move them onto sms:<last10>, or fold them into
+// the task that is already there (keeping the worker's draft), so one conversation is never two tasks.
+async function rekeyLegacySmsTasks(userId) {
+  const legacy = await prisma.task.findMany({ where: { userId, dedupKey: { startsWith: 'sms:' } } });
+  let moved = 0;
+  for (const t of legacy.filter((x) => isLegacySmsKey(x.dedupKey))) {
+    const key = convTaskKey('sms', t.dedupKey.slice(4));
+    const existing = await prisma.task.findUnique({ where: { userId_dedupKey: { userId, dedupKey: key } } });
+    if (!existing) { await prisma.task.update({ where: { id: t.id }, data: { dedupKey: key, source: 'sms' } }); moved++; continue; }
+    const open = ['NEW', 'IN_PROGRESS', 'WAITING'].includes(existing.status);
+    if (open && !existing.proposedResponse && t.proposedResponse) await prisma.task.update({ where: { id: existing.id }, data: { proposedResponse: t.proposedResponse, whatNeeds: t.whatNeeds || existing.whatNeeds } });
+    await prisma.task.update({ where: { id: t.id }, data: { status: 'COMPLETED', completedAt: new Date() } });
+    moved++;
+  }
+  return moved;
+}
+
 async function smsMonitorTick({ userId }) {
+  const rekeyed = await rekeyLegacySmsTasks(userId).catch(() => 0);
   const convs = await getConversationStates(userId, { sinceDays: 14 });
   const needing = convs.filter((c) => NEEDS_US.has(c.state));
   const waiting = needing.filter((c) => c.waitingMinutes >= CREATE_AFTER_MIN);
   // Tasks stay open for EVERY conversation still waiting on us — including a fresh follow-up text that is only
   // minutes old (it must not be mistaken for "answered" just because it's below the raise-a-task threshold).
-  const waitingKeys = new Set(needing.map((c) => `sms:${c.phoneKey}`));
+  const waitingKeys = new Set(needing.map((c) => convTaskKey('sms', c.phoneKey)));
   let created = 0; let updated = 0;
 
   for (const c of waiting) {
-    const dedupKey = `sms:${c.phoneKey}`;
+    const dedupKey = convTaskKey('sms', c.phoneKey);
     const urgency = urgencyFor(c);
     const who = c.clientName || c.phone;
     const existing = await prisma.task.findUnique({ where: { userId_dedupKey: { userId, dedupKey } } });
@@ -81,7 +100,7 @@ async function smsMonitorTick({ userId }) {
     items_found: waiting.length,
     requires_attention: waiting.filter((c) => URGENCY_RANK[urgencyFor(c)] >= URGENCY_RANK.high).length,
     high_priority: waiting.filter((c) => urgencyFor(c) === 'urgent').length,
-    actions_taken: [created && `Raised ${created} customer-waiting task(s)`, closed && `Closed ${closed} answered conversation(s)`].filter(Boolean),
+    actions_taken: [rekeyed && `Merged ${rekeyed} legacy sms task key(s)`, created && `Raised ${created} customer-waiting task(s)`, closed && `Closed ${closed} answered conversation(s)`].filter(Boolean),
     summary: waiting.length ? `${waiting.length} customer(s) waiting on a reply` : 'Nobody waiting on a reply',
   };
 }
@@ -107,4 +126,4 @@ async function reconcileTwilioTick({ userId }) {
   return { items_found: msgs.length, actions_taken: added ? [`Added ${added} text(s) sent outside the app`] : [], summary: `${msgs.length} in Twilio log, ${added} new` };
 }
 
-module.exports = { smsMonitorTick, reconcileTwilioTick };
+module.exports = { smsMonitorTick, reconcileTwilioTick, rekeyLegacySmsTasks };

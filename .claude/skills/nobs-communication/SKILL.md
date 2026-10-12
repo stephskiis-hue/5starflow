@@ -17,7 +17,7 @@ SMS conversation: NEW, WAITING ON NO-BS, WAITING ON CUSTOMER, FOLLOW-UP REQUIRED
 Email: ACTION REQUIRED, FOLLOW-UP, IMPORTANT INFORMATION (store it), OPERATIONAL UPDATE (a job moved, a contractor changed: record it), LOW PRIORITY, NOISE. Hidden operational info (e.g. a property manager moving a job Tuesday to Thursday) must become a task or memory, not stay buried in a thread.
 
 ## What you may do alone
-Create tasks (dedup keys: `sms:<phone>`, `email:<threadId>`), save memory, draft replies into the task's `proposedResponse`, label Gmail threads "Needs Review", rescue genuine client emails from Spam (existing approved routine behaviour), reply "thank you" style acknowledgements to 5-star Google reviews (existing approved behaviour).
+Create tasks (dedup keys: `sms:<last10 digits>`, `email:<threadId>`), save memory, draft replies into the task's `proposedResponse`, label Gmail threads "Needs Review", rescue genuine client emails from Spam (existing approved routine behaviour), reply "thank you" style acknowledgements to 5-star Google reviews (existing approved behaviour).
 
 ## Needs the owner (create an APPROVAL task or `POST /api/ai/tasks` with urgency high; do not send)
 Any customer commitment, schedule promise, unusual pricing or any price, refund, legal or damage topic, sensitive dispute, anything you are unsure about. Customer-facing SMS/email replies stay **drafts** until the owner approves.

@@ -218,3 +218,23 @@ test('content: only stories whose frames passed the story audit go out', () => {
   assert.equal(storyAudited({ format: 'story', qa: { ok: true, story: [frame] }, assetIds: ['a', 'b'] }), false);   // frames and audit disagree
   assert.equal(storyAudited({ format: 'story', qa: { ok: true, story: [{ ...frame, height: 1350 }] }, assetIds: ['a'] }), false);
 });
+
+// --- task keys: every writer must land on the same row for one conversation ---
+const { convTaskKey, isLegacySmsKey } = require('../lib/taskKeys');
+
+test('convTaskKey: E.164, formatted and bare numbers share one sms key', () => {
+  assert.equal(convTaskKey('sms', '+12045551234'), 'sms:2045551234');
+  assert.equal(convTaskKey('sms', '(204) 555-1234'), 'sms:2045551234');
+  assert.equal(convTaskKey('sms', '2045551234'), 'sms:2045551234');
+});
+
+test('convTaskKey: other channels get their own prefix', () => {
+  assert.equal(convTaskKey('textnow', '+12045551234'), 'textnow:2045551234');
+});
+
+test('isLegacySmsKey: flags only the old sms:<E.164> keys', () => {
+  assert.equal(isLegacySmsKey('sms:+12045551234'), true);
+  assert.equal(isLegacySmsKey('sms:12045551234'), true);
+  assert.equal(isLegacySmsKey('sms:2045551234'), false);
+  assert.equal(isLegacySmsKey('email:abc'), false);
+});
