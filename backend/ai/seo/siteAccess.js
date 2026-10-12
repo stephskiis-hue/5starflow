@@ -198,6 +198,7 @@ async function status(userId) {
     ftp: cfg ? { configured: true, host: cfg.host, root: cfg.root, source: cfg.source } : { configured: false },
     verification: v ? { identifier: v.identifier, content: v.content, verifiedAt: v.verifiedAt || null, liveAt: v.liveAt || null } : null,
     htaccess: h ? { state: h.state, at: h.at, lines: h.state === 'applied' ? seoRedirectLines(seo.origin) : null, report: h.report || [] } : null,
+    pc: seo.state.pcCopy || null,
   };
 }
 

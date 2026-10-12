@@ -29,7 +29,9 @@ function kindFor(path) {
 
 async function raise(userId, raised, t) {
   raised.add(t.dedupKey);
-  await createTask(userId, { source: 'seo', agent: 'research', routineSlug: SLUG, urgency: 'normal', ...t });
+  const { task, created } = await createTask(userId, { source: 'seo', agent: 'research', routineSlug: SLUG, urgency: 'normal', ...t });
+  // the count lives in the title ("20 page(s) with ..."): a re-flag keeps the old title, so bring it in step with this run
+  if (!created && task.title !== t.title) await prisma.task.update({ where: { id: task.id }, data: { title: t.title } });
 }
 
 /** Close seo tasks this run did not raise again: the problem is gone. Setup tasks are left to their own checks. */

@@ -178,6 +178,15 @@ router.get('/site-access', async (req, res) => {
   res.json(out);
 });
 
+// seo_site.py (hourly on the PC) says what its site folder holds, so we can see the tag is there before the 3 AM deploy
+router.post('/site-access/pc-report', async (req, res) => {
+  const b = req.body || {};
+  const seo = await g.loadSeo(req.ai.userId);
+  await g.saveState(seo.row.id, { pcCopy: { indexHasTag: b.indexHasTag === true, htaccessHasBlock: b.htaccessHasBlock === true,
+    changed: Array.isArray(b.changed) ? b.changed.slice(0, 10).map(String) : [], at: new Date().toISOString() } });
+  res.json({ ok: true });
+});
+
 // Search Console without adding a user: the service account verifies the site itself. apply=true puts the tag on the live homepage over FTP.
 router.post('/site-access/verify', async (req, res) => {
   const out = await siteAccess.ensureOwnership(req.ai.userId, { apply: req.body?.apply === true });

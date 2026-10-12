@@ -40,9 +40,9 @@ try {
   $seoStamp = Join-Path $FsfDir 'seo-site-nightly.stamp'
   $today = Get-Date -Format 'yyyy-MM-dd'
   $doneToday = (Test-Path $seoStamp) -and ((Get-Content $seoStamp -Raw).Trim() -eq $today)
-  # a seo-site.json pulled after tonight's run (e.g. a new exclude) runs it again before the 3 AM deploy
-  $cfgFile = Join-Path $PSScriptRoot 'seo-site.json'
-  $cfgChanged = $doneToday -and (Test-Path $cfgFile) -and ((Get-Item $cfgFile).LastWriteTime -gt (Get-Item $seoStamp).LastWriteTime)
+  # a seo-site.json or seo_site.py pulled after tonight's run (a new exclude, a new fix) runs it again before the 3 AM deploy
+  $cfgChanged = $doneToday -and @('seo-site.json', 'seo_site.py' | ForEach-Object { Join-Path $PSScriptRoot $_ } |
+    Where-Object { (Test-Path $_) -and ((Get-Item $_).LastWriteTime -gt (Get-Item $seoStamp).LastWriteTime) }).Count -gt 0
   if ((Get-Date).Hour -ge 19 -and (-not $doneToday -or $cfgChanged)) {
     Set-Content -Path $seoStamp -Value $today
     $code = Invoke-FsfNative 'seo-nightly' $py @((Join-Path $PSScriptRoot 'seo_site.py'), 'nightly')
