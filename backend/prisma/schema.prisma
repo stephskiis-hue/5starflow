@@ -928,7 +928,7 @@ model SocialShift {
 model CommMessage {
   id             String   @id @default(cuid())
   userId         String
-  channel        String   @default("sms")               // sms | email
+  channel        String   @default("sms")               // sms | email | textnow
   direction      String                                  // in | out
   phone          String?                                 // E.164
   phoneKey       String?                                 // last 10 digits, for joins
@@ -936,7 +936,7 @@ model CommMessage {
   jobberClientId String?
   clientName     String?
   body           String   @default("")
-  source         String   @default("system")             // inbound | campaign | review | rain | loyalty | reward | optout | operator | manual | owner | system
+  source         String   @default("system")             // inbound | campaign | review | rain | loyalty | reward | optout | operator | manual | owner | ai | system
   sourceId       String?                                 // InboundSMS.id, MarketingMessage.id, Twilio sid ...
   providerId     String?                                 // Twilio MessageSid
   status         String?
@@ -945,6 +945,32 @@ model CommMessage {
   @@unique([userId, channel, direction, providerId])
   @@index([userId, phoneKey, at])
   @@index([userId, direction, at])
+}
+
+// What the Communication agent understood about a TextNow thread and what it WOULD have done (Phase 1 is read-only).
+// When the owner then answers the thread himself, ownerReply/agreement record how close the draft was; per-intent
+// agreement is what earns an intent more autonomy (config.intentAutonomy on the ext-textnow-insight routine).
+model CommInsight {
+  id             String    @id @default(cuid())
+  userId         String
+  channel        String    @default("textnow")
+  phoneKey       String                                   // last 10 digits
+  jobberClientId String?
+  lastInboundId  String                                   // CommMessage.providerId of the customer message this is about
+  intent         String                                   // cancel_visit | skip_visit | reschedule | schedule_question | quote_request | access_info | complaint | billing | praise | ack | other
+  confidence     Float     @default(0.5)
+  summary        String    @default("")
+  proposedReply  String    @default("")
+  proposedAction Json?
+  ownerReply     String?
+  ownerReplyAt   DateTime?
+  agreement      String?                                  // match | partial | miss
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([userId, channel, lastInboundId])
+  @@index([userId, channel, createdAt])
+  @@index([userId, intent])
 }
 
 // Owner notification centre: every routine/event lands here; only urgent ones are also texted.

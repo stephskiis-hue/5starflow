@@ -21,6 +21,7 @@ const RUNNABLE = {
   'pricing-learner':            { risk: 'safe',     fn: (ctx) => pricingTick(ctx) },
   'routine-heartbeat':          { risk: 'safe',     fn: (ctx) => heartbeatTick(ctx) },
   'sms-monitor':                { risk: 'safe',     fn: (ctx) => smsMonitorTick(ctx) },
+  'textnow-shadow-score':       { risk: 'safe',     fn: (ctx) => require('./textnow').scoreShadow(ctx) },
   'owner-daily-digest':         { risk: 'texts-owner', fn: (ctx) => digestTick(ctx) },
   'comm-ledger-reconcile':      { risk: 'safe',     fn: (ctx) => reconcileTwilioTick(ctx) },
   'vault-drive-import':         { risk: 'safe',     fn: (ctx) => require('./driveImport').driveImportTick(ctx) },
@@ -50,6 +51,7 @@ async function startAiOs() {
     setTimeout(beat, 90_000); // grace after boot so freshly-started schedulers can report first
     const sms = () => runRoutine('sms-monitor', (ctx) => smsMonitorTick(ctx), { quiet: true });
     cron.schedule('*/10 * * * *', sms);
+    cron.schedule('50 * * * *', () => runRoutine('textnow-shadow-score', (ctx) => require('./textnow').scoreShadow(ctx), { quiet: true }));
     setTimeout(sms, 150_000);
     // hourly check: the run only happens in the day/hour the owner chose (default Saturday 3 pm)
     cron.schedule('0 * * * *', async () => { try { if (await digestDue(userId)) await runRoutine('owner-daily-digest', (ctx) => digestTick(ctx), { quiet: true }); } catch (e) { console.warn('[ai] weekly digest check failed:', e.message); } });

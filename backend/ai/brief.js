@@ -21,10 +21,10 @@ function localNow() {
   };
 }
 
-const MEMORY_SCOPES = (agent) => ['rule', 'business', 'brand', agent ? `agent:${agent}` : null, agent === 'social' ? 'channel:facebook' : null].filter(Boolean);
+const MEMORY_SCOPES = (agent) => ['rule', 'business', 'brand', agent ? `agent:${agent}` : null, agent === 'social' ? 'channel:facebook' : null, agent === 'communication' ? 'channel:textnow' : null].filter(Boolean);
 
 async function buildBrief(userId, { agent } = {}) {
-  const [tasks, approvals, approvalCount, openCount, urgentCount, routines, unanswered, memory, requestCount, recentRequests] = await Promise.all([
+  const [tasks, approvals, approvalCount, openCount, urgentCount, routines, unanswered, memory, requestCount, recentRequests, tnStatus] = await Promise.all([
     listTasks(userId, { status: 'open', limit: 40 }),
     prisma.operatorProposal.findMany({ where: { userId, status: 'pending', expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' }, take: 10 }),
     prisma.operatorProposal.count({ where: { userId, status: 'pending', expiresAt: { gt: new Date() } } }),
@@ -35,6 +35,7 @@ async function buildBrief(userId, { agent } = {}) {
     prisma.memory.findMany({ where: { userId, scope: { in: MEMORY_SCOPES(agent) } }, orderBy: [{ confidence: 'desc' }, { updatedAt: 'desc' }], take: 25, select: { scope: true, key: true, value: true } }),
     prisma.ownerRequest.count({ where: { userId, status: 'pending' } }),
     prisma.ownerRequest.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 5, select: { id: true, status: true, body: true, createdAt: true } }),
+    require('./textnow').getStatus(userId).catch(() => ({ health: 'unknown', lastSyncAt: null, waiting: 0, urgent: 0, oldestWaitingMinutes: 0 })),
   ]);
 
   const mine = agent ? tasks.filter((t) => !t.agent || t.agent === agent) : tasks;
@@ -63,6 +64,8 @@ async function buildBrief(userId, { agent } = {}) {
       actionableSms: unanswered.filter((u) => u.urgency !== 'low').length,
       oldestWaitingMinutes: unanswered[0]?.waitingMinutes || 0,
       items: unanswered.slice(0, 5).map((u) => ({ phone: u.phone, name: u.clientName, minutes: u.waitingMinutes, last: u.lastMessage.slice(0, 120) })),
+      // the owner's TextNow line (read-only for the agents for now: they note it, they do not reply there)
+      textnow: { health: tnStatus.health, lastSyncAt: tnStatus.lastSyncAt, waiting: tnStatus.waiting, urgent: tnStatus.urgent, oldestWaitingMinutes: tnStatus.oldestWaitingMinutes },
     },
     requests: {
       pending: requestCount,

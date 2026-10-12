@@ -397,7 +397,7 @@ router.post('/approvals/:id/respond', ownerOnly, async (req, res) => {
 
 // --------------------------------------------------------------------------- inbox + customers
 router.get('/inbox/unanswered-sms', async (req, res) => {
-  res.json(await getUnansweredSms(req.ai.userId, { sinceDays: int(req.query.days, 14, 60), limit: int(req.query.limit, 50) }));
+  res.json(await getUnansweredSms(req.ai.userId, { sinceDays: int(req.query.days, 14, 60), limit: int(req.query.limit, 50), channel: req.query.channel === 'textnow' ? 'textnow' : 'sms' }));
 });
 
 router.post('/inbox/:phone/reply', async (req, res) => {
@@ -410,6 +410,34 @@ router.get('/whoami', (req, res) => res.json({ ok: true, actor: req.ai.actor, ag
 router.get('/customers/context', async (req, res) => {
   res.json(await getCustomerContext(req.ai.userId, { jobberClientId: req.query.jobberClientId, phone: req.query.phone, email: req.query.email, q: req.query.q }));
 });
+
+
+// --------------------------------------------------------------------------- TextNow Watch (the owner's TextNow line, read by the MSI watcher)
+const textnow = require('../ai/textnow');
+const tn = (fn) => async (req, res) => { try { await fn(req, res); } catch (e) { logger.error?.(`[textnow] ${req.method} ${req.path}: ${e.message}`); res.status(400).json({ error: e.message }); } };
+
+router.get('/textnow/cursor', tn(async (req, res) => res.json(await textnow.getCursor(req.ai.userId))));
+
+router.post('/textnow/ingest', tn(async (req, res) => {
+  const out = await textnow.ingestMessages(req.ai.userId, req.body?.messages);
+  if (out.inserted) await recordActivity(req.ai.userId, { agent: 'communication', routineSlug: textnow.WATCH_SLUG, action: 'textnow_ingest', summary: `Read ${out.newInbound} new and ${out.newOutbound} sent TextNow message(s)`, source: 'textnow' });
+  res.json(out);
+}));
+
+router.post('/textnow/health', tn(async (req, res) => res.json(await textnow.setHealth(req.ai.userId, { state: req.body?.state, detail: req.body?.detail }))));
+
+router.get('/textnow/status', tn(async (req, res) => res.json({ ...(await textnow.getStatus(req.ai.userId)), readiness: await textnow.getReadiness(req.ai.userId) })));
+
+router.get('/textnow/threads', tn(async (req, res) => res.json(await textnow.getThreads(req.ai.userId, { sinceDays: int(req.query.days, 3, 400), limit: int(req.query.limit, 40, 100), offset: Math.max(0, parseInt(req.query.offset, 10) || 0) }))));
+
+router.post('/textnow/insights', tn(async (req, res) => res.json(await textnow.upsertInsights(req.ai.userId, req.body?.insights))));
+
+router.get('/textnow/readiness', tn(async (req, res) => res.json(await textnow.getReadiness(req.ai.userId))));
+
+router.post('/textnow/digest', tn(async (req, res) => {
+  if (!String(req.body?.summary || '').trim()) return res.status(400).json({ error: 'summary required' });
+  res.json(await textnow.recordDigest(req.ai.userId, { summary: req.body.summary, sms: req.body.sms }));
+}));
 
 
 // --------------------------------------------------------------------------- vault (photos + graphics)

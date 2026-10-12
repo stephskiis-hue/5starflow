@@ -10,6 +10,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { chromium } = require('playwright');
+const { e164, harvest } = require('../lib/textnow');
 
 const arg = (name, def) => { const i = process.argv.indexOf(name); return i > -1 ? process.argv[i + 1] : def; };
 const HEADLESS = process.argv.includes('--headless');
@@ -19,40 +20,6 @@ const PAGE_SIZE = 100;
 const PAGE_DELAY_MS = 1200;   // human pace: TextNow is not an API we're entitled to hammer
 const LOGIN_WAIT_MS = 10 * 60 * 1000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-const digits = (v) => String(v || '').replace(/\D/g, '');
-function e164(v) {
-  const d = digits(v);
-  if (d.length === 10) return `+1${d}`;
-  if (d.length === 11 && d.startsWith('1')) return `+${d}`;
-  return d.length > 11 ? `+${d}` : null;   // short codes / system senders → null (skipped)
-}
-
-// TextNow's field names have changed over the years: accept the variants we know of.
-function normalizeMessage(m) {
-  if (!m || typeof m !== 'object') return null;
-  const contact = m.contact_value ?? m.contactValue ?? m.e164_contact_value ?? m.contact?.value;
-  const id = m.id ?? m.message_id ?? m.messageId;
-  if (!contact || id == null) return null;
-  const dir = m.message_direction ?? m.direction ?? m.messageDirection;
-  return {
-    id: String(id),
-    contact: String(contact),
-    name: m.contact_name ?? m.contactName ?? m.contact?.name ?? '',
-    direction: dir === 1 || dir === 'incoming' || dir === 'in' ? 'in' : dir === 2 || dir === 'outgoing' || dir === 'out' ? 'out' : String(dir ?? ''),
-    body: m.message ?? m.body ?? m.text ?? '',
-    at: m.date ?? m.timestamp ?? m.created_at ?? m.createdAt ?? null,
-  };
-}
-
-// Walk any JSON TextNow loads and keep every message-shaped object (fallback when the paged pull fails).
-function harvest(node, into, depth = 0) {
-  if (!node || typeof node !== 'object' || depth > 8) return;
-  if (Array.isArray(node)) { for (const x of node) harvest(x, into, depth + 1); return; }
-  const m = normalizeMessage(node);
-  if (m) into.set(m.id, m);
-  for (const v of Object.values(node)) if (v && typeof v === 'object') harvest(v, into, depth + 1);
-}
 
 const isLoggedOut = (url) => /\/login|\/signup|\/sign-in/i.test(url);
 

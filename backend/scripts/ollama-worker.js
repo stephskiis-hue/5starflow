@@ -5,6 +5,7 @@
 //   node scripts/ollama-worker.js --job sms-triage|morning-summary
 const fs = require('fs');
 const path = require('path');
+const { convTaskKey } = require('../lib/taskKeys');
 
 const SLUG = 'local-ollama-worker';
 const API = (process.env.FIVESTARFLOW_URL || '').replace(/\/$/, '');
@@ -91,7 +92,7 @@ spam = not from a real customer (ads, scams, wrong number); other = anything els
   const actions = [];
   for (const sms of items) {
     const ctx = await api('GET', `/customers/context?phone=${encodeURIComponent(sms.phone)}`, null, agent).catch(() => ({}));
-    if (ctx.customer?.optedOut) { actions.push(`Skipped sms:${sms.phone} (opted out)`); continue; }
+    if (ctx.customer?.optedOut) { actions.push(`Skipped ${convTaskKey('sms', sms.phone)} (opted out)`); continue; }
     const timeline = (ctx.sms?.timeline || []).slice(0, 10).reverse()
       .map((m) => `${m.dir === 'in' ? 'Customer' : 'No-Bs'}: ${String(m.body || '').slice(0, 200)}`).join('\n');
     const user = `Customer: ${sms.clientName || 'unknown'} (${sms.phone}), waiting ${sms.waitingMinutes} min.
@@ -108,9 +109,9 @@ Known context: ${JSON.stringify({ ...ctx, sms: undefined, customer: undefined })
     if (lintErrors.length) draft = '';   // a draft that breaks brand rules is worse than none
 
     await api('POST', '/tasks', {
-      dedupKey: `sms:${sms.phone}`,
+      dedupKey: convTaskKey('sms', sms.phone),
       title: `Reply to ${sms.clientName || sms.phone}${t ? ` (${t.category})` : ''}`,
-      source: 'routine', routineSlug: SLUG,
+      source: 'sms', routineSlug: SLUG,
       customerName: sms.clientName || null, customerKey: sms.jobberClientId || sms.phone,
       whatHappened: t?.whatHappened || `Text: "${sms.lastMessage}"`,
       whatNeeds: needsOwner ? `Needs the owner or Claude. ${t?.whatNeeds || ''}${lintErrors.length ? ` Draft failed brand lint: ${lintErrors.join(' ')}` : ''}`.trim() : t.whatNeeds,
@@ -118,7 +119,7 @@ Known context: ${JSON.stringify({ ...ctx, sms: undefined, customer: undefined })
       urgency: needsOwner || sms.waitingMinutes > 24 * 60 ? 'high' : t.urgency,
       context: { by: 'ollama', model: MODEL, category: t?.category, confident: !!t?.confident },
     }, agent);
-    actions.push(`Drafted task sms:${sms.phone}${needsOwner ? ' (flagged for owner)' : ''}`);
+    actions.push(`Drafted task ${convTaskKey('sms', sms.phone)}${needsOwner ? ' (flagged for owner)' : ''}`);
   }
   return { status: 'completed', items_found: items.length, requires_attention: items.length, summary: `Triaged ${items.length} unanswered text(s) on ${MODEL}.`, actions_taken: actions, agent };
 }
