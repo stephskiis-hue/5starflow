@@ -50,6 +50,62 @@ try {
   }
 } catch { Log "seo nightly failed to start: $($_.Exception.Message)" }
 
+# TextNow Watch (backend/scripts/textnow-watch.js): every 2 hours from 7 am to 9 pm, read the owner's TextNow line and post new
+# messages to 5StarFlow. Zero Claude tokens, its own headless browser profile, READ ONLY. Needs a one-time
+# `node backend\scripts\textnow-watch.js --login` on this PC. Its log is ~/.5starflow/textnow-watch.log; a failure never blocks the inbox.
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..\..')).Path
+$node = if ($env:NODE_BIN) { $env:NODE_BIN } else { 'node' }
+function Invoke-TextNowWatch {
+  $code = Invoke-FsfNative 'textnow-watch' $node @((Join-Path $repoRoot 'backend\scripts\textnow-watch.js'))
+  Log "textnow-watch exited $code"
+  return $code
+}
+try {
+  $tnStamp = Join-Path $FsfDir 'textnow-watch.stamp'
+  $tnHour = (Get-Date).Hour
+  $tnDue = ($tnHour -ge 7 -and $tnHour -lt 21) -and (-not (Test-Path $tnStamp) -or ((Get-Item $tnStamp).LastWriteTime -lt (Get-Date).AddMinutes(-115)))
+  if ($tnDue) {
+    New-Item -ItemType File -Force -Path $tnStamp | Out-Null   # stamp first: a crash must not retry every 5 minutes
+    $tnCode = Invoke-TextNowWatch
+    # a crash or parse hiccup retries in about 30 minutes; logged-out and rate-limited outcomes wait for the next slot
+    if ($tnCode -in 1, 3) { (Get-Item $tnStamp).LastWriteTime = (Get-Date).AddMinutes(-85) }
+  }
+} catch { Log "textnow-watch failed to start: $($_.Exception.Message)" }
+
+# TextNow Insight (backend/ai/prompts/textnow-insight.md): once a day, the first quiet check after 7 pm. Claude in Chrome reads the
+# day's threads, records what it WOULD have replied, cross-checks the TextNow page and posts the owner summary (5StarFlow texts it
+# every digestEveryDays days). READ ONLY. Waits while an owner request is pending, Chrome is busy or the Claude plan limit is
+# waiting to reset; up to 3 tries a day.
+try {
+  $insStamp = Join-Path $FsfDir 'textnow-insight.stamp'
+  $insDay = Get-Date -Format 'yyyy-MM-dd'
+  $insTxt = if (Test-Path $insStamp) { (Get-Content $insStamp -Raw).Trim() } else { '' }
+  $insTries = if ($insTxt -match "^${insDay}:(\d+)$") { [int]$Matches[1] } else { 0 }
+  $insHour = (Get-Date).Hour
+  if ($insTxt -ne "${insDay}:ok" -and $insTries -lt 3 -and $insHour -ge 19 -and $insHour -lt 23) {
+    $insLimit = Join-Path $FsfDir 'claude-limit-until.txt'
+    $insWait = (Test-Path $insLimit) -and ((Get-Date) -lt [datetime]::Parse((Get-Content $insLimit -Raw).Trim()))
+    $insHeaders = @{ Authorization = "Bearer $env:FIVESTARFLOW_TOKEN"; 'X-Agent' = 'communication' }
+    $insPending = 0
+    try { $insPending = [int](Invoke-RestMethod -Uri "$env:FIVESTARFLOW_URL/api/ai/requests/pending-count" -Headers $insHeaders -TimeoutSec 20).pending } catch { }
+    if (-not $insWait -and $insPending -lt 1 -and -not (Test-FsfChromeBusy)) {
+      Set-Content -Path $insStamp -Value "${insDay}:$($insTries + 1)"   # before the run: a crash must not loop all evening
+      Log "textnow-insight: starting (try $($insTries + 1))"
+      [void](Invoke-TextNowWatch)   # fresh messages first
+      Lock-FsfChrome
+      try {
+        $insChrome = Ensure-FsfChrome -Log 'request-gate'
+        if ($insChrome -eq 'missing') { [void](Ensure-FsfChrome -Restart -Log 'request-gate') }
+        $insPrompt = ((Get-Content (Join-Path $PSScriptRoot '..\textnow-insight.md') -Raw) -split '```')[1].Trim()
+        $ins = Invoke-FsfClaude $insPrompt $repoRoot 45 'request-gate'
+        $insTail = if ($ins.out) { $ins.out.Substring([Math]::Max(0, $ins.out.Length - 300)) } else { '' }
+        Log "textnow-insight: claude exited $($ins.code) $insTail"
+        if ($ins.code -eq 0 -and $ins.out -match 'INSIGHT_RESULT:\s*(done|needs_owner)') { Set-Content -Path $insStamp -Value "${insDay}:ok" }
+      } finally { Unlock-FsfChrome }
+    }
+  }
+} catch { Log "textnow-insight failed to start: $($_.Exception.Message)" }
+
 $lock = Join-Path $FsfDir 'request-inbox.lock'
 if ((Test-Path $lock) -and ((Get-Item $lock).LastWriteTime -gt (Get-Date).AddHours(-2))) { Log 'skip: a run is in progress'; exit 0 }
 

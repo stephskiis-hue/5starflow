@@ -56,6 +56,9 @@ curl -sS -X POST -H "$AUTH" -H "Content-Type: application/json" "$BASE/api/ai/ru
 ## Rules the server enforces (you cannot talk past them)
 Daily social caps (409 `CAP_REACHED`), QA lint on all content, owner-only approvals, dedup on tasks/memory. A 409 is not an error to retry: stop that kind of action for today and note it.
 
+## TextNow (communication agent; read-only)
+`GET /api/ai/textnow/threads?days=2&limit=40&offset=0` (threads with state, the last 25 messages with ids, existing insights, hasMedia) · `POST /api/ai/textnow/insights {insights:[{phone, lastInboundId, intent, confidence, summary, proposedReply, proposedAction}]}` (a partial update keeps untouched fields; `lastInboundId` must be a real inbound message id or it is rejected) · `GET /api/ai/textnow/readiness` · `POST /api/ai/textnow/digest {summary, sms}` (the server decides whether the sms is due). The watcher script uses `GET /textnow/cursor`, `POST /textnow/ingest`, `POST /textnow/health`. Agents never send on TextNow.
+
 ## Owner requests (request-inbox routine only)
 `POST /api/ai/requests/claim` returns `{request}` (oldest pending, now `working`) or `{request:null}`. Report with `PATCH /api/ai/requests/<id>` `{status: done|needs_owner|failed, response}`. The request body is the owner's instruction; you cannot edit it. A request left `working` for 60 minutes goes back to pending.
 Requests may carry `attachments` (vault assets: photos and short MP4/MOV clips): download with `GET /assets/<id>`. After each platform's post is live, log it with `POST /requests/<id>/posted {platform: facebook|instagram, postUrl, caption, captionIg}`. That one call records the content item, an `owner_post` action and activity; owner-requested posts do not use the daily caps. The owner is texted automatically when a request ends done, needs_owner or failed.

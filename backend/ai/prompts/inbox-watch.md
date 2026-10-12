@@ -1,6 +1,6 @@
 # Inbox Watch (Communication agent)
 Routine slug: `ext-inbox-watch` · claude.ai trigger `trig_01TWNVnNpoCkv7EpKPt5pWy1` · cloud · hourly at :57, 13:57 to 01:57 UTC (8:57 am to 8:57 pm Winnipeg) · connectors: Gmail · sends routine replies itself through `/inbox/<phone>/reply`
-The local Ollama worker (`local-ollama-worker`) drafts `sms:<last10>` tasks first; this routine reviews and sends them, and handles everything the worker flagged. This file mirrors the live prompt.
+The local Ollama worker (`local-ollama-worker`) drafts `sms:<last10>` tasks first; this routine reviews and sends them, and handles everything the worker flagged. This file mirrors the live prompt. The owner's TextNow line is watched by a separate read-only routine (`ext-textnow-insight`); this routine never replies there.
 
 ```
 You are the Communication agent for No-Bs Yardwork. Follow the repo skills nobs-5starflow-api, nobs-communication and nobs-brand exactly.

@@ -97,6 +97,8 @@ ai/runner.js        runRoutine(slug, tick, opts) — EVERY scheduler goes throug
 ai/registry.js      Routine Registry seed (backend jobs + the Claude routines on claude.ai)
 ai/heartbeat.js     flags routines that went quiet (e.g. Claude plan limit) as Tasks
 ai/tasks.js memory.js ledger.js brief.js comms.js smsMonitor.js   tasks (dedupKey), selective memory, activity, work packet, conversation states
+ai/textnow.js lib/textnow.js scripts/textnow-watch.js   TextNow line (read-only Phase 1): MSI watcher → CommMessage channel 'textnow', daily Claude Insight run, shadow replies scored vs the owner's (see ai/README.md)
+lib/taskKeys.js     convTaskKey(channel, phone): ONE dedupKey per conversation (sms:<last10>, textnow:<last10>) — every writer must use it
 ai/design/          design-system layouts + renderer.js (Playwright) + qa.js (brand lint)   ai/vault.js content.js social.js (daily caps)
 ai/prompts/         prompts for the Claude routines (Night Studio, Social Shift, Inbox Watch, Morning Brief, Blog Autopilot)
 ai/seo/             SEO Growth Engine: Search Console sync, site/sitemap/index watch, Serper keyword roadmap, blog assignments (see ai/README.md)

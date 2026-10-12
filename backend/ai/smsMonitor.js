@@ -1,5 +1,5 @@
 /**
- * SMS monitor — deterministic (no Claude). Every 10 minutes: find customers waiting on a human reply,
+ * SMS monitor — deterministic (no Claude). Every 10 minutes, for Twilio and then the TextNow line: find customers waiting on a human reply,
  * keep exactly one Task per conversation (dedupKey sms:<last10>), escalate with age, text the owner once
  * for urgent (24h+) ones, and close the Task when somebody answers. "Draft a reply" is the
  * Communication agent's job (Inbox Watch) — it reads these tasks.
@@ -35,7 +35,7 @@ function alertWaiting(userId, who, c) {
 // Tasks the Ollama worker filed as sms:<E.164> before keys were unified: move them onto sms:<last10>, or fold them into
 // the task that is already there (keeping the worker's draft), so one conversation is never two tasks.
 async function rekeyLegacySmsTasks(userId) {
-  const legacy = await prisma.task.findMany({ where: { userId, dedupKey: { startsWith: 'sms:' } } });
+  const legacy = await prisma.task.findMany({ where: { userId, dedupKey: { startsWith: 'sms:' }, status: { notIn: ['COMPLETED', 'DISMISSED'] } } });   // closed ones are history: leave them
   let moved = 0;
   for (const t of legacy.filter((x) => isLegacySmsKey(x.dedupKey))) {
     const key = convTaskKey('sms', t.dedupKey.slice(4));
@@ -49,18 +49,19 @@ async function rekeyLegacySmsTasks(userId) {
   return moved;
 }
 
-async function smsMonitorTick({ userId }) {
-  const rekeyed = await rekeyLegacySmsTasks(userId).catch(() => 0);
-  const convs = await getConversationStates(userId, { sinceDays: 14 });
+async function monitorChannel(userId, channel) {
+  const isSms = channel === 'sms';
+  const rekeyed = isSms ? await rekeyLegacySmsTasks(userId).catch(() => 0) : 0;
+  const convs = await getConversationStates(userId, { sinceDays: 14, channel });
   const needing = convs.filter((c) => NEEDS_US.has(c.state));
   const waiting = needing.filter((c) => c.waitingMinutes >= CREATE_AFTER_MIN);
   // Tasks stay open for EVERY conversation still waiting on us — including a fresh follow-up text that is only
   // minutes old (it must not be mistaken for "answered" just because it's below the raise-a-task threshold).
-  const waitingKeys = new Set(needing.map((c) => convTaskKey('sms', c.phoneKey)));
+  const waitingKeys = new Set(needing.map((c) => convTaskKey(channel, c.phoneKey)));
   let created = 0; let updated = 0;
 
   for (const c of waiting) {
-    const dedupKey = convTaskKey('sms', c.phoneKey);
+    const dedupKey = convTaskKey(channel, c.phoneKey);
     const urgency = urgencyFor(c);
     const who = c.clientName || c.phone;
     const existing = await prisma.task.findUnique({ where: { userId_dedupKey: { userId, dedupKey } } });
@@ -71,26 +72,26 @@ async function smsMonitorTick({ userId }) {
     if (!existing || reopen) {
       if (reopen) await prisma.task.update({ where: { id: existing.id }, data: { status: 'NEW', completedAt: null, timesFlagged: { increment: 1 }, lastFlaggedAt: new Date() } });
       const { created: isNew } = await createTask(userId, {
-        dedupKey, title: `${who} is waiting on a reply`, source: 'sms', agent: 'communication', customerName: c.clientName, customerKey: c.jobberClientId || c.phone,
-        urgency, reason: c.reason, whatHappened: happened, whatNeeds: 'Reply to the customer.',
-        recommended: c.state === 'NEW' ? 'New contact: answer, ask for their address and best number, offer a quote.' : c.state === 'ESCALATION_REQUIRED' ? 'Handle personally. Do not send an automated or drafted reply.' : 'Reply from the Inbox.',
+        dedupKey, title: `${who} is waiting on a reply${isSms ? '' : ' (TextNow)'}`, source: channel, agent: 'communication', customerName: c.clientName, customerKey: c.jobberClientId || c.phone,
+        urgency, reason: c.reason, whatHappened: happened, whatNeeds: isSms ? 'Reply to the customer.' : 'Reply from TextNow. The AI only watches this line for now.',
+        recommended: c.state === 'NEW' ? 'New contact: answer, ask for their address and best number, offer a quote.' : c.state === 'ESCALATION_REQUIRED' ? 'Handle personally. Do not send an automated or drafted reply.' : isSms ? 'Reply from the Inbox.' : 'Answer from TextNow.',
         context: { phoneKey: c.phoneKey, phone: c.phone, state: c.state },
       });
       if (isNew) created++;
-      if (urgency === 'urgent') alertWaiting(userId, who, c);
+      if (urgency === 'urgent' && isSms) alertWaiting(userId, who, c);
     } else if (!['COMPLETED', 'DISMISSED'].includes(existing.status)) {
       const patch = {};
       if (c.waitingMinutes > STALE_MIN && existing.urgency !== 'low') patch.urgency = 'low';
       else if (URGENCY_RANK[urgency] > URGENCY_RANK[existing.urgency]) patch.urgency = urgency;
       if (existing.whatHappened !== happened) patch.whatHappened = happened;
-      if (patch.urgency === 'urgent') alertWaiting(userId, who, c);
+      if (patch.urgency === 'urgent' && isSms) alertWaiting(userId, who, c);
       if (Object.keys(patch).length) { await updateTask(userId, existing.id, patch); updated++; }
     }
 
   }
 
   // close tasks for conversations that are no longer waiting on us (someone replied, or it resolved)
-  const open = await prisma.task.findMany({ where: { userId, source: 'sms', dedupKey: { startsWith: 'sms:' }, status: { in: ['NEW', 'IN_PROGRESS', 'WAITING'] } }, select: { dedupKey: true } });   // APPROVAL = money hold: stays until the owner handles it
+  const open = await prisma.task.findMany({ where: { userId, source: channel, dedupKey: { startsWith: `${channel}:` }, status: { in: ['NEW', 'IN_PROGRESS', 'WAITING'] } }, select: { dedupKey: true } });   // APPROVAL = money hold: stays until the owner handles it
   let closed = 0;
   for (const t of open) {
     if (!waitingKeys.has(t.dedupKey)) { const r = await completeByDedupKey(userId, t.dedupKey); closed += r.count; }
@@ -102,6 +103,20 @@ async function smsMonitorTick({ userId }) {
     high_priority: waiting.filter((c) => urgencyFor(c) === 'urgent').length,
     actions_taken: [rekeyed && `Merged ${rekeyed} legacy sms task key(s)`, created && `Raised ${created} customer-waiting task(s)`, closed && `Closed ${closed} answered conversation(s)`].filter(Boolean),
     summary: waiting.length ? `${waiting.length} customer(s) waiting on a reply` : 'Nobody waiting on a reply',
+  };
+}
+
+// Twilio texts first, then the owner's TextNow line (empty until the MSI watcher has ingested something).
+async function smsMonitorTick({ userId }) {
+  const sms = await monitorChannel(userId, 'sms');
+  const tn = await monitorChannel(userId, 'textnow').catch((e) => { console.warn('[sms-monitor] textnow pass failed:', e.message); return null; });
+  if (!tn || (!tn.items_found && !tn.actions_taken.length)) return sms;
+  return {
+    items_found: sms.items_found + tn.items_found,
+    requires_attention: sms.requires_attention + tn.requires_attention,
+    high_priority: sms.high_priority + tn.high_priority,
+    actions_taken: [...sms.actions_taken, ...tn.actions_taken.map((a) => `TextNow: ${a}`)],
+    summary: sms.items_found + tn.items_found ? `${sms.items_found} customer(s) waiting on a reply (Twilio), ${tn.items_found} on TextNow` : 'Nobody waiting on a reply',
   };
 }
 

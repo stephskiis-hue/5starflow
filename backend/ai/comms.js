@@ -1,3 +1,4 @@
+// Channels: 'sms' (Twilio, the default everywhere) and 'textnow' (the owner's TextNow line, read by the MSI watcher).
 // Deterministic communication facts for the Inbox monitor and the daily brief (no Claude needed).
 // Today "who is waiting" is computed from InboundSMS vs outbound MarketingMessage rows. Review/rain/loyalty
 // texts aren't stored yet — the CommMessage ledger (M3) closes that gap.
@@ -25,7 +26,7 @@ const business = () => { const h = localHour(new Date()); return h >= 7 && h < 2
  * @returns {{state, urgency, reason, waitingMinutes, lastIn, lastMessage}}
  *   state: NEW | WAITING_ON_NOBS | WAITING_ON_CUSTOMER | FOLLOW_UP_REQUIRED | RESOLVED | ESCALATION_REQUIRED
  */
-function classifyConversation(msgs, now = Date.now()) {
+function classifyConversation(msgs, now = Date.now(), { channel = 'sms' } = {}) {
   const sorted = [...msgs].sort((a, b) => a.at - b.at);
   const ins = sorted.filter((m) => m.direction === 'in');
   const lastIn = ins[ins.length - 1];
@@ -36,7 +37,10 @@ function classifyConversation(msgs, now = Date.now()) {
   const body = lastIn.body.trim();
   const waitingMinutes = Math.round((now - lastIn.at.getTime()) / 60000);
 
-  if (/^(stop|stopall|unsubscribe|cancel|end|quit)$/i.test(body)) return { state: 'RESOLVED', urgency: 'low', reason: 'opt-out', waitingMinutes, lastIn, lastMessage: body };
+  // On Twilio a bare CANCEL/END/QUIT is a carrier opt-out keyword. On the owner's TextNow line a customer saying
+  // "cancel" is asking to cancel a visit, so only the unambiguous words count there.
+  const optOut = channel === 'textnow' ? /^(stop|stopall|unsubscribe)$/i : /^(stop|stopall|unsubscribe|cancel|end|quit)$/i;
+  if (optOut.test(body)) return { state: 'RESOLVED', urgency: 'low', reason: 'opt-out', waitingMinutes, lastIn, lastMessage: body };
 
   const complaint = COMPLAINT.test(body);
   const urgent = URGENT.test(body);
@@ -71,9 +75,9 @@ function classifyConversation(msgs, now = Date.now()) {
 }
 
 /** All conversations active in the window with their state. Owner/approver phones are excluded. */
-async function getConversationStates(userId, { sinceDays = 14 } = {}) {
+async function getConversationStates(userId, { sinceDays = 14, channel = 'sms' } = {}) {
   const since = new Date(Date.now() - sinceDays * 86400000);
-  const rows = await prisma.commMessage.findMany({ where: { userId, channel: 'sms', at: { gte: since } }, orderBy: { at: 'asc' }, take: 20000 });
+  const rows = await prisma.commMessage.findMany({ where: { userId, channel, at: { gte: since } }, orderBy: { at: 'asc' }, take: 20000 });
   const ownerPhones = await require('../services/operatorService').getApproverPhonesLast10(userId).catch(() => new Set());
   const sentiments = await prisma.inboundSMS.findMany({ where: { userId, receivedAt: { gte: since } }, select: { id: true, sentiment: true } });
   const sentById = new Map(sentiments.map((s) => [s.id, s.sentiment]));
@@ -86,9 +90,9 @@ async function getConversationStates(userId, { sinceDays = 14 } = {}) {
   }
   const out = [];
   for (const [phoneKey, msgs] of byPhone) {
-    const c = classifyConversation(msgs);
+    const c = classifyConversation(msgs, Date.now(), { channel });
     const last = msgs.filter((m) => m.direction === 'in').pop();
-    out.push({ phoneKey, phone: last?.phone || msgs[0].phone, clientName: msgs.find((m) => m.clientName)?.clientName || null, jobberClientId: msgs.find((m) => m.jobberClientId)?.jobberClientId || null, ...c, lastIn: undefined, receivedAt: c.lastIn?.at || null, sourceId: c.lastIn?.sourceId || null, sentiment: c.lastIn?.sentiment || null });
+    out.push({ channel, phoneKey, phone: last?.phone || msgs[0].phone, clientName: msgs.find((m) => m.clientName)?.clientName || null, jobberClientId: msgs.find((m) => m.jobberClientId)?.jobberClientId || null, ...c, lastIn: undefined, receivedAt: c.lastIn?.at || null, sourceId: c.lastIn?.sourceId || null, sentiment: c.lastIn?.sentiment || null });
   }
   return out;
 }
@@ -96,12 +100,12 @@ async function getConversationStates(userId, { sinceDays = 14 } = {}) {
 const NEEDS_US = new Set(['NEW', 'WAITING_ON_NOBS', 'ESCALATION_REQUIRED', 'FOLLOW_UP_REQUIRED']);
 
 /** Customers waiting on us, oldest first (shape kept for the dashboard + brief). */
-async function getUnansweredSms(userId, { sinceDays = 14, limit = 50 } = {}) {
-  const convs = await getConversationStates(userId, { sinceDays });
+async function getUnansweredSms(userId, { sinceDays = 14, limit = 50, channel = 'sms' } = {}) {
+  const convs = await getConversationStates(userId, { sinceDays, channel });
   const reads = await prisma.inboundSMS.findMany({ where: { userId, receivedAt: { gte: new Date(Date.now() - sinceDays * 86400000) } }, select: { id: true, read: true } });
   const readById = new Map(reads.map((r) => [r.id, r.read]));
   return convs.filter((c) => NEEDS_US.has(c.state)).map((c) => ({
-    id: c.sourceId, phone: c.phone, clientName: c.clientName, jobberClientId: c.jobberClientId, lastMessage: String(c.lastMessage || '').slice(0, 300),
+    id: c.sourceId, channel, phone: c.phone, clientName: c.clientName, jobberClientId: c.jobberClientId, lastMessage: String(c.lastMessage || '').slice(0, 300),
     sentiment: c.sentiment, state: c.state, urgency: c.urgency, reason: c.reason, receivedAt: c.receivedAt, waitingMinutes: c.waitingMinutes, read: readById.get(c.sourceId) ?? false,
   })).sort((a, b) => b.waitingMinutes - a.waitingMinutes).slice(0, limit);
 }
@@ -129,7 +133,7 @@ async function getCustomerContext(userId, { jobberClientId, phone, email, q } = 
   }
 
   const [ledger, review, pending, loyalty, rain, tasks, memory] = await Promise.all([
-    l10 ? prisma.commMessage.findMany({ where: { userId, channel: 'sms', phoneKey: l10 }, orderBy: { at: 'desc' }, take: 40 }) : [],
+    l10 ? prisma.commMessage.findMany({ where: { userId, channel: { in: ['sms', 'textnow'] }, phoneKey: l10 }, orderBy: { at: 'desc' }, take: 40 }) : [],
     clientId ? prisma.reviewSent.findUnique({ where: { clientId } }) : null,
     clientId || email ? prisma.pendingReview.findMany({ where: { userId, OR: [clientId ? { clientId } : undefined, email ? { email } : undefined].filter(Boolean) }, orderBy: { createdAt: 'desc' }, take: 5 }) : [],
     clientId ? prisma.loyaltyClient.findFirst({ where: { userId, jobberClientId: clientId } }) : null,
@@ -139,7 +143,7 @@ async function getCustomerContext(userId, { jobberClientId, phone, email, q } = 
   ]);
 
   // one timeline from the ledger (both directions, with WHO sent each outbound text)
-  const timeline = ledger.slice(0, 20).map((m) => ({ dir: m.direction === 'in' ? 'in' : 'out', at: m.at, body: m.body, source: m.source, status: m.status }));
+  const timeline = ledger.slice(0, 20).map((m) => ({ channel: m.channel, dir: m.direction === 'in' ? 'in' : 'out', at: m.at, body: m.body, source: m.source, status: m.status }));
   const conv = ledger.length ? classifyConversation(ledger.map((m) => ({ ...m, sentiment: null }))) : null;
 
   return {
@@ -157,4 +161,4 @@ async function getCustomerContext(userId, { jobberClientId, phone, email, q } = 
 
 function safeJson(s) { try { return JSON.parse(s); } catch { return []; } }
 
-module.exports = { getUnansweredSms, getConversationStates, classifyConversation, getCustomerContext, last10, NEEDS_US, business };
+module.exports = { getUnansweredSms, getConversationStates, classifyConversation, getCustomerContext, last10, NEEDS_US, business, COMPLAINT, URGENT, QUOTE_REQ };
