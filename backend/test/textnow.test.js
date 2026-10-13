@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { normalizeMessage, harvest, e164, toIso, last10, maskPath, shapeOf, CHALLENGE_RE } = require('../lib/textnow');
+const { normalizeMessage, harvest, e164, toIso, last10, maskPath, shapeOf, CHALLENGE_RE, chromeCandidates, pickExisting, isSignedInTab } = require('../lib/textnow');
 const { urgentCheck, agreementScore } = require('../ai/textnow');
 const { classifyConversation } = require('../ai/comms');
 
@@ -101,4 +101,28 @@ test('CHALLENGE_RE: spots bot checks but not an ordinary inbox', () => {
   assert.ok(CHALLENGE_RE.test('Just a moment... checking your browser'));
   assert.ok(CHALLENGE_RE.test('Please verify you are human'));
   assert.ok(!CHALLENGE_RE.test('Messages Calls Voicemail New conversation'));
+});
+
+test('chromeCandidates: CHROME_BIN first, then Chrome, then Edge, per platform', () => {
+  const win = chromeCandidates({ CHROME_BIN: 'D:\\x\\chrome.exe', ProgramFiles: 'C:\\Program Files', 'ProgramFiles(x86)': 'C:\\Program Files (x86)', LOCALAPPDATA: 'C:\\U\\AppData\\Local' }, 'win32');
+  assert.equal(win[0], 'D:\\x\\chrome.exe');
+  assert.ok(win.findIndex((p) => p.includes('Google\\Chrome')) < win.findIndex((p) => p.includes('Edge')));
+  assert.ok(chromeCandidates({}, 'darwin')[0].includes('Google Chrome'));
+  assert.ok(chromeCandidates({}, 'linux').includes('/usr/bin/google-chrome'));
+  assert.ok(!chromeCandidates({}, 'linux').includes(undefined));
+});
+
+test('pickExisting: first candidate that exists; tolerates a throwing check; null when none', () => {
+  assert.equal(pickExisting(['a', 'b', 'c'], (p) => p === 'b' || p === 'c'), 'b');
+  assert.equal(pickExisting(['a', 'b'], (p) => { if (p === 'a') throw new Error('x'); return p === 'b'; }), 'b');
+  assert.equal(pickExisting(['a'], () => false), null);
+});
+
+test('isSignedInTab: the inbox counts; login, signup, challenge and blank tabs do not', () => {
+  assert.equal(isSignedInTab('https://www.textnow.com/messaging'), true);
+  assert.equal(isSignedInTab('https://www.textnow.com/messaging/+12045551234'), true);
+  assert.equal(isSignedInTab('https://www.textnow.com/login?redirectTo=/messaging'), false);
+  assert.equal(isSignedInTab('https://www.textnow.com/signup'), false);
+  assert.equal(isSignedInTab('about:blank'), false);
+  assert.equal(isSignedInTab(undefined), false);
 });

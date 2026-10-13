@@ -14,7 +14,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { chromium } = require('playwright');
-const { harvest, toIso, maskPath, shapeOf, CHALLENGE_RE } = require('../lib/textnow');
+const { spawn } = require('child_process');
+const { harvest, toIso, maskPath, shapeOf, CHALLENGE_RE, chromeCandidates, pickExisting, isSignedInTab } = require('../lib/textnow');
 
 const arg = (name, def) => { const i = process.argv.indexOf(name); return i > -1 ? process.argv[i + 1] : def; };
 const flag = (name) => process.argv.includes(name);
@@ -22,7 +23,12 @@ const LOGIN = flag('--login');
 const BACKFILL = flag('--backfill');
 const DRY = flag('--dry');
 const PROBE = flag('--probe');
-const PROFILE = arg('--profile', path.join(os.homedir(), '.5starflow', 'textnow-profile'));
+const PROFILE = arg('--profile', path.join(os.homedir(), '.5starflow', 'textnow-profile'));   // engine 'playwright' only
+// Default engine: start a normal Chrome as its own process (own profile folder, debugging port) and attach AFTERWARDS.
+// Playwright's own launch marks the browser as automated, which TextNow's bot check answers with an endless captcha.
+const ENGINE = arg('--engine', process.env.TEXTNOW_ENGINE || 'native');
+const CHROME_PROFILE = arg('--chrome-profile', path.join(os.homedir(), '.5starflow', 'textnow-chrome'));
+const CDP_PORT = Number(process.env.TEXTNOW_CDP_PORT || 9223);
 const MAX_PAGES = Number(arg('--max-pages', BACKFILL ? 600 : 5));
 const API = (process.env.FIVESTARFLOW_URL || '').replace(/\/$/, '');
 const TOKEN = process.env.FIVESTARFLOW_TOKEN || process.env.AI_TOKEN;
@@ -35,6 +41,53 @@ const OVERLAP_MS = 10 * 60 * 1000;   // page a little past the stored cursor; in
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const jitter = (ms) => ms + Math.floor(Math.random() * 800);
 const isLoggedOut = (url) => /\/login|\/signup|\/sign-in/i.test(url);
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Browser launch. Nothing here hides automation or solves anything: it starts an ordinary Chrome and, for sign-in, waits
+// for the owner to finish BEFORE attaching (it only polls Chrome's tab list over HTTP, which does not touch the page).
+// ---------------------------------------------------------------------------------------------------------------------
+const cdpUrl = (route) => `http://127.0.0.1:${CDP_PORT}${route}`;
+const cdpUp = async () => { try { return (await fetch(cdpUrl('/json/version'), { signal: AbortSignal.timeout(1500) })).ok; } catch { return false; } };
+const cdpTabs = async () => { try { return await (await fetch(cdpUrl('/json/list'), { signal: AbortSignal.timeout(2000) })).json(); } catch { return []; } };
+async function waitUntil(fn, ms, every = 1000) { const end = Date.now() + ms; while (Date.now() < end) { if (await fn()) return true; await sleep(every); } return false; }
+
+async function openNative({ headless, waitSignIn }) {
+  let spawned = false;
+  if (!(await cdpUp())) {
+    const exe = pickExisting(chromeCandidates(), fs.existsSync);
+    if (!exe) throw new Error('Chrome was not found. Install Google Chrome, or set CHROME_BIN to its chrome.exe.');
+    fs.mkdirSync(CHROME_PROFILE, { recursive: true });
+    const args = [`--remote-debugging-port=${CDP_PORT}`, `--user-data-dir=${CHROME_PROFILE}`, '--no-first-run', '--no-default-browser-check',
+      ...(headless ? ['--headless=new'] : []), ...(process.env.TEXTNOW_CHROME_ARGS ? process.env.TEXTNOW_CHROME_ARGS.split(';;').filter(Boolean) : []),
+      'https://www.textnow.com/messaging'];
+    spawn(exe, args, { detached: true, stdio: 'ignore' }).unref();
+    spawned = true;
+    if (!(await waitUntil(cdpUp, 30000, 500))) throw new Error(`Chrome started but never opened its debugging port ${CDP_PORT}. Close any Chrome started by this script and retry.`);
+  }
+  if (waitSignIn) {
+    console.log('A normal Chrome window is open on TextNow. Sign in there yourself (up to 10 minutes). Do not close it; the script carries on by itself once you are in.');
+    const ok = await waitUntil(async () => (await cdpTabs()).some((t) => isSignedInTab(t.url)), LOGIN_WAIT_MS, 2000);
+    if (!ok) { const e = new Error('Timed out waiting for the TextNow sign-in.'); e.code = 'SIGNIN_TIMEOUT'; throw e; }
+  }
+  const browser = await chromium.connectOverCDP(cdpUrl(''));
+  const ctx = browser.contexts()[0] || await browser.newContext();
+  const page = ctx.pages().find((pg) => /textnow\.com/.test(pg.url())) || ctx.pages()[0] || await ctx.newPage();
+  // Only close Chrome if this run started it; a window the owner already had open is just disconnected from.
+  const close = async () => {
+    if (spawned) { try { await (await browser.newBrowserCDPSession()).send('Browser.close'); } catch { /* already gone */ } }
+    try { await browser.close(); } catch { /* disconnected */ }
+  };
+  return { ctx, page, close };
+}
+
+async function openPlaywright({ headless }) {
+  fs.mkdirSync(PROFILE, { recursive: true });
+  const launch = { headless, viewport: { width: 1280, height: 900 } };
+  let ctx;
+  try { ctx = await chromium.launchPersistentContext(PROFILE, { ...launch, channel: 'chrome' }); }
+  catch { ctx = await chromium.launchPersistentContext(PROFILE, launch); }   // no Chrome installed → Playwright's Chromium
+  return { ctx, page: ctx.pages()[0] || await ctx.newPage(), close: () => ctx.close().catch(() => {}) };
+}
 
 async function api(method, route, body) {
   const res = await fetch(`${API}/api/ai${route}`, {
@@ -57,13 +110,15 @@ async function finish(code, { state, detail, runStatus, summary, result }) {
 
 async function main() {
   if (!DRY && !PROBE && (!API || !TOKEN)) { console.error('FIVESTARFLOW_URL and FIVESTARFLOW_TOKEN are required (or use --dry).'); process.exit(1); }
-  fs.mkdirSync(PROFILE, { recursive: true });
-  const launch = { headless: !(LOGIN || PROBE), viewport: { width: 1280, height: 900 } };
-  let ctx;
-  try { ctx = await chromium.launchPersistentContext(PROFILE, { ...launch, channel: 'chrome' }); }
-  catch { ctx = await chromium.launchPersistentContext(PROFILE, launch); }   // no Chrome installed → Playwright's Chromium
-  const page = ctx.pages()[0] || await ctx.newPage();
-  const done = async (code, o) => { await ctx.close().catch(() => {}); return finish(code, o); };
+  const headless = !(LOGIN || PROBE);
+  let browserSession;
+  try { browserSession = ENGINE === 'playwright' ? await openPlaywright({ headless }) : await openNative({ headless, waitSignIn: !headless }); }
+  catch (e) {
+    if (e.code === 'SIGNIN_TIMEOUT') return finish(2, { state: 'needs_login', detail: e.message, runStatus: 'failed', summary: 'Sign-in timed out' });
+    throw e;
+  }
+  const { ctx, page } = browserSession;
+  const done = async (code, o) => { await browserSession.close(); return finish(code, o); };
 
   const seen = new Map();   // messages TextNow itself loads on the page (fallback when the paged pull fails)
   const traffic = new Map();   // what the page called: "METHOD host /masked/path status" → { n, type, shape?, headerNames? } (no values)
@@ -138,7 +193,7 @@ async function main() {
     const file = path.join(os.homedir(), '.5starflow', 'textnow-probe.json');
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, JSON.stringify(out, null, 1));
-    await ctx.close().catch(() => {});
+    await browserSession.close();
     console.log(`\nSaved ${file}\n--- copy everything between the lines and paste it into the chat ---\n${JSON.stringify(out, null, 1)}\n--- end ---`);
     process.exit(0);
   }
@@ -149,6 +204,12 @@ async function main() {
   if (!ready()) { await page.reload({ waitUntil: 'domcontentloaded' }); for (let i = 0; i < 30 && !ready(); i++) await sleep(1000); }
   if (!ready()) {
     const loggedOut = isLoggedOut(page.url());
+    const snap = await snapshot();
+    const challenged = !!snap.challengeText || (snap.frames || []).some((h) => /captcha|recaptcha|hcaptcha|challenge|cloudflare/i.test(h));
+    if (challenged) {
+      // A bot check needs the owner, not a retry: more attempts only make TextNow more suspicious.
+      return done(2, { state: 'needs_login', detail: 'TextNow is showing a bot check. Run node scripts/textnow-watch.js --login, finish the check in that normal Chrome window once, and do not keep retrying.', runStatus: 'failed', summary: 'TextNow is showing a bot check' });
+    }
     const detail = loggedOut ? 'Session expired.' : `Signed in, but the page made no readable TextNow calls. ${await describeSeen()}`;
     return done(loggedOut ? 2 : 3, { state: loggedOut ? 'needs_login' : 'parse_error', detail, runStatus: 'failed', summary: loggedOut ? 'TextNow is logged out' : 'Could not read TextNow' });
   }
@@ -190,7 +251,7 @@ async function main() {
 
   if (!pagedOk) for (const [id, m] of seen) messages.set(id, m);   // fall back to what the page loaded by itself
   const seenDesc = await describeSeen().catch(() => '');
-  await ctx.close().catch(() => {});
+  await browserSession.close();
 
   const out = [...messages.values()].map((m) => ({ id: m.id, contact: m.contact, name: m.name, direction: m.direction, body: m.body, at: toIso(m.at), media: !!m.media })).filter((m) => m.at);
   if (!out.length && !pagedOk) return finish(3, { state: 'parse_error', detail: `The history endpoint failed and the page loaded no messages. ${seenDesc}`, runStatus: 'failed', summary: 'Could not read TextNow messages' });
