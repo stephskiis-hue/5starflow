@@ -28,6 +28,10 @@ const NEEDS_TEXT = new Set(['comment', 'dm', 'reply', 'group_post', 'page_post']
 const NEEDS_TARGET = new Set(['comment', 'dm', 'like', 'follow', 'group_join', 'reply']);
 const ONCE_PER_TARGET = new Set(['comment', 'dm', 'like', 'follow']);
 const REPLY_FOLLOWUP_MS = 48 * 3600000;
+// Competitor pages/handles: read-only, never comment or reply there (extra handles via SOCIAL_COMPETITOR_HANDLES, comma-separated).
+const COMPETITORS = ['3seasonslandscaping', 'emeraldislelawncare', 'fivestarlawns', 'grounds_guys_winnipeg', 'groundsguys',
+  ...String(process.env.SOCIAL_COMPETITOR_HANDLES || '').split(',').map((h) => h.trim().toLowerCase().replace(/^@/, '')).filter(Boolean)];
+const isCompetitorTarget = (target) => { const t = String(target || '').toLowerCase(); return COMPETITORS.some((c) => t.includes(c)); };
 
 class CapError extends Error {
   constructor(kind, platform, cap) { super(`Daily cap reached: ${cap} ${kind} per day on ${platform}`); this.code = 'CAP_REACHED'; this.kind = kind; this.cap = cap; }
@@ -87,6 +91,8 @@ function checkReservation(a, ctx = {}) {
 
   if (NEEDS_TEXT.has(a.kind) && !text) reasons.push(`"${a.kind}" needs the exact text you will post.`);
   if (NEEDS_TARGET.has(a.kind) && !a.target) reasons.push(`"${a.kind}" needs a target link so it can be checked and never repeated.`);
+
+  if ((a.kind === 'comment' || a.kind === 'reply') && isCompetitorTarget(a.target)) reasons.push("Never comment on a competitor's posts (Facebook or Instagram). Read only.");
 
   if (text) {
     // two linters, both must pass: the content pipeline's brand rules and the stricter outreach gate ported from HQ qa.py
@@ -218,4 +224,4 @@ async function nextGroups(userId, { promo = false, limit = 3 } = {}) {
     .slice(0, limit);
 }
 
-module.exports = { DAILY_CAPS, SOCIAL_TARGETS, getBudget, recordAction, reserveAction, confirmAction, checkReservation, nextGroups, CapError, RefusedError, PLATFORMS };
+module.exports = { DAILY_CAPS, SOCIAL_TARGETS, getBudget, recordAction, reserveAction, confirmAction, checkReservation, isCompetitorTarget, nextGroups, CapError, RefusedError, PLATFORMS };
