@@ -18,7 +18,7 @@ python "%FSF_REPO%\backend\ai\prompts\msi\seo_site.py" run completed "<summary>"
 (`FSF_REPO` is the 5starflow checkout; the helper reads `FIVESTARFLOW_URL` / `FIVESTARFLOW_TOKEN` from `~/.5starflow/env`.)
 
 ## 1. Get the assignment
-`assignment` returns one of three modes. Do exactly that mode; do not swap topics because another one seems more fun.
+`assignment` returns one of three modes. Do exactly that mode; do not swap topics because another one seems more fun. The daily run asks for posts only (`assignment --modes new`); `refresh` and `page` come up only on a manual request ("refresh that post", "make a landing page").
 
 | mode | what you make | URL |
 |---|---|---|

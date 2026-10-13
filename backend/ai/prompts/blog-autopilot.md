@@ -12,7 +12,7 @@ FIRST: read ~/.5starflow/env for FSF_REPO (the 5starflow checkout). Then read an
   public_html\_blog-knowledge.md                     (post template, tone, title formulas)
 All 5StarFlow calls go through %FSF_REPO%\backend\ai\prompts\msi\seo_site.py. Never print the token.
 
-1. python seo_site.py assignment  -> do exactly that assignment (new post, refresh or landing page). If it returns no assignment or the API is down, use the old CONTENT_TYPES rotation in _blog-state.json for a topic that is not on the avoid list.
+1. python seo_site.py assignment --modes new  -> write exactly that new blog post (it goes to the top of /blog). If it returns no assignment or the API is down, use the old CONTENT_TYPES rotation in _blog-state.json for a topic that is not on the avoid list.
 2. Research it (two sources, one primary, pages actually opened). Look at the 3 competitor pages in the brief and beat them on Winnipeg specifics and a clearer first answer.
 3. Write it to the nobs-seo rules (keyword placement, required internal links, FAQ from the questions, one call to action). Check it against section 4 of nobs-seo.
 4. Publish with python _blog-autopilot.py as before (refresh: --refresh <slug>; landing page: --page <slug>). Then python seo_site.py published report.json.
