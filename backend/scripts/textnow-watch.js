@@ -204,6 +204,12 @@ async function main() {
   if (!ready()) { await page.reload({ waitUntil: 'domcontentloaded' }); for (let i = 0; i < 30 && !ready(); i++) await sleep(1000); }
   if (!ready()) {
     const loggedOut = isLoggedOut(page.url());
+    const snap = await snapshot();
+    const challenged = !!snap.challengeText || (snap.frames || []).some((h) => /captcha|recaptcha|hcaptcha|challenge|cloudflare/i.test(h));
+    if (challenged) {
+      // A bot check needs the owner, not a retry: more attempts only make TextNow more suspicious.
+      return done(2, { state: 'needs_login', detail: 'TextNow is showing a bot check. Run node scripts/textnow-watch.js --login, finish the check in that normal Chrome window once, and do not keep retrying.', runStatus: 'failed', summary: 'TextNow is showing a bot check' });
+    }
     const detail = loggedOut ? 'Session expired.' : `Signed in, but the page made no readable TextNow calls. ${await describeSeen()}`;
     return done(loggedOut ? 2 : 3, { state: loggedOut ? 'needs_login' : 'parse_error', detail, runStatus: 'failed', summary: loggedOut ? 'TextNow is logged out' : 'Could not read TextNow' });
   }
