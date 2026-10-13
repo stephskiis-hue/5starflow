@@ -78,4 +78,26 @@ function shapeOf(v, depth = 0) {
 
 const CHALLENGE_RE = /captcha|verify (that )?you are (a )?human|unusual (activity|traffic)|just a moment|checking your browser|access denied|cloudflare/i;
 
-module.exports = { digits, last10, e164, normalizeMessage, harvest, toIso, maskPath, shapeOf, CHALLENGE_RE };
+// ---- finding a real Chrome to launch as a plain OS process (no Playwright launch flags) ---------------------------
+// Order: CHROME_BIN override, Chrome (Windows, then mac/linux), then Edge. Pure so it can be tested.
+function chromeCandidates(env = process.env, platform = process.platform) {
+  const list = [env.CHROME_BIN];
+  if (platform === 'win32') {
+    const pf = env.ProgramFiles || 'C:\\Program Files';
+    const pf86 = env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+    list.push(`${pf}\\Google\\Chrome\\Application\\chrome.exe`, `${pf86}\\Google\\Chrome\\Application\\chrome.exe`,
+      env.LOCALAPPDATA && `${env.LOCALAPPDATA}\\Google\\Chrome\\Application\\chrome.exe`,
+      `${pf86}\\Microsoft\\Edge\\Application\\msedge.exe`, `${pf}\\Microsoft\\Edge\\Application\\msedge.exe`);
+  } else if (platform === 'darwin') {
+    list.push('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge');
+  } else {
+    list.push('/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/microsoft-edge');
+  }
+  return list.filter(Boolean);
+}
+const pickExisting = (candidates, exists) => candidates.find((c) => { try { return exists(c); } catch { return false; } }) || null;
+
+// A tab list entry (from Chrome's /json/list) that is the signed-in TextNow inbox, not a login / signup / challenge page.
+const isSignedInTab = (url) => /textnow\.com\/messaging/i.test(String(url || '')) && !/\/(login|signup|sign-in)/i.test(String(url || ''));
+
+module.exports = { digits, last10, e164, normalizeMessage, harvest, toIso, maskPath, shapeOf, CHALLENGE_RE, chromeCandidates, pickExisting, isSignedInTab };
