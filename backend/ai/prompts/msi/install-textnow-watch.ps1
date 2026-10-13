@@ -35,7 +35,7 @@ try {
   if ($code -ne 0) { throw "npm install failed (exit $code). See ~/.5starflow/textnow-setup.log" }
 } finally { Pop-Location }
 
-Write-Host '4/6 Sign in to TextNow. A browser window opens: log in yourself (up to 10 minutes). Do not close it until it says it is done.'
+Write-Host '4/6 Sign in to TextNow. A normal Chrome window opens on TextNow (its own profile, separate from your everyday Chrome): log in yourself, up to 10 minutes. Do not close it; this script carries on by itself once you are in.'
 Push-Location $backend
 try {
   $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
@@ -43,6 +43,7 @@ try {
   $loginCode = $LASTEXITCODE
   $ErrorActionPreference = $prev
   if ($loginCode -eq 3) { throw "Signed in, but the watcher could not read TextNow's page (its calls may differ from what we expected). Run:  node backend\scripts\textnow-watch.js --probe   then click one conversation when asked, and paste the output into the chat." }
+  if ($loginCode -eq 2) { throw "TextNow did not let the sign-in finish (logged out, timed out, or a bot check). Close the Chrome window, wait about 30 minutes, then run this script again. Do not keep retrying the captcha: repeated failures make TextNow stricter." }
   if ($loginCode -ne 0) { throw "The first read did not finish (exit $loginCode). If TextNow showed a captcha or verification, complete it in the window and re-run this script." }
 
   Write-Host '5/6 Loading the TextNow history (this can take several minutes; it pages slowly on purpose)...'
