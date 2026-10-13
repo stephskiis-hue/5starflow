@@ -69,7 +69,7 @@ const EXTERNAL = [
     purpose: 'Auto-replies to 5-star reviews; drafts replies for lower ratings for the owner to approve.' },
   { slug: 'ext-invoicing-digest', externalId: 'trig_01KN7t8v1qjruCHNshV3B3jV', name: 'Weekly Invoicing and Payments Digest', agent: 'operations', kind: 'claude_cloud', schedule: 'Sat 12:00 UTC', category: 'money',
     purpose: 'Past-due, draft and conflicting invoices plus payments received this week.' },
-  { slug: 'ext-weekly-email-review', externalId: 'trig_01LSHEhwqm2UrmKyePzVXaAG', name: 'Weekly Email Review', agent: 'communication', kind: 'claude_cloud', schedule: 'Sat 12:00 UTC', category: 'inbox', autonomy: 'execute',
+  { slug: 'ext-weekly-email-review', externalId: 'trig_01LSHEhwqm2UrmKyePzVXaAG', name: 'Weekly Email Review', agent: 'communication', kind: 'claude_cloud', schedule: 'Sat 12:00 UTC', category: 'inbox', autonomy: 'execute', enabled: false,
     purpose: 'Finds overlooked client emails in Inbox and Spam, labels them and rescues genuine ones from Spam.' },
   { slug: 'ext-night-studio', name: 'Night Studio (content + design)', agent: 'content', kind: 'claude_cloud', schedule: 'Daily 1:00 am Winnipeg', category: 'content', autonomy: 'execute', enabled: false, researchEnabled: true,
     purpose: 'Researches a timely topic, writes copy, renders on-brand graphics with the design system, QA-checks and queues posts. Prompt: ai/prompts/night-studio.md' },
