@@ -130,18 +130,18 @@ const allowedOrigins = [
   'http://127.0.0.1:3001',
 ].filter(Boolean);
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      callback(new Error(`CORS: origin "${origin}" not allowed`));
-    },
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
-  })
-);
+// A page calling its own server (same host) is not cross-origin: allow it whatever hostname it was opened on.
+const sameHost = (origin, req) => { try { return new URL(origin).host === req.get('host'); } catch { return false; } };
+app.use((req, res, next) => cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || sameHost(origin, req)) return callback(null, true);
+    callback(new Error(`CORS: origin "${origin}" not allowed`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+})(req, res, next));
 
 // ---------------------------------------------------------------------------
 // CRITICAL MIDDLEWARE ORDER
@@ -192,6 +192,13 @@ app.use('/api/operator', operatorRouter);
 // AI OS tool layer — bearer token for Claude routines OR an admin session for the dashboard.
 // Public-zone mount because routines have no cookie; routes/ai.js authenticates every request itself.
 app.use('/api/ai', aiRouter);
+
+// Winnipeg Fence Pros: a separate business's SEO + blog autopilot, no portal login (optional WFP_ACCESS_KEY).
+// Its own tables, jobs and ledger (backend/wfp/README.md); it never reads No-Bs data.
+app.use('/api/wfp', rateLimit({ windowMs: 60_000, max: 240, name: 'wfp' }), require('./routes/wfp'));
+app.get(['/Winnipeg-Fence-Pros', '/winnipeg-fence-pros', '/winnipeg-fence-pros.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'winnipeg-fence-pros.html'));
+});
 
 // Portal login/logout/setup-user
 app.use('/auth', portalRouter);
@@ -658,6 +665,7 @@ app.listen(PORT, () => {
   console.log(`  Web Audit   : http://localhost:${PORT}/website-audit.html`);
   console.log(`  Marketing  : http://localhost:${PORT}/marketing.html`);
   console.log(`  Users       : http://localhost:${PORT}/admin.html`);
+  console.log(`  Fence Pros  : http://localhost:${PORT}/Winnipeg-Fence-Pros`);
   console.log(`  Health      : http://localhost:${PORT}/health`);
   console.log('==============================================');
   console.log('');
@@ -670,6 +678,7 @@ app.listen(PORT, () => {
   startJobberClientSyncScheduler();
   startOperatorProposalExpiry();
   startAiOs();
+  require('./wfp').startWfp();
 
   // ADMIN_EMAILS=a@x.com,b@y.com — promote these portal accounts to admin at boot (set it in Railway; users must sign in again)
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);

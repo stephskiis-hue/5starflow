@@ -11,12 +11,12 @@ datasource db {
 // Multi-tenant: one row per Jobber org, linked to the portal User who connected it.
 model JobberAccount {
   id           String   @id @default(cuid())
-  accountId    String   @unique  // Jobber account/org ID from token response
-  userId       String?           // portal User.id — links this Jobber org to a portal user
+  accountId    String   @unique // Jobber account/org ID from token response
+  userId       String? // portal User.id — links this Jobber org to a portal user
   accessToken  String
   refreshToken String
-  expiresAt    DateTime           // UTC: when the access token expires
-  webhookId    String?            // Jobber webhook endpoint ID once registered
+  expiresAt    DateTime // UTC: when the access token expires
+  webhookId    String? // Jobber webhook endpoint ID once registered
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -27,9 +27,9 @@ model JobberAccount {
 // Powers the /api/token-logs endpoint and dashboard health monitor.
 model TokenRefreshLog {
   id        String   @id @default(cuid())
-  accountId String                   // Jobber account ID (for reference)
-  success   Boolean                  // true = refreshed OK, false = failed
-  message   String                   // e.g. "Token refreshed" or error text
+  accountId String // Jobber account ID (for reference)
+  success   Boolean // true = refreshed OK, false = failed
+  message   String // e.g. "Token refreshed" or error text
   trigger   String   @default("scheduler") // "scheduler" | "on-demand"
   createdAt DateTime @default(now())
 }
@@ -38,9 +38,9 @@ model TokenRefreshLog {
 // Secondary deduplication layer in case Jobber tag API is temporarily down.
 model ReviewSent {
   id        String   @id @default(cuid())
-  clientId  String   @unique  // Jobber EncodedId of the client
-  invoiceId String             // Invoice that triggered the send
-  accountId String?            // Jobber account ID — for per-account visibility
+  clientId  String   @unique // Jobber EncodedId of the client
+  invoiceId String // Invoice that triggered the send
+  accountId String? // Jobber account ID — for per-account visibility
   sentAt    DateTime @default(now())
 }
 
@@ -51,31 +51,30 @@ model User {
   email        String   @unique
   passwordHash String?
   googleId     String?  @unique
-  role         String   @default("client")  // "admin" | "client"
+  role         String   @default("client") // "admin" | "client"
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
-
 }
 
 // Delay queue: invoices queued for review request, sent after REVIEW_DELAY_MINUTES.
 // invoiceId is unique so webhook retries and poller duplicates are silently ignored.
 model PendingReview {
-  id          String   @id @default(cuid())
-  invoiceId   String   @unique  // Jobber invoice ID — idempotency key
-  clientId    String
-  clientName  String
-  firstName   String
-  phone       String?           // null if client has no primary phone
-  smsAllowed  Boolean  @default(false)
-  email       String?           // null if client has no primary email
-  scheduledAt DateTime          // when to send = enqueued time + REVIEW_DELAY_MINUTES
-  processed            Boolean   @default(false)
-  cancelled            Boolean   @default(false)
-  channel              String?             // "sms" | "email" — which channel was used for initial send
-  followUpScheduledAt  DateTime?           // set after initial send if client has email (now + 24h)
-  followUpSent         Boolean   @default(false)
-  userId               String?             // portal user who owns this queued review
-  createdAt            DateTime  @default(now())
+  id                  String    @id @default(cuid())
+  invoiceId           String    @unique // Jobber invoice ID — idempotency key
+  clientId            String
+  clientName          String
+  firstName           String
+  phone               String? // null if client has no primary phone
+  smsAllowed          Boolean   @default(false)
+  email               String? // null if client has no primary email
+  scheduledAt         DateTime // when to send = enqueued time + REVIEW_DELAY_MINUTES
+  processed           Boolean   @default(false)
+  cancelled           Boolean   @default(false)
+  channel             String? // "sms" | "email" — which channel was used for initial send
+  followUpScheduledAt DateTime? // set after initial send if client has email (now + 24h)
+  followUpSent        Boolean   @default(false)
+  userId              String? // portal user who owns this queued review
+  createdAt           DateTime  @default(now())
 
   @@index([processed, cancelled, scheduledAt])
   @@index([userId])
@@ -84,11 +83,11 @@ model PendingReview {
 // Daily weather check log — one row per morning check run.
 model WeatherCheck {
   id              String   @id @default(cuid())
-  date            String   // YYYY-MM-DD
+  date            String // YYYY-MM-DD
   rainExpected    Boolean
-  maxPrecipProb   Float    // 0.0–1.0 (highest pop in business hours)
-  forecastSummary String   // e.g. "Rain likely 9am–2pm (72%)"
-  userId          String?  // portal user who owns this check
+  maxPrecipProb   Float // 0.0–1.0 (highest pop in business hours)
+  forecastSummary String // e.g. "Rain likely 9am–2pm (72%)"
+  userId          String? // portal user who owns this check
   checkedAt       DateTime @default(now())
 
   @@index([userId])
@@ -97,14 +96,14 @@ model WeatherCheck {
 // Audit log for every rain reschedule batch notification sent.
 model RainReschedule {
   id           String   @id @default(cuid())
-  originalDay  String   // "monday"
-  originalDate String   // YYYY-MM-DD
-  newDate      String   // YYYY-MM-DD
+  originalDay  String // "monday"
+  originalDate String // YYYY-MM-DD
+  newDate      String // YYYY-MM-DD
   clientCount  Int
   smsCount     Int      @default(0)
   emailCount   Int      @default(0)
-  message      String   // actual message text that was sent
-  userId       String?  // portal user who owns this reschedule
+  message      String // actual message text that was sent
+  userId       String? // portal user who owns this reschedule
   notifiedAt   DateTime @default(now())
 
   @@index([userId])
@@ -112,17 +111,17 @@ model RainReschedule {
 
 // Per-client, per-channel log for every rain reschedule message sent.
 model RainMessage {
-  id            String   @id @default(cuid())
-  rescheduleId  String   // FK to RainReschedule.id
-  visitId       String
-  clientId      String
-  clientName    String
-  channel       String   // "sms" | "email"
-  status        String   @default("sent")  // "sent" | "failed" | "delivered" | "undelivered"
-  messageSid    String?  // Twilio message SID (for delivery callbacks)
-  error         String?  // error message if status is "failed"
-  sentAt        DateTime @default(now())
-  userId        String?
+  id           String   @id @default(cuid())
+  rescheduleId String // FK to RainReschedule.id
+  visitId      String
+  clientId     String
+  clientName   String
+  channel      String // "sms" | "email"
+  status       String   @default("sent") // "sent" | "failed" | "delivered" | "undelivered"
+  messageSid   String? // Twilio message SID (for delivery callbacks)
+  error        String? // error message if status is "failed"
+  sentAt       DateTime @default(now())
+  userId       String?
 
   @@index([rescheduleId])
   @@index([userId])
@@ -131,29 +130,29 @@ model RainMessage {
 // Per-user settings row for the weather/rain feature.
 model WeatherSettings {
   id                     String  @id @default(cuid())
-  userId                 String? @unique  // one row per user
+  userId                 String? @unique // one row per user
   city                   String  @default("Winnipeg")
-  rainThreshold          Float   @default(0.4)   // 40% pop = rain warning
+  rainThreshold          Float   @default(0.4) // 40% pop = rain warning
   businessStartHour      Int     @default(7)
   businessEndHour        Int     @default(18)
-  preferredRescheduleDay String  @default("")    // saved dropdown value (YYYY-MM-DD)
+  preferredRescheduleDay String  @default("") // saved dropdown value (YYYY-MM-DD)
   checkEnabled           Boolean @default(true)
-  rainSmsTemplate        String  @default("")    // user-saved SMS template; supports {firstName} and {newDate}
+  rainSmsTemplate        String  @default("") // user-saved SMS template; supports {firstName} and {newDate}
 }
 
 // SEO: one row per weekly audit run.
 model SeoAudit {
   id               String   @id @default(cuid())
   siteUrl          String
-  status           String   @default("running")  // running | complete | failed
+  status           String   @default("running") // running | complete | failed
   performanceScore Int?
-  lcp              Float?   // Largest Contentful Paint (s)
-  cls              Float?   // Cumulative Layout Shift
-  fid              Float?   // First Input Delay (ms)
-  keywordsJson     String?  // JSON array: [{ keyword, clicks, impressions, position }]
-  competitorJson   String?  // JSON array: [{ url, title, h1s, wordCount, schema }]
-  insightJson      String?  // JSON array: generated insights
-  userId           String?  // portal user who owns this audit
+  lcp              Float? // Largest Contentful Paint (s)
+  cls              Float? // Cumulative Layout Shift
+  fid              Float? // First Input Delay (ms)
+  keywordsJson     String? // JSON array: [{ keyword, clicks, impressions, position }]
+  competitorJson   String? // JSON array: [{ url, title, h1s, wordCount, schema }]
+  insightJson      String? // JSON array: generated insights
+  userId           String? // portal user who owns this audit
   runAt            DateTime @default(now())
 
   @@index([userId])
@@ -163,10 +162,10 @@ model SeoAudit {
 model SeoProposal {
   id          String    @id @default(cuid())
   auditId     String
-  status      String    @default("pending")  // pending | approved | declined
+  status      String    @default("pending") // pending | approved | declined
   title       String
-  summaryJson String    // JSON array: [{ insight, impact, fix, fileTarget }]
-  userId      String?   // portal user who owns this proposal
+  summaryJson String // JSON array: [{ insight, impact, fix, fileTarget }]
+  userId      String? // portal user who owns this proposal
   respondedAt DateTime?
   createdAt   DateTime  @default(now())
 
@@ -181,8 +180,8 @@ model SeoChange {
   oldContent  String
   newContent  String
   description String
-  status      String    @default("pending")  // pending | applied | failed
-  userId      String?   // portal user who owns this change
+  status      String    @default("pending") // pending | applied | failed
+  userId      String? // portal user who owns this change
   appliedAt   DateTime?
   errorMsg    String?
   createdAt   DateTime  @default(now())
@@ -193,7 +192,7 @@ model SeoChange {
 // Website Audit: FTP server credentials — one config per user.
 model FtpConfig {
   id                String   @id @default(cuid())
-  userId            String?  // portal user who owns this config
+  userId            String? // portal user who owns this config
   host              String
   user              String
   encryptedPassword String
@@ -209,7 +208,7 @@ model FtpConfig {
 model AuditIgnore {
   id        String   @id @default(cuid())
   pattern   String
-  userId    String?  // portal user who owns this ignore rule
+  userId    String? // portal user who owns this ignore rule
   createdAt DateTime @default(now())
 
   @@unique([userId, pattern])
@@ -220,18 +219,18 @@ model AuditIgnore {
 // Status flow: discovered → pulled → auditing → audited → edited → pushed → done
 model AuditPage {
   id              String    @id @default(cuid())
-  path            String    // full remote path e.g. /public_html/about.html
+  path            String // full remote path e.g. /public_html/about.html
   filename        String
   status          String    @default("discovered")
-  localContent    String?             // raw HTML pulled from server
-  userId          String?             // portal user who owns this page
+  localContent    String? // raw HTML pulled from server
+  userId          String? // portal user who owns this page
   lastPulled      DateTime?
   lastPushed      DateTime?
-  auditScore      Int?                // composite 0-100 (SEO + perf)
+  auditScore      Int? // composite 0-100 (SEO + perf)
   seoScore        Int?
   perfScore       Int?
-  auditIssuesJson String?             // JSON: [{ type, severity, message, fix }]
-  pageUrl         String?             // full public URL for PageSpeed
+  auditIssuesJson String? // JSON: [{ type, severity, message, fix }]
+  pageUrl         String? // full public URL for PageSpeed
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -241,58 +240,58 @@ model AuditPage {
 
 // SEO: per-user settings row — site URL, competitors, deploy config, Google tokens.
 model SeoSettings {
-  id                 String   @id @default(cuid())
-  userId             String?  @unique  // one row per user
-  siteUrl            String   @default("")
-  competitorUrls     String   @default("[]")   // JSON array of competitor URLs
-  deployType         String   @default("none") // "git" | "ftp" | "none"
+  id                 String    @id @default(cuid())
+  userId             String?   @unique // one row per user
+  siteUrl            String    @default("")
+  competitorUrls     String    @default("[]") // JSON array of competitor URLs
+  deployType         String    @default("none") // "git" | "ftp" | "none"
   deployHost         String?
   deployPort         Int?
   deployUser         String?
   deployPass         String?
   deployPath         String?
-  deployBranch       String   @default("main")
+  deployBranch       String    @default("main")
   googleAccessToken  String?
   googleRefreshToken String?
   googleTokenExpiry  DateTime?
-  siteProperty       String?  // Search Console property e.g. "sc-domain:nobsyardwork.com"
-  ga4PropertyId      String?  // GA4 property ID e.g. "properties/123456789"
-  auditEnabled       Boolean  @default(true)
-  deepAnalysis       Boolean  @default(false) // true = Sonnet (~4¢), false = Haiku (~0.7¢)
-  growthConfig       Json?    // SEO Growth Engine knobs the owner can change (ai/seo/config.js mergeConfig)
-  growthState        Json?    // SEO Growth Engine machine state: sync cursors, Serper budget, inspection counts
-  updatedAt          DateTime @updatedAt
-  createdAt          DateTime @default(now())
+  siteProperty       String? // Search Console property e.g. "sc-domain:nobsyardwork.com"
+  ga4PropertyId      String? // GA4 property ID e.g. "properties/123456789"
+  auditEnabled       Boolean   @default(true)
+  deepAnalysis       Boolean   @default(false) // true = Sonnet (~4¢), false = Haiku (~0.7¢)
+  growthConfig       Json? // SEO Growth Engine knobs the owner can change (ai/seo/config.js mergeConfig)
+  growthState        Json? // SEO Growth Engine machine state: sync cursors, Serper budget, inspection counts
+  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime  @default(now())
 }
 
 // Per-user Twilio SMS credentials.
 model TwilioCredential {
-  id          String   @id @default(cuid())
-  userId      String   @unique  // one row per user
-  accountSid  String
-  authToken   String
-  fromNumber  String
+  id                  String   @id @default(cuid())
+  userId              String   @unique // one row per user
+  accountSid          String
+  authToken           String
+  fromNumber          String
   // Optional Twilio Messaging Service SID (MG...). When set it is used INSTEAD of
   // fromNumber: Twilio then picks a sender from the service's pool, so throughput
   // scales with the number of senders instead of being capped at one long code's
   // ~1 segment/sec, and Twilio manages the send queue itself.
   messagingServiceSid String?
-  notifyPhone String?           // admin's personal mobile — gets SMS when client replies Y/N
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  notifyPhone         String? // admin's personal mobile — gets SMS when client replies Y/N
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 // Loyalty & Referral Engine — tracks client points, referral slugs, and multiplier flags.
 // One row per (userId, jobberClientId) pair. optedOut=true excludes from leaderboard.
 model LoyaltyClient {
   id                   String   @id @default(cuid())
-  userId               String                          // portal User.id who owns this record
-  jobberClientId       String                          // Jobber encoded client ID
-  displayName          String                          // "First L." privacy format
+  userId               String // portal User.id who owns this record
+  jobberClientId       String // Jobber encoded client ID
+  displayName          String // "First L." privacy format
   totalPoints          Int      @default(0)
-  referralSlug         String   @unique                // short unique token, e.g. "jd-a8f3"
-  hasPendingMultiplier Boolean  @default(false)        // next invoice earns 20 pts instead of 10
-  optedOut             Boolean  @default(false)        // client requested removal from game
+  referralSlug         String   @unique // short unique token, e.g. "jd-a8f3"
+  hasPendingMultiplier Boolean  @default(false) // next invoice earns 20 pts instead of 10
+  optedOut             Boolean  @default(false) // client requested removal from game
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
@@ -311,7 +310,7 @@ model PageSpeedHistory {
   lcp          Float?
   cls          Float?
   fid          Float?
-  issuesJson   String?  // JSON: [{ id, category, title, score, savings }]
+  issuesJson   String? // JSON: [{ id, category, title, score, savings }]
   runAt        DateTime @default(now())
 
   @@index([userId])
@@ -336,8 +335,8 @@ model MessageSettings {
 // Per-user Gmail credentials for outbound email (Google OAuth2).
 model GmailCredential {
   id           String    @id @default(cuid())
-  userId       String    @unique  // one row per user
-  gmailUser    String              // connected Gmail address
+  userId       String    @unique // one row per user
+  gmailUser    String // connected Gmail address
   fromName     String    @default("")
   accessToken  String    @default("")
   refreshToken String?
@@ -355,7 +354,7 @@ model DriveCredential {
   refreshToken      String?
   tokenExpiry       DateTime?
   lastSyncAt        DateTime?
-  backfillPageToken String?                // next page of older photos; null once the whole Drive was walked
+  backfillPageToken String? // next page of older photos; null once the whole Drive was walked
   backfillDone      Boolean   @default(false)
   importedCount     Int       @default(0)
   lastError         String?
@@ -380,7 +379,7 @@ model MessageTemplate {
 model ConnectionVerification {
   id         String   @id @default(cuid())
   userId     String
-  service    String   // 'jobber' | 'gmail' | 'twilio' | 'openweather' | 'pagespeed'
+  service    String // 'jobber' | 'gmail' | 'twilio' | 'openweather' | 'pagespeed'
   verifiedAt DateTime @default(now())
 
   @@unique([userId, service])
@@ -459,39 +458,39 @@ model MarketingCampaign {
 //   lastAttemptAt  wall-clock of most recent attempt (success or failure)
 //   userId         denormalized from campaign for fast cron worker queries
 model MarketingMessage {
-  id              String            @id @default(cuid())
-  campaignId      String
-  campaign        MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  userId          String?           // denormalized for cron queries — matches campaign.userId
-  jobberClientId  String
-  clientName      String
-  firstName       String
-  phone           String?
-  body            String            @default("")  // resolved message body ({firstName} replaced)
-  segments        Int               @default(1)   // SMS segments this body costs (see calculateSegments)
-  encoding        String?           // "GSM-7" | "UCS-2" — what forced the segment count
+  id             String            @id @default(cuid())
+  campaignId     String
+  campaign       MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId         String? // denormalized for cron queries — matches campaign.userId
+  jobberClientId String
+  clientName     String
+  firstName      String
+  phone          String?
+  body           String            @default("") // resolved message body ({firstName} replaced)
+  segments       Int               @default(1) // SMS segments this body costs (see calculateSegments)
+  encoding       String? // "GSM-7" | "UCS-2" — what forced the segment count
 
   // --- Dispatch state: OUR lifecycle, written only by the dispatcher/retry worker ---
   // pending | queued | failed | retrying | skipped
   //   queued = Twilio ACCEPTED the API call and returned a SID. It is NOT delivered.
   //   Legacy rows may still carry "sent", which means exactly the same thing.
-  status          String            @default("pending")
-  attempts        Int               @default(0)
-  messageSid      String?
-  error           String?
-  sentAt          DateTime?         // when Twilio accepted the API call (NOT delivery time)
-  lastAttemptAt   DateTime?
-  nextRetryAt     DateTime?
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  messageSid    String?
+  error         String?
+  sentAt        DateTime? // when Twilio accepted the API call (NOT delivery time)
+  lastAttemptAt DateTime?
+  nextRetryAt   DateTime?
 
   // --- Delivery state: TWILIO's lifecycle, written only by the status callback ---
   // null (no receipt yet) | queued | sending | sent | delivered | undelivered | failed
   deliveryStatus   String?
-  deliveredAt      DateTime?        // set when deliveryStatus first becomes "delivered"
-  carrierErrorCode String?          // Twilio ErrorCode from the receipt (e.g. 30007 carrier filtered)
+  deliveredAt      DateTime? // set when deliveryStatus first becomes "delivered"
+  carrierErrorCode String? // Twilio ErrorCode from the receipt (e.g. 30007 carrier filtered)
 
-  replyBody       String?           // client's reply text (set when inbound SMS is matched)
-  replyReceivedAt DateTime?         // when the reply arrived
-  createdAt       DateTime          @default(now())
+  replyBody       String? // client's reply text (set when inbound SMS is matched)
+  replyReceivedAt DateTime? // when the reply arrived
+  createdAt       DateTime  @default(now())
 
   @@index([campaignId])
   @@index([messageSid])
@@ -508,15 +507,15 @@ model MarketingMessage {
 // ---------------------------------------------------------------------------
 model CachedJobberClient {
   id             String    @id @default(cuid())
-  userId         String                          // portal User.id (matches JobberAccount.userId)
-  jobberClientId String                          // Jobber's own client GID
+  userId         String // portal User.id (matches JobberAccount.userId)
+  jobberClientId String // Jobber's own client GID
   name           String
   firstName      String
   phone          String?
   smsAllowed     Boolean   @default(false)
-  tags           String    @default("[]")        // JSON array stored as string
-  optedOut       Boolean   @default(false)       // true if client texted STOP
-  optedOutAt     DateTime?                       // when they opted out
+  tags           String    @default("[]") // JSON array stored as string
+  optedOut       Boolean   @default(false) // true if client texted STOP
+  optedOutAt     DateTime? // when they opted out
   syncedAt       DateTime  @default(now())
 
   @@unique([userId, jobberClientId])
@@ -530,18 +529,18 @@ model CachedJobberClient {
 // ---------------------------------------------------------------------------
 model InboundSMS {
   id             String   @id @default(cuid())
-  userId         String                          // portal user whose Twilio number received this
-  from           String                          // E.164 sender phone
-  body           String                          // raw message text
-  messageSid     String   @unique               // Twilio MessageSid (dedup guard)
-  isResponse     Boolean  @default(false)        // true if body is Y/N/YES/NO
-  response       String?                         // normalized: "yes" | "no" | null
-  sentiment      String?                         // "promoter" | "neutral" | "detractor" (rule-based, client replies only)
-  clientName     String?                         // matched from CachedJobberClient (or null)
-  jobberClientId String?                         // matched client ID (or null)
-  campaignId     String?                         // most recent campaign that texted this number
-  notified       Boolean  @default(false)        // has admin been notified via SMS?
-  read           Boolean  @default(false)        // has admin viewed in the Inbox tab?
+  userId         String // portal user whose Twilio number received this
+  from           String // E.164 sender phone
+  body           String // raw message text
+  messageSid     String   @unique // Twilio MessageSid (dedup guard)
+  isResponse     Boolean  @default(false) // true if body is Y/N/YES/NO
+  response       String? // normalized: "yes" | "no" | null
+  sentiment      String? // "promoter" | "neutral" | "detractor" (rule-based, client replies only)
+  clientName     String? // matched from CachedJobberClient (or null)
+  jobberClientId String? // matched client ID (or null)
+  campaignId     String? // most recent campaign that texted this number
+  notified       Boolean  @default(false) // has admin been notified via SMS?
+  read           Boolean  @default(false) // has admin viewed in the Inbox tab?
   receivedAt     DateTime @default(now())
 
   @@index([userId])
@@ -579,25 +578,25 @@ model AppLog {
 // ---------------------------------------------------------------------------
 model OperatorProposal {
   id            String    @id @default(cuid())
-  userId        String                                    // portal User.id who owns this proposal
-  shortCode     String                                    // zero-padded numeric id for SMS, e.g. "0127"
+  userId        String // portal User.id who owns this proposal
+  shortCode     String // zero-padded numeric id for SMS, e.g. "0127"
   createdAt     DateTime  @default(now())
-  category      String                                    // "ad" | "seo" | "client_recovery" | "social_post" | "quote" | "email" | "review_response" | "other"
-  tier          String                                    // "auto" | "approval_required"
-  summary       String                                    // <=160 chars SMS body
-  payload       Json                                      // full action spec (zapier channel, body, target, etc.)
-  status        String    @default("pending")             // pending | approved | declined | expired | executed | failed
+  category      String // "ad" | "seo" | "client_recovery" | "social_post" | "quote" | "email" | "review_response" | "other"
+  tier          String // "auto" | "approval_required"
+  summary       String // <=160 chars SMS body
+  payload       Json // full action spec (zapier channel, body, target, etc.)
+  status        String    @default("pending") // pending | approved | declined | expired | executed | failed
   smsSentAt     DateTime?
   smsMessageSid String?
   respondedAt   DateTime?
-  respondedVia  String?                                   // "sms" | "manual"
+  respondedVia  String? // "sms" | "manual"
   executedAt    DateTime?
-  result        Json?                                     // outcome payload (zapier response, error, etc.)
+  result        Json? // outcome payload (zapier response, error, etc.)
   expiresAt     DateTime
-  dedupKey      String?                                   // idempotency key so a re-run doesn't propose the same thing twice
-  routineSlug   String?                                   // which Routine/agent created it
-  runId         String?                                   // RoutineRun.id that created it
-  createdBy     String?                                   // agent name or "owner"
+  dedupKey      String? // idempotency key so a re-run doesn't propose the same thing twice
+  routineSlug   String? // which Routine/agent created it
+  runId         String? // RoutineRun.id that created it
+  createdBy     String? // agent name or "owner"
 
   @@unique([userId, shortCode])
   @@unique([userId, dedupKey])
@@ -615,23 +614,23 @@ model OperatorProposal {
 model Routine {
   id                   String       @id @default(cuid())
   userId               String
-  slug                 String                                  // stable kebab-case id, e.g. "jobber-token-refresh"
+  slug                 String // stable kebab-case id, e.g. "jobber-token-refresh"
   name                 String
-  kind                 String                                  // backend | claude_cloud | claude_desktop | zapier | local_ollama
-  agent                String       @default("system")         // orchestrator | communication | operations | research | content | design | social | qa | system
+  kind                 String // backend | claude_cloud | claude_desktop | zapier | local_ollama
+  agent                String       @default("system") // orchestrator | communication | operations | research | content | design | social | qa | system
   category             String       @default("operations")
   purpose              String       @default("")
-  trigger              String       @default("schedule")       // schedule | webhook | manual | event
-  schedule             String?                                 // cron string or human-readable
+  trigger              String       @default("schedule") // schedule | webhook | manual | event
+  schedule             String? // cron string or human-readable
   timezone             String       @default("America/Winnipeg")
   enabled              Boolean      @default(true)
-  expectedEveryMinutes Int?                                    // heartbeat: longest acceptable gap between runs (null = not monitored)
+  expectedEveryMinutes Int? // heartbeat: longest acceptable gap between runs (null = not monitored)
   approvalRequired     Boolean      @default(false)
   learningEnabled      Boolean      @default(true)
   researchEnabled      Boolean      @default(false)
-  autonomy             String       @default("approve")        // read | draft | approve | execute
-  externalId           String?                                 // Claude routine trigger id (trig_...)
-  config               Json?                                   // inputs/outputs/retry policy/notes
+  autonomy             String       @default("approve") // read | draft | approve | execute
+  externalId           String? // Claude routine trigger id (trig_...)
+  config               Json? // inputs/outputs/retry policy/notes
   lastRunAt            DateTime?
   lastStatus           String?
   lastSummary          String?
@@ -652,17 +651,17 @@ model RoutineRun {
   routineId         String
   routine           Routine   @relation(fields: [routineId], references: [id], onDelete: Cascade)
   userId            String
-  status            String    @default("running")             // running | completed | failed | skipped | missed
-  trigger           String    @default("schedule")            // schedule | manual | api | heartbeat
-  source            String    @default("backend")             // backend | claude
+  status            String    @default("running") // running | completed | failed | skipped | missed
+  trigger           String    @default("schedule") // schedule | manual | api | heartbeat
+  source            String    @default("backend") // backend | claude
   startedAt         DateTime  @default(now())
   finishedAt        DateTime?
   durationMs        Int?
   summary           String?
   itemsFound        Int?
   requiresAttention Int?
-  result            Json?                                     // { items_found, requires_attention, high_priority, summary, actions_taken[], learnings[], research_findings[], items[] }
-  errorClass        String?                                   // rate_limit | throttled | auth | network | validation | unknown
+  result            Json? // { items_found, requires_attention, high_priority, summary, actions_taken[], learnings[], research_findings[], items[] }
+  errorClass        String? // rate_limit | throttled | auth | network | validation | unknown
   error             String?
 
   @@index([routineId, startedAt])
@@ -677,16 +676,16 @@ model Task {
   dedupKey         String
   title            String
   reason           String    @default("")
-  source           String    @default("system")                // sms | gmail | website | routine | social | opslog | owner ...
+  source           String    @default("system") // sms | gmail | website | routine | social | opslog | owner ...
   customerName     String?
-  customerKey      String?                                     // jobberClientId, phone or email
+  customerKey      String? // jobberClientId, phone or email
   context          Json?
   whatHappened     String    @default("")
   whatNeeds        String    @default("")
   recommended      String    @default("")
   proposedResponse String    @default("")
-  urgency          String    @default("normal")                // low | normal | high | urgent
-  status           String    @default("NEW")                   // NEW | IN_PROGRESS | WAITING | APPROVAL | COMPLETED | DISMISSED
+  urgency          String    @default("normal") // low | normal | high | urgent
+  status           String    @default("NEW") // NEW | IN_PROGRESS | WAITING | APPROVAL | COMPLETED | DISMISSED
   agent            String?
   routineSlug      String?
   timesFlagged     Int       @default(1)
@@ -708,9 +707,9 @@ model OwnerRequest {
   id          String    @id @default(cuid())
   userId      String
   body        String
-  attachments Json?                                           // vault ContentAsset ids (photos/videos) the owner attached
-  source      String    @default("dashboard")              // dashboard | sms (texted from the owner's phone; outcome is texted back)
-  status      String    @default("pending")                // pending | working | done | needs_owner | failed | cancelled
+  attachments Json? // vault ContentAsset ids (photos/videos) the owner attached
+  source      String    @default("dashboard") // dashboard | sms (texted from the owner's phone; outcome is texted back)
+  status      String    @default("pending") // pending | working | done | needs_owner | failed | cancelled
   claimedAt   DateTime?
   claimedBy   String?
   response    String    @default("")
@@ -726,11 +725,11 @@ model OwnerRequest {
 model Memory {
   id         String    @id @default(cuid())
   userId     String
-  scope      String                                            // business | brand | customer:<id> | agent:<name> | routine:<slug> | channel:<name> | group:<id> | rule
+  scope      String // business | brand | customer:<id> | agent:<name> | routine:<slug> | channel:<name> | group:<id> | rule
   key        String
   value      String
   confidence Float     @default(0.8)
-  source     String?                                           // run id, task id, "owner", "opslog-import"
+  source     String? // run id, task id, "owner", "opslog-import"
   agent      String?
   hits       Int       @default(0)
   lastUsedAt DateTime?
@@ -748,12 +747,12 @@ model AgentActivity {
   agent       String
   routineSlug String?
   runId       String?
-  action      String                                           // short verb phrase: "posted to group", "created task", "rendered graphic"
+  action      String // short verb phrase: "posted to group", "created task", "rendered graphic"
   summary     String
-  source      String?                                          // sms | gmail | facebook | jobber | system ...
-  result      String?                                          // ok | failed | skipped | pending_approval
+  source      String? // sms | gmail | facebook | jobber | system ...
+  result      String? // ok | failed | skipped | pending_approval
   tool        String?
-  approval    String?                                          // none | auto | approved | pending | rejected
+  approval    String? // none | auto | approved | pending | rejected
   learning    String?
   customerRef String?
   error       String?
@@ -771,7 +770,7 @@ model AgentActivity {
 model ContentAsset {
   id            String   @id @default(cuid())
   userId        String
-  kind          String   @default("photo")                   // photo | graphic | logo | reference | screenshot
+  kind          String   @default("photo") // photo | graphic | logo | reference | screenshot
   name          String
   mime          String
   bytes         Bytes
@@ -779,16 +778,16 @@ model ContentAsset {
   sha256        String
   width         Int?
   height        Int?
-  tags          String   @default("[]")                      // JSON array: PATIOS, SOD, FALL, BEFORE, AFTER, CREW ...
-  source        String   @default("upload")                  // upload | render | import
+  tags          String   @default("[]") // JSON array: PATIOS, SOD, FALL, BEFORE, AFTER, CREW ...
+  source        String   @default("upload") // upload | render | import
   notes         String?
-  contentItemId String?                                      // set for rendered graphics
-  quality       Int?                                         // 1-5 curator score; renders only use >= 3
-  private       Boolean  @default(false)                     // faces, plates, house numbers: never used on posts
-  pairKey       String?                                      // groups before/after candidates (same job + day)
-  driveFileId   String?                                      // Google Drive file it was imported from
-  originalId    String?                                      // enhanced copy → its untouched original (kind "original")
-  edits         String?                                      // JSON of the enhancement applied
+  contentItemId String? // set for rendered graphics
+  quality       Int? // 1-5 curator score; renders only use >= 3
+  private       Boolean  @default(false) // faces, plates, house numbers: never used on posts
+  pairKey       String? // groups before/after candidates (same job + day)
+  driveFileId   String? // Google Drive file it was imported from
+  originalId    String? // enhanced copy → its untouched original (kind "original")
+  edits         String? // JSON of the enhancement applied
   createdAt     DateTime @default(now())
 
   @@unique([userId, sha256])
@@ -799,31 +798,31 @@ model ContentAsset {
 
 // One piece of marketing content from idea to measured result.
 model ContentItem {
-  id            String    @id @default(cuid())
-  userId        String
-  status        String    @default("draft")                  // idea | draft | rendered | qa_failed | queued | approved | published | rejected | failed
-  title         String
-  pillar        String?                                      // tip | proof | review | faq | offer | founder | story | group | seasonal
-  format        String    @default("post")                   // post | carousel | story | reel_cover | group_post
-  layout        String?                                      // design-system layout name
-  platforms     String    @default("[\"facebook\"]")         // JSON array: facebook | instagram | group
-  slots         Json?                                        // renderer slots; carousels: { slides: [{layout, slots}] }
-  caption       String    @default("")                       // Facebook / group text
-  captionIg     String?                                      // Instagram caption incl. hashtags
-  groupId       String?                                      // SocialGroup.id for group posts
-  assetIds      Json?                                        // rendered ContentAsset ids, in order
-  qa            Json?                                        // { ok, errors[], warnings[] }
-  grounding     String?                                      // where the facts came from (real review URL, blog post, job)
-  source        String?                                      // routine slug that created it
-  scheduledFor  DateTime?
-  approvedAt    DateTime?
-  publishedAt   DateTime?
-  postUrl       String?
-  publishedOn   Json?                                        // { facebook: { postUrl, at }, instagram: { ... } } — one entry per platform actually posted
-  metrics       Json?                                        // { reach, reactions, comments, shares, leads, capturedAt }
-  note          String?                                      // owner's edit/reject note, fed back to the Content Director
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           String    @id @default(cuid())
+  userId       String
+  status       String    @default("draft") // idea | draft | rendered | qa_failed | queued | approved | published | rejected | failed
+  title        String
+  pillar       String? // tip | proof | review | faq | offer | founder | story | group | seasonal
+  format       String    @default("post") // post | carousel | story | reel_cover | group_post
+  layout       String? // design-system layout name
+  platforms    String    @default("[\"facebook\"]") // JSON array: facebook | instagram | group
+  slots        Json? // renderer slots; carousels: { slides: [{layout, slots}] }
+  caption      String    @default("") // Facebook / group text
+  captionIg    String? // Instagram caption incl. hashtags
+  groupId      String? // SocialGroup.id for group posts
+  assetIds     Json? // rendered ContentAsset ids, in order
+  qa           Json? // { ok, errors[], warnings[] }
+  grounding    String? // where the facts came from (real review URL, blog post, job)
+  source       String? // routine slug that created it
+  scheduledFor DateTime?
+  approvedAt   DateTime?
+  publishedAt  DateTime?
+  postUrl      String?
+  publishedOn  Json? // { facebook: { postUrl, at }, instagram: { ... } } — one entry per platform actually posted
+  metrics      Json? // { reach, reactions, comments, shares, leads, capturedAt }
+  note         String? // owner's edit/reject note, fed back to the Content Director
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([userId, status])
   @@index([userId, scheduledFor])
@@ -831,27 +830,27 @@ model ContentItem {
 
 // Facebook groups (and similar communities): rules, promo policy and what we've learned.
 model SocialGroup {
-  id             String    @id @default(cuid())
-  userId         String
-  platform       String    @default("facebook")
-  name           String
-  url            String?
-  location       String?
-  audience       String?
-  relevance      Int       @default(3)                       // 1-5, how useful for leads
-  membership     String    @default("unknown")               // unknown | requested | member | declined | left | banned
-  rules          String    @default("")
-  promoPolicy    String    @default("unknown")               // unknown | allowed | restricted | banned
-  promoNotes     String    @default("")                      // e.g. "promo posts Fri-Sun only"
-  cooldownDays   Int       @default(14)
-  topics         String    @default("")
-  notes          String    @default("")
-  leads          Int       @default(0)
-  postsCount     Int       @default(0)
-  lastCheckedAt  DateTime?
-  lastPostedAt   DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  userId        String
+  platform      String    @default("facebook")
+  name          String
+  url           String?
+  location      String?
+  audience      String?
+  relevance     Int       @default(3) // 1-5, how useful for leads
+  membership    String    @default("unknown") // unknown | requested | member | declined | left | banned
+  rules         String    @default("")
+  promoPolicy   String    @default("unknown") // unknown | allowed | restricted | banned
+  promoNotes    String    @default("") // e.g. "promo posts Fri-Sun only"
+  cooldownDays  Int       @default(14)
+  topics        String    @default("")
+  notes         String    @default("")
+  leads         Int       @default(0)
+  postsCount    Int       @default(0)
+  lastCheckedAt DateTime?
+  lastPostedAt  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@unique([userId, platform, name])
   @@index([userId, membership])
@@ -859,20 +858,20 @@ model SocialGroup {
 
 // Every outward social action. Daily caps are enforced against this table (GET /social/budget).
 model SocialAction {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        String
-  platform      String                                       // facebook | instagram
-  kind          String                                       // comment | dm | like | follow | group_join | group_post | page_post | story | reply
+  platform      String // facebook | instagram
+  kind          String // comment | dm | like | follow | group_join | group_post | page_post | story | reply
   target        String?
   groupId       String?
   contentItemId String?
-  summary       String   @default("")
-  status        String   @default("done")                    // reserved | done | failed | skipped | unverified
-  url           String?                                      // link to OUR result (the comment / post / join)
-  text          String?                                      // the exact words posted (what the server linted)
-  expiresAt     DateTime?                                    // reserved rows stop counting against the cap after this
+  summary       String    @default("")
+  status        String    @default("done") // reserved | done | failed | skipped | unverified
+  url           String? // link to OUR result (the comment / post / join)
+  text          String? // the exact words posted (what the server linted)
+  expiresAt     DateTime? // reserved rows stop counting against the cap after this
   shiftId       String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
   @@index([userId, platform, kind, createdAt])
   @@index([userId, createdAt])
@@ -884,12 +883,12 @@ model SocialThread {
   id              String    @id @default(cuid())
   userId          String
   platform        String    @default("facebook")
-  url             String                                     // the post / conversation link, unique per user
+  url             String // the post / conversation link, unique per user
   person          String    @default("")
-  need            String    @default("")                     // service asked about
+  need            String    @default("") // service asked about
   neighbourhood   String    @default("")
-  source          String    @default("")                     // inbox | search | group:<name> | hashtag
-  status          String    @default("open")                 // open | quoted | followed | won | lost | held
+  source          String    @default("") // inbox | search | group:<name> | hashtag
+  status          String    @default("open") // open | quoted | followed | won | lost | held
   jobberRequestId String?
   notes           String    @default("")
   followedUpAt    DateTime?
@@ -905,9 +904,9 @@ model SocialThread {
 model SocialShift {
   id         String    @id @default(cuid())
   userId     String
-  day        String                                          // YYYY-MM-DD, Winnipeg
-  kind       String                                          // morning | midday | evening | studio
-  status     String    @default("due")                       // due | running | done | failed | needs_owner
+  day        String // YYYY-MM-DD, Winnipeg
+  kind       String // morning | midday | evening | studio
+  status     String    @default("due") // due | running | done | failed | needs_owner
   attempts   Int       @default(0)
   claimedAt  DateTime?
   finishedAt DateTime?
@@ -928,17 +927,17 @@ model SocialShift {
 model CommMessage {
   id             String   @id @default(cuid())
   userId         String
-  channel        String   @default("sms")               // sms | email | textnow
-  direction      String                                  // in | out
-  phone          String?                                 // E.164
-  phoneKey       String?                                 // last 10 digits, for joins
+  channel        String   @default("sms") // sms | email | textnow
+  direction      String // in | out
+  phone          String? // E.164
+  phoneKey       String? // last 10 digits, for joins
   email          String?
   jobberClientId String?
   clientName     String?
   body           String   @default("")
-  source         String   @default("system")             // inbound | campaign | review | rain | loyalty | reward | optout | operator | manual | owner | ai | system
-  sourceId       String?                                 // InboundSMS.id, MarketingMessage.id, Twilio sid ...
-  providerId     String?                                 // Twilio MessageSid
+  source         String   @default("system") // inbound | campaign | review | rain | loyalty | reward | optout | operator | manual | owner | ai | system
+  sourceId       String? // InboundSMS.id, MarketingMessage.id, Twilio sid ...
+  providerId     String? // Twilio MessageSid
   status         String?
   at             DateTime @default(now())
 
@@ -954,17 +953,17 @@ model CommInsight {
   id             String    @id @default(cuid())
   userId         String
   channel        String    @default("textnow")
-  phoneKey       String                                   // last 10 digits
+  phoneKey       String // last 10 digits
   jobberClientId String?
-  lastInboundId  String                                   // CommMessage.providerId of the customer message this is about
-  intent         String                                   // cancel_visit | skip_visit | reschedule | schedule_question | quote_request | access_info | complaint | billing | praise | ack | other
+  lastInboundId  String // CommMessage.providerId of the customer message this is about
+  intent         String // cancel_visit | skip_visit | reschedule | schedule_question | quote_request | access_info | complaint | billing | praise | ack | other
   confidence     Float     @default(0.5)
   summary        String    @default("")
   proposedReply  String    @default("")
   proposedAction Json?
   ownerReply     String?
   ownerReplyAt   DateTime?
-  agreement      String?                                  // match | partial | miss
+  agreement      String? // match | partial | miss
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -977,13 +976,13 @@ model CommInsight {
 model Notification {
   id          String    @id @default(cuid())
   userId      String
-  category    String    @default("system")  // routine | approval | customer | weather | request | system
+  category    String    @default("system") // routine | approval | customer | weather | request | system
   title       String
   body        String    @default("")
-  urgency     String    @default("normal")  // normal | urgent
+  urgency     String    @default("normal") // normal | urgent
   routineSlug String?
   link        String?
-  sentVia     String    @default("none")    // none | sms | digest
+  sentVia     String    @default("none") // none | sms | digest
   readAt      DateTime?
   createdAt   DateTime  @default(now())
 
@@ -993,12 +992,12 @@ model Notification {
 
 // Per-user notification preferences (one row per user).
 model NotificationSettings {
-  id          String  @id @default(cuid())
-  userId      String  @unique
-  digestMode  String  @default("weekly")  // weekly | off
-  digestDay   Int     @default(6)         // 0=Sun .. 6=Sat
-  digestHour  Int     @default(15)        // local business time
-  urgentSms   Boolean @default(true)
+  id         String  @id @default(cuid())
+  userId     String  @unique
+  digestMode String  @default("weekly") // weekly | off
+  digestDay  Int     @default(6) // 0=Sun .. 6=Sat
+  digestHour Int     @default(15) // local business time
+  urgentSms  Boolean @default(true)
 }
 
 // ---------------------------------------------------------------------------
@@ -1238,4 +1237,140 @@ model SeoProgressReport {
   createdAt   DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Winnipeg Fence Pros (backend/wfp/*, /Winnipeg-Fence-Pros): a separate, login-free SEO + blog autopilot for
+// another business. Shares no rows with the No-Bs tables (none of these has a userId) and never reads them.
+// ---------------------------------------------------------------------------
+
+// The page's settings (FTP, sitemap, Search Console, API keys, schedule). Secrets are encrypted (lib/ftpCrypto).
+// An unset key falls back to the WFP_<KEY> environment variable.
+model WfpSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// One keyword the business wants to win: research source, lifecycle, Search Console + Serper numbers, focus campaign.
+model WfpKeyword {
+  id                String    @id @default(cuid())
+  keyword           String
+  matchKey          String    @unique // wfp/keywords.matchKey(): dedup + query matching
+  service           String? // which service from the SERVICES setting it belongs to
+  intent            String    @default("informational") // transactional | commercial | informational
+  source            String    @default("owner") // owner | gsc | serper | claude | focus
+  status            String    @default("idea") // idea|planned|published|indexed|ranking|page1|top3|retired
+  statusChangedAt   DateTime  @default(now())
+  priority          Float     @default(0)
+  why               String? // the plain-language reason of the last research run
+  recommended       Boolean   @default(false)
+  recommendedAt     DateTime?
+  dismissedUntil    DateTime?
+  clicks28          Int       @default(0)
+  impressions28     Int       @default(0)
+  position28        Float?
+  prevImpressions28 Int?
+  prevPosition28    Float?
+  topPage           String?
+  rankTrack         Boolean   @default(false)
+  serpPosition      Int? // Google organic rank from Serper, null = not in the top results
+  mapPackPosition   Int?
+  serpCheckedAt     DateTime?
+  serpTop           Json? // [{title, link}] who ranks above us
+  signals           Json? // {paa, related, autocomplete}
+  history           Json? // weekly [{w, pos, imp, clk, serp, map}] capped at 52
+  focus             Boolean   @default(false)
+  focusStatus       String? // active | won | stopped
+  focusGoal         Int       @default(3)
+  focusSince        DateTime?
+  supportsId        String? // supporting keyword of this focus keyword
+  postId            String?
+  targetUrl         String?
+  publishedAt       DateTime?
+  refreshedAt       DateTime?
+  notes             String    @default("")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([status])
+  @@index([supportsId])
+}
+
+// Search Console [query, page] for the last 28 days next to the 28 days before (replaced on every sync).
+model WfpQuery {
+  query           String
+  page            String
+  clicks          Int
+  impressions     Int
+  position        Float
+  prevImpressions Int      @default(0)
+  prevPosition    Float?
+  updatedAt       DateTime @updatedAt
+
+  @@id([query, page])
+}
+
+// Search Console [date] totals for the overview chart.
+model WfpDaily {
+  date        DateTime @id @db.Date
+  clicks      Int
+  impressions Int
+  ctr         Float
+  position    Float
+}
+
+// A blog post the server wrote (Claude) and published (wfp/blog_publish.py over FTP).
+model WfpPost {
+  id              String    @id @default(cuid())
+  keywordId       String?
+  keyword         String?
+  mode            String    @default("new") // new | support | refresh | manual
+  slug            String
+  title           String
+  metaDescription String    @default("")
+  excerpt         String    @default("")
+  category        String    @default("")
+  readTime        Int       @default(5)
+  imageQuery      String?
+  html            String
+  sources         Json?
+  status          String    @default("draft") // draft | publishing | published | failed
+  url             String?
+  error           String?
+  log             String?
+  publishedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status])
+  @@index([slug])
+}
+
+// Every job run (sync, research, writer, health, Claude check-ins). This page's own ledger, not RoutineRun.
+model WfpRun {
+  id         String    @id @default(cuid())
+  job        String
+  trigger    String    @default("schedule") // schedule | manual | claude
+  status     String    @default("running") // running | completed | failed | skipped
+  summary    String?
+  detail     Json?
+  error      String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([job, startedAt])
+}
+
+// Notes on the page: Claude's weekly reports and findings, the owner's instructions for the writer, system milestones.
+model WfpNote {
+  id        String   @id @default(cuid())
+  author    String   @default("owner") // owner | claude | system
+  kind      String   @default("note") // note | report | instruction | milestone
+  title     String   @default("")
+  body      String
+  done      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([kind, createdAt])
 }
