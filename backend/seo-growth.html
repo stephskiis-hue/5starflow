@@ -200,6 +200,7 @@
 
     <div class="tabs-scroll mb-6" id="tab-bar" role="tablist">
       <button data-tab="overview" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200">Overview</button>
+      <button data-tab="focus"    class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200">Focus <span id="badge-focus" class="badge b-ok hidden ml-1"></span></button>
       <button data-tab="keywords" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200">Keywords</button>
       <button data-tab="roadmap"  class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200">Roadmap</button>
       <button data-tab="content"  class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 transition-all duration-200">Content log</button>
@@ -208,6 +209,7 @@
     </div>
 
     <section id="tab-overview"></section>
+    <section id="tab-focus" class="hidden"></section>
     <section id="tab-keywords" class="hidden"></section>
     <section id="tab-roadmap" class="hidden"></section>
     <section id="tab-content" class="hidden"></section>
@@ -220,13 +222,16 @@
 
 <script>
   const API = '/api/ai';
-  const TABS = ['overview', 'keywords', 'roadmap', 'content', 'health', 'report'];
+  const TABS = ['overview', 'focus', 'keywords', 'roadmap', 'content', 'health', 'report'];
   const STATUS = {
     idea: ['Idea', 'b-mute'], planned: ['Planned', 'b-normal'], assigned: ['Writing', 'b-warn'], published: ['Published', 'b-normal'],
     indexed: ['Indexed', 'b-normal'], ranking: ['Top 20', 'b-ok'], page1: ['Page 1', 'b-ok'], top3: ['Top 3', 'b-ok'], stalled: ['Stalled', 'b-warn'], retired: ['Retired', 'b-mute'],
   };
-  const MODE = { new: ['New post', 'b-normal'], refresh: ['Refresh', 'b-warn'], page: ['Landing page', 'b-ok'] };
-  const state = { tab: 'overview', data: null, kwFilter: 'active', kwQ: '', showTable: false };
+  const MODE = { new: ['New post', 'b-normal'], refresh: ['Refresh', 'b-warn'], page: ['Landing page', 'b-ok'], links: ['Add links', 'b-normal'] };
+  const FSTATUS = { active: ['Active', 'b-ok'], paused: ['Paused', 'b-mute'], won: ['Goal reached', 'b-ok'] };
+  const STEP_LABEL = { page: 'Page', support: 'Supporting post', refresh: 'Refresh', links: 'Internal link', social: 'Social post' };
+  const STEP_ICON = { done: ['check_circle', 'text-[#0ca30c]'], in_progress: ['autorenew', 'text-amber-300'], queued: ['schedule', 'text-amber-300'], planned: ['radio_button_unchecked', 'text-zinc-600'] };
+  const state = { tab: 'overview', data: null, kwFilter: 'active', kwQ: '', showTable: false, focusPick: null };
 
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const $ = (id) => document.getElementById(id);
@@ -353,7 +358,8 @@
     renderSetup(d);
     const issues = d.issues.length;
     $('badge-health').textContent = issues; $('badge-health').classList.toggle('hidden', !issues);
-    ({ overview: renderOverview, keywords: renderKeywords, roadmap: renderRoadmap, content: renderContent, health: renderHealth, report: renderReports })[state.tab](d);
+    const live = d.focusBoard.active; $('badge-focus').textContent = live; $('badge-focus').classList.toggle('hidden', !live);
+    ({ overview: renderOverview, focus: renderFocus, keywords: renderKeywords, roadmap: renderRoadmap, content: renderContent, health: renderHealth, report: renderReports })[state.tab](d);
   }
 
   function renderSetup(d) {
@@ -407,7 +413,7 @@
       : empty(d.reportDue?.postsSince ? 'The first recap is written a week after the first post.' : 'No recap yet. The blog run writes one every week.'));
     const movers = card('Biggest moves (4 weeks)', d.movers.length ? `<ul class="space-y-2">${d.movers.map((m) => `<li class="flex items-center gap-3 text-sm"><span class="material-symbols-outlined text-[18px] ${m.change > 0 ? 'text-[#0ca30c]' : 'text-[#ec835a]'}">${m.change > 0 ? 'trending_up' : 'trending_down'}</span><span class="flex-1 text-zinc-200">${esc(m.keyword)}</span><span class="text-zinc-400 tabular-nums">${pos(m.from)} → <b class="text-zinc-100">${pos(m.to)}</b></span></li>`).join('')}</ul>` : empty('Needs a few weeks of rank history.'));
     const next = card('What the blog writes next', d.roadmap.length ? `<ul class="space-y-3">${d.roadmap.slice(0, 5).map((r) => `<li class="text-sm"><div class="flex flex-wrap items-center gap-2">${badge(MODE, r.mode)}<b class="text-zinc-100">${esc(r.keyword)}</b><span class="text-xs text-zinc-500">${esc(r.contentType || '')}</span></div><p class="text-xs text-zinc-400 mt-1">${esc(r.why)}</p></li>`).join('')}</ul>` : empty('Nothing queued: the next run picks its own topic and reports it.'));
-    $('tab-overview').innerHTML = tiles + charts + `<div class="grid lg:grid-cols-2 gap-6">${recap}${next}</div>` + movers + statusStrip(d);
+    $('tab-overview').innerHTML = focusStrip(d) + tiles + charts + `<div class="grid lg:grid-cols-2 gap-6">${recap}${next}</div>` + movers + statusStrip(d);
   }
 
   function statusStrip(d) {
@@ -420,6 +426,55 @@
       ['Last rank check', ago(d.sync.lastRoadmapAt)],
     ];
     return card('Engine status', `<dl class="grid sm:grid-cols-[180px_1fr] gap-x-4 gap-y-2 text-sm">${rows.map(([k, v]) => `<dt class="text-on-surface-variant">${k}</dt><dd class="text-zinc-200">${v}</dd>`).join('')}</dl>`);
+  }
+
+  const gainText = (g) => (g == null || g === 0 ? '' : g > 0 ? `up ${g} place${g === 1 ? '' : 's'} in 4 weeks` : `down ${-g} place${g === -1 ? '' : 's'} in 4 weeks`);
+  const bar = (pct) => `<div class="h-2 rounded-full bg-white/10 overflow-hidden" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><div class="h-2 rounded-full bg-secondary" style="width:${pct}%"></div></div>`;
+
+  /** The Focus button on a keyword row; becomes a goal chooser when clicked. */
+  function focusControl(k) {
+    if (state.focusPick === k.id) return `<span class="text-xs text-zinc-400 mr-1">Goal:</span><button class="btn btn-go" data-act="focusgo" data-goal="3">Top 3</button> <button class="btn" data-act="focusgo" data-goal="10">Top 10</button> <button class="btn" data-act="focuscancel" title="Cancel"><span class="material-symbols-outlined text-[16px]">close</span></button>`;
+    if (k.focus && k.focusStatus === 'active') return '<a href="#focus" class="badge b-ok" title="Focus campaign running: open the Focus tab">Focus</a>';
+    if (k.focus && k.focusStatus === 'paused') return '<a href="#focus" class="badge b-mute" title="Focus campaign paused: resume it on the Focus tab">Paused</a>';
+    if (k.focus && k.focusStatus === 'won') return '<a href="#focus" class="badge b-ok" title="Goal reached">Won</a>';
+    return '<button class="btn" data-act="focus" title="Focus: plan a page, supporting posts, links and social posts around this keyword"><span class="material-symbols-outlined text-[16px]">target</span></button>';
+  }
+
+  function focusStrip(d) {
+    const act = d.focusBoard.campaigns.filter((c) => c.status === 'active');
+    if (!act.length) return card('Focus', `<p class="text-sm text-zinc-400">No keyword is in focus. Press the <span class="material-symbols-outlined text-[16px] align-[-3px]">target</span> button on a keyword (Keywords tab) and 5StarFlow plans the page, supporting posts, links and social posts to win it.</p>`);
+    return card('Focus', `<ul class="space-y-4">${act.map((c) => `<li class="text-sm"><div class="flex flex-wrap items-center gap-2 mb-1"><b class="text-zinc-100">${esc(c.keyword)}</b><span class="text-xs text-zinc-500">goal: top ${c.goal}</span><span class="ml-auto tabular-nums text-zinc-300">${c.position ? `position ${pos(c.position)}` : 'not ranking yet'}</span></div>${bar(c.progress)}<p class="text-xs text-zinc-500 mt-1">${esc(c.next)}</p></li>`).join('')}</ul><p class="mt-4"><a href="#focus" class="text-primary text-sm hover:underline">Open the Focus board</a></p>`);
+  }
+
+  function campaignCard(c, i) {
+    const st = (s) => { const [ic, col] = STEP_ICON[s.status] || STEP_ICON.planned; return `<li class="flex items-start gap-2 py-1.5 text-sm"><span class="material-symbols-outlined text-[18px] ${col}">${ic}</span><span class="badge b-mute shrink-0">${esc(STEP_LABEL[s.kind] || s.kind)}</span><span class="flex-1 min-w-0 break-words">${s.url ? `<a class="text-zinc-100 hover:underline" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>` : `<span class="${s.status === 'done' ? 'text-zinc-300' : 'text-zinc-400'}">${esc(s.title)}</span>`}</span><span class="text-xs text-zinc-500 shrink-0">${s.status === 'done' ? day(s.doneAt) : s.status === 'in_progress' ? 'in progress' : ''}</span></li>`; };
+    const cnt = (label, x) => (x.total ? `<div><p class="text-xs text-on-surface-variant">${label}</p><p class="text-lg font-bold text-zinc-100">${x.done}<span class="text-sm text-zinc-500">/${x.total}</span></p></div>` : '');
+    const ctl = c.status === 'active' ? '<button class="btn" data-fc="pause">Pause</button>' : c.status === 'paused' ? '<button class="btn btn-go" data-fc="resume">Resume</button>' : '';
+    return `<div class="glass-card rounded-xl p-5 sm:p-6 mb-6" data-fid="${esc(c.id)}">
+      <div class="flex flex-wrap items-center gap-2 mb-4"><span class="text-zinc-500 font-bold tabular-nums">#${i + 1}</span><h3 class="text-lg font-bold text-zinc-100 break-words">${esc(c.keyword)}</h3>${badge(FSTATUS, c.status)}<span class="badge b-normal">goal: top ${c.goal}</span>
+        <span class="ml-auto flex flex-wrap gap-2">${ctl}<button class="btn" data-fc="${c.goal === 3 ? 'goal10' : 'goal3'}">Goal: top ${c.goal === 3 ? 10 : 3}</button><button class="btn btn-no" data-fc="stop">Stop</button></span></div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+        <div><p class="text-xs text-on-surface-variant">Google position</p><p class="text-2xl font-bold text-zinc-100">${pos(c.position)}</p><p class="text-xs text-zinc-500">${c.start != null ? `started at ${pos(c.start)}` : 'no starting reading yet'}</p></div>
+        <div><p class="text-xs text-on-surface-variant">Trend</p><div class="mt-1">${sparkline(c.history)}</div><p class="text-xs text-zinc-500">${esc(gainText(c.gain4w)) || 'needs a few weeks'}</p></div>
+        <div><p class="text-xs text-on-surface-variant">28 days</p><p class="text-lg font-bold text-zinc-100">${num(c.impressions28)}</p><p class="text-xs text-zinc-500">impressions · ${num(c.clicks28)} clicks${c.map ? ` · map #${c.map}` : ''}</p></div>
+        <div class="flex gap-5">${cnt('Supporting posts', c.counts.support)}${cnt('Links', c.counts.links)}${cnt('Social posts', c.counts.social)}</div>
+      </div>
+      <div class="mb-1 flex justify-between text-xs text-zinc-400"><span>${c.progress}% of the way to the top ${c.goal}</span>${c.url ? `<a class="text-primary hover:underline" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(pathOf(c.url))}</a>` : '<span>no page yet</span>'}</div>${bar(c.progress)}
+      <p class="text-sm text-zinc-200 mt-4"><span class="material-symbols-outlined text-[16px] align-[-3px] text-amber-300">bolt</span> <b>Next:</b> ${esc(c.next)}</p>
+      <div class="grid lg:grid-cols-2 gap-6 mt-4"><div><p class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-1">The plan</p>${c.steps.length ? `<ul class="divide-y divide-white/5">${c.steps.map(st).join('')}</ul>` : empty('Nothing planned yet.')}</div>
+        <div><p class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-1">What happened</p>${c.timeline.length ? `<ul class="space-y-1.5 text-sm">${c.timeline.map((t) => `<li class="flex gap-3"><span class="text-zinc-500 w-14 shrink-0 tabular-nums">${day(t.at)}</span><span class="text-zinc-200 break-words">${esc(t.text)}</span></li>`).join('')}</ul>` : empty('Updates appear here as pages go live.')}</div></div></div>`;
+  }
+
+  function renderFocus(d) {
+    const b = d.focusBoard;
+    const head = `<div class="flex flex-wrap items-center gap-3 mb-6"><p class="text-sm text-zinc-300 flex-1 min-w-[240px]">Pick up to ${b.max} keywords to win. For each one 5StarFlow plans the page, supporting posts, links and social posts, hands the writing to the daily blog run and Night Studio, and checks the result in Google every week.</p><span class="badge ${b.active >= b.max ? 'b-warn' : 'b-ok'}">${b.active} of ${b.max} focus slots in use</span></div>`;
+    const cards = b.campaigns.length ? b.campaigns.map(campaignCard).join('') : card('No focus campaigns yet', empty('Press the target button on any keyword (Keywords tab or Roadmap ideas) to start one. Choose a goal of the top 3 or the top 10 and the plan appears here straight away.'));
+    const ROLE = { focus: ['Focus', 'b-ok'], supporting: ['Supports focus', 'b-normal'], pinned: ['Pinned', 'b-warn'], owned: ['Has a page', 'b-mute'] };
+    const rows = b.working.map((w) => `<tr class="border-t border-white/5"><td class="py-2 pr-3 text-zinc-500 tabular-nums">${w.rank}</td><td class="pr-3 text-zinc-100">${esc(w.keyword)}</td><td class="pr-3">${badge(ROLE, w.role)}</td><td class="pr-3">${badge(STATUS, w.status)}</td><td class="pr-3 tabular-nums" title="${esc(w.why)}">${w.priority}</td><td class="pr-3 tabular-nums">${pos(w.position)}</td><td class="text-xs text-zinc-400">${esc(gainText(w.gain4w))}</td></tr>`).join('');
+    const table = card('Everything we are working on, ranked', b.working.length
+      ? `<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-on-surface-variant text-xs"><th class="pb-2 pr-3">#</th><th class="pr-3">Keyword</th><th class="pr-3">Role</th><th class="pr-3">Stage</th><th class="pr-3" title="Roughly the extra clicks a month it could win">Opportunity</th><th class="pr-3">Position</th><th>Last 4 weeks</th></tr></thead><tbody>${rows}</tbody></table></div><p class="text-xs text-zinc-500 mt-3">Ranked by opportunity: roughly the extra clicks a month the keyword could win, weighted by how close it is, how ready the searcher is to hire and the season.</p>`
+      : empty('Nothing ranked yet.'));
+    $('tab-focus').innerHTML = head + cards + table;
   }
 
   function renderKeywords(d) {
@@ -435,14 +490,14 @@
     const bar = `<div class="flex flex-wrap gap-2 mb-4 items-center">${filters.map(([id, l]) => `<button class="btn ${f === id ? 'tab-active' : ''}" data-kwf="${id}">${l}</button>`).join('')}
       <input id="kw-q" value="${esc(state.kwQ)}" placeholder="Search keywords" class="ml-auto bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-zinc-200 w-full sm:w-56"/></div>`;
     const rows = list.map((k) => `<tr class="border-t border-white/5 align-top" data-kw="${esc(k.id)}">
-      <td class="py-2 pr-3"><div class="text-zinc-100 font-medium">${esc(k.keyword)}${k.pinned ? ' <span class="material-symbols-outlined text-[14px] text-amber-300 align-[-2px]" title="Pinned">push_pin</span>' : ''}</div><div class="text-xs text-zinc-500">${esc(k.cluster)} · ${esc(k.kind)}</div></td>
+      <td class="py-2 pr-3"><div class="text-zinc-100 font-medium">${esc(k.keyword)}${k.pinned ? ' <span class="material-symbols-outlined text-[14px] text-amber-300 align-[-2px]" title="Pinned">push_pin</span>' : ''}</div><div class="text-xs text-zinc-500">${esc(k.cluster)} · ${esc(k.kind)}${k.supportsId ? ' · supports a focus keyword' : ''}</div></td>
       <td class="pr-3">${badge(STATUS, k.status)}</td>
       <td class="pr-3 text-xs">${k.targetPath ? `<a class="text-primary hover:underline" href="${esc(d.origin + k.targetPath)}" target="_blank" rel="noopener">${esc(k.targetPath)}</a>` : '<span class="text-zinc-600">no page yet</span>'}</td>
       <td class="pr-3 tabular-nums text-zinc-400">${pos(k.baseline)} → <b class="text-zinc-100">${pos(k.current)}</b>${k.best ? `<div class="text-xs text-zinc-500">best ${pos(k.best)}</div>` : ''}${k.currentFrom === 'serper' ? '<div class="text-xs text-zinc-500">from the rank check</div>' : ''}</td>
       <td class="pr-3 tabular-nums">${k.serp ?? '—'}${k.map ? `<div class="text-xs text-zinc-500">map #${k.map}</div>` : ''}</td>
       <td class="pr-3 tabular-nums">${num(k.impressions28)}<div class="text-xs text-zinc-500">${num(k.clicks28)} clicks</div></td>
       <td class="pr-3">${sparkline(k.history)}</td>
-      <td class="whitespace-nowrap"><button class="btn" data-act="${k.pinned ? 'unpin' : 'pin'}" title="${k.pinned ? 'Unpin' : 'Pin: write about this soon'}"><span class="material-symbols-outlined text-[16px]">push_pin</span></button>
+      <td class="whitespace-nowrap">${focusControl(k)} <button class="btn" data-act="${k.pinned ? 'unpin' : 'pin'}" title="${k.pinned ? 'Unpin' : 'Pin: write about this soon'}"><span class="material-symbols-outlined text-[16px]">push_pin</span></button>
         <button class="btn" data-act="${k.rankTrack ? 'untrack' : 'track'}" title="${k.rankTrack ? 'Stop the weekly rank check' : 'Check its Google + map rank weekly'}"><span class="material-symbols-outlined text-[16px]">${k.rankTrack ? 'visibility_off' : 'visibility'}</span></button>
         <button class="btn" data-act="retire" title="Stop working on this keyword"><span class="material-symbols-outlined text-[16px]">block</span></button></td></tr>`).join('');
     const add = `<form id="kw-add" class="flex flex-wrap gap-2 mt-4"><input id="kw-new" placeholder="Add a keyword to target, e.g. snow removal transcona" class="flex-1 min-w-[220px] bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-zinc-200"/><label class="flex items-center gap-2 text-sm text-zinc-400"><input type="checkbox" id="kw-pin" checked class="rounded bg-white/5 border-white/20"/> pin it</label><button class="btn btn-go" type="submit">Add</button></form>`;
@@ -460,7 +515,7 @@
       <p class="text-xs text-zinc-400 mb-2">${c.pillarPath ? `Service page <a class="text-primary hover:underline" href="${esc(d.origin + c.pillarPath)}" target="_blank" rel="noopener">${esc(c.pillarPath)}</a>${c.pillarPosition ? ` · position ${pos(c.pillarPosition)}` : ''}` : `<span class="text-amber-300">No service page yet</span>${c.plannedPillar ? ` (planned ${esc(c.plannedPillar)})` : ''}`}</p>
       <p class="text-xs text-zinc-500">${c.posts} post${c.posts === 1 ? '' : 's'} · ${c.keywords} keyword${c.keywords === 1 ? '' : 's'} · ${num(c.impressions28)} impressions</p>
       <p class="text-xs text-zinc-500 mt-1">${Object.entries(c.counts).map(([s, n]) => `${n} ${(STATUS[s] || [s])[0].toLowerCase()}`).join(' · ') || '—'}</p></div>`).join('')}</div>`);
-    const ideas = card('Keyword ideas', d.ideas.length ? `<ul class="divide-y divide-white/5">${d.ideas.map((k) => `<li class="py-2 flex flex-wrap items-center gap-2 text-sm" data-kw="${esc(k.id)}">${badge(STATUS, k.status)}<span class="text-zinc-100">${esc(k.keyword)}</span><span class="text-xs text-zinc-500">${esc(k.kind)} · from ${esc(k.source)}</span><span class="text-xs text-zinc-400 basis-full sm:basis-auto sm:ml-2">${esc(k.why)}</span><span class="ml-auto"><button class="btn" data-act="${k.pinned ? 'unpin' : 'pin'}">${k.pinned ? 'Unpin' : 'Pin'}</button> <button class="btn" data-act="retire">Not for us</button></span></li>`).join('')}</ul>` : empty('Ideas arrive from Search Console and the weekly Serper discovery.'));
+    const ideas = card('Keyword ideas', d.ideas.length ? `<ul class="divide-y divide-white/5">${d.ideas.map((k) => `<li class="py-2 flex flex-wrap items-center gap-2 text-sm" data-kw="${esc(k.id)}">${badge(STATUS, k.status)}<span class="text-zinc-100">${esc(k.keyword)}</span><span class="text-xs text-zinc-500">${esc(k.kind)} · from ${esc(k.source)}</span><span class="text-xs text-zinc-400 basis-full sm:basis-auto sm:ml-2">${esc(k.why)}</span><span class="ml-auto">${focusControl(k)} <button class="btn" data-act="${k.pinned ? 'unpin' : 'pin'}">${k.pinned ? 'Unpin' : 'Pin'}</button> <button class="btn" data-act="retire">Not for us</button></span></li>`).join('')}</ul>` : empty('Ideas arrive from Search Console and the weekly Serper discovery.'));
     $('tab-roadmap').innerHTML = next + clusters + ideas;
   }
 
@@ -505,8 +560,24 @@
     if (f) { state.kwFilter = f.dataset.kwf; return render(); }
     const copy = e.target.closest('[data-copy]');
     if (copy) { navigator.clipboard?.writeText(copy.dataset.copy); return toast('Copied'); }
+    const fc = e.target.closest('[data-fc]');
+    if (fc) {
+      const id = fc.closest('[data-fid]').dataset.fid; const a = fc.dataset.fc;
+      if (a === 'stop' && !confirm('Stop this campaign? Open steps are cancelled; pages and posts already published stay.')) return;
+      const body = { pause: { status: 'paused' }, resume: { status: 'active' }, stop: { status: 'stopped' }, goal3: { goal: 3 }, goal10: { goal: 10 } }[a];
+      try { await api('/seo/keywords/' + id + '/focus', { method: 'PATCH', body }); toast('Saved'); load(); } catch (err) { toast(err.message); }
+      return;
+    }
     const act = e.target.closest('[data-act]');
     if (act) {
+      if (act.dataset.act === 'focus') { state.focusPick = act.closest('[data-kw]').dataset.kw; return render(); }
+      if (act.dataset.act === 'focuscancel') { state.focusPick = null; return render(); }
+      if (act.dataset.act === 'focusgo') {
+        const id = state.focusPick; state.focusPick = null;
+        act.disabled = true;
+        try { const r = await api('/seo/keywords/' + id + '/focus', { method: 'POST', body: { goal: Number(act.dataset.goal) } }); toast(r.plan.summary); await load(); switchTab('focus'); } catch (err) { toast(err.message); render(); }
+        return;
+      }
       const id = act.closest('[data-kw]').dataset.kw;
       const body = { pin: { pinned: true }, unpin: { pinned: false }, track: { rankTrack: true }, untrack: { rankTrack: false }, retire: { status: 'retired' } }[act.dataset.act];
       if (act.dataset.act === 'retire' && !confirm('Stop working on this keyword?')) return;

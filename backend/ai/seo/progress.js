@@ -12,6 +12,7 @@ const { pillarsFor } = require('./roadmap');
 const { preview, reportStatus } = require('./assign');
 const { toUrl } = require('./urls');
 const g = require('./google');
+const focusMod = require('./focus');
 
 const DAY = 86400000;
 const r1 = (v) => (v == null ? null : Math.round(v * 10) / 10);
@@ -102,7 +103,9 @@ async function buildProgress(userId, { view } = {}) {
     const since = last?.createdAt || new Date(Date.now() - 7 * DAY);
     const recent = assignments.filter((a) => a.status === 'published' && a.publishedAt > since)
       .map((a) => ({ mode: a.mode, keyword: a.keywordText, url: a.publishedPath ? toUrl(a.publishedPath, seo.origin) : null, publishedAt: a.publishedAt }));
-    return { kpis: k, tracked, coverage, movers: movers(keywords), postsSinceLastReport: recent, openIssues: tasks.map((t) => t.title).slice(0, 10),
+    const camps = (await focusMod.board(userId, { keywords, pages: pageBy, seo })).campaigns;
+    const focusReport = camps.map((c) => ({ keyword: c.keyword, status: c.status, goal: c.goal, start: c.start, position: c.position, progress: c.progress, support: c.counts.support, links: c.counts.links, social: c.counts.social }));
+    return { kpis: k, tracked, coverage, movers: movers(keywords), focus: focusReport, postsSinceLastReport: recent, openIssues: tasks.map((t) => t.title).slice(0, 10),
       nextUp: await preview(userId, { limit: 5 }), lastReport: last ? { createdAt: last.createdAt, nextFocus: last.nextFocus } : null, reportDue: report };
   }
 
@@ -118,7 +121,7 @@ async function buildProgress(userId, { view } = {}) {
       posts: pages.filter((p) => p.kind === 'blog' && p.cluster === c.id).length, impressions28: ks.reduce((s, x) => s + x.impressions28, 0) };
   });
   const focus = keywords.filter((x) => x.status !== 'retired' && x.cluster !== 'brand' && (x.pinned || x.rankTrack || x.targetPath || x.priority >= seo.cfg.planThreshold))
-    .slice(0, 60).map((x) => ({ id: x.id, keyword: x.keyword, cluster: x.cluster, kind: x.kind, intent: x.intent, status: x.status, pinned: x.pinned, rankTrack: x.rankTrack,
+    .slice(0, 60).map((x) => ({ id: x.id, keyword: x.keyword, cluster: x.cluster, kind: x.kind, intent: x.intent, status: x.status, pinned: x.pinned, rankTrack: x.rankTrack, focus: x.focus, focusStatus: x.focusStatus, supportsId: x.supportsId,
       priority: x.priority, why: x.scoreParts?.why || '', targetPath: x.targetPath, baseline: r1(x.baselinePosition), position: r1(x.position28), best: r1(x.bestPosition),
       current: r1((x.impressions28 >= 10 && x.position28) || x.serpPosition || x.position28), currentFrom: x.impressions28 >= 10 && x.position28 ? 'search console' : x.serpPosition ? 'serper' : null,
       impressions28: x.impressions28, clicks28: x.clicks28, serp: x.serpPosition, map: x.mapPackPosition, serpCheckedAt: x.serpCheckedAt,
@@ -132,13 +135,13 @@ async function buildProgress(userId, { view } = {}) {
   });
   const reserved = assignments.find((a) => a.status === 'reserved' && a.expiresAt > new Date());
   const ideas = keywords.filter((x) => ['idea', 'planned'].includes(x.status) && x.cluster !== 'brand').slice(0, 40)
-    .map((x) => ({ id: x.id, keyword: x.keyword, cluster: x.cluster, kind: x.kind, status: x.status, source: x.source, priority: x.priority, why: x.scoreParts?.why || '', pinned: x.pinned }));
+    .map((x) => ({ id: x.id, keyword: x.keyword, cluster: x.cluster, kind: x.kind, status: x.status, source: x.source, priority: x.priority, why: x.scoreParts?.why || '', pinned: x.pinned, focus: x.focus, focusStatus: x.focusStatus, supportsId: x.supportsId }));
   return {
     origin: seo.origin, property: seo.property, gsc: seo.state.gsc || null, submit: { allowed: g.submitAllowed(), dryRun: process.env.DRY_RUN === 'true', override: process.env.SEO_SUBMIT || null },
     serper: { enabled: !!process.env.SERPER_API_KEY, week: seo.state.serper || null, budget: seo.cfg.serperWeeklyBudget },
     sync: { lastSyncAt: seo.state.lastSyncAt || null, lastIndexWatchAt: seo.state.lastIndexWatchAt || null, lastRoadmapAt: seo.state.lastRoadmapAt || null, dataThrough: seo.state.dataThrough || null },
     kpis: k, weekly: await weekly(userId), tracked, coverage, statusCounts, keywordsTotal: keywords.length,
-    focus, ideas, roadmap: await preview(userId, { limit: 10 }), reserved: reserved ? { keyword: reserved.keywordText, mode: reserved.mode, expiresAt: reserved.expiresAt } : null,
+    focus, focusBoard: await focusMod.board(userId, { keywords, pages: pageBy, seo }), ideas, roadmap: await preview(userId, { limit: 10 }), reserved: reserved ? { keyword: reserved.keywordText, mode: reserved.mode, expiresAt: reserved.expiresAt } : null,
     clusters, content, movers: movers(keywords),
     sitemaps: sitemaps.map((s) => ({ url: s.url, isIndex: s.isIndex, urlCount: s.urlCount, httpStatus: s.httpStatus, hashChangedAt: s.hashChangedAt, lastSubmittedAt: s.lastSubmittedAt,
       gscLastDownloaded: s.gscLastDownloaded, gscIsPending: s.gscIsPending, gscErrors: s.gscErrors, gscWarnings: s.gscWarnings, gscSubmittedUrls: s.gscSubmittedUrls, lastError: s.lastError })),

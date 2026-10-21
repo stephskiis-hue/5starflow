@@ -163,7 +163,7 @@ async function applyCrawl(userId, origin, crawl, now) {
     const kind = prev?.source === 'published' || prev?.source === 'owner' ? prev.kind : kindFor(p.path);
     const data = {
       kind, title: p.title || prev?.title || null, h1: p.h1 || null, wordCount: p.wordCount ?? null, httpStatus: p.status, redirectTo: p.redirectTo,
-      canonical: p.canonical || null, canonicalOk, noindex: !!p.noindex, inSitemap: p.inSitemap, sitemapUrl: p.sitemapUrl, inlinks: p.inlinks,
+      canonical: p.canonical || null, canonicalOk, noindex: !!p.noindex, inSitemap: p.inSitemap, sitemapUrl: p.sitemapUrl, inlinks: p.inlinks, linkedFrom: p.linkedFrom || [],
       inPostsJson: kind === 'blog' && crawl.posts ? postPaths.has(p.path) : null, lastCheckedAt: now,
       ...(p.contentHash && prev?.contentHash !== p.contentHash ? { contentHash: p.contentHash, contentChangedAt: now } : {}),
       ...(!prev?.publishedAt && postDates.has(p.path) ? { publishedAt: new Date(`${postDates.get(p.path)}T12:00:00Z`) } : {}),
@@ -194,7 +194,7 @@ function findIssues(origin, crawl) {
   for (const p of live) if (p.title) byTitle.set(p.title, [...(byTitle.get(p.title) || []), p.path]);
   issues.duplicates = [...[...byKey.values()].filter((v) => v.length > 1).map((v) => `same page, different case: ${v.join(' and ')}`),
     ...[...byTitle.entries()].filter(([, v]) => v.length > 1 && new Set(v.map(dupKey)).size > 1).map(([t, v]) => `same title "${t}": ${v.join(', ')}`)];
-  issues.broken = pages.filter((p) => (p.status >= 400 || p.status === 0) && p.inlinks > 0).map((p) => `${p.path} (${p.status || p.error}) linked from ${p.linkedFrom.join(', ')}`);
+  issues.broken = pages.filter((p) => (p.status >= 400 || p.status === 0) && p.inlinks > 0).map((p) => `${p.path} (${p.status || p.error}) linked from ${p.linkedFrom.slice(0, 5).join(', ')}`);
   const hc = crawl.hostChecks;
   issues.www = [];
   if (hc.nonWww.status === 200) issues.www.push(`${origin.replace('://www.', '://')}/ answers 200 instead of a 301 to ${origin}/`);
@@ -284,6 +284,7 @@ async function indexWatchTick(ctx, { light = false } = {}) {
   const limit = light ? 10 : (process.env.DRY_RUN === 'true' && process.env.SEO_SUBMIT !== 'on' ? Math.min(10, seo.cfg.inspectPerRun) : seo.cfg.inspectPerRun);
   const insp = await inspectPages(userId, { auth, property: seo.property, origin: seo.origin, seo, now, limit, actions });
 
+  if (crawl) await require('./focus').advanceFocus(userId, { now }).catch((e) => console.warn('[seo] focus advance failed:', e.message));
   let closed = 0;
   if (crawl) closed = await closeResolved(userId, raised, ['seo:sitemap-', 'seo:missing-', 'seo:canonical', 'seo:duplicates', 'seo:broken-', 'seo:www-', 'seo:orphan-', 'seo:no-inlinks', 'seo:not-indexed']);
   if (!light) await g.saveState(seo.row.id, { lastIndexWatchAt: now.toISOString(), crawl: crawl ? { fetched: crawl.fetched, capped: crawl.capped, at: now.toISOString() } : undefined });

@@ -303,3 +303,108 @@ test('site access: the live check passes the right answers and reverts on 5xx, l
   assert.ok(!notYet.ok && !notYet.fatal);
   assert.ok(!sa.judge(home, [hop(home.url, 301, `${ORIGIN}/x`), hop(`${ORIGIN}/x`, 200)]).ok);
 });
+
+// ------------------------------------------------------------------------------------------ focus campaigns
+const FR = require('../ai/seo/focusRules');
+const FOCUS = (o = {}) => K({ keyword: 'when to aerate winnipeg', status: 'published', focus: true, focusStatus: 'active', focusGoal: 3, pinned: true, targetPath: '/blog-when-to-aerate', ...o });
+const livePage = (o = {}) => ({ kind: 'blog', httpStatus: 200, publishedAt: daysAgo(10), ...o });
+
+test('focus: the focus keyword and its supporting posts outrank everything else while the week has room', () => {
+  const f = FOCUS({ status: 'planned', targetPath: null, priority: 2 });
+  const sup = K({ keyword: 'aeration cost winnipeg', supportsId: f.id, priority: 2 });
+  const rival = K({ keyword: 'fence care tips winnipeg', cluster: 'fencing', priority: 30 });
+  const first = pickAssignment({ keywords: [rival, f, sup], cfg, modes: ['new'], now: NOW });
+  assert.equal(first[0].keyword.keyword, 'when to aerate winnipeg');
+  assert.equal(first[0].tier, 1);
+  assert.match(first[0].why, /focus keyword/);
+  assert.equal(first.find((o) => o.keyword.keyword === 'aeration cost winnipeg'), undefined, 'a supporting post waits for the focus page');
+  const pages = { '/blog-when-to-aerate': livePage() };
+  const live = pickAssignment({ keywords: [rival, FOCUS(), sup], pages, cfg, modes: ['new'], now: NOW });
+  assert.deepEqual(live.map((o) => o.keyword.keyword), ['aeration cost winnipeg', 'fence care tips winnipeg']);
+  assert.match(live[0].why, /supports your focus keyword/);
+  const spent = [1, 2, 3].map((i) => ({ keywordId: sup.id, mode: 'new', status: 'published', createdAt: daysAgo(i), cluster: 'aeration' }));
+  const capped = pickAssignment({ keywords: [rival, FOCUS(), sup], pages, history: spent, cfg, modes: ['new'], now: NOW });
+  assert.equal(capped[0].keyword.keyword, 'fence care tips winnipeg', 'weekly focus quota used up: no more boost');
+});
+
+test('focus: a paused or stopped campaign is just a pinned keyword again', () => {
+  const sup = K({ keyword: 'aeration cost winnipeg', supportsId: 'when to aerate winnipeg', priority: 0 });
+  const paused = FOCUS({ focusStatus: 'paused' });
+  assert.equal(pickAssignment({ keywords: [paused, sup], pages: { '/blog-when-to-aerate': livePage() }, cfg, modes: ['new'], now: NOW }).length, 0);
+});
+
+test('focus: a focus page is refreshed after 21 days while short of the goal, not after it is won', () => {
+  const pages = { '/blog-when-to-aerate': livePage({ publishedAt: daysAgo(25) }) };
+  const behind = FOCUS({ position28: 14, impressions28: 40, clicks28: 4, lastAssignedAt: daysAgo(25) });
+  const out = pickAssignment({ keywords: [behind], pages, cfg, modes: ['new', 'refresh'], now: NOW });
+  assert.equal(out[0].mode, 'refresh');
+  assert.match(out[0].why, /goal top 3/);
+  assert.equal(pickAssignment({ keywords: [{ ...behind, position28: 2, clicks28: 20 }], pages, cfg, modes: ['new', 'refresh'], now: NOW }).length, 0, 'already at the goal');
+  assert.equal(pickAssignment({ keywords: [behind], pages: { '/blog-when-to-aerate': livePage({ publishedAt: daysAgo(10) }) }, cfg, modes: ['refresh'], now: NOW }).length, 0, 'too soon');
+  const after = { '/blog-when-to-aerate': livePage({ publishedAt: daysAgo(80), refreshedAt: daysAgo(25) }) };
+  assert.equal(pickAssignment({ keywords: [behind], pages: after, cfg, modes: ['refresh'], now: NOW }).length, 0, 'a second refresh waits 45 days');
+});
+
+test('focus: links mode needs the flag and an open links step, and asks for one edit per source post', () => {
+  const step = { id: 's1', keywordId: 'when to aerate winnipeg', status: 'planned', title: 'Link from /blog-a', detail: { from: '/blog-a', to: '/blog-when-to-aerate', anchor: 'aeration in Winnipeg' } };
+  const pages = { '/blog-when-to-aerate': livePage() };
+  const args = { keywords: [FOCUS()], pages, modes: ['links'], now: NOW, linkSteps: [step] };
+  assert.equal(pickAssignment({ ...args, cfg }).length, 0, 'off by default');
+  const on = pickAssignment({ ...args, cfg: { ...cfg, focusLinks: true } });
+  assert.equal(on[0].mode, 'links');
+  assert.equal(on[0].step.detail.from, '/blog-a');
+});
+
+test('focus rules: supporting keywords stay on topic and never take over a page', () => {
+  const f = { id: 'f', keyword: 'lawn aeration winnipeg', matchKey: kw.matchKey('lawn aeration winnipeg'), cluster: 'aeration' };
+  const idea = { id: 'i1', keyword: 'when to aerate lawn winnipeg', matchKey: kw.matchKey('when to aerate lawn winnipeg'), kind: 'blog', status: 'idea' };
+  const owned = { id: 'o1', keyword: 'aeration cost winnipeg', matchKey: kw.matchKey('aeration cost winnipeg'), kind: 'blog', status: 'published', targetPath: '/blog-aeration-cost' };
+  const index = [{ ...f, kind: 'service', status: 'planned' }, idea, owned];
+  const out = FR.pickSupportKeywords({ focus: f, index, max: 5, phrases: [
+    'when to aerate lawn winnipeg', 'aeration cost winnipeg', 'How long after aerating can I mow?', 'lawn aeration winnipeg', 'aeration winnipeg',
+    'lawn aeration jobs winnipeg', 'snow removal cost winnipeg', 'best aeration company winnipeg', 'aeration machine rental' ] });
+  assert.deepEqual(out.adopt.map((a) => a.id), ['i1'], 'an existing idea is adopted, not duplicated');
+  assert.deepEqual(out.create.map((c) => c.keyword), ['how long after aerating can i mow']);
+  assert.equal(FR.pickSupportKeywords({ focus: f, index, max: 1, phrases: ['how long after aerating can i mow', 'is aerating worth it'] }).create.length, 1, 'respects the cap');
+});
+
+test('focus rules: anchors rotate deterministically', () => {
+  const f = { keyword: 'lawn aeration winnipeg', cluster: 'aeration' };
+  const seq = [0, 1, 2, 3, 4, 5].map((n) => FR.anchorFor(f, n));
+  assert.equal(seq[0], seq[4]);
+  assert.equal(new Set(seq.slice(0, 4)).size, 4);
+  assert.deepEqual(seq, [0, 1, 2, 3, 4, 5].map((n) => FR.anchorFor(f, n)));
+});
+
+test('focus rules: progress, momentum and winning', () => {
+  assert.equal(FR.progressToGoal(25, 3, 3), 100);
+  assert.equal(FR.progressToGoal(25, 14, 3), 50);
+  assert.equal(FR.progressToGoal(null, null, 3), 0);
+  assert.equal(FR.progressToGoal(25, 30, 3), 0, 'moving backwards is not progress');
+  const h = (...pos) => pos.map((p, i) => ({ w: `w${i}`, pos: p, imp: 50, serp: null }));
+  assert.equal(FR.positionGain(h(20, 18, 15, 12, 9), 4), 11);
+  assert.equal(FR.positionGain(h(9), 4), null);
+  assert.equal(FR.hasReachedGoal(h(8, 2.5, 2), 3), true);
+  assert.equal(FR.hasReachedGoal(h(8, 5, 2), 3), false, 'one good week is not a win');
+  assert.equal(FR.hasReachedGoal(h(2), 3), false);
+  assert.equal(FR.currentPosition({ impressions28: 4, position28: 3, serpPosition: 12 }), 12, 'too few impressions: use the Serper check');
+});
+
+test('focus rules: steps are judged from what is really on the site', () => {
+  const focus = FOCUS({ targetPath: '/blog-focus' });
+  const pages = { '/blog-focus': livePage({ linkedFrom: ['/blog-a'], refreshedAt: daysAgo(1) }), '/blog-a': livePage(), '/blog-sup': livePage() };
+  const sup = K({ id: 'sup', keyword: 'aeration cost winnipeg', supportsId: focus.id, status: 'published', targetPath: '/blog-sup' });
+  const ctx = { focus, pages, byId: { sup, [focus.id]: focus }, content: [{ status: 'queued', grounding: 'Source: https://www.no-bs-yardwork.com/blog-sup' }] };
+  const st = (kind, o = {}) => ({ kind, status: 'planned', createdAt: daysAgo(5), detail: {}, ...o });
+  assert.equal(FR.reconcileStep(st('page'), ctx).status, 'done');
+  assert.equal(FR.reconcileStep(st('page'), { ...ctx, focus: { ...focus, targetPath: null, status: 'assigned' } }).status, 'in_progress');
+  assert.equal(FR.reconcileStep(st('refresh'), ctx).status, 'done');
+  assert.equal(FR.reconcileStep(st('support', { refId: 'sup' }), ctx).status, 'done');
+  assert.equal(FR.reconcileStep(st('support', { refId: 'gone' }), ctx).status, 'skipped');
+  assert.equal(FR.reconcileStep(st('links', { detail: { from: '/blog-a' } }), ctx).status, 'done', 'the crawl sees the link');
+  assert.equal(FR.reconcileStep(st('links', { detail: { from: '/blog-b' } }), ctx).status, 'skipped', 'the source page is gone');
+  const notYet = { ...ctx, pages: { ...pages, '/blog-focus': livePage({ linkedFrom: [] }) } };
+  assert.equal(FR.reconcileStep(st('links', { detail: { from: '/blog-a', reportedAt: '2026-10-01' } }), notYet).status, 'in_progress', 'reported but not seen yet');
+  assert.equal(FR.reconcileStep(st('social', { refId: '/blog-sup' }), ctx).status, 'done');
+  assert.equal(FR.reconcileStep(st('social', { refId: '/blog-su' }), ctx).status, 'planned', 'a longer slug is a different page');
+});

@@ -11,6 +11,7 @@ All API calls go through the helper so the token never appears in your output:
 ```
 python "%FSF_REPO%\backend\ai\prompts\msi\seo_site.py" assignment            # today's brief as JSON
 python "%FSF_REPO%\backend\ai\prompts\msi\seo_site.py" published <json-file> # report what went live
+python "%FSF_REPO%\backend\ai\prompts\msi\seo_site.py" idea <focusKeywordId> "<search>" ...  # suggest supporting searches (section 1b)
 python "%FSF_REPO%\backend\ai\prompts\msi\seo_site.py" progress              # numbers for the weekly recap
 python "%FSF_REPO%\backend\ai\prompts\msi\seo_site.py" report <json-file>    # post the weekly recap
 python "%FSF_REPO%\backend\ai\prompts\msi\seo_site.py" run completed "<summary>" [--result result.json]   # end of run
@@ -25,6 +26,7 @@ python "%FSF_REPO%\backend\ai\prompts\msi\seo_site.py" run completed "<summary>"
 | `new` | a new 700 to 950 word post for `keyword` | `suggestedUrl` (keep the `blog-...-winnipeg` slug) |
 | `refresh` | rewrite and improve the existing post at `targetUrl` | same URL, never a new one |
 | `page` | a service or neighbourhood landing page (800 to 1300 words) | `suggestedUrl` (top level, no `blog-`) |
+| `links` | no new page: add one link to the focus page inside an existing post (section 1b) | `targetUrl`, same URL |
 
 If `assignment` is `null` (nothing worth writing), fall back to the old rotation in `_blog-state.json`, pick a topic that is NOT in the avoid list of the last brief, and still report it with `published` (the engine learns it). If the API is down, run the old flow and the helper queues the report for the next run.
 
@@ -34,6 +36,14 @@ Read the whole brief before writing:
 - `avoid` lists searches another page already owns. Do not target them, do not repeat those pages. Link to them instead where it helps the reader.
 - `internalLinks`: every `required: true` link must appear in the body with natural anchor text (the pillar service page). Add the related posts where they fit.
 - `seasonal` + `.claude/skills/nobs-content/seasonal-calendar.md`: dates and facts for this month in Winnipeg.
+
+## 1b. Focus campaigns
+The owner can put up to 3 keywords **in focus**. When the brief has a `focus` block, this piece is part of that campaign: `focus.role` says whether you are writing the focus keyword's own page or a supporting post, and `focus.goal` is the Google position being chased.
+- Always include the focus link the brief lists in `internalLinks` (`required: true`) with exactly the given anchor text. The anchors rotate on purpose, so do not reword them or link twice.
+- A supporting post answers a narrower question than the focus page and sends the reader up to it. It must not compete: never target the focus keyword itself.
+- `ideasWanted` above 0: after publishing, suggest up to 3 more searches this campaign should cover, only ones you researched this run (People Also Ask, autocomplete, what the competitors answer). `seo_site.py idea <focus.id> "<search>" ...`. 5StarFlow filters and scores them, so a rejected idea is not an error.
+- `links` mode: the brief names one existing post (`targetUrl`) and the link to add (`linkTo.url` and `linkTo.anchor`). Open that post's file, add one natural sentence where the topic already comes up (not a footer list), keep everything else byte for byte, bump `dateModified`, upload it, then report with `"mode": "links"` and the post's `url`. The step counts as done only after the next crawl sees the link. If there is no honest place for the link, `skip` the assignment with the reason.
+- Never promise or print rankings in the post. Rank movement is measured by the server.
 
 ## 2. Research (every time)
 Follow `nobs-research`: at least two sources, one primary (City of Winnipeg, Province of Manitoba, Trees Winnipeg, University of Minnesota or NDSU Extension, Environment Canada), pages actually opened, dates and numbers checked. Use web search for the current state of the topic, then our own experience (real jobs, the vault, the owner's notes in memory). Never invent a statistic, a study or a customer story.

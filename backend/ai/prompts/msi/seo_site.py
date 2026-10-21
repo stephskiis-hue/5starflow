@@ -12,7 +12,8 @@ Site files (local public_html, uploaded by _deploy.py):
 
 5StarFlow API (FIVESTARFLOW_URL / FIVESTARFLOW_TOKEN from ~/.5starflow/env or the environment):
   check                          is the API reachable and is Search Console connected?
-  assignment [--modes new,refresh,page] [--fresh]   today's SEO brief (JSON)
+  assignment [--modes new,refresh,page,links] [--fresh]   today's SEO brief (JSON)
+  idea <focusKeywordId> "<search>" ["<search>" ...]   suggest researched supporting searches for a focus campaign
   skip <assignmentId> <reason>   give the assignment back (e.g. not enough local detail)
   published <report.json>        report what went live (queued in ~/.5starflow/seo-pending.jsonl if the API is down)
   progress                       numbers for the weekly recap
@@ -120,7 +121,7 @@ def cmd_check(_args):
 
 
 def cmd_assignment(args):
-    modes = 'new,refresh,page'
+    modes = 'new,refresh,page,links'
     if '--modes' in args:
         modes = args[args.index('--modes') + 1]
     q = f'?modes={modes}' + ('&fresh=1' if '--fresh' in args else '')
@@ -134,6 +135,13 @@ def cmd_assignment(args):
         (FSF_DIR / 'seo-assignment.json').write_text(json.dumps(body['assignment'], indent=2), encoding='utf-8')
     log(f'assignment {(body.get("assignment") or {}).get("mode")} {(body.get("assignment") or {}).get("keyword")}')
     out({'ok': True, 'flushedReports': flushed, **body})
+
+
+def cmd_idea(args):
+    if len(args) < 2:
+        out({'ok': False, 'error': 'usage: idea <focusKeywordId> "<search>" ["<search>" ...]'}, 2)
+    status, body = api('POST', '/keywords', {'supportsId': args[0], 'keywords': [{'keyword': k, 'notes': 'suggested by the writer'} for k in args[1:6]]})
+    out({'ok': status in (200, 201), 'status': status, **body}, 0 if status in (200, 201) else 1)
 
 
 def cmd_skip(args):
@@ -684,7 +692,7 @@ def cmd_run(args):
 
 
 COMMANDS = {
-    'check': cmd_check, 'assignment': cmd_assignment, 'skip': cmd_skip, 'published': cmd_published, 'progress': cmd_progress,
+    'check': cmd_check, 'assignment': cmd_assignment, 'idea': cmd_idea, 'skip': cmd_skip, 'published': cmd_published, 'progress': cmd_progress,
     'report': cmd_report, 'sitemaps-check': cmd_sitemaps_check, 'run': cmd_run, 'build-sitemaps': cmd_build_sitemaps, 'blog-index': cmd_blog_index,
     'nightly': cmd_nightly, 'fix-pages': cmd_fix_pages, 'sync-live': cmd_sync_live,
 }

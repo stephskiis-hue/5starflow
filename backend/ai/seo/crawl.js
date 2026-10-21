@@ -112,7 +112,7 @@ async function crawlSite(origin, { maxUrls = 300 } = {}) {
         if (!lp || isAsset(lp) || lp === path) continue;
         const target = ensure(lp);
         target.inlinks += 1;
-        if (target.linkedFrom.length < 5 && !target.linkedFrom.includes(path)) target.linkedFrom.push(path);
+        if (target.linkedFrom.length < 60 && !target.linkedFrom.includes(path)) target.linkedFrom.push(path);
         if (!fetched.has(lp) && !queue.includes(lp)) queue.push(lp);
       }
     });

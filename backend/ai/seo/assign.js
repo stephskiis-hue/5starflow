@@ -11,6 +11,8 @@ const { canonicalPath, toUrl, kindForPath } = require('./urls');
 const { pickAssignment } = require('./assignPick');
 const { pillarsFor } = require('./roadmap');
 const g = require('./google');
+const focus = require('./focus');
+const R = require('./focusRules');
 
 const DAY = 86400000;
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -28,14 +30,17 @@ async function releaseStale(userId, now = new Date()) {
 
 async function context(userId, now) {
   const seo = await g.loadSeo(userId);
-  const [keywords, pageRows, historyRows] = await Promise.all([
+  const [keywords, pageRows, historyRows, linkSteps, doneCounts] = await Promise.all([
     prisma.seoKeyword.findMany({ where: { userId } }),
     prisma.seoPage.findMany({ where: { userId } }),
     prisma.seoAssignment.findMany({ where: { userId, createdAt: { gte: new Date(now - 30 * DAY) } }, orderBy: { createdAt: 'desc' } }),
+    prisma.seoFocusStep.findMany({ where: { userId, kind: 'links', status: 'planned' } }),
+    prisma.seoFocusStep.groupBy({ by: ['keywordId'], where: { userId, kind: { in: ['support', 'links'] }, status: 'done' }, _count: { _all: true } }),
   ]);
   const pages = Object.fromEntries(pageRows.map((p) => [p.path, p]));
   const history = historyRows.map((h) => ({ ...h, kind: h.brief?.kind }));
-  return { seo, keywords, pages, history, pillars: pillarsFor(seo.state, pages), calib: seo.state.calib || 1 };
+  const focusDone = Object.fromEntries(doneCounts.map((c) => [c.keywordId, c._count._all]));
+  return { seo, keywords, pages, history, pillars: pillarsFor(seo.state, pages), calib: seo.state.calib || 1, linkSteps, focusDone };
 }
 
 /** Is the weekly recap due? Every cfg.reportEveryDays days, once at least one post went out since the last one. */
@@ -58,12 +63,32 @@ async function buildBrief(userId, c, pick, now) {
   const cluster = clusterById(k.cluster);
   const origin = seo.origin;
   const live = (p) => pages[p] && (pages[p].httpStatus || 200) === 200 && !pages[p].redirectTo;
+  const fk = pick.focusId ? keywords.find((o) => o.id === pick.focusId) : null;
+  const focusBlock = fk ? { id: fk.id, keyword: fk.keyword, role: fk.id === k.id ? 'focus keyword' : 'supporting post', goal: fk.focusGoal,
+    position: R.r1(R.currentPosition(fk)), url: fk.targetPath && live(fk.targetPath) ? toUrl(fk.targetPath, origin) : null } : null;
+  if (pick.mode === 'links') {
+    const st = pick.step.detail || {};
+    const report = await reportStatus(userId, seo.cfg);
+    return { mode: 'links', kind: 'blog', keyword: k.keyword, cluster: k.cluster, clusterLabel: cluster?.label || k.cluster, contentType: pick.contentType, contentTypeReason: pick.contentTypeReason,
+      targetUrl: toUrl(st.from, origin), linkTo: { url: toUrl(st.to, origin), anchor: st.anchor, why: `supports the focus keyword "${k.keyword}"` },
+      evidence: { score: pick.score, why: pick.why }, focus: focusBlock, internalLinks: [], avoid: [], reportDue: report.due, postsSinceReport: report.postsSince };
+  }
   const pillarPath = pillars[k.cluster] || null;
   const siblings = keywords.filter((o) => o.id !== k.id && o.cluster === k.cluster && o.targetPath && live(o.targetPath) && pages[o.targetPath].kind === 'blog' && o.targetPath !== k.targetPath)
     .sort((a, b) => (b.impressions28 - a.impressions28) || (new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0)));
   const internalLinks = [];
   if (pillarPath && live(pillarPath) && pillarPath !== k.targetPath) internalLinks.push({ url: toUrl(pillarPath, origin), anchor: `${(cluster?.head || k.cluster)} in Winnipeg`, required: true, why: 'the service page this cluster supports' });
   for (const s of siblings.slice(0, 3)) internalLinks.push({ url: toUrl(s.targetPath, origin), anchor: s.keyword.replace(/\s+winnipeg$/, ''), required: false, why: 'related post' });
+  // other work in a focused cluster links to the live focus page too, with a rotating anchor
+  const linkTargets = fk && fk.id !== k.id ? [fk] : keywords.filter((o) => o.focus && o.focusStatus === 'active' && o.id !== k.id && o.cluster === k.cluster).slice(0, 1);
+  for (const o of linkTargets) {
+    if (!o.targetPath || !live(o.targetPath) || o.targetPath === k.targetPath) continue;
+    const url = toUrl(o.targetPath, origin);
+    const anchor = R.anchorFor(o, c.focusDone?.[o.id] || 0);
+    const same = internalLinks.find((l) => l.url === url);
+    if (same) Object.assign(same, { anchor, required: true, why: `the focus page for "${o.keyword}"` });
+    else internalLinks.unshift({ url, anchor, required: true, why: `the focus page for "${o.keyword}"` });
+  }
   const avoidAll = [
     ...keywords.filter((o) => o.id !== k.id && o.cluster === k.cluster && o.targetPath && PUBLISHED.includes(o.status)).slice(0, 12)
       .map((o) => ({ keyword: o.keyword, url: toUrl(o.targetPath, origin), reason: 'another page already owns this search' })),
@@ -92,6 +117,7 @@ async function buildBrief(userId, c, pick, now) {
     onPage: { primaryIn: ['title', 'h1', 'first 100 words', 'meta description', pick.mode === 'refresh' ? 'keep the URL' : 'slug'], wordCount: pick.mode === 'page' ? [800, 1300] : [700, 950] },
     refresh: target ? { currentTitle: targetPage?.title || null, wordCount: targetPage?.wordCount || null, indexVerdict: targetPage?.indexVerdict || null, coverageState: targetPage?.coverageState || null,
       lowCtr: /few clicks/.test(pick.why), publishedAt: targetPage?.publishedAt || k.publishedAt } : null,
+    focus: focusBlock, ideasWanted: focusBlock ? 3 : 0,
     reportDue: report.due, postsSinceReport: report.postsSince,
   };
 }
@@ -104,18 +130,19 @@ async function reserve(userId, { modes = ['new'], agent = 'content', fresh = fal
     if (open) return { assignment: open, reused: true };
   }
   const c = await context(userId, now);
-  const picks = pickAssignment({ keywords: c.keywords, pages: c.pages, history: c.history, cfg: c.seo.cfg, modes, now, calib: c.calib, pillars: c.pillars });
+  const picks = pickAssignment({ keywords: c.keywords, pages: c.pages, history: c.history, cfg: c.seo.cfg, modes, now, calib: c.calib, pillars: c.pillars, linkSteps: c.linkSteps });
   const until = new Date(now.getTime() + c.seo.cfg.assignmentHours * 3600e3);
   for (const pick of picks.slice(0, 5)) {
     const won = await prisma.seoKeyword.updateMany({
       where: { id: pick.keyword.id, OR: [{ lockedUntil: null }, { lockedUntil: { lt: now } }] },
-      data: { lockedUntil: until, lockedBy: String(agent).slice(0, 80), lastAssignedAt: now, status: 'assigned', statusChangedAt: now },
+      data: pick.mode === 'links' ? { lockedUntil: until, lockedBy: String(agent).slice(0, 80) }
+        : { lockedUntil: until, lockedBy: String(agent).slice(0, 80), lastAssignedAt: now, status: 'assigned', statusChangedAt: now },
     });
     if (!won.count) continue;
     const brief = await buildBrief(userId, c, pick, now);
     const assignment = await prisma.seoAssignment.create({ data: {
       userId, keywordId: pick.keyword.id, keywordText: pick.keyword.keyword, cluster: pick.keyword.cluster, mode: pick.mode, contentType: pick.contentType,
-      brief, targetPath: pick.mode === 'new' ? null : pick.keyword.targetPath, reservedBy: String(agent).slice(0, 80), expiresAt: until,
+      brief, targetPath: pick.mode === 'new' ? null : pick.mode === 'links' ? pick.step.detail.from : pick.keyword.targetPath, reservedBy: String(agent).slice(0, 80), expiresAt: until,
     } });
     await prisma.seoAssignment.update({ where: { id: assignment.id }, data: { brief: { ...brief, assignmentId: assignment.id, expiresAt: until.toISOString() } } });
     return { assignment: await prisma.seoAssignment.findUnique({ where: { id: assignment.id } }), reused: false };
@@ -141,6 +168,7 @@ async function markPublished(userId, b, { agent = 'content', now = new Date() } 
   const path = canonicalPath(b.url, seo.origin);
   if (!path) { const e = new Error(`url must be on ${seo.origin}`); e.status = 400; throw e; }
   const assignment = b.assignmentId ? await prisma.seoAssignment.findFirst({ where: { id: String(b.assignmentId), userId } }) : null;
+  if ((b.mode || assignment?.mode) === 'links') return markLinked(userId, b, assignment, path, { agent, now, seo });
   const mode = ['new', 'refresh', 'page'].includes(b.mode) ? b.mode : assignment?.mode || 'new';
   const primary = String(b.primaryKeyword || assignment?.keywordText || '').slice(0, 120);
   if (!primary) { const e = new Error('primaryKeyword is required'); e.status = 400; throw e; }
@@ -192,15 +220,33 @@ async function markPublished(userId, b, { agent = 'content', now = new Date() } 
   if (mode === 'page') {
     await require('../../lib/notify').notify(userId, { category: 'seo', title: `${verb} published: ${pageData.title || path}`, body: `Targets "${d.keyword}". See SEO Growth > Content log.`, link: '/seo-growth.html#content', routineSlug: 'ext-blog-autopilot' }).catch(() => {});
   }
+  await focus.advanceFocus(userId, { now }).catch((e) => console.warn('[seo] focus advance failed:', e.message));
   const report = await reportStatus(userId, seo.cfg);
   return { page, keyword, mode, reportDue: report.due, postsSinceReport: report.postsSince };
 }
 
+/** The writer added the focus-page link to an existing post. The step only counts as done once the crawl sees the link. */
+async function markLinked(userId, b, assignment, path, { agent, now, seo }) {
+  const page = await prisma.seoPage.findUnique({ where: { userId_path: { userId, path } } });
+  if (page) await prisma.seoPage.update({ where: { id: page.id }, data: { contentChangedAt: now } });
+  let keyword = null;
+  if (assignment) {
+    keyword = await prisma.seoKeyword.findUnique({ where: { id: assignment.keywordId } });
+    if (assignment.status !== 'published') await prisma.seoAssignment.update({ where: { id: assignment.id }, data: { status: 'published', publishedAt: now, publishedPath: path } });
+    if (keyword) await prisma.seoKeyword.update({ where: { id: keyword.id }, data: { lockedUntil: null, lockedBy: null } });
+  }
+  await focus.noteLinked(userId, path);
+  await recordActivity(userId, { agent, routineSlug: 'ext-blog-autopilot', action: `Added a link to the focus page: ${page?.title || path}`, summary: `${toUrl(path, seo.origin)} now links to "${keyword?.keyword || b.primaryKeyword || ''}"`, result: 'ok', source: 'claude' });
+  const report = await reportStatus(userId, seo.cfg);
+  return { page: page || { path }, keyword: keyword || { keyword: b.primaryKeyword || '' }, mode: 'links', reportDue: report.due, postsSinceReport: report.postsSince };
+}
+
 /** Dry run of the picker for the dashboard: what the next runs would get, without locking anything. */
-async function preview(userId, { modes = ['new', 'refresh', 'page'], limit = 10, now = new Date() } = {}) {
+async function preview(userId, { modes = ['new', 'refresh', 'page', 'links'], limit = 10, now = new Date() } = {}) {
   const c = await context(userId, now);
-  return pickAssignment({ keywords: c.keywords, pages: c.pages, history: c.history, cfg: c.seo.cfg, modes, now, calib: c.calib, pillars: c.pillars })
-    .slice(0, limit).map((p) => ({ id: p.keyword.id, keyword: p.keyword.keyword, cluster: p.keyword.cluster, kind: p.keyword.kind, mode: p.mode, contentType: p.contentType, score: p.score, why: p.why, targetPath: p.mode === 'new' ? null : p.keyword.targetPath }));
+  return pickAssignment({ keywords: c.keywords, pages: c.pages, history: c.history, cfg: c.seo.cfg, modes, now, calib: c.calib, pillars: c.pillars, linkSteps: c.linkSteps })
+    .slice(0, limit).map((p) => ({ id: p.keyword.id, keyword: p.keyword.keyword, cluster: p.keyword.cluster, kind: p.keyword.kind, mode: p.mode, contentType: p.contentType, score: p.score, why: p.why, focus: !!p.focusId,
+      targetPath: p.mode === 'new' ? null : p.mode === 'links' ? p.step.detail.from : p.keyword.targetPath }));
 }
 
 module.exports = { reserve, skip, markPublished, releaseStale, reportStatus, preview, buildBrief, slugify };

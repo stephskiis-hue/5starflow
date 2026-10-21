@@ -23,7 +23,7 @@ async function buildDigest(userId) {
   return { moneyHolds, waiting, failing, feed };
 }
 
-function compose({ moneyHolds, waiting, failing, feed }) {
+function compose({ moneyHolds, waiting, failing, feed = [] }) {
   const parts = [];
   if (moneyHolds.length) parts.push(`${moneyHolds.length} money question${moneyHolds.length > 1 ? 's' : ''} (${moneyHolds.slice(0, 3).map((t) => (t.customerName || 'customer').split(' ')[0]).join(', ')}${moneyHolds.length > 3 ? '…' : ''})`);
   if (waiting.length) parts.push(`${waiting.length} customer${waiting.length > 1 ? 's' : ''} waiting 4h+`);

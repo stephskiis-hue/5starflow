@@ -24,7 +24,7 @@ function localNow() {
 const MEMORY_SCOPES = (agent) => ['rule', 'business', 'brand', agent ? `agent:${agent}` : null, agent === 'social' ? 'channel:facebook' : null, agent === 'communication' ? 'channel:textnow' : null].filter(Boolean);
 
 async function buildBrief(userId, { agent } = {}) {
-  const [tasks, approvals, approvalCount, openCount, urgentCount, routines, unanswered, memory, requestCount, recentRequests, tnStatus] = await Promise.all([
+  const [tasks, approvals, approvalCount, openCount, urgentCount, routines, unanswered, memory, requestCount, recentRequests, tnStatus, seoFocus] = await Promise.all([
     listTasks(userId, { status: 'open', limit: 40 }),
     prisma.operatorProposal.findMany({ where: { userId, status: 'pending', expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' }, take: 10 }),
     prisma.operatorProposal.count({ where: { userId, status: 'pending', expiresAt: { gt: new Date() } } }),
@@ -36,6 +36,7 @@ async function buildBrief(userId, { agent } = {}) {
     prisma.ownerRequest.count({ where: { userId, status: 'pending' } }),
     prisma.ownerRequest.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 5, select: { id: true, status: true, body: true, createdAt: true } }),
     require('./textnow').getStatus(userId).catch(() => ({ health: 'unknown', lastSyncAt: null, waiting: 0, urgent: 0, oldestWaitingMinutes: 0 })),
+    agent === 'content' ? require('./seo/focus').promotions(userId).catch(() => []) : [],
   ]);
 
   const mine = agent ? tasks.filter((t) => !t.agent || t.agent === agent) : tasks;
@@ -72,6 +73,8 @@ async function buildBrief(userId, { agent } = {}) {
       recent: recentRequests.map((r) => ({ id: r.id, status: r.status, body: r.body.slice(0, 160), at: r.createdAt })),
     },
     memory,
+    // live SEO pages waiting for a social post: make one per entry (grounding = its url), then it drops off this list
+    ...(seoFocus.length ? { seoFocus } : {}),
     openTaskStates: OPEN_TASK_STATES,
   };
 }

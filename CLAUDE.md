@@ -101,7 +101,7 @@ ai/textnow.js lib/textnow.js scripts/textnow-watch.js   TextNow line (read-only 
 lib/taskKeys.js     convTaskKey(channel, phone): ONE dedupKey per conversation (sms:<last10>, textnow:<last10>) — every writer must use it
 ai/design/          design-system layouts + renderer.js (Playwright) + qa.js (brand lint)   ai/vault.js content.js social.js (daily caps)
 ai/prompts/         prompts for the Claude routines (Night Studio, Social Shift, Inbox Watch, Morning Brief, Blog Autopilot)
-ai/seo/             SEO Growth Engine: Search Console sync, site/sitemap/index watch, Serper keyword roadmap, blog assignments (see ai/README.md)
+ai/seo/             SEO Growth Engine: Search Console sync, site/sitemap/index watch, Serper keyword roadmap, blog assignments, focus campaigns (focus.js, see ai/README.md)
 .claude/skills/nobs-*   skills the routines load (api, brand, content, facebook, communication, research)
 ```
 Rules: deterministic work stays in code, Claude only reasons/writes; do not rebuild a working routine — wrap it in `runRoutine`; new customer-facing sends must go through `sendSmsSafely`/`logComm` and check `isOptedOut`; social caps are enforced server-side in `ai/social.js`; `/api/ai` mounts BEFORE `requireAuth` and authenticates itself.

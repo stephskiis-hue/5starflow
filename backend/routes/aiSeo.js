@@ -13,6 +13,7 @@ const { describeKeyword } = require('../ai/seo/keywords');
 const { STATUSES } = require('../ai/seo/lifecycle');
 const { DEFAULT_GROWTH_CONFIG } = require('../ai/seo/config');
 const g = require('../ai/seo/google');
+const focus = require('../ai/seo/focus');
 
 ['get', 'post', 'put', 'patch', 'delete'].forEach((method) => {
   const orig = router[method].bind(router);
@@ -34,7 +35,7 @@ function lightCheck(userId, trigger = 'api') {
 
 // --------------------------------------------------------------------------- the writer's loop
 router.get('/assignment', async (req, res) => {
-  const modes = String(req.query.modes || 'new').split(',').map((s) => s.trim()).filter((m) => ['new', 'refresh', 'page'].includes(m));
+  const modes = String(req.query.modes || 'new').split(',').map((s) => s.trim()).filter((m) => ['new', 'refresh', 'page', 'links'].includes(m));
   const out = await assign.reserve(req.ai.userId, { modes, agent: agentOf(req), fresh: req.query.fresh === '1' });
   if (!out.assignment) return res.json({ assignment: null, reason: out.reason });
   res.json({ assignment: { ...out.assignment.brief, assignmentId: out.assignment.id, expiresAt: out.assignment.expiresAt }, reused: out.reused });
@@ -75,7 +76,9 @@ router.post('/keywords', async (req, res) => {
     const extra = owner ? { pinned: !!req.body.pin, source: 'owner', ...(req.body.pin ? { status: 'planned' } : {}) } : { source: 'claude' };
     const notes = typeof raw === 'object' && raw.notes ? String(raw.notes).slice(0, 500) : '';
     const row = await prisma.seoKeyword.upsert({ where: { userId_matchKey: { userId: req.ai.userId, matchKey: d.matchKey } }, update: owner && req.body.pin ? { pinned: true } : {}, create: { userId: req.ai.userId, ...d, ...extra, notes } });
-    created.push({ id: row.id, keyword: row.keyword, cluster: row.cluster, kind: row.kind });
+    // a researched idea for a focus campaign: it joins the campaign only if it passes the same filter as 5StarFlow's own picks
+    const att = req.body.supportsId ? await focus.attachSupport(req.ai.userId, String(req.body.supportsId), row) : null;
+    created.push({ id: row.id, keyword: row.keyword, cluster: row.cluster, kind: row.kind, ...(att ? { attached: att.attached, ...(att.reason ? { reason: att.reason } : {}) } : {}) });
   }
   res.status(201).json({ ok: true, keywords: created });
 });
@@ -84,7 +87,11 @@ router.patch('/keywords/:id', ownerOnly, async (req, res) => {
   const b = req.body || {};
   const data = {};
   for (const f of ['pinned', 'rankTrack']) if (typeof b[f] === 'boolean') data[f] = b[f];
-  if (b.status === 'retired') { data.status = 'retired'; data.statusChangedAt = new Date(); }
+  if (b.status === 'retired') {
+    data.status = 'retired'; data.statusChangedAt = new Date();
+    const f = await prisma.seoKeyword.findFirst({ where: { id: req.params.id, userId: req.ai.userId, focus: true }, select: { id: true } });
+    if (f) await focus.setFocus(req.ai.userId, f.id, { status: 'stopped' });
+  }
   if (b.status === 'idea' || b.status === 'planned') { data.status = b.status; data.statusChangedAt = new Date(); }
   if (['blog', 'service', 'area'].includes(b.kind)) data.kind = b.kind;
   if (typeof b.cluster === 'string') data.cluster = b.cluster.slice(0, 40);
@@ -94,6 +101,26 @@ router.patch('/keywords/:id', ownerOnly, async (req, res) => {
   const r = await prisma.seoKeyword.updateMany({ where: { id: req.params.id, userId: req.ai.userId }, data });
   if (!r.count) return res.status(404).json({ error: 'Unknown keyword' });
   res.json({ ok: true });
+});
+
+// --------------------------------------------------------------------------- focus campaigns (owner)
+router.get('/focus', async (req, res) => {
+  const [seo, keywords, pageRows] = await Promise.all([g.loadSeo(req.ai.userId), prisma.seoKeyword.findMany({ where: { userId: req.ai.userId }, orderBy: { priority: 'desc' } }), prisma.seoPage.findMany({ where: { userId: req.ai.userId } })]);
+  res.json(await focus.board(req.ai.userId, { keywords, pages: Object.fromEntries(pageRows.map((p) => [p.path, p])), seo }));
+});
+
+router.post('/keywords/:id/focus', ownerOnly, async (req, res) => {
+  try {
+    const out = await focus.startFocus(req.ai.userId, req.params.id, { goal: req.body?.goal });
+    res.status(201).json({ ok: true, keyword: out.keyword.keyword, plan: out.plan });
+  } catch (err) { fail(res, err); }
+});
+
+router.patch('/keywords/:id/focus', ownerOnly, async (req, res) => {
+  try {
+    const k = await focus.setFocus(req.ai.userId, req.params.id, { status: req.body?.status, goal: req.body?.goal });
+    res.json({ ok: true, status: k.focusStatus, goal: k.focusGoal });
+  } catch (err) { fail(res, err); }
 });
 
 router.get('/pages', async (req, res) => {
@@ -216,6 +243,7 @@ router.patch('/config', ownerOnly, async (req, res) => {
   for (const [k, def] of Object.entries(DEFAULT_GROWTH_CONFIG)) {
     if (!(k in b)) continue;
     if (Array.isArray(def)) { if (Array.isArray(b[k])) next[k] = b[k].filter((m) => ['new', 'refresh', 'page'].includes(m)); }
+    else if (typeof def === 'boolean') next[k] = !!b[k];
     else if (Number.isFinite(Number(b[k])) && Number(b[k]) >= 0) next[k] = Number(b[k]);
   }
   await prisma.seoSettings.update({ where: { id: seo.row.id }, data: { growthConfig: next } });

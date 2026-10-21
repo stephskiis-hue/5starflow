@@ -179,6 +179,7 @@ async function rescore(userId, { now = new Date() } = {}) {
   const open = await prisma.task.findMany({ where: { userId, status: { in: OPEN_TASK_STATES }, dedupKey: { startsWith: 'seo:cannibalization:' } }, select: { dedupKey: true } });
   for (const t of open) if (!raised.has(t.dedupKey)) await completeByDedupKey(userId, t.dedupKey);
   await g.saveState(seo.row.id, { cannibalization: cannibal.slice(0, 30), calib, lastRescoreAt: now.toISOString() });
+  await require('./focus').advanceFocus(userId, { now }).catch((e) => console.warn('[seo] focus advance failed:', e.message));
   return { keywords: keywords.length, newIdeas, cannibalization: cannibal.length };
 }
 

@@ -64,6 +64,12 @@ const DEFAULT_GROWTH_CONFIG = {
   crawlMaxUrls: 300,
   retentionDays: 120,         // daily query x page detail kept; older months are rolled up
   assignmentHours: 6,         // how long a reserved assignment stays locked
+  focusMax: 3,                // focus campaigns running at once
+  focusPerWeek: 3,            // focus-campaign pieces (page, supporting post, refresh) the writer takes per rolling 7 days
+  focusSupportPosts: 4,       // supporting posts planned per campaign round
+  focusRefreshDays: 21,       // a focus page can be refreshed this soon after publishing (others wait 45)
+  focusLinkPosts: 3,          // existing posts asked to link to the focus page per round
+  focusLinks: false,          // 'links' mode needs the writer to republish an existing page; turn on once the PC can
 };
 
 function mergeConfig(stored, env = process.env) {

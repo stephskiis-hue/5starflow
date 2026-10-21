@@ -1082,12 +1082,35 @@ model SeoKeyword {
   lastAssignedAt      DateTime?
   publishedAt         DateTime?
   notes               String    @default("")
+  focus               Boolean   @default(false) // owner picked it for a full campaign (see ai/seo/focus.js)
+  focusStatus         String? // active | paused | won | stopped
+  focusSince          DateTime?
+  focusGoal           Int       @default(3) // Google position the campaign is chasing
+  supportsId          String? // set on supporting keywords: the focus keyword they build up
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
   @@unique([userId, matchKey])
   @@index([userId, status])
   @@index([userId, cluster])
+  @@index([userId, supportsId])
+}
+
+// One thing a focus campaign does or waits for. The Focus tab's checklist and timeline are these rows.
+model SeoFocusStep {
+  id        String    @id @default(cuid())
+  userId    String
+  keywordId String // the focus keyword
+  kind      String // page | refresh | support | links | social
+  status    String    @default("planned") // planned | queued | in_progress | done | skipped
+  title     String
+  detail    Json?
+  refId     String? // supporting keyword id, content item id or assignment id
+  doneAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, keywordId])
+  @@index([userId, status])
 }
 
 // Every URL the engine knows about: from the crawl, the sitemaps, Search Console or a publish report.
@@ -1108,6 +1131,7 @@ model SeoPage {
   sitemapUrl        String?
   inPostsJson       Boolean?
   inlinks           Int       @default(0)
+  linkedFrom        Json? // paths of the pages that link here, from the last crawl
   httpStatus        Int?
   redirectTo        String?
   canonical         String?
