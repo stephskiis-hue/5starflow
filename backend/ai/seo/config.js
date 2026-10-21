@@ -69,7 +69,9 @@ const DEFAULT_GROWTH_CONFIG = {
   focusSupportPosts: 4,       // supporting posts planned per campaign round
   focusRefreshDays: 21,       // a focus page can be refreshed this soon after publishing (others wait 45)
   focusLinkPosts: 3,          // existing posts asked to link to the focus page per round
-  focusLinks: false,          // 'links' mode needs the writer to republish an existing page; turn on once the PC can
+  focusLinks: true,           // 'links' mode: the writer adds one link sentence to an existing post (POST /seo/site/link)
+  siteIndexAuto: false,       // the daily site-publish-index routine writes only after the owner has read a dry run and turned this on
+  sitemapExclude: [],         // paths kept out of the sitemaps (the thank-you page, /404 and /blog/* are always left out)
 };
 
 function mergeConfig(stored, env = process.env) {

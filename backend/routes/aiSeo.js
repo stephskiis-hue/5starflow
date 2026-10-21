@@ -14,6 +14,8 @@ const { STATUSES } = require('../ai/seo/lifecycle');
 const { DEFAULT_GROWTH_CONFIG } = require('../ai/seo/config');
 const g = require('../ai/seo/google');
 const focus = require('../ai/seo/focus');
+const site = require('../ai/site/publish');
+const siteStore = require('../ai/site/store');
 
 ['get', 'post', 'put', 'patch', 'delete'].forEach((method) => {
   const orig = router[method].bind(router);
@@ -23,7 +25,7 @@ const focus = require('../ai/seo/focus');
 const ownerOnly = (req, res, next) => (req.ai.actor === 'owner' ? next() : res.status(403).json({ error: 'Owner session required' }));
 const int = (v, d, max = 200) => Math.min(Math.max(parseInt(v, 10) || d, 1), max);
 const agentOf = (req) => (req.ai.actor === 'owner' ? 'owner' : req.ai.agent || 'content');
-const fail = (res, err) => res.status(err.status || 500).json({ error: err.message });
+const fail = (res, err) => res.status(err.status || 500).json({ error: err.message, ...(err.details || {}) });
 
 /** Kick a light index check (sitemaps + IndexNow + newest inspections) without making the caller wait. */
 function lightCheck(userId, trigger = 'api') {
@@ -53,6 +55,37 @@ router.post('/published', async (req, res) => {
     lightCheck(req.ai.userId);
     res.status(201).json({ ok: true, path: out.page.path, keyword: out.keyword.keyword, mode: out.mode, reportDue: out.reportDue, postsSinceReport: out.postsSinceReport });
   } catch (err) { fail(res, err); }
+});
+
+// --------------------------------------------------------------------------- publishing to the live site (no AI: the writer sends the page, the server checks, renders and uploads it)
+router.get('/site/page', async (req, res) => {
+  try { res.json(await site.viewPage(req.ai.userId, req.query.path)); } catch (err) { fail(res, err); }
+});
+
+router.post('/site/publish', async (req, res) => {
+  try {
+    const out = await site.publishPage(req.ai.userId, req.body || {}, { agent: agentOf(req) });
+    lightCheck(req.ai.userId);
+    res.status(201).json(out);
+  } catch (err) { fail(res, err); }
+});
+
+router.post('/site/link', async (req, res) => {
+  try {
+    const out = await site.addLink(req.ai.userId, req.body || {}, { agent: agentOf(req) });
+    lightCheck(req.ai.userId);
+    res.status(201).json(out);
+  } catch (err) { fail(res, err); }
+});
+
+// posts.json, blog.html and the sitemaps from the live site; ?dry=1 shows what would change without writing
+router.post('/site/rebuild-index', ownerOnly, async (req, res) => {
+  try { res.json(await site.reconcileIndex(req.ai.userId, { dry: req.query.dry === '1' })); } catch (err) { fail(res, err); }
+});
+
+// undo: put the newest saved version of a file back
+router.post('/site/restore', ownerOnly, async (req, res) => {
+  try { res.json(await siteStore.restoreLatest(req.ai.userId, String(req.body?.path || ''))); } catch (err) { fail(res, err); }
 });
 
 // --------------------------------------------------------------------------- keywords + pages
@@ -242,7 +275,7 @@ router.patch('/config', ownerOnly, async (req, res) => {
   const next = { ...(seo.row.growthConfig || {}) };
   for (const [k, def] of Object.entries(DEFAULT_GROWTH_CONFIG)) {
     if (!(k in b)) continue;
-    if (Array.isArray(def)) { if (Array.isArray(b[k])) next[k] = b[k].filter((m) => ['new', 'refresh', 'page'].includes(m)); }
+    if (Array.isArray(def)) { if (Array.isArray(b[k])) next[k] = k === 'modesEnabled' ? b[k].filter((m) => ['new', 'refresh', 'page'].includes(m)) : b[k].filter((s) => typeof s === 'string' && s.startsWith('/')).slice(0, 100); }
     else if (typeof def === 'boolean') next[k] = !!b[k];
     else if (Number.isFinite(Number(b[k])) && Number(b[k]) >= 0) next[k] = Number(b[k]);
   }

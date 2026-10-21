@@ -30,6 +30,8 @@ const RUNNABLE = {
   'seo-gsc-sync':               { risk: 'safe',     fn: (ctx) => require('./seo/sync').gscSyncTick(ctx) },
   'seo-index-watch':            { risk: 'safe',     fn: (ctx) => require('./seo/indexWatch').indexWatchTick(ctx) },
   'seo-roadmap':                { risk: 'spends',   fn: (ctx) => require('./seo/roadmap').roadmapTick(ctx) },
+  'site-publish-index':         { risk: 'safe',     fn: (ctx) => require('./site/tick').siteIndexTick(ctx) },
+  'morning-note':               { risk: 'texts-owner', fn: (ctx) => require('./morningNote').morningNoteTick(ctx) },
   'seo-weekly-audit':           { risk: 'spends',   fn: async () => { const r = await require('../services/seoService').runWeeklyAudit(); if (r?.error) throw new Error(`SEO audit failed: ${r.error}`); return r || { skipped: true, summary: 'Audit did not run' }; } },
 };
 
@@ -68,6 +70,8 @@ async function startAiOs() {
     // SEO Growth Engine: Search Console data first, then the crawl/index check, roadmap + Serper weekly
     cron.schedule('7 6 * * *', () => runRoutine('seo-gsc-sync', (ctx) => require('./seo/sync').gscSyncTick(ctx), { maxRuntimeMinutes: 30 }), { timezone: 'America/Winnipeg' });
     cron.schedule('23 6 * * *', () => runRoutine('seo-index-watch', (ctx) => require('./seo/indexWatch').indexWatchTick(ctx), { maxRuntimeMinutes: 30 }), { timezone: 'America/Winnipeg' });
+    cron.schedule('15 6 * * *', () => runRoutine('site-publish-index', (ctx) => require('./site/tick').siteIndexTick(ctx), { maxRuntimeMinutes: 20 }), { timezone: 'America/Winnipeg' });
+    cron.schedule('30 5 * * *', () => runRoutine('morning-note', (ctx) => require('./morningNote').morningNoteTick(ctx), { quiet: true }), { timezone: 'America/Winnipeg' });
     cron.schedule('37 6 * * 1', () => runRoutine('seo-roadmap', (ctx) => require('./seo/roadmap').roadmapTick(ctx), { maxRuntimeMinutes: 30 }), { timezone: 'America/Winnipeg' });
     // first boot with the engine: crawl, seed + import the existing posts, pull Search Console
     setTimeout(async () => {

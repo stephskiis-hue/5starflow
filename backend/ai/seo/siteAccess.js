@@ -138,6 +138,7 @@ async function withFtp(cfg, fn) {
         return Buffer.concat(chunks);
       },
       write: (p, buf) => client.uploadFrom(Readable.from([buf]), p),
+      remove: (p) => client.remove(p),
     });
   } finally {
     client.close();
@@ -332,4 +333,4 @@ async function revertHtaccess(userId) {
   return { status: 'reverted', home: (await chainOf(`${seo.origin}/`)).map((c) => `${c.status} ${c.url}`) };
 }
 
-module.exports = { status, ensureOwnership, applyHtaccess, revertHtaccess, withVerificationTag, withSeoRedirects, seoRedirectLines, htaccessChecks, judge, verificationContent, HTACCESS_MARK };
+module.exports = { ftpConfig, withFtp, siteRoot, probe, status, ensureOwnership, applyHtaccess, revertHtaccess, withVerificationTag, withSeoRedirects, seoRedirectLines, htaccessChecks, judge, verificationContent, HTACCESS_MARK };

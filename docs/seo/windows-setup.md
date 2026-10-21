@@ -1,3 +1,5 @@
+> **RETIRED (2026-10-21).** The server now publishes the website, builds the sitemaps and keeps `posts.json` and `blog.html` in step, over FTP (see `backend/ai/README.md`, "The server publishes the website"). The PC no longer needs to run `seo_site.py`, the 3 AM `_deploy.py` upload or the Claude blog task, and **must not keep running them**: they would overwrite what the server publishes. Retire them with the checklist in `docs/seo/server-cutover.md`. Everything below is kept as background and for rollback.
+
 # SEO Growth Engine: setup on the MSI PC (for the local Claude)
 
 > The step-by-step version the owner's request points to is `docs/seo/pc-request.md`. This file is the background.

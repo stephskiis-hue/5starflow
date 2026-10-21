@@ -64,4 +64,4 @@ function lintContent({ slots = {}, caption = '', layout, platform } = {}) {
   return { ok: errors.length === 0, errors, warnings };
 }
 
-module.exports = { lintContent, PHONE, BRAND };
+module.exports = { lintContent, PHONE, BRAND, BANNED, MID_DASH, BAD_NAMES };

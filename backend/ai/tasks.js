@@ -19,6 +19,9 @@ async function createTask(userId, t) {
     if (existing.status === 'COMPLETED') { data.status = 'NEW'; data.completedAt = null; }
     if (URGENCY_RANK[urgency] > URGENCY_RANK[existing.urgency]) data.urgency = urgency;
     if (t.whatHappened) data.whatHappened = clip(t.whatHappened, LIMITS.text);
+    // a drafted reply or a clearer ask from a later report belongs on the open task (sms-monitor usually creates it first)
+    if (t.proposedResponse) data.proposedResponse = clip(t.proposedResponse, LIMITS.text);
+    if (t.whatNeeds) data.whatNeeds = clip(t.whatNeeds, LIMITS.text);
     if (t.context) data.context = t.context;
     const task = await prisma.task.update({ where: { id: existing.id }, data });
     return { task, created: false };

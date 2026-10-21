@@ -1159,6 +1159,18 @@ model SeoPage {
   @@index([userId, kind])
 }
 
+// Text files the server changed on the live site (html, xml, json, .htaccess). The last few versions are kept so any publish can be undone.
+model SiteFileVersion {
+  id        String   @id @default(cuid())
+  userId    String
+  path      String // under the site root, e.g. "blog.html"
+  content   String
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, path, createdAt])
+}
+
 // Live sitemap files and what Google says about them.
 model SeoSitemap {
   id                String    @id @default(cuid())

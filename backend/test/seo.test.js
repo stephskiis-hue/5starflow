@@ -345,12 +345,12 @@ test('focus: a focus page is refreshed after 21 days while short of the goal, no
   assert.equal(pickAssignment({ keywords: [behind], pages: after, cfg, modes: ['refresh'], now: NOW }).length, 0, 'a second refresh waits 45 days');
 });
 
-test('focus: links mode needs the flag and an open links step, and asks for one edit per source post', () => {
+test('focus: links mode needs the flag (on by default) and an open links step, and asks for one edit per source post', () => {
   const step = { id: 's1', keywordId: 'when to aerate winnipeg', status: 'planned', title: 'Link from /blog-a', detail: { from: '/blog-a', to: '/blog-when-to-aerate', anchor: 'aeration in Winnipeg' } };
   const pages = { '/blog-when-to-aerate': livePage() };
   const args = { keywords: [FOCUS()], pages, modes: ['links'], now: NOW, linkSteps: [step] };
-  assert.equal(pickAssignment({ ...args, cfg }).length, 0, 'off by default');
-  const on = pickAssignment({ ...args, cfg: { ...cfg, focusLinks: true } });
+  assert.equal(pickAssignment({ ...args, cfg: { ...cfg, focusLinks: false } }).length, 0, 'off when the flag is off');
+  const on = pickAssignment({ ...args, cfg });
   assert.equal(on[0].mode, 'links');
   assert.equal(on[0].step.detail.from, '/blog-a');
 });
