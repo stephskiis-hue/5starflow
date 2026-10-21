@@ -408,3 +408,77 @@ test('focus rules: steps are judged from what is really on the site', () => {
   assert.equal(FR.reconcileStep(st('social', { refId: '/blog-sup' }), ctx).status, 'done');
   assert.equal(FR.reconcileStep(st('social', { refId: '/blog-su' }), ctx).status, 'planned', 'a longer slug is a different page');
 });
+
+// ---------------------------------------------------------------- keyword research
+const { pickRecommendations, classify } = require('../ai/seo/research');
+const hist = (imp) => [{ imp }, { imp }, { imp }, { imp }, { imp }, { imp: 40 }];
+const rk = (o) => ({ id: o.keyword, keyword: 'x', matchKey: o.keyword, cluster: 'aeration', kind: 'blog', status: 'idea', priority: 5, impressions28: 30, clicks28: 1, position28: 12, targetPath: '/a', history: [], ...o });
+
+test('research: each reason is recognised from real numbers', () => {
+  assert.equal(classify(rk({ keyword: 'a', position28: 12, impressions28: 30 })), 'almost');
+  assert.equal(classify(rk({ keyword: 'b', position28: 5, impressions28: 15 })), 'close');
+  assert.equal(classify(rk({ keyword: 'c', position28: 30, impressions28: 40, history: hist(10) })), 'rising');
+  assert.equal(classify(rk({ keyword: 'd', position28: 30, impressions28: 40, targetPath: null })), 'no_page');
+  assert.equal(classify(rk({ keyword: 'e', position28: 30, impressions28: 12, kind: 'area', area: 'Transcona' })), 'area');
+  assert.equal(classify(rk({ keyword: 'f', position28: 2, impressions28: 100 })), null);
+  assert.equal(classify(rk({ keyword: 'g', position28: 30, impressions28: 4 })), null);
+});
+
+test('research: focused, supporting, retired, brand, off-topic and dismissed keywords are skipped', () => {
+  const list = [rk({ keyword: 'ok' }), rk({ keyword: 'foc', focus: true }), rk({ keyword: 'sup', supportsId: 'ok' }), rk({ keyword: 'ret', status: 'retired' }),
+    rk({ keyword: 'brd', cluster: 'brand' }), rk({ keyword: 'oth', cluster: 'other' }), rk({ keyword: 'dis' })];
+  const out = pickRecommendations(list, { dismissed: { dis: new Date(NOW.getTime() + DAY).toISOString() }, now: NOW });
+  assert.deepEqual(out.map((i) => i.id), ['ok']);
+  const expired = pickRecommendations([rk({ keyword: 'dis' })], { dismissed: { dis: new Date(NOW.getTime() - DAY).toISOString() }, now: NOW });
+  assert.equal(expired.length, 1);
+});
+
+test('research: at most 2 per service, capped at max, best score first, goal follows position', () => {
+  const list = [1, 2, 3].map((n) => rk({ keyword: `aer${n}`, priority: 10 - n }))
+    .concat([rk({ keyword: 'sod1', cluster: 'sod', priority: 1 }), rk({ keyword: 'mow1', cluster: 'lawn-mowing', priority: 20, position28: 5, impressions28: 20 })]);
+  const out = pickRecommendations(list, { max: 4, now: NOW });
+  assert.deepEqual(out.map((i) => i.id), ['mow1', 'aer1', 'aer2', 'sod1']);
+  assert.equal(out[0].goal, 3);
+  assert.equal(out[1].goal, 10);
+  assert.match(out[1].why, /position 12/);
+});
+
+// ---------------------------------------------------------------- recent jobs
+const rj = require('../ai/seo/recentJobs');
+
+test('recent jobs: postal code -> first three characters, anything else -> null', () => {
+  assert.equal(rj.fsaOf('R3M 3P9'), 'R3M');
+  assert.equal(rj.fsaOf('r2h0a1'), 'R2H');
+  assert.equal(rj.fsaOf('90210'), null);
+  assert.equal(rj.fsaOf(null), null);
+});
+
+test('recent jobs: an invoice becomes a fact row only when paid, recent and for a service we sell', () => {
+  const inv = (o) => ({ id: 'i1', invoiceStatus: 'PAID', issuedDate: '2026-10-05T12:00:00Z', billingAddress: { postalCode: 'R3T 2B2' }, lineItems: { nodes: [{ name: 'Fall cleanup' }] }, ...o });
+  const f = rj.factsFromInvoice(inv(), NOW);
+  assert.deepEqual({ ...f, doneAt: undefined }, { invoiceId: 'i1', cluster: 'fall-cleanup', fsa: 'R3T', area: 'Fort Garry', doneAt: undefined });
+  assert.equal(rj.factsFromInvoice(inv({ invoiceStatus: 'AWAITING_PAYMENT' }), NOW), null);
+  assert.equal(rj.factsFromInvoice(inv({ lineItems: { nodes: [{ name: 'Eavestrough cleaning' }] } }), NOW), null);
+  assert.equal(rj.factsFromInvoice(inv({ issuedDate: '2024-01-01T00:00:00Z' }), NOW), null);
+  assert.equal(rj.factsFromInvoice(inv({ billingAddress: { postalCode: 'M5V 1A1' } }), NOW).area, null);
+  assert.equal(JSON.stringify(f).includes('street'), false);
+});
+
+test('recent jobs: feed gives each page its own jobs, month-deduped, with photos that fit and are not repeated', () => {
+  const jobs = [
+    { cluster: 'fall-cleanup', area: 'Fort Garry', doneAt: daysAgo(5) }, { cluster: 'fall-cleanup', area: 'Fort Garry', doneAt: daysAgo(6) },
+    { cluster: 'fall-cleanup', area: 'Tuxedo', doneAt: daysAgo(9) }, { cluster: 'sod', area: null, doneAt: daysAgo(70) },
+  ];
+  const pages = [{ path: '/spring-fall-cleanups', kind: 'service', clusters: ['spring-cleanup', 'fall-cleanup'] }, { path: '/fort-garry', kind: 'area', area: 'Fort Garry' }, { path: '/mow', kind: 'service', clusters: ['lawn-mowing'] }];
+  const photos = ['a', 'b', 'c', 'd'].map((id, i) => ({ id, tags: i < 3 ? ['FALL'] : ['SOD'], width: 800, height: 600 }));
+  const feed = rj.buildFeed({ jobs, pages, photos, now: NOW });
+  assert.deepEqual(feed.map((e) => e.path), ['/spring-fall-cleanups', '/fort-garry']);
+  const svc = feed[0];
+  assert.equal(svc.count, 3);
+  assert.deepEqual(svc.jobs.map((j) => j.label), ['Fall cleanup in Fort Garry', 'Fall cleanup in Tuxedo']);
+  assert.deepEqual(svc.photos.map((p) => p.id), ['a', 'b', 'c']);
+  assert.equal(svc.photos[0].alt, 'Our yard work in Winnipeg');
+  assert.equal(feed[1].heading, 'Recent jobs in Fort Garry');
+  assert.deepEqual(feed[1].jobs.map((j) => j.label), ['Fall cleanup']);
+  assert.match(feed[1].photos[0].alt, /Fort Garry/);
+});

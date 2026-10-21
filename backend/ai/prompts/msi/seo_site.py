@@ -8,7 +8,7 @@ Site files (local public_html, uploaded by _deploy.py):
   sync-live [<public_html>]      only the live-site copy step of nightly (request-gate.ps1 runs it hourly)
   fix-pages [<public_html>]      self-canonicals on the clean URL, broken /blog/<page> links (needs "fixPages": true)
   nightly [<public_html>]        copy the Search Console tag / .htaccess redirects 5StarFlow put on the live site, then
-                                 fix-pages, blog.html markers, blog-index, build-sitemaps (request-gate.ps1 runs it once a day); site folder from seo-site.json
+                                 fix-pages, blog.html markers, recent-jobs sections, blog-index, build-sitemaps (request-gate.ps1 runs it once a day); site folder from seo-site.json
 
 5StarFlow API (FIVESTARFLOW_URL / FIVESTARFLOW_TOKEN from ~/.5starflow/env or the environment):
   check                          is the API reachable and is Search Console connected?
@@ -491,6 +491,95 @@ def add_blog_markers(root, dry):
     return {'ok': True, 'dryRun': dry, 'changed': changed, 'notes': notes}
 
 
+RJ_START, RJ_END = '<!-- 5sf:recent-jobs:start -->', '<!-- 5sf:recent-jobs:end -->'
+RJ_RE = re.compile(re.escape(RJ_START) + r'.*?' + re.escape(RJ_END), re.S)
+RJ_CSS = ('.recent-jobs{max-width:1100px;margin:2.5rem auto;padding:0 1rem}.recent-jobs ul{list-style:none;margin:0;padding:0}'
+          '.recent-jobs li{padding:.4rem 0;border-bottom:1px solid rgba(128,128,128,.25)}.recent-jobs .rj-photos{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1rem}'
+          '.recent-jobs img{max-width:100%;height:auto;border-radius:6px;flex:1 1 220px;min-width:0;object-fit:cover}')
+
+
+def fetch_bytes(path, timeout=60):
+    """(bytes, file extension from the Content-Type) of an API download."""
+    base, token = load_env()
+    req = urllib.request.Request(f'{base}/api/ai{path}', headers={'Authorization': f'Bearer {token}', 'X-Agent': 'content', 'User-Agent': 'nobs-seo-site/1.0'})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        ext = {'image/png': 'png', 'image/webp': 'webp'}.get((r.headers.get('Content-Type') or '').split(';')[0].strip().lower(), 'jpg')
+        return r.read(), ext
+
+
+def rj_block(entry, photo_files):
+    esc = html.escape
+    items = ''.join(f'<li>{esc(j["label"])} <span>&middot; {esc(j["month"])}</span></li>' for j in entry['jobs'])
+    figs = ''.join(f'<img src="/images/work/{name}" alt="{esc(alt)}" loading="lazy">' for name, alt in photo_files)
+    where = f' in {esc(entry["area"])}' if entry['kind'] == 'area' else ''
+    intro = f'<p>{entry["count"]} job{"" if entry["count"] == 1 else "s"} finished{where} in the last four months. A few of the most recent:</p>' if entry['count'] else ''
+    return (f'{RJ_START}<style>{RJ_CSS}</style><section class="recent-jobs"><h2>{esc(entry["heading"])}</h2>{intro}<ul>{items}</ul>'
+            f'{"<div class=rj-photos>" + figs + "</div>" if figs else ""}</section>{RJ_END}')
+
+
+def page_file(root, path):
+    rel = path.strip('/')
+    for cand in ([root / 'index.html'] if not rel else [root / f'{rel}.html', root / rel / 'index.html']):
+        if cand.exists():
+            return cand
+    return None
+
+
+def recent_jobs(root, dry):
+    """
+    A "Recent jobs" section (service, neighbourhood, month + a few real photos, no names or addresses) on each service and
+    neighbourhood page, from GET /seo/recent-jobs. Only with "fixPages": true and "recentJobs" switched on in 5StarFlow;
+    switched off, the sections it added are emptied again. Photos are downloaded once into images/work/.
+    """
+    if not CONFIG.get('fixPages') or not api_configured():
+        return {'ok': True, 'changed': [], 'notes': []}
+    status, feed = api('GET', '/recent-jobs')
+    if status != 200:
+        return {'ok': True, 'changed': [], 'notes': [f'recent jobs: API answered {status}']}
+    entries = {e['path']: e for e in feed.get('pages', [])} if feed.get('enabled') else {}
+    changed, notes = [], []
+    if entries and not dry:
+        (root / 'images' / 'work').mkdir(parents=True, exist_ok=True)
+    paths = set(entries) | {clean_path(str(f.relative_to(root))) for f in root.glob('*.html') if RJ_START in f.read_text(encoding='utf-8', errors='replace')}
+    for path in sorted(paths):
+        f = page_file(root, path)
+        if not f:
+            notes.append(f'recent jobs: no file for {path}')
+            continue
+        raw = f.read_bytes()
+        src = raw.decode('utf-8-sig' if raw.startswith(b'\xef\xbb\xbf') else 'utf-8')
+        entry = entries.get(path)
+        photo_files = []
+        for ph in (entry or {}).get('photos', []):
+            have = sorted((root / 'images' / 'work').glob(f'{ph["id"]}.*'))
+            try:
+                if not have and not dry:
+                    data, ext = fetch_bytes(f'/assets/{ph["id"]}?w=1000')
+                    have = [root / 'images' / 'work' / f'{ph["id"]}.{ext}']
+                    have[0].write_bytes(data)
+                if have:
+                    photo_files.append((have[0].name, ph['alt']))
+            except (urllib.error.URLError, OSError) as e:
+                notes.append(f'recent jobs: photo {ph["id"]} not downloaded ({e})')
+        eol = '\r\n' if '\r\n' in src else '\n'
+        if entry:
+            block = rj_block(entry, photo_files)
+            if RJ_START in src:
+                new = RJ_RE.sub(lambda _m: block, src, count=1)
+            else:
+                foot = re.search(r'<footer\b', src, re.I) or re.search(r'</body>', src, re.I)
+                if not foot:
+                    notes.append(f'recent jobs: no <footer> or </body> on {path}')
+                    continue
+                new = src[:foot.start()] + block + eol + src[foot.start():]
+        else:
+            new = RJ_RE.sub('', src, count=1)
+        data = (b'\xef\xbb\xbf' if raw.startswith(b'\xef\xbb\xbf') else b'') + new.encode('utf-8')
+        if new != src and write_bytes_if_changed(f, data, dry):
+            changed.append(f.name)
+    return {'ok': True, 'dryRun': dry, 'changed': changed, 'notes': notes, 'pages': len(entries)}
+
+
 def site_root(args, usage):
     path = next((a for a in args if not a.startswith('--')), None) or os.environ.get('SEO_SITE_DIR') or CONFIG.get('siteDir')
     if not path:
@@ -635,6 +724,7 @@ def cmd_nightly(args):
         live = sync_site_access(root, dry)
         fixes = fix_pages(root, dry)
         markers = add_blog_markers(root, dry)
+        jobs = recent_jobs(root, dry)
         idx = blog_index(root, dry)
         maps = build_sitemaps(root, dry)
     except Exception as e:                       # never let a bad file stop the gate; report it instead
@@ -643,11 +733,12 @@ def cmd_nightly(args):
         if not dry:
             report_run(report)
         out({'ok': False, 'error': str(e)}, 1)
-    changed = list(dict.fromkeys(live['changed'] + fixes['changed'] + markers['changed'] + idx['changed'] + maps['changed']))
+    changed = list(dict.fromkeys(live['changed'] + fixes['changed'] + markers['changed'] + jobs['changed'] + idx['changed'] + maps['changed']))
     fix_note = ', '.join(filter(None, [
         f"copied {' + '.join(live['changed'])} from the live site" if live['changed'] else None,
         f"live-site sync: {live['error']}" if live.get('error') else None,
         'added the blog.html post-list markers' if markers['changed'] else None,
+        f"updated the recent-jobs section on {len(jobs['changed'])} page(s)" if jobs['changed'] else None,
         f"fixed {len(fixes.get('canonicalFixed', []))} canonical(s)" if fixes.get('canonicalFixed') else None,
         f"added {len(fixes.get('canonicalAdded', []))} canonical(s)" if fixes.get('canonicalAdded') else None,
         f"fixed {fixes['linksFixed']} broken /blog/ link(s)" if fixes.get('linksFixed') else None]))
@@ -659,8 +750,8 @@ def cmd_nightly(args):
     if not dry:
         report_run({'slug': 'ext-seo-site-nightly', 'status': 'completed' if changed else 'skipped', 'summary': summary[:500],
                               'result': {'items_found': maps['pages'] + maps['posts'], 'actions_taken': [f'rewrote {c}' for c in changed],
-                                         'skipped': len(maps['skipped']), 'notes': '; '.join(filter(None, markers['notes'] + [idx.get('note')] + maps['warnings']))[:190]}})
-    out({'ok': True, 'summary': summary, 'liveSite': live, 'pageFixes': fixes, 'blogMarkers': markers, 'blogIndex': idx, 'sitemaps': maps})
+                                         'skipped': len(maps['skipped']), 'notes': '; '.join(filter(None, markers['notes'] + jobs['notes'] + [idx.get('note')] + maps['warnings']))[:190]}})
+    out({'ok': True, 'summary': summary, 'liveSite': live, 'pageFixes': fixes, 'blogMarkers': markers, 'recentJobs': jobs, 'blogIndex': idx, 'sitemaps': maps})
 
 
 def cmd_sync_live(args):

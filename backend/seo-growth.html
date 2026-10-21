@@ -442,8 +442,9 @@
 
   function focusStrip(d) {
     const act = d.focusBoard.campaigns.filter((c) => c.status === 'active');
-    if (!act.length) return card('Focus', `<p class="text-sm text-zinc-400">No keyword is in focus. Press the <span class="material-symbols-outlined text-[16px] align-[-3px]">target</span> button on a keyword (Keywords tab) and 5StarFlow plans the page, supporting posts, links and social posts to win it.</p>`);
-    return card('Focus', `<ul class="space-y-4">${act.map((c) => `<li class="text-sm"><div class="flex flex-wrap items-center gap-2 mb-1"><b class="text-zinc-100">${esc(c.keyword)}</b><span class="text-xs text-zinc-500">goal: top ${c.goal}</span><span class="ml-auto tabular-nums text-zinc-300">${c.position ? `position ${pos(c.position)}` : 'not ranking yet'}</span></div>${bar(c.progress)}<p class="text-xs text-zinc-500 mt-1">${esc(c.next)}</p></li>`).join('')}</ul><p class="mt-4"><a href="#focus" class="text-primary text-sm hover:underline">Open the Focus board</a></p>`);
+    if (!act.length) return card('Focus', `${d.recommendations?.items.length ? `<p class="text-sm text-zinc-300 mb-3"><span class="material-symbols-outlined text-[16px] align-[-3px] text-amber-300">lightbulb</span> ${d.recommendations.items.length} keyword${d.recommendations.items.length === 1 ? '' : 's'} recommended to target. <a href="#focus" class="text-primary hover:underline">See the Focus tab</a></p>` : ''}<p class="text-sm text-zinc-400">No keyword is in focus. Press the <span class="material-symbols-outlined text-[16px] align-[-3px]">target</span> button on a keyword (Keywords tab) and 5StarFlow plans the page, supporting posts, links and social posts to win it.</p>`);
+    const rec = d.focusBoard.active < d.focusBoard.max && d.recommendations?.items.length ? `<p class="text-sm text-zinc-300 mb-4"><span class="material-symbols-outlined text-[16px] align-[-3px] text-amber-300">lightbulb</span> ${d.recommendations.items.length} keyword${d.recommendations.items.length === 1 ? '' : 's'} recommended to target. <a href="#focus" class="text-primary hover:underline">See the Focus tab</a></p>` : '';
+    return card('Focus', rec + `<ul class="space-y-4">${act.map((c) => `<li class="text-sm"><div class="flex flex-wrap items-center gap-2 mb-1"><b class="text-zinc-100">${esc(c.keyword)}</b><span class="text-xs text-zinc-500">goal: top ${c.goal}</span><span class="ml-auto tabular-nums text-zinc-300">${c.position ? `position ${pos(c.position)}` : 'not ranking yet'}</span></div>${bar(c.progress)}<p class="text-xs text-zinc-500 mt-1">${esc(c.next)}</p></li>`).join('')}</ul><p class="mt-4"><a href="#focus" class="text-primary text-sm hover:underline">Open the Focus board</a></p>`);
   }
 
   function campaignCard(c, i) {
@@ -465,6 +466,21 @@
         <div><p class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-1">What happened</p>${c.timeline.length ? `<ul class="space-y-1.5 text-sm">${c.timeline.map((t) => `<li class="flex gap-3"><span class="text-zinc-500 w-14 shrink-0 tabular-nums">${day(t.at)}</span><span class="text-zinc-200 break-words">${esc(t.text)}</span></li>`).join('')}</ul>` : empty('Updates appear here as pages go live.')}</div></div></div>`;
   }
 
+  /** Weekly keyword research: what people really searched, and which keywords are worth a campaign. */
+  function recommendCard(d) {
+    const r = d.recommendations || { at: null, items: [] };
+    const full = d.focusBoard.active >= d.focusBoard.max;
+    const head = `<div class="flex flex-wrap items-center gap-2 mb-3"><p class="text-xs text-zinc-400 flex-1 min-w-[200px]">${r.at ? `Researched ${ago(r.at)} from your Search Console searches. Refreshed every Monday.` : 'Runs every Monday from your Search Console searches.'}</p><button class="btn" data-act="refreshrec" title="Recompute from the latest Search Console data">Refresh</button></div>`;
+    const note = full && r.items.length ? '<p class="text-sm text-amber-300 mb-3">All focus slots are in use. Pause or stop a campaign to target one of these, or pin it so the blog writes about it soon.</p>' : '';
+    const rows = r.items.map((k) => `<li class="py-3" data-kw="${esc(k.id)}">
+      <div class="flex flex-wrap items-center gap-2"><b class="text-zinc-100 break-words">${esc(k.keyword)}</b><span class="badge b-normal">${esc(k.label)}</span><span class="text-xs text-zinc-500">${esc(k.cluster)}</span></div>
+      <p class="text-sm text-zinc-300 mt-1">${esc(k.why)}</p>
+      ${k.queries.length ? `<p class="text-xs text-zinc-500 mt-1">People searched: ${k.queries.map((q) => `"${esc(q.q)}" (${num(q.imp)})`).join(', ')}</p>` : ''}
+      ${k.competitors.length ? `<p class="text-xs text-zinc-500 mt-1">Ahead of you: ${k.competitors.map((c) => esc(String(c.link || '').replace(/^https?:\/\/(www\.)?/, '').split('/')[0])).join(', ')}</p>` : ''}
+      <div class="flex flex-wrap items-center gap-2 mt-2">${full ? '' : focusControl(k)}<button class="btn" data-act="${k.pinned ? 'unpin' : 'pin'}">${k.pinned ? 'Unpin' : 'Pin'}</button><button class="btn" data-act="dismiss" title="Hide for 8 weeks">Not now</button><button class="btn" data-act="retire">Not for us</button></div></li>`).join('');
+    return card('Recommended to target', head + note + (r.items.length ? `<ul class="divide-y divide-white/5">${rows}</ul>` : empty('Nothing stands out yet. Recommendations appear once Search Console shows keywords close to page 1, rising searches, or searches with no page.')));
+  }
+
   function renderFocus(d) {
     const b = d.focusBoard;
     const head = `<div class="flex flex-wrap items-center gap-3 mb-6"><p class="text-sm text-zinc-300 flex-1 min-w-[240px]">Pick up to ${b.max} keywords to win. For each one 5StarFlow plans the page, supporting posts, links and social posts, hands the writing to the daily blog run and Night Studio, and checks the result in Google every week.</p><span class="badge ${b.active >= b.max ? 'b-warn' : 'b-ok'}">${b.active} of ${b.max} focus slots in use</span></div>`;
@@ -474,7 +490,7 @@
     const table = card('Everything we are working on, ranked', b.working.length
       ? `<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-on-surface-variant text-xs"><th class="pb-2 pr-3">#</th><th class="pr-3">Keyword</th><th class="pr-3">Role</th><th class="pr-3">Stage</th><th class="pr-3" title="Roughly the extra clicks a month it could win">Opportunity</th><th class="pr-3">Position</th><th>Last 4 weeks</th></tr></thead><tbody>${rows}</tbody></table></div><p class="text-xs text-zinc-500 mt-3">Ranked by opportunity: roughly the extra clicks a month the keyword could win, weighted by how close it is, how ready the searcher is to hire and the season.</p>`
       : empty('Nothing ranked yet.'));
-    $('tab-focus').innerHTML = head + cards + table;
+    $('tab-focus').innerHTML = head + recommendCard(d) + cards + table;
   }
 
   function renderKeywords(d) {
@@ -531,6 +547,23 @@
       : empty('Every post, refresh and landing page the blog run reports shows up here, with whether Google indexed it.'));
   }
 
+  /** What the nightly site build would put on each page, with the on/off switch. Loaded the first time the tab opens. */
+  function jobsCard() {
+    const f = state.jobsFeed;
+    if (f === undefined) {
+      state.jobsFeed = null;
+      api('/seo/recent-jobs').then((r) => { state.jobsFeed = r; render(); }).catch((e) => { state.jobsFeed = { error: e.message }; render(); });
+    }
+    if (!f) return card('Recent jobs on your pages', empty('Loading...'));
+    if (f.error) return card('Recent jobs on your pages', empty(f.error));
+    const sw = `<button class="btn ${f.enabled ? '' : 'btn-go'}" data-act="jobsswitch" data-on="${f.enabled ? '0' : '1'}">${f.enabled ? 'Turn off' : 'Turn on'}</button>`;
+    const bf = f.backfill && !f.backfill.done ? ' Older jobs are still being read in.' : '';
+    const head = `<div class="flex flex-wrap items-center gap-3 mb-3"><p class="text-sm text-zinc-300 flex-1 min-w-[220px]">Every paid job adds a line (service, neighbourhood, month) and a few real photos to the matching service and neighbourhood page. No names or street addresses are ever used. ${f.enabled ? 'Live: the nightly site build keeps these sections up to date.' : 'Off: nothing is added to the website until you turn it on.'}${bf}</p><span class="badge ${f.enabled ? 'b-ok' : 'b-mute'}">${f.enabled ? 'On' : 'Off'}</span>${sw}</div>`;
+    const rows = f.pages.map((p) => `<li class="py-3"><div class="flex flex-wrap items-center gap-2"><a class="text-primary hover:underline break-all" href="${esc(state.data.origin + p.path)}" target="_blank" rel="noopener">${esc(p.path)}</a><span class="badge b-mute">${p.kind === 'area' ? esc(p.area) : 'service page'}</span><span class="text-xs text-zinc-500">${p.count} in the last 4 months · ${p.photos.length} photo${p.photos.length === 1 ? '' : 's'}</span></div><p class="text-xs text-zinc-400 mt-1">${p.jobs.map((j) => `${esc(j.label)} (${esc(j.month)})`).join(' · ')}</p></li>`).join('');
+    return card('Recent jobs on your pages', head + (f.pages.length ? `<ul class="divide-y divide-white/5">${rows}</ul>` : empty(f.jobsTotal ? 'No page has a matching job yet.' : 'No paid jobs read in yet. They arrive with the next paid invoice and the weekly roadmap run.'))
+      + '<p class="text-xs text-zinc-500 mt-3">Check the neighbourhood on each line before turning this on: it comes from the first three characters of the postal code, which can cover two neighbourhoods.</p>');
+  }
+
   function renderHealth(d) {
     const c = d.coverage;
     const cov = `<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">${stat('In the sitemaps', c.inSitemap)}${stat('Indexed by Google', c.indexed)}${stat('Not indexed', c.notIndexed)}${stat('Not checked yet', c.unknown)}</div>`;
@@ -541,7 +574,7 @@
       ${t.whatHappened ? `<pre class="text-xs text-zinc-400 whitespace-pre-wrap mt-2 font-sans">${esc(t.whatHappened)}</pre>` : ''}${t.whatNeeds ? `<p class="text-sm text-zinc-300 mt-2"><b>Fix:</b> ${esc(t.whatNeeds)}</p>` : ''}${t.recommended ? `<pre class="text-xs text-zinc-300 bg-black/40 rounded-lg p-3 mt-2 overflow-x-auto">${esc(t.recommended)}</pre>` : ''}</details>`).join('')
       + '<p class="text-xs text-zinc-500 mt-3">These close by themselves once the daily check sees the fix. They are also in AI Command > Tasks.</p>' : empty('No problems found on the last check.'));
     const can = card('Pages competing for the same search', d.cannibalization.length ? `<ul class="space-y-3">${d.cannibalization.slice(0, 15).map((x) => `<li class="text-sm"><b class="text-zinc-100">${esc(x.keyword)}</b><div class="text-xs text-zinc-400">${x.pages.map((p) => `${esc(p.page)} (${p.share}%)`).join(' vs ')}</div></li>`).join('')}</ul>` : empty('None found.'));
-    $('tab-health').innerHTML = cov + issues + maps + can;
+    $('tab-health').innerHTML = cov + jobsCard() + issues + maps + can;
   }
 
   function renderReports(d) {
@@ -578,7 +611,15 @@
         try { const r = await api('/seo/keywords/' + id + '/focus', { method: 'POST', body: { goal: Number(act.dataset.goal) } }); toast(r.plan.summary); await load(); switchTab('focus'); } catch (err) { toast(err.message); render(); }
         return;
       }
+      if (act.dataset.act === 'jobsswitch') {
+        const on = act.dataset.on === '1';
+        if (on && !confirm('Add the recent-jobs sections to your website? They are written by the nightly site build and uploaded at 3 AM.')) return;
+        try { await api('/seo/config', { method: 'PATCH', body: { recentJobs: on } }); state.jobsFeed = undefined; toast(on ? 'Turned on' : 'Turned off'); render(); } catch (err) { toast(err.message); }
+        return;
+      }
+      if (act.dataset.act === 'refreshrec') { act.disabled = true; try { await api('/seo/recommendations/refresh', { method: 'POST' }); toast('Updated'); load(); } catch (err) { toast(err.message); act.disabled = false; } return; }
       const id = act.closest('[data-kw]').dataset.kw;
+      if (act.dataset.act === 'dismiss') { try { await api('/seo/recommendations/' + id + '/dismiss', { method: 'POST' }); toast('Hidden for 8 weeks'); load(); } catch (err) { toast(err.message); } return; }
       const body = { pin: { pinned: true }, unpin: { pinned: false }, track: { rankTrack: true }, untrack: { rankTrack: false }, retire: { status: 'retired' } }[act.dataset.act];
       if (act.dataset.act === 'retire' && !confirm('Stop working on this keyword?')) return;
       try { await api('/seo/keywords/' + id, { method: 'PATCH', body }); toast('Saved'); load(); } catch (err) { toast(err.message); }

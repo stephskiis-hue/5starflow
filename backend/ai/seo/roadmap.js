@@ -284,10 +284,16 @@ async function roadmapTick(ctx) {
   }
 
   const r = await rescore(userId, { now });
+  const recs = await require('./research').researchTick(userId, { now, live: serper.enabled() })
+    .catch((e) => { actions.push(`keyword research failed: ${e.message}`); return { count: 0, fresh: 0 }; });
+  // older paid invoices -> the website's "recent jobs" sections (resumes where it left off; a no-op once done)
+  const jobs = await require('./recentJobs').backfill(userId).catch((e) => ({ added: 0, note: e.message }));
+  if (jobs.added) actions.push(`added ${jobs.added} past job(s) for the recent-jobs sections`);
+  if (jobs.note) actions.push(`recent jobs: ${jobs.note}`);
   await g.saveState(seo.row.id, { lastRoadmapAt: now.toISOString() });
   return {
     items_found: r.keywords,
-    summary: `${r.keywords} keywords; ${tracked} rank-checked; ${discovered} new from Serper; ${r.newIdeas} new from Search Console; ${calls} Serper calls this week`,
+    summary: `${r.keywords} keywords; ${tracked} rank-checked; ${discovered} new from Serper; ${r.newIdeas} new from Search Console; ${recs.count} recommended to target (${recs.fresh} new); ${calls} Serper calls this week`,
     actions_taken: actions,
     learnings: discovered ? [{ scope: 'agent:research', key: `seo-discovery-${weekKey(now)}`, value: `Serper found ${discovered} new keyword ideas this week; ${tracked} tracked keywords checked in Google and the map pack.`, confidence: 0.7 }] : [],
   };

@@ -78,6 +78,10 @@ async function handleInvoicePaid(invoiceData) {
     return;
   }
 
+  // A paid job counts for the website's "recent jobs" sections whether or not a review request goes out.
+  const siteUserId = userId || process.env.OPERATOR_USER_ID;
+  if (siteUserId) require('../ai/seo/recentJobs').recordInvoice(siteUserId, invoiceId);
+
   if (invoice.allowReviewRequest === false) {
     console.log(`[reviewRequester] Invoice ${invoiceId} allowReviewRequest=false — Jobber says skip`);
     return;

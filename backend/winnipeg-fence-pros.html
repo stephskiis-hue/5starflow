@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="robots" content="noindex, nofollow"/>
+  <title>Winnipeg Fence Pros — SEO Autopilot</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script>
+    tailwind.config = { darkMode: 'class', theme: { extend: { colors: {
+      primary: '#e0b27a', 'primary-strong': '#c98f4a', ink: '#ece7e1', muted: '#9a948d', line: '#2e2b28',
+      surface: '#141210', card: '#1c1917', card2: '#24201d', ok: '#57d38c', bad: '#ff8a7a', warn: '#f5c451' },
+      fontFamily: { sans: ['Inter', 'sans-serif'] } } } };
+  </script>
+  <style>
+    body { background: #0d0c0b; color: #ece7e1; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+    .card { background: #1c1917; border: 1px solid #2e2b28; border-radius: 16px; }
+    .tab { padding: .5rem .9rem; border-radius: 999px; color: #9a948d; font-weight: 600; font-size: .9rem; white-space: nowrap; border: 1px solid transparent; }
+    .tab.active { background: rgba(224,178,122,.14); color: #e0b27a; border-color: rgba(224,178,122,.35); }
+    .btn { display: inline-flex; align-items: center; gap: .35rem; padding: .45rem .85rem; border-radius: 10px; font-weight: 600; font-size: .85rem; border: 1px solid #3a3531; background: #24201d; color: #ece7e1; cursor: pointer; }
+    .btn:hover { border-color: #e0b27a; }
+    .btn.primary { background: #c98f4a; border-color: #c98f4a; color: #140f0a; }
+    .btn.danger { color: #ff8a7a; }
+    .btn:disabled { opacity: .5; cursor: wait; }
+    .pill { display: inline-block; padding: .1rem .55rem; border-radius: 999px; font-size: .72rem; font-weight: 700; background: #2a2622; color: #c9c2ba; white-space: nowrap; }
+    .pill.ok { background: rgba(87,211,140,.15); color: #57d38c; } .pill.bad { background: rgba(255,138,122,.15); color: #ff8a7a; }
+    .pill.warn { background: rgba(245,196,81,.15); color: #f5c451; } .pill.brand { background: rgba(224,178,122,.15); color: #e0b27a; }
+    input, textarea, select { background: #141210 !important; border: 1px solid #3a3531 !important; color: #ece7e1 !important; border-radius: 10px !important; font-size: .9rem !important; }
+    input:focus, textarea:focus, select:focus { border-color: #e0b27a !important; box-shadow: none !important; }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th { text-align: left; color: #9a948d; font-weight: 600; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; padding: .5rem; border-bottom: 1px solid #2e2b28; }
+    td { padding: .55rem .5rem; border-bottom: 1px solid #24201d; vertical-align: top; }
+    .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .muted { color: #9a948d; }
+    .hidden-tab { display: none; }
+    #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50; }
+    pre.log { white-space: pre-wrap; font-size: .75rem; color: #c9c2ba; background: #141210; border-radius: 10px; padding: .75rem; max-height: 260px; overflow: auto; }
+    @media (max-width: 640px) { th, td { white-space: nowrap; } }
+  </style>
+</head>
+<body>
+<div class="max-w-6xl mx-auto px-4 pb-16">
+  <header class="pt-6 pb-4 flex flex-wrap items-center gap-3 justify-between">
+    <div>
+      <h1 class="text-2xl font-extrabold tracking-tight">Winnipeg Fence Pros</h1>
+      <p class="muted text-sm">SEO autopilot: keyword research, focus campaigns, rankings and blog posts, run by 5StarFlow</p>
+    </div>
+    <div class="flex flex-wrap gap-2 items-center" id="headerPills"></div>
+  </header>
+
+  <div id="setupBanner" class="hidden card p-4 mb-4 border-warn"></div>
+
+  <nav class="flex gap-1 overflow-x-auto pb-3 mb-2" id="tabs">
+    <button class="tab active" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="focus">Focus</button>
+    <button class="tab" data-tab="keywords">Keywords</button>
+    <button class="tab" data-tab="roadmap">Roadmap</button>
+    <button class="tab" data-tab="rankings">Rankings</button>
+    <button class="tab" data-tab="posts">Posts</button>
+    <button class="tab" data-tab="settings">Settings</button>
+  </nav>
+
+  <!-- OVERVIEW -->
+  <section data-panel="overview">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" id="kpis"></div>
+    <div class="grid md:grid-cols-3 gap-4 mb-4">
+      <div class="card p-4 md:col-span-2">
+        <div class="flex justify-between items-center mb-2"><h2 class="font-bold">Search Console, last 90 days</h2><span class="muted text-xs" id="chartLegend"></span></div>
+        <div id="chart" class="w-full"></div>
+      </div>
+      <div class="card p-4">
+        <h2 class="font-bold mb-2">Next post</h2>
+        <div id="nextPost" class="text-sm"></div>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button class="btn primary" data-job="write">Write next post now</button>
+        </div>
+      </div>
+    </div>
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div class="card p-4">
+        <div class="flex justify-between items-center mb-2"><h2 class="font-bold">Health</h2><button class="btn" data-job="health">Run checks</button></div>
+        <div id="health" class="text-sm"></div>
+      </div>
+      <div class="card p-4">
+        <h2 class="font-bold mb-2">Jobs</h2>
+        <div class="flex flex-wrap gap-2 mb-3">
+          <button class="btn" data-job="gsc-sync">Sync Search Console</button>
+          <button class="btn" data-job="research">Run keyword research</button>
+        </div>
+        <div id="runs" class="text-sm"></div>
+      </div>
+    </div>
+    <div class="card p-4">
+      <h2 class="font-bold mb-1">Notes, reports and instructions for Claude</h2>
+      <p class="muted text-xs mb-3">Claude's weekly check-in posts its report here. Instructions you add here go into every post Claude writes until you mark them done.</p>
+      <form id="noteForm" class="flex flex-col md:flex-row gap-2 mb-4">
+        <select name="kind" class="md:w-44"><option value="instruction">Instruction for Claude</option><option value="note">Note</option></select>
+        <input name="body" class="flex-1" placeholder="e.g. Mention we install cedar and composite, not vinyl, this season" required>
+        <button class="btn primary" type="submit">Add</button>
+      </form>
+      <div id="notes" class="space-y-2 text-sm"></div>
+    </div>
+  </section>
+
+  <!-- FOCUS -->
+  <section data-panel="focus" class="hidden-tab">
+    <div class="card p-4 mb-4 text-sm">
+      <h2 class="font-bold mb-1">Focus campaigns</h2>
+      <p class="muted">Pick up to <span id="focusMax">3</span> keywords to win. For each one the autopilot writes the main post first, then supporting posts that link to it, checks its Google rank every week, and refreshes the main post after 21 days while it is short of the goal. Start one from a recommendation on the Keywords tab.</p>
+    </div>
+    <div id="focusList" class="space-y-4"></div>
+  </section>
+
+  <!-- KEYWORDS -->
+  <section data-panel="keywords" class="hidden-tab">
+    <div class="card p-4 mb-4">
+      <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
+        <h2 class="font-bold">This week's keyword research</h2>
+        <button class="btn" data-job="research">Run research now</button>
+      </div>
+      <p class="muted text-xs mb-3">Every Monday the server reads what people really searched in Search Console, asks Google (Serper) for autocomplete, People Also Ask and related searches, and recommends the keywords most worth a focus campaign.</p>
+      <div id="recs" class="grid md:grid-cols-2 gap-3"></div>
+    </div>
+    <div class="card p-4 mb-4">
+      <h2 class="font-bold mb-2">Add keywords</h2>
+      <form id="addKw" class="flex flex-col md:flex-row gap-2">
+        <textarea name="keywords" rows="2" class="flex-1" placeholder="One per line, e.g. cedar fence cost winnipeg"></textarea>
+        <button class="btn primary md:self-start" type="submit">Add</button>
+      </form>
+    </div>
+    <div class="card p-4 mb-4">
+      <div class="flex flex-wrap gap-2 items-center mb-3">
+        <h2 class="font-bold mr-auto">All keywords</h2>
+        <input id="kwSearch" placeholder="Search" class="w-40">
+        <select id="kwStatus"><option value="">Active</option><option>idea</option><option>planned</option><option>published</option><option>indexed</option><option>ranking</option><option>page1</option><option>top3</option><option>retired</option></select>
+      </div>
+      <div class="scroll-x"><table id="kwTable"></table></div>
+    </div>
+    <details class="card p-4">
+      <summary class="font-bold cursor-pointer">Search Console queries (last 28 days)</summary>
+      <div class="scroll-x mt-3"><table id="queryTable"></table></div>
+    </details>
+  </section>
+
+  <!-- ROADMAP -->
+  <section data-panel="roadmap" class="hidden-tab">
+    <div class="card p-4 mb-4">
+      <h2 class="font-bold mb-3">Keyword pipeline</h2>
+      <div id="pipeline" class="grid grid-cols-3 md:grid-cols-7 gap-2 text-center"></div>
+    </div>
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="card p-4"><h2 class="font-bold mb-1">Coming up</h2><p class="muted text-xs mb-3" id="scheduleLine"></p><div id="upcoming" class="space-y-2 text-sm"></div></div>
+      <div class="card p-4"><h2 class="font-bold mb-3">Published</h2><div id="recent" class="space-y-2 text-sm"></div></div>
+    </div>
+  </section>
+
+  <!-- RANKINGS -->
+  <section data-panel="rankings" class="hidden-tab">
+    <div class="card p-4">
+      <h2 class="font-bold mb-1">Rankings</h2>
+      <p class="muted text-xs mb-3">Search Console position is the 28-day average across everyone who searched. Google rank and map pack are a weekly live check from Winnipeg (Serper). The line shows the weekly Search Console position (lower is better).</p>
+      <div class="scroll-x"><table id="rankTable"></table></div>
+    </div>
+  </section>
+
+  <!-- POSTS -->
+  <section data-panel="posts" class="hidden-tab">
+    <div class="card p-4">
+      <div class="flex flex-wrap justify-between items-center gap-2 mb-3"><h2 class="font-bold">Posts</h2><button class="btn primary" data-job="write">Write next post now</button></div>
+      <div id="postList" class="space-y-3 text-sm"></div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section data-panel="settings" class="hidden-tab">
+    <form id="settingsForm" class="space-y-4"></form>
+    <div class="sticky bottom-3 mt-4 flex justify-end"><button class="btn primary shadow-lg" id="saveSettings">Save settings</button></div>
+  </section>
+</div>
+<div id="toast"></div>
+
+<script>
+(() => {
+  const $ = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' }) : '');
+  const fmtTime = (d) => (d ? new Date(d).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
+  const num = (n) => (n == null ? '–' : Number(n).toLocaleString('en-CA'));
+  const STATUS_PILL = { idea: '', planned: 'brand', published: 'warn', indexed: 'warn', ranking: 'warn', page1: 'ok', top3: 'ok', retired: '', draft: 'warn', writing: 'brand', publishing: 'brand', failed: 'bad', replaced: '', completed: 'ok', running: 'brand', skipped: '' };
+  const pill = (s, cls) => `<span class="pill ${cls ?? STATUS_PILL[s] ?? ''}">${esc(s)}</span>`;
+  const JOB_NAMES = { 'gsc-sync': 'Search Console sync', research: 'Keyword research', health: 'Health check', write: 'Write + publish', publish: 'Publish' };
+
+  function getKey() { try { return localStorage.getItem('wfpKey') || ''; } catch { return ''; } }
+  function setKey(k) { try { localStorage.setItem('wfpKey', k); } catch {} }
+
+  async function api(path, opts = {}) {
+    const res = await fetch(`/api/wfp${path}`, { ...opts, headers: { 'Content-Type': 'application/json', 'x-wfp-key': getKey(), ...(opts.headers || {}) }, body: opts.body ? JSON.stringify(opts.body) : undefined });
+    if (res.status === 401) {
+      const k = prompt('This page is protected. Enter the access key:');
+      if (k) { setKey(k.trim()); return api(path, opts); }
+      throw new Error('Access key required');
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  }
+
+  function toast(msg, bad) {
+    const t = $('#toast');
+    t.innerHTML = `<div class="card px-4 py-2 text-sm ${bad ? 'text-bad' : ''}">${esc(msg)}</div>`;
+    clearTimeout(toast.t); toast.t = setTimeout(() => { t.innerHTML = ''; }, 4000);
+  }
+
+  // ── tabs ──
+  let current = 'overview';
+  function show(tab) {
+    current = tab;
+    $$('#tabs .tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+    $$('[data-panel]').forEach((p) => p.classList.toggle('hidden-tab', p.dataset.panel !== tab));
+    try { history.replaceState(null, '', `#${tab}`); } catch {}
+    LOADERS[tab]().catch((e) => toast(e.message, true));
+  }
+  $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) show(b.dataset.tab); });
+
+  // ── jobs ──
+  let polling = null;
+  async function startJob(job, btn) {
+    if (btn) btn.disabled = true;
+    try { await api(`/jobs/${job}/run`, { method: 'POST' }); toast(`${JOB_NAMES[job]} started`); pollRuns(); }
+    catch (e) { toast(e.message, true); }
+    finally { if (btn) setTimeout(() => { btn.disabled = false; }, 1500); }
+  }
+  document.addEventListener('click', (e) => { const b = e.target.closest('[data-job]'); if (b) startJob(b.dataset.job, b); });
+
+  function pollRuns() {
+    clearInterval(polling);
+    let rounds = 0;
+    polling = setInterval(async () => {
+      rounds += 1;
+      const runs = await api('/runs?limit=5').catch(() => []);
+      const busy = runs.some((r) => r.status === 'running');
+      if (current === 'overview') renderRuns(runs);
+      if (!busy && rounds > 1) { clearInterval(polling); LOADERS[current]().catch(() => {}); const last = runs[0]; if (last) toast(`${JOB_NAMES[last.job] || last.job}: ${last.summary || last.status}`, last.status === 'failed'); }
+      if (rounds > 200) clearInterval(polling);
+    }, 4000);
+  }
+
+  // ── overview ──
+  function renderRuns(runs) {
+    $('#runs').innerHTML = runs.length ? runs.slice(0, 8).map((r) => `
+      <div class="py-2 border-b border-line">
+        <div class="flex justify-between gap-2"><span class="font-semibold">${esc(JOB_NAMES[r.job] || r.job)}</span><span>${pill(r.status)}</span></div>
+        <div class="muted text-xs">${fmtTime(r.startedAt)} · ${esc(r.trigger)}</div>
+        ${r.summary ? `<div class="text-xs mt-1">${esc(r.summary)}</div>` : ''}
+      </div>`).join('') : '<p class="muted">No jobs have run yet.</p>';
+  }
+
+  function chart(daily) {
+    if (!daily.length) { $('#chart').innerHTML = '<p class="muted text-sm py-8 text-center">No Search Console data yet. Set the property on the Settings tab, then press Sync Search Console.</p>'; $('#chartLegend').textContent = ''; return; }
+    const W = 640, H = 180, P = 6;
+    const maxI = Math.max(1, ...daily.map((d) => d.impressions)), maxC = Math.max(1, ...daily.map((d) => d.clicks));
+    const x = (i) => P + (i * (W - 2 * P)) / Math.max(1, daily.length - 1);
+    const line = (f, max) => daily.map((d, i) => `${x(i).toFixed(1)},${(H - P - (d[f] / max) * (H - 2 * P)).toFixed(1)}`).join(' ');
+    $('#chart').innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="w-full h-44" preserveAspectRatio="none" role="img" aria-label="Clicks and impressions per day">
+      <polyline fill="none" stroke="#6f6a64" stroke-width="1.5" points="${line('impressions', maxI)}"/>
+      <polyline fill="none" stroke="#e0b27a" stroke-width="2.2" points="${line('clicks', maxC)}"/></svg>
+      <div class="flex justify-between muted text-xs"><span>${esc(daily[0].date)}</span><span>${esc(daily[daily.length - 1].date)}</span></div>`;
+    $('#chartLegend').innerHTML = `<span style="color:#e0b27a">■</span> clicks (max ${maxC}/day) · <span style="color:#6f6a64">■</span> impressions (max ${maxI}/day)`;
+  }
+
+  function change(now, before) {
+    if (!before) return '';
+    const pct = Math.round(((now - before) / before) * 100);
+    return `<span class="text-xs ${pct >= 0 ? 'text-ok' : 'text-bad'}">${pct >= 0 ? '+' : ''}${pct}%</span>`;
+  }
+
+  function renderHeader(s) {
+    $('#headerPills').innerHTML = [
+      s.autopilot ? pill(`Autopilot on · ${s.postDays.join(', ')} ${s.postHour}:00`, 'ok') : pill('Autopilot off', 'warn'),
+      pill(s.publishMode === 'review' ? 'Review before publish' : 'Auto publish', 'brand'),
+      s.dryRun ? pill('DRY RUN: nothing is uploaded', 'bad') : '',
+    ].join(' ');
+    const banner = $('#setupBanner');
+    if (s.missing.length) {
+      banner.classList.remove('hidden');
+      banner.innerHTML = `<p class="font-bold text-warn mb-1">Finish the setup</p><p class="text-sm">Still missing: ${s.missing.map(esc).join(', ')}. <button class="btn ml-2" data-goto="settings">Open Settings</button></p>`;
+    } else banner.classList.add('hidden');
+  }
+
+  async function loadOverview() {
+    const s = await api('/status');
+    renderHeader(s);
+    const kc = s.keywordCounts || {};
+    const tiles = [
+      ['Clicks, 28 days', num(s.totals.clicks), change(s.totals.clicks, s.totals.prevClicks)],
+      ['Impressions, 28 days', num(s.totals.impressions), change(s.totals.impressions, s.totals.prevImpressions)],
+      ['Keywords on page 1', num((kc.page1 || 0) + (kc.top3 || 0)), `<span class="muted text-xs">${num(kc.top3 || 0)} in the top 3</span>`],
+      ['Keywords tracked', num(Object.entries(kc).filter(([k]) => k !== 'retired').reduce((a, [, v]) => a + v, 0)), `<span class="muted text-xs">${num(kc.planned || 0)} planned</span>`],
+    ];
+    $('#kpis').innerHTML = tiles.map(([l, v, sub]) => `<div class="card p-4"><div class="muted text-xs">${l}</div><div class="text-2xl font-extrabold mt-1">${v}</div><div>${sub}</div></div>`).join('');
+    chart(s.daily);
+    $('#nextPost').innerHTML = s.next
+      ? `<p class="font-semibold">${esc(s.next.keyword)}</p><p class="mt-1">${pill(s.next.mode, 'brand')}</p><p class="muted text-xs mt-2">${esc(s.next.why)}</p><p class="muted text-xs mt-2">${esc(s.due.due ? 'Due now: the autopilot writes it within the hour.' : s.due.why || '')}</p>`
+      : '<p class="muted">Nothing planned yet. Run the keyword research or add keywords.</p>';
+    const h = s.health;
+    $('#health').innerHTML = h ? `<p class="muted text-xs mb-2">${fmtTime(h.at)} · ${esc(h.summary)}</p>` + h.checks.map((c) => `
+      <div class="flex gap-2 py-1"><span class="${c.ok ? 'text-ok' : 'text-bad'} font-bold">${c.ok ? '✓' : '!'}</span><div><span class="font-semibold">${esc(c.name)}</span> <span class="muted">${esc(c.detail)}</span></div></div>`).join('')
+      : '<p class="muted">No health check yet. Press Run checks.</p>';
+    renderRuns(s.runs);
+    if (s.runs.some((r) => r.status === 'running')) pollRuns();
+    $('#notes').innerHTML = s.notes.length ? s.notes.map((n) => `
+      <div class="p-3 rounded-xl bg-card2">
+        <div class="flex justify-between gap-2"><div>${pill(n.kind === 'instruction' ? 'instruction' : n.author, n.author === 'claude' ? 'brand' : n.kind === 'instruction' ? 'warn' : '')} <span class="font-semibold">${esc(n.title)}</span></div>
+        <button class="btn text-xs" data-note-done="${n.id}">Done</button></div>
+        <div class="mt-1 whitespace-pre-wrap">${esc(n.body)}</div><div class="muted text-xs mt-1">${fmtTime(n.createdAt)}</div>
+      </div>`).join('') : '<p class="muted">Nothing open.</p>';
+  }
+  document.addEventListener('click', async (e) => {
+    const goto = e.target.closest('[data-goto]'); if (goto) show(goto.dataset.goto);
+    const nd = e.target.closest('[data-note-done]');
+    if (nd) { await api(`/notes/${nd.dataset.noteDone}`, { method: 'PATCH', body: { done: true } }).catch((x) => toast(x.message, true)); loadOverview(); }
+  });
+  $('#noteForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try { await api('/notes', { method: 'POST', body: { kind: f.kind.value, body: f.body.value } }); f.body.value = ''; toast('Added'); loadOverview(); } catch (x) { toast(x.message, true); }
+  });
+
+  // ── focus ──
+  function posBadge(k) {
+    return `GSC ${k.position28 ?? '–'} · Google ${k.serpPosition ?? '–'} · map ${k.mapPackPosition ?? '–'}`;
+  }
+  async function loadFocus() {
+    const { focusMax, campaigns } = await api('/focus');
+    $('#focusMax').textContent = focusMax;
+    const list = campaigns.filter((c) => c.focusStatus !== 'stopped');
+    $('#focusList').innerHTML = list.length ? list.map((c) => {
+      const live = ['published', 'indexed', 'ranking', 'page1', 'top3'];
+      const supLive = c.supports.filter((s) => live.includes(s.status)).length;
+      const steps = [
+        [live.includes(c.status), `Main post live${c.targetUrl ? `: <a class="underline" href="${esc(c.targetUrl)}" target="_blank" rel="noopener">${esc(c.targetUrl)}</a>` : ''}`],
+        [c.supports.length > 0 && supLive === c.supports.length, `Supporting posts: ${supLive} of ${c.supports.length} live`],
+        [!!c.refreshedAt, c.refreshedAt ? `Refreshed ${fmtDate(c.refreshedAt)}` : 'Refresh after 21 days if short of the goal'],
+        [c.focusStatus === 'won', `Goal: top ${c.focusGoal}`],
+      ];
+      return `<div class="card p-4">
+        <div class="flex flex-wrap justify-between gap-2">
+          <div><h3 class="font-bold text-lg">${esc(c.keyword)}</h3><p class="muted text-xs">Since ${fmtDate(c.focusSince)} · ${posBadge(c)} · ${num(c.impressions28)} impressions / 28 days</p></div>
+          <div class="flex gap-2 items-start">${pill(c.focusStatus === 'won' ? 'goal reached' : `goal top ${c.focusGoal}`, c.focusStatus === 'won' ? 'ok' : 'brand')}
+            ${c.focusStatus === 'active' ? `<button class="btn danger" data-stop-focus="${c.id}">Stop</button>` : ''}</div>
+        </div>
+        <div class="grid md:grid-cols-2 gap-4 mt-3">
+          <div>${steps.map(([ok, t]) => `<div class="flex gap-2 py-1 text-sm"><span class="${ok ? 'text-ok' : 'muted'} font-bold">${ok ? '✓' : '○'}</span><span>${t}</span></div>`).join('')}</div>
+          <div><p class="muted text-xs mb-1">Supporting keywords</p>${c.supports.length ? c.supports.map((s) => `<div class="flex justify-between gap-2 py-1 text-sm border-b border-line"><span>${esc(s.keyword)}</span>${pill(s.status)}</div>`).join('') : '<p class="muted text-sm">None yet.</p>'}</div>
+        </div>
+        ${c.history?.length > 1 ? `<div class="mt-3">${spark(c.history)}</div>` : ''}
+      </div>`;
+    }).join('') : '<div class="card p-6 text-center"><p class="muted mb-3">No focus campaign yet.</p><button class="btn primary" data-goto="keywords">Pick from the recommendations</button></div>';
+  }
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-stop-focus]');
+    if (!b || !confirm('Stop this focus campaign? Unwritten supporting posts go back to the keyword list.')) return;
+    try { await api(`/keywords/${b.dataset.stopFocus}/focus`, { method: 'DELETE' }); toast('Stopped'); loadFocus(); } catch (x) { toast(x.message, true); }
+  });
+
+  // ── keywords ──
+  let kwCache = [];
+  async function loadKeywords() {
+    const params = new URLSearchParams();
+    if ($('#kwStatus').value) params.set('status', $('#kwStatus').value);
+    if ($('#kwSearch').value.trim()) params.set('q', $('#kwSearch').value.trim());
+    const [{ keywords, recommendations }, queries] = await Promise.all([api(`/keywords?${params}`), api('/queries?limit=150')]);
+    kwCache = keywords;
+    $('#recs').innerHTML = recommendations.length ? recommendations.map((k) => `
+      <div class="p-4 rounded-xl bg-card2">
+        <div class="flex justify-between gap-2"><span class="font-bold">${esc(k.keyword)}</span>${pill(k.service || 'other', '')}</div>
+        <p class="text-sm mt-2">${esc(k.why)}</p>
+        <div class="flex flex-wrap gap-2 mt-3">
+          <button class="btn primary" data-focus="${k.id}" data-goal="3">Target top 3</button>
+          <button class="btn" data-focus="${k.id}" data-goal="10">Target top 10</button>
+          <button class="btn" data-dismiss="${k.id}">Not now</button>
+        </div>
+      </div>`).join('') : '<p class="muted text-sm">No recommendations yet. They appear after the Monday research (or press Run research now once Search Console is connected).</p>';
+    $('#kwTable').innerHTML = `<thead><tr><th>Keyword</th><th>Status</th><th>Score</th><th>Impr.</th><th>Pos.</th><th>Google</th><th>Source</th><th></th></tr></thead><tbody>${keywords.map((k) => `
+      <tr>
+        <td><div class="font-semibold">${esc(k.keyword)} ${k.focus && k.focusStatus === 'active' ? pill('focus', 'brand') : ''} ${k.supportsId ? pill('supporting', '') : ''}</div><div class="muted text-xs">${esc(k.service || '')}${k.targetUrl ? ` · <a class="underline" href="${esc(k.targetUrl)}" target="_blank" rel="noopener">post</a>` : ''}</div></td>
+        <td>${pill(k.status)}</td><td>${k.priority}</td><td>${num(k.impressions28)}</td><td>${k.position28 ?? '–'}</td><td>${k.serpPosition ?? '–'}</td><td class="muted">${esc(k.source)}</td>
+        <td><div class="flex gap-1 flex-wrap justify-end">
+          ${!k.focus && !k.supportsId && k.status !== 'retired' ? `<button class="btn text-xs" data-focus="${k.id}" data-goal="3">Focus</button>` : ''}
+          ${k.status !== 'retired' ? `<button class="btn text-xs" data-write="${k.id}">${['published', 'indexed', 'ranking', 'page1', 'top3'].includes(k.status) ? 'Refresh' : 'Write'}</button>` : ''}
+          ${k.status === 'idea' ? `<button class="btn text-xs" data-kw-status="planned" data-id="${k.id}">Plan</button>` : ''}
+          ${k.status !== 'retired' && !k.focus ? `<button class="btn text-xs" data-kw-status="retired" data-id="${k.id}">Retire</button>` : `${k.status === 'retired' ? `<button class="btn text-xs" data-kw-status="idea" data-id="${k.id}">Restore</button>` : ''}`}
+        </div></td>
+      </tr>`).join('')}</tbody>`;
+    $('#queryTable').innerHTML = `<thead><tr><th>Query</th><th>Page</th><th>Clicks</th><th>Impr.</th><th>Pos.</th><th>Impr. before</th></tr></thead><tbody>${queries.map((q) => `
+      <tr><td>${esc(q.query)}</td><td class="muted">${esc(q.page)}</td><td>${num(q.clicks)}</td><td>${num(q.impressions)}</td><td>${q.position}</td><td class="muted">${num(q.prevImpressions)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No Search Console data yet.</td></tr>'}</tbody>`;
+  }
+  let kwTimer;
+  $('#kwSearch').addEventListener('input', () => { clearTimeout(kwTimer); kwTimer = setTimeout(() => loadKeywords().catch((e) => toast(e.message, true)), 300); });
+  $('#kwStatus').addEventListener('change', () => loadKeywords().catch((e) => toast(e.message, true)));
+  $('#addKw').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const list = e.target.keywords.value.split('\n').map((s) => s.trim()).filter(Boolean);
+    if (!list.length) return;
+    try { const r = await api('/keywords', { method: 'POST', body: { keywords: list } }); toast(`${r.created} added${r.skipped ? `, ${r.skipped} already there` : ''}`); e.target.keywords.value = ''; loadKeywords(); } catch (x) { toast(x.message, true); }
+  });
+  document.addEventListener('click', async (e) => {
+    const f = e.target.closest('[data-focus]');
+    const d = e.target.closest('[data-dismiss]');
+    const w = e.target.closest('[data-write]');
+    const st = e.target.closest('[data-kw-status]');
+    try {
+      if (f) { const r = await api(`/keywords/${f.dataset.focus}/focus`, { method: 'POST', body: { goal: Number(f.dataset.goal) } }); toast(`Focus started, ${r.supports} supporting posts planned`); show('focus'); }
+      if (d) { await api(`/keywords/${d.dataset.dismiss}/dismiss`, { method: 'POST' }); toast('Hidden for 8 weeks'); loadKeywords(); }
+      if (w) {
+        const k = kwCache.find((x) => x.id === w.dataset.write);
+        if (!confirm(`Have Claude write ${w.textContent.trim() === 'Refresh' ? 'a refreshed post' : 'a post'} for "${k?.keyword}" now?`)) return;
+        await api(`/keywords/${w.dataset.write}/write`, { method: 'POST' }); toast('Claude is writing it (a few minutes)'); pollRuns();
+      }
+      if (st) { await api(`/keywords/${st.dataset.id}`, { method: 'PATCH', body: { status: st.dataset.kwStatus } }); loadKeywords(); }
+    } catch (x) { toast(x.message, true); }
+  });
+
+  // ── roadmap ──
+  const MODE_LABEL = { new: 'new post', support: 'supporting post', refresh: 'refresh', manual: 'manual' };
+  async function loadRoadmap() {
+    const r = await api('/roadmap');
+    const order = ['idea', 'planned', 'published', 'indexed', 'ranking', 'page1', 'top3'];
+    $('#pipeline').innerHTML = order.map((s) => `<div class="p-3 rounded-xl bg-card2"><div class="text-xl font-extrabold">${num(r.pipeline[s])}</div><div class="muted text-xs">${s}</div></div>`).join('');
+    $('#scheduleLine').textContent = r.schedule.autopilot ? `Autopilot posts on ${r.schedule.days.join(', ')} at ${r.schedule.hour}:00, at most ${r.schedule.perWeek} a week.` : 'Autopilot is off: these are written only when you press Write.';
+    $('#upcoming').innerHTML = r.upcoming.length ? r.upcoming.map((u, i) => `
+      <div class="p-3 rounded-xl bg-card2"><div class="flex justify-between gap-2"><span class="font-semibold">${i + 1}. ${esc(u.keyword)}</span><span class="muted text-xs">${u.date ? esc(u.date) : ''}</span></div>
+      <div class="mt-1">${pill(MODE_LABEL[u.mode] || u.mode, 'brand')} ${u.focus ? pill(`focus: ${u.focus}`, '') : ''}</div><div class="muted text-xs mt-1">${esc(u.why)}</div></div>`).join('') : '<p class="muted">Nothing planned yet.</p>';
+    $('#recent').innerHTML = r.recent.length ? r.recent.map((p) => `
+      <div class="py-2 border-b border-line"><a class="font-semibold underline" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>
+      <div class="muted text-xs">${fmtDate(p.publishedAt)} · ${esc(MODE_LABEL[p.mode] || p.mode)} · ${esc(p.keyword || '')}</div></div>`).join('') : '<p class="muted">No posts yet.</p>';
+  }
+
+  // ── rankings ──
+  function spark(history) {
+    const pts = history.filter((h) => h.pos != null);
+    if (pts.length < 2) return '<span class="muted text-xs">–</span>';
+    const W = 120, H = 28, max = Math.max(...pts.map((p) => p.pos)), min = Math.min(...pts.map((p) => p.pos));
+    const y = (p) => 3 + ((p - min) / Math.max(1, max - min)) * (H - 6);
+    const line = pts.map((p, i) => `${((i * W) / (pts.length - 1)).toFixed(1)},${y(p.pos).toFixed(1)}`).join(' ');
+    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-label="position trend"><polyline fill="none" stroke="#e0b27a" stroke-width="1.8" points="${line}"/></svg>`;
+  }
+  async function loadRankings() {
+    const rows = await api('/rankings');
+    $('#rankTable').innerHTML = `<thead><tr><th>Keyword</th><th>Search Console</th><th>Google</th><th>Map pack</th><th>Impr.</th><th>Clicks</th><th>Trend</th><th>Ranking above</th></tr></thead><tbody>${rows.map((k) => {
+      const ch = k.position28 != null && k.prevPosition28 != null ? Math.round((k.prevPosition28 - k.position28) * 10) / 10 : null;
+      return `<tr>
+        <td><div class="font-semibold">${esc(k.keyword)} ${k.focus ? pill('focus', 'brand') : ''}</div><div class="muted text-xs">${esc(k.targetUrl || k.topPage || '')}</div></td>
+        <td>${k.position28 ?? '–'} ${ch ? `<span class="text-xs ${ch > 0 ? 'text-ok' : 'text-bad'}">${ch > 0 ? '▲' : '▼'}${Math.abs(ch)}</span>` : ''}</td>
+        <td>${k.serpPosition ?? (k.serpCheckedAt ? '30+' : '–')}</td><td>${k.mapPackPosition ?? (k.serpCheckedAt ? '–' : '')}</td>
+        <td>${num(k.impressions28)}</td><td>${num(k.clicks28)}</td><td>${spark(k.history)}</td>
+        <td class="text-xs">${(k.serpTop || []).map((r) => `<div><a class="underline muted" href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.title).slice(0, 50)}</a></div>`).join('')}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="8" class="muted">Nothing tracked yet. Rankings fill in after the first Search Console sync and Monday research.</td></tr>'}</tbody>`;
+  }
+
+  // ── posts ──
+  async function loadPosts() {
+    const posts = await api('/posts');
+    $('#postList').innerHTML = posts.length ? posts.map((p) => `
+      <div class="p-4 rounded-xl bg-card2">
+        <div class="flex flex-wrap justify-between gap-2">
+          <div><div class="font-bold">${esc(p.title)}</div><div class="muted text-xs">${esc(p.keyword || '')} · ${esc(MODE_LABEL[p.mode] || p.mode)} · ${fmtTime(p.publishedAt || p.createdAt)}</div></div>
+          <div>${pill(p.status)}</div>
+        </div>
+        ${p.excerpt ? `<p class="mt-2">${esc(p.excerpt)}</p>` : ''}
+        ${p.error ? `<p class="mt-2 ${p.status === 'failed' ? 'text-bad' : 'text-warn'} text-xs">${esc(p.error)}</p>` : ''}
+        <div class="flex flex-wrap gap-2 mt-3">
+          ${p.slug !== 'writing' ? `<a class="btn" href="/api/wfp/posts/${p.id}/preview${getKey() ? `?key=${encodeURIComponent(getKey())}` : ''}" target="_blank" rel="noopener">Preview</a>` : ''}
+          ${p.url && p.status === 'published' ? `<a class="btn" href="${esc(p.url)}" target="_blank" rel="noopener">Live page</a>` : ''}
+          ${['draft', 'failed'].includes(p.status) && p.slug !== 'writing' ? `<button class="btn primary" data-publish="${p.id}">Publish</button>` : ''}
+          ${['draft', 'failed'].includes(p.status) ? `<button class="btn danger" data-del-post="${p.id}">Delete</button>` : ''}
+        </div>
+        ${p.log ? `<details class="mt-2"><summary class="muted text-xs cursor-pointer">Publish log</summary><pre class="log">${esc(p.log)}</pre></details>` : ''}
+        ${p.sources?.length ? `<details class="mt-1"><summary class="muted text-xs cursor-pointer">Research sources (${p.sources.length})</summary><ul class="text-xs mt-1 space-y-1">${p.sources.map((s) => `<li><a class="underline muted" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a></li>`).join('')}</ul></details>` : ''}
+      </div>`).join('') : '<p class="muted">No posts yet.</p>';
+  }
+  document.addEventListener('click', async (e) => {
+    const p = e.target.closest('[data-publish]');
+    const d = e.target.closest('[data-del-post]');
+    try {
+      if (p && confirm('Upload this post to the website now?')) { await api(`/posts/${p.dataset.publish}/publish`, { method: 'POST' }); toast('Publishing'); pollRuns(); }
+      if (d && confirm('Delete this draft?')) { await api(`/posts/${d.dataset.delPost}`, { method: 'DELETE' }); loadPosts(); }
+    } catch (x) { toast(x.message, true); }
+  });
+
+  // ── settings ──
+  const GROUPS = [
+    ['business', 'Business', 'Who the posts are written for.'],
+    ['ftp', 'FTP connection', 'How the server uploads posts, photos and the blog index to the website.', 'test-ftp'],
+    ['sitemap', 'Sitemap', 'Every published post is added to this sitemap file over FTP and the sitemap is resubmitted to Search Console.', 'test-sitemap'],
+    ['google', 'Search Console', '', 'test-gsc'],
+    ['keys', 'API keys', 'Blank = the 5StarFlow server key (billed to 5StarFlow). Saved keys are encrypted and never shown again.'],
+    ['autopilot', 'Autopilot', 'When and how Claude writes and posts.'],
+    ['template', 'Post template', 'Placeholders: {{TITLE}} {{META_DESCRIPTION}} {{CANONICAL}} {{IMAGE}} {{IMAGE_URL}} {{IMAGE_ALT}} {{BODY}} {{SCHEMA}} {{DATE}} {{DATE_HUMAN}} {{READ_TIME}} {{CATEGORY}} {{BUSINESS_NAME}} {{PHONE}} {{QUOTE_URL}} {{CITY}} {{REGION}} {{SITE_URL}} {{BLOG_URL}} {{YEAR}}. Keep the hero image between <!--HERO--> and <!--/HERO--> so it can be dropped when there is no photo.'],
+  ];
+  const SOURCE_LABEL = { page: 'saved here', env: 'from .env', server: 'server default', default: 'default' };
+  let fields = [];
+  function fieldHtml(f) {
+    const id = `f_${f.key}`;
+    const src = `<span class="muted text-xs">${SOURCE_LABEL[f.source] || ''}</span>`;
+    let input;
+    if (f.bool) input = `<label class="flex items-center gap-2"><input type="checkbox" id="${id}" name="${f.key}" ${/^(1|true|on|yes)$/i.test(f.value) ? 'checked' : ''}> <span class="text-sm">${esc(f.label)}</span></label>`;
+    else if (f.options) input = `<select id="${id}" name="${f.key}" class="w-full">${f.options.map((o) => `<option ${o === f.value ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+    else if (f.multiline) input = `<textarea id="${id}" name="${f.key}" rows="${f.key === 'POST_TEMPLATE' ? 18 : f.secret ? 3 : 4}" class="w-full font-mono text-xs" placeholder="${f.secret && f.isSet ? 'Saved. Leave blank to keep it.' : ''}" spellcheck="false">${f.secret ? '' : esc(f.value)}</textarea>`;
+    else input = `<input id="${id}" name="${f.key}" type="${f.secret ? 'password' : 'text'}" autocomplete="off" class="w-full" value="${f.secret ? '' : esc(f.value)}" placeholder="${f.secret && f.isSet ? 'Saved. Leave blank to keep it.' : ''}">`;
+    const clear = f.secret && f.source === 'page' ? `<label class="text-xs muted flex items-center gap-1 mt-1"><input type="checkbox" data-clear="${f.key}"> remove the saved value</label>` : '';
+    return `<div class="${f.multiline ? 'md:col-span-2' : ''}">
+      ${f.bool ? '' : `<label for="${id}" class="text-sm font-semibold flex justify-between gap-2">${esc(f.label)} ${src}</label>`}
+      <div class="mt-1">${input}</div>
+      ${f.secret ? `<div class="text-xs mt-1 ${f.isSet ? 'text-ok' : 'muted'}">${f.isSet ? `✓ set (${SOURCE_LABEL[f.source]})` : 'not set'}</div>` : ''}
+      ${f.help ? `<p class="muted text-xs mt-1">${esc(f.help)}</p>` : ''}${clear}
+    </div>`;
+  }
+  async function loadSettings() {
+    const s = await api('/settings');
+    fields = s.fields;
+    $('#settingsForm').innerHTML = GROUPS.map(([g, title, help, test]) => `
+      <div class="card p-4">
+        <div class="flex flex-wrap justify-between items-center gap-2 mb-1"><h2 class="font-bold">${title}</h2>
+          <div class="flex gap-2">${test ? `<button type="button" class="btn" data-test="${test}">Test</button>` : ''}
+          ${g === 'template' ? `<button type="button" class="btn" id="importTpl">Import from a page on the site</button><button type="button" class="btn" id="resetTpl">Use the default</button>` : ''}</div></div>
+        ${help ? `<p class="muted text-xs mb-3">${esc(help)}</p>` : ''}
+        ${g === 'google' ? `<p class="text-xs mb-3">${s.serviceAccountEmail ? `In Search Console → Settings → Users and permissions, add <b class="text-primary">${esc(s.serviceAccountEmail)}</b> as a <b>Full</b> user (or paste your own service account JSON below and add its email instead).` : 'The server has no shared Google service account: paste a service account JSON below and add its email as a Full user in Search Console.'}</p>` : ''}
+        <div class="grid md:grid-cols-2 gap-4">${fields.filter((f) => f.group === g).map(fieldHtml).join('')}</div>
+        <div class="text-sm mt-3" data-test-out="${test || ''}"></div>
+      </div>`).join('') + `<div class="card p-4 text-xs muted">Settings are stored in the 5StarFlow database (secrets encrypted), so they survive server restarts and deploys. A blank field uses the server's <code>WFP_&lt;NAME&gt;</code> variable from .env when there is one (e.g. WFP_FTP_HOST). ${s.accessKey ? 'This page is protected by WFP_ACCESS_KEY.' : 'Anyone with this link can open this page: set WFP_ACCESS_KEY on the server to require a key.'}</div>`;
+  }
+  function formValues() {
+    const values = {};
+    for (const f of fields) {
+      const el = document.getElementsByName(f.key)[0];
+      if (!el) continue;
+      if (f.bool) values[f.key] = el.checked ? 'true' : 'false';
+      else if (!(f.secret && !el.value.trim())) values[f.key] = el.value;
+    }
+    return values;
+  }
+  $('#saveSettings').addEventListener('click', async () => {
+    const clear = $$('[data-clear]').filter((c) => c.checked).map((c) => c.dataset.clear);
+    try { await api('/settings', { method: 'PUT', body: { values: formValues(), clear } }); toast('Settings saved'); loadSettings(); } catch (x) { toast(x.message, true); }
+  });
+  document.addEventListener('click', async (e) => {
+    const t = e.target.closest('[data-test]');
+    if (t) {
+      const out = $(`[data-test-out="${t.dataset.test}"]`);
+      out.innerHTML = '<span class="muted">Testing…</span>';
+      try { const r = await api(`/settings/${t.dataset.test}`, { method: 'POST', body: { values: formValues() } }); out.innerHTML = `<span class="${r.ok ? 'text-ok' : 'text-bad'}">${r.ok ? '✓' : '!'} ${esc(r.detail)}</span>`; }
+      catch (x) { out.innerHTML = `<span class="text-bad">${esc(x.message)}</span>`; }
+    }
+    if (e.target.id === 'importTpl') {
+      const file = prompt('File name of an existing blog post on the site (inside the website folder), e.g. blog/fence-permits.html');
+      if (!file) return;
+      try { const r = await api('/settings/import-template', { method: 'POST', body: { file } }); document.getElementsByName('POST_TEMPLATE')[0].value = r.template; toast(`Template made from ${file} (${r.replaced.join(', ')}). Check it, then Save.`); } catch (x) { toast(x.message, true); }
+    }
+    if (e.target.id === 'resetTpl' && confirm('Replace the template with the default? (Save to keep it)')) {
+      try { await api('/settings', { method: 'PUT', body: { clear: ['POST_TEMPLATE'] } }); toast('Default template restored'); loadSettings(); } catch (x) { toast(x.message, true); }
+    }
+  });
+
+  const LOADERS = { overview: loadOverview, focus: loadFocus, keywords: loadKeywords, roadmap: loadRoadmap, rankings: loadRankings, posts: loadPosts, settings: loadSettings };
+  const start = (location.hash || '').slice(1);
+  show(LOADERS[start] ? start : 'overview');
+  if (LOADERS[start] && start !== 'overview') api('/status').then(renderHeader).catch(() => {});
+  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (LOADERS[t] && t !== current) show(t); });
+})();
+</script>
+</body>
+</html>
