@@ -1113,6 +1113,22 @@ model SeoFocusStep {
   @@index([userId, status])
 }
 
+// One paid Jobber invoice, reduced to what the public "recent jobs" sections may show: service, area, month.
+// No client name, street or house number is ever stored here.
+model SiteJob {
+  id        String   @id @default(cuid())
+  userId    String
+  invoiceId String
+  cluster   String // config.CLUSTERS id
+  fsa       String? // first 3 characters of the postal code
+  area      String? // neighbourhood name from config.FSA_AREAS
+  doneAt    DateTime // invoice issued date
+  createdAt DateTime @default(now())
+
+  @@unique([userId, invoiceId])
+  @@index([userId, doneAt])
+}
+
 // Every URL the engine knows about: from the crawl, the sitemaps, Search Console or a publish report.
 model SeoPage {
   id                String    @id @default(cuid())

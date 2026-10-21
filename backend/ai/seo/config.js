@@ -39,6 +39,16 @@ const AREAS = [
   ['Island Lakes', ['island lakes', 'southdale']], ['Headingley', ['headingley']], ['East St. Paul', ['east st paul', 'west st paul']], ['Downtown', ['downtown winnipeg']],
 ].map(([name, aliases]) => ({ name, aliases }));
 
+// Postal-code prefix -> neighbourhood name in AREAS, for the "recent jobs" sections. Approximate by nature (a prefix
+// can span two neighbourhoods): only prefixes that sit mostly inside one are listed; anything else gets no area and
+// the job still counts for its service page. Check the Health tab preview before turning recentJobs on.
+const FSA_AREAS = { R2H: 'St. Boniface', R2K: 'North Kildonan', R3E: 'West End', R3G: 'West End', R3J: 'St. James', R3K: 'St. James',
+  R3M: 'River Heights', R3N: 'River Heights', R3P: 'Tuxedo', R3T: 'Fort Garry', R3V: 'Fort Garry', R3Y: 'Waverley West' };
+
+// Content Vault tags (ai/vault.js) whose photos fit each service.
+const SERVICE_TAGS = { 'spring-cleanup': ['SPRING'], 'snow-removal': ['SNOW'], 'fall-cleanup': ['FALL'], sod: ['SOD'], hardscaping: ['PATIOS'], landscaping: ['LANDSCAPING'],
+  fencing: ['FENCES_DECKS'], 'lawn-mowing': ['LAWNS'], 'lawn-care': ['LAWNS'], fertilizing: ['LAWNS'], aeration: ['LAWNS'], overseeding: ['LAWNS'], 'power-raking': ['LAWNS'], 'weed-control': ['LAWNS'], 'yard-maintenance': ['LAWNS'] };
+
 const BRAND_TERMS = ['no bs', 'nobs', 'no bull', 'nobsyardwork', 'no b s'];
 
 // Searches that look like ours but are not customers: jobs, equipment shopping, other cities, chat prompts.
@@ -70,6 +80,8 @@ const DEFAULT_GROWTH_CONFIG = {
   focusRefreshDays: 21,       // a focus page can be refreshed this soon after publishing (others wait 45)
   focusLinkPosts: 3,          // existing posts asked to link to the focus page per round
   focusLinks: false,          // 'links' mode needs the writer to republish an existing page; turn on once the PC can
+  recommendMax: 5,            // keywords the weekly research recommends for a focus campaign
+  recentJobs: false,          // nightly site build adds a "recent jobs" section to service + neighbourhood pages
 };
 
 function mergeConfig(stored, env = process.env) {
@@ -85,4 +97,4 @@ function mergeConfig(stored, env = process.env) {
 
 const clusterById = (id) => CLUSTERS.find((c) => c.id === id) || null;
 
-module.exports = { DEFAULT_ORIGIN, CLUSTERS, AREAS, BRAND_TERMS, OFF_TOPIC, isOffTopic, CONTENT_TYPES, DISCOVERY_TEMPLATES, DEFAULT_GROWTH_CONFIG, mergeConfig, clusterById };
+module.exports = { DEFAULT_ORIGIN, CLUSTERS, AREAS, FSA_AREAS, SERVICE_TAGS, BRAND_TERMS, OFF_TOPIC, isOffTopic, CONTENT_TYPES, DISCOVERY_TEMPLATES, DEFAULT_GROWTH_CONFIG, mergeConfig, clusterById };

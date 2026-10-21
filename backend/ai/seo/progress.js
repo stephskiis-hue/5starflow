@@ -78,6 +78,16 @@ function movers(keywords, weeks = 4) {
   }).filter(Boolean).sort((x, y) => Math.abs(y.change) - Math.abs(x.change)).slice(0, 10);
 }
 
+/** Last weekly research, minus anything focused, supporting or retired since. */
+function recommendationsFor(state, keywords) {
+  const rec = state.recommendations;
+  if (!rec) return { at: null, items: [] };
+  const byId = Object.fromEntries(keywords.map((k) => [k.id, k]));
+  const items = rec.items.filter((i) => { const k = byId[i.id]; return k && !k.focus && !k.supportsId && k.status !== 'retired'; })
+    .map((i) => ({ ...i, pinned: !!byId[i.id].pinned }));
+  return { at: rec.at, items };
+}
+
 async function buildProgress(userId, { view } = {}) {
   const seo = await g.loadSeo(userId);
   const [k, keywords, pages, sitemaps, tasks, reports, assignments] = await Promise.all([
@@ -105,7 +115,7 @@ async function buildProgress(userId, { view } = {}) {
       .map((a) => ({ mode: a.mode, keyword: a.keywordText, url: a.publishedPath ? toUrl(a.publishedPath, seo.origin) : null, publishedAt: a.publishedAt }));
     const camps = (await focusMod.board(userId, { keywords, pages: pageBy, seo })).campaigns;
     const focusReport = camps.map((c) => ({ keyword: c.keyword, status: c.status, goal: c.goal, start: c.start, position: c.position, progress: c.progress, support: c.counts.support, links: c.counts.links, social: c.counts.social }));
-    return { kpis: k, tracked, coverage, movers: movers(keywords), focus: focusReport, postsSinceLastReport: recent, openIssues: tasks.map((t) => t.title).slice(0, 10),
+    return { kpis: k, tracked, coverage, movers: movers(keywords), recommended: recommendationsFor(seo.state, keywords).items.map((i) => ({ keyword: i.keyword, why: i.why })), focus: focusReport, postsSinceLastReport: recent, openIssues: tasks.map((t) => t.title).slice(0, 10),
       nextUp: await preview(userId, { limit: 5 }), lastReport: last ? { createdAt: last.createdAt, nextFocus: last.nextFocus } : null, reportDue: report };
   }
 
@@ -141,6 +151,7 @@ async function buildProgress(userId, { view } = {}) {
     serper: { enabled: !!process.env.SERPER_API_KEY, week: seo.state.serper || null, budget: seo.cfg.serperWeeklyBudget },
     sync: { lastSyncAt: seo.state.lastSyncAt || null, lastIndexWatchAt: seo.state.lastIndexWatchAt || null, lastRoadmapAt: seo.state.lastRoadmapAt || null, dataThrough: seo.state.dataThrough || null },
     kpis: k, weekly: await weekly(userId), tracked, coverage, statusCounts, keywordsTotal: keywords.length,
+    recommendations: recommendationsFor(seo.state, keywords),
     focus, focusBoard: await focusMod.board(userId, { keywords, pages: pageBy, seo }), ideas, roadmap: await preview(userId, { limit: 10 }), reserved: reserved ? { keyword: reserved.keywordText, mode: reserved.mode, expiresAt: reserved.expiresAt } : null,
     clusters, content, movers: movers(keywords),
     sitemaps: sitemaps.map((s) => ({ url: s.url, isIndex: s.isIndex, urlCount: s.urlCount, httpStatus: s.httpStatus, hashChangedAt: s.hashChangedAt, lastSubmittedAt: s.lastSubmittedAt,

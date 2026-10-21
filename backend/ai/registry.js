@@ -47,7 +47,7 @@ const BACKEND = [
   { slug: 'seo-index-watch', name: 'Sitemap + index watch', agent: 'research', schedule: 'Daily 6:23 am, plus after every post and deploy', category: 'seo',
     purpose: 'Crawls the live site and its sitemaps, submits changed sitemaps to Google, URL-inspects new pages, and raises tasks for redirects, missing pages, bad canonicals, duplicates and pages Google has not indexed.', expectedEveryMinutes: 2160, config: { files: ['ai/seo/indexWatch.js', 'ai/seo/crawl.js'] } },
   { slug: 'seo-roadmap', name: 'Keyword roadmap (Serper)', agent: 'research', schedule: 'Monday 6:37 am', category: 'seo', researchEnabled: true,
-    purpose: 'Weekly Google + map-pack rank check for tracked keywords and Serper keyword discovery, then rescores what the blog should write next.', expectedEveryMinutes: 10080, config: { files: ['ai/seo/roadmap.js', 'ai/seo/serper.js'] } },
+    purpose: 'Weekly Google + map-pack rank check for tracked keywords and Serper keyword discovery, then rescores what the blog should write next and recommends the keywords most worth a focus campaign (Focus tab).', expectedEveryMinutes: 10080, config: { files: ['ai/seo/roadmap.js', 'ai/seo/serper.js'] } },
   { slug: 'routine-heartbeat', name: 'Routine heartbeat', agent: 'system', schedule: 'Every 15 min', category: 'ai-os',
     purpose: 'Flags any routine that should have reported but has gone quiet (e.g. a Claude routine blocked by the plan limit).', expectedEveryMinutes: 60, config: { quiet: true, files: ['ai/heartbeat.js'] } },
 ];

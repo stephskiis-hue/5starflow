@@ -123,6 +123,20 @@ router.patch('/keywords/:id/focus', ownerOnly, async (req, res) => {
   } catch (err) { fail(res, err); }
 });
 
+router.post('/recommendations/refresh', ownerOnly, async (req, res) => {
+  const out = await require('../ai/seo/research').researchTick(req.ai.userId, { live: false });
+  res.json({ ok: true, ...out });
+});
+
+router.post('/recommendations/:id/dismiss', ownerOnly, async (req, res) => {
+  try { res.json(await require('../ai/seo/research').dismiss(req.ai.userId, req.params.id)); } catch (err) { fail(res, err); }
+});
+
+// --------------------------------------------------------------------------- recent jobs (website sections)
+router.get('/recent-jobs', async (req, res) => res.json(await require('../ai/seo/recentJobs').feed(req.ai.userId)));
+
+router.post('/recent-jobs/backfill', ownerOnly, async (req, res) => res.json(await require('../ai/seo/recentJobs').backfill(req.ai.userId, { maxPages: 10 })));
+
 router.get('/pages', async (req, res) => {
   const where = { userId: req.ai.userId };
   if (req.query.kind) where.kind = String(req.query.kind);
