@@ -203,7 +203,28 @@ async function researchTick(ctx, now = new Date()) {
     await prisma.wfpKeyword.update({ where: { id: k.id }, data: { history: hist.slice(-52) } });
   }
 
-  // 5. focus recommendations
+  // 5. corrections: live articles that get seen but not clicked, or that stopped moving (max 2 queued a week)
+  const AGE = (k) => (now - new Date(k.refreshedAt || k.publishedAt || now)) / DAY;
+  const queuedThisWeek = await prisma.wfpKeyword.count({ where: { refreshAsked: { gte: new Date(now - 7 * DAY) } } });
+  let room = Math.max(0, 2 - queuedThisWeek);
+  const liveKw = (await prisma.wfpKeyword.findMany({ where: { status: { in: [...LIVE] }, refreshAsked: null, targetUrl: { not: null } }, orderBy: { impressions28: 'desc' } }));
+  const queued = [];
+  for (const k of liveKw) {
+    if (!room) break;
+    if (AGE(k) < 28) continue;
+    const ctr = k.impressions28 ? k.clicks28 / k.impressions28 : 0;
+    let reason = null;
+    if (k.impressions28 >= 100 && k.position28 != null && k.position28 <= 15 && ctr < kw.ctrAt(k.position28) * 0.5) reason = `low click rate: ${k.impressions28} searches saw it at position ${k.position28} but only ${k.clicks28} clicked. Rewrite the title and meta description to win the click; the content can mostly stay`;
+    else if (AGE(k) >= 45 && k.position28 != null && k.position28 >= 8 && k.position28 <= 30 && (k.prevPosition28 == null || k.position28 >= k.prevPosition28)) reason = `stuck at position ${k.position28}: answer the questions it misses (People Also Ask, the queries in the brief), add Winnipeg detail and fresher numbers, a clearer first answer`;
+    if (!reason) continue;
+    await prisma.wfpKeyword.update({ where: { id: k.id }, data: { refreshAsked: now, refreshReason: reason } });
+    queued.push(`${k.keyword}: ${reason}`);
+    room -= 1;
+  }
+  if (queued.length) await note('system', 'note', `${queued.length} correction${queued.length > 1 ? 's' : ''} queued`, queued.map((q) => `• ${q}`).join('\n'));
+  stats.corrections = queued.length;
+
+  // 6. focus recommendations
   const pool = await prisma.wfpKeyword.findMany({ where: { focus: false, supportsId: null, status: { not: 'retired' } } });
   const cands = [];
   for (const k of pool) {
@@ -222,7 +243,7 @@ async function researchTick(ctx, now = new Date()) {
   if (fresh.length) await note('system', 'note', `${fresh.length} new keyword recommendation${fresh.length > 1 ? 's' : ''}`, fresh.map((p) => `• ${p.keyword}: ${p.rec.why}`).join('\n'));
 
   return {
-    summary: `${stats.gsc} keywords from Search Console, ${stats.serper} from Serper, ${stats.tracked} rank-checked, ${stats.recommended} recommended`,
+    summary: `${stats.gsc} keywords from Search Console, ${stats.serper} from Serper, ${stats.tracked} rank-checked, ${stats.corrections || 0} corrections queued, ${stats.recommended} recommended`,
     detail: { ...stats, serper: budget.snapshot() },
   };
 }

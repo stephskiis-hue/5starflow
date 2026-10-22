@@ -1297,6 +1297,8 @@ model WfpKeyword {
   focusGoal         Int       @default(3)
   focusSince        DateTime?
   supportsId        String? // supporting keyword of this focus keyword
+  refreshAsked      DateTime? // a correction is queued: the writer refreshes this article next (see refreshReason)
+  refreshReason     String?
   postId            String?
   targetUrl         String?
   publishedAt       DateTime?
@@ -1347,6 +1349,7 @@ model WfpPost {
   imageQuery      String?
   image           String? // hero image path on the site; null/empty = no hero
   oldUrl          String? // the WordPress URL this article replaced (for the redirects)
+  faq             Json? // [{q, a}] as handed in, so the page can be rebuilt with its FAQ schema
   html            String
   sources         Json?
   status          String    @default("draft") // draft | publishing | published | failed
@@ -1387,4 +1390,22 @@ model WfpNote {
   createdAt DateTime @default(now())
 
   @@index([kind, createdAt])
+}
+
+// One piece of work handed to the Winnipeg Fence Pros writer routine (claude.ai). brief is frozen when it is handed out;
+// a reserved row locks its keyword until expiresAt so two runs never write the same thing.
+model WfpAssignment {
+  id         String    @id @default(cuid())
+  keywordId  String
+  keyword    String
+  mode       String // new | support | refresh
+  brief      Json
+  status     String    @default("reserved") // reserved | published | skipped | expired
+  expiresAt  DateTime
+  postId     String?
+  skipReason String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([status, createdAt])
 }

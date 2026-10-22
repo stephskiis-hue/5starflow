@@ -70,11 +70,9 @@
         <div id="chart" class="w-full"></div>
       </div>
       <div class="card p-4">
-        <h2 class="font-bold mb-2">Next post</h2>
+        <h2 class="font-bold mb-2">Next article</h2>
         <div id="nextPost" class="text-sm"></div>
-        <div class="mt-3 flex flex-wrap gap-2">
-          <button class="btn primary" data-job="write">Write next post now</button>
-        </div>
+        <div class="mt-3 flex flex-wrap gap-2" id="routineLink"></div>
       </div>
     </div>
     <div class="grid md:grid-cols-2 gap-4 mb-4">
@@ -93,9 +91,9 @@
     </div>
     <div class="card p-4">
       <h2 class="font-bold mb-1">Notes, reports and instructions for Claude</h2>
-      <p class="muted text-xs mb-3">Claude's weekly check-in posts its report here. Instructions you add here go into every post Claude writes until you mark them done.</p>
+      <p class="muted text-xs mb-3">The weekly check routine posts its report and its lessons (what worked) here. Instructions and lessons go into every brief the writer gets until you mark them done.</p>
       <form id="noteForm" class="flex flex-col md:flex-row gap-2 mb-4">
-        <select name="kind" class="md:w-44"><option value="instruction">Instruction for Claude</option><option value="note">Note</option></select>
+        <select name="kind" class="md:w-44"><option value="instruction">Instruction for Claude</option><option value="learning">Lesson (what works)</option><option value="note">Note</option></select>
         <input name="body" class="flex-1" placeholder="e.g. Mention we install cedar and composite, not vinyl, this season" required>
         <button class="btn primary" type="submit">Add</button>
       </form>
@@ -174,7 +172,7 @@
       <div class="flex flex-wrap gap-2"><button class="btn" id="wpPreview">Preview the move</button><button class="btn primary" id="wpMove">Move the posts</button></div>
     </div>
     <div class="card p-4">
-      <div class="flex flex-wrap justify-between items-center gap-2 mb-3"><h2 class="font-bold">Posts</h2><button class="btn primary" data-job="write">Write next post now</button></div>
+      <div class="flex flex-wrap justify-between items-center gap-2 mb-3"><h2 class="font-bold">Posts</h2><span class="muted text-xs">Written by the Claude writer routine, checked and uploaded by the server</span></div>
       <div id="postList" class="space-y-3 text-sm"></div>
     </div>
   </section>
@@ -197,7 +195,7 @@
   const num = (n) => (n == null ? '–' : Number(n).toLocaleString('en-CA'));
   const STATUS_PILL = { idea: '', planned: 'brand', published: 'warn', indexed: 'warn', ranking: 'warn', page1: 'ok', top3: 'ok', retired: '', draft: 'warn', writing: 'brand', publishing: 'brand', failed: 'bad', replaced: '', completed: 'ok', running: 'brand', skipped: '' };
   const pill = (s, cls) => `<span class="pill ${cls ?? STATUS_PILL[s] ?? ''}">${esc(s)}</span>`;
-  const JOB_NAMES = { 'gsc-sync': 'Search Console sync', research: 'Keyword research', health: 'Health check', write: 'Write + publish', publish: 'Publish', 'migrate-wordpress': 'WordPress move' };
+  const JOB_NAMES = { 'gsc-sync': 'Search Console sync', research: 'Keyword research', health: 'Health check', publish: 'Publish', 'migrate-wordpress': 'WordPress move' };
 
   function getKey() { try { return localStorage.getItem('wfpKey') || ''; } catch { return ''; } }
   function setKey(k) { try { localStorage.setItem('wfpKey', k); } catch {} }
@@ -310,9 +308,14 @@
     ];
     $('#kpis').innerHTML = tiles.map(([l, v, sub]) => `<div class="card p-4"><div class="muted text-xs">${l}</div><div class="text-2xl font-extrabold mt-1">${v}</div><div>${sub}</div></div>`).join('');
     chart(s.daily);
-    $('#nextPost').innerHTML = s.next
-      ? `<p class="font-semibold">${esc(s.next.keyword)}</p><p class="mt-1">${pill(s.next.mode, 'brand')}</p><p class="muted text-xs mt-2">${esc(s.next.why)}</p><p class="muted text-xs mt-2">${esc(s.due.due ? 'Due now: the autopilot writes it within the hour.' : s.due.why || '')}</p>`
-      : '<p class="muted">Nothing planned yet. Run the keyword research or add keywords.</p>';
+    const wk = s.week;
+    $('#nextPost').innerHTML = (s.assignment
+      ? `<p class="muted text-xs mb-1">Being written now (reserved ${fmtTime(s.assignment.createdAt)})</p><p class="font-semibold">${esc(s.assignment.keyword)}</p><p class="mt-1">${pill(s.assignment.mode, 'brand')}</p>`
+      : s.next
+        ? `<p class="font-semibold">${esc(s.next.keyword)}</p><p class="mt-1">${pill(s.next.mode, 'brand')}</p><p class="muted text-xs mt-2">${esc(s.next.why)}</p>`
+        : '<p class="muted">Nothing planned yet. Run the keyword research or add keywords.</p>')
+      + `<p class="muted text-xs mt-3">The writer routine runs ${esc(wk.days.join(' + '))} at ${wk.hour}:00 · ${wk.posts} of ${wk.max} posts this week${s.autopilot ? '' : ' · autopilot is off, so it gets nothing to write'}</p>`;
+    $('#routineLink').innerHTML = (s.routineUrl ? `<a class="btn" href="${esc(s.routineUrl)}" target="_blank" rel="noopener">Writer routine</a>` : '') + (s.checkRoutineUrl ? `<a class="btn" href="${esc(s.checkRoutineUrl)}" target="_blank" rel="noopener">Weekly check routine</a>` : '');
     const h = s.health;
     $('#health').innerHTML = h ? `<p class="muted text-xs mb-2">${fmtTime(h.at)} · ${esc(h.summary)}</p>` + h.checks.map((c) => `
       <div class="flex gap-2 py-1"><span class="${c.ok ? 'text-ok' : 'text-bad'} font-bold">${c.ok ? '✓' : '!'}</span><div><span class="font-semibold">${esc(c.name)}</span> <span class="muted">${esc(c.detail)}</span></div></div>`).join('')
@@ -321,7 +324,7 @@
     if (s.runs.some((r) => r.status === 'running')) pollRuns();
     $('#notes').innerHTML = s.notes.length ? s.notes.map((n) => `
       <div class="p-3 rounded-xl bg-card2">
-        <div class="flex justify-between gap-2"><div>${pill(n.kind === 'instruction' ? 'instruction' : n.author, n.author === 'claude' ? 'brand' : n.kind === 'instruction' ? 'warn' : '')} <span class="font-semibold">${esc(n.title)}</span></div>
+        <div class="flex justify-between gap-2"><div>${pill(['instruction', 'learning', 'report'].includes(n.kind) ? n.kind : n.author, n.kind === 'learning' ? 'ok' : n.author === 'claude' ? 'brand' : n.kind === 'instruction' ? 'warn' : '')} <span class="font-semibold">${esc(n.title)}</span></div>
         <button class="btn text-xs" data-note-done="${n.id}">Done</button></div>
         <div class="mt-1 whitespace-pre-wrap">${esc(n.body)}</div><div class="muted text-xs mt-1">${fmtTime(n.createdAt)}</div>
       </div>`).join('') : '<p class="muted">Nothing open.</p>';
@@ -397,11 +400,11 @@
       </div>`).join('') : '<p class="muted text-sm">No recommendations yet. They appear after the Monday research (or press Run research now once Search Console is connected).</p>';
     $('#kwTable').innerHTML = `<thead><tr><th>Keyword</th><th>Status</th><th>Score</th><th>Impr.</th><th>Pos.</th><th>Google</th><th>Source</th><th></th></tr></thead><tbody>${keywords.map((k) => `
       <tr>
-        <td><div class="font-semibold">${esc(k.keyword)} ${k.focus && k.focusStatus === 'active' ? pill('focus', 'brand') : ''} ${k.supportsId ? pill('supporting', '') : ''}</div><div class="muted text-xs">${esc(k.service || '')}${k.targetUrl ? ` · <a class="underline" href="${esc(k.targetUrl)}" target="_blank" rel="noopener">post</a>` : ''}</div></td>
+        <td><div class="font-semibold">${esc(k.keyword)} ${k.focus && k.focusStatus === 'active' ? pill('focus', 'brand') : ''} ${k.supportsId ? pill('supporting', '') : ''} ${k.refreshAsked ? `<span title="${esc(k.refreshReason || '')}">${pill('fix queued', 'warn')}</span>` : ''}</div><div class="muted text-xs">${esc(k.service || '')}${k.targetUrl ? ` · <a class="underline" href="${esc(k.targetUrl)}" target="_blank" rel="noopener">post</a>` : ''}</div></td>
         <td>${pill(k.status)}</td><td>${k.priority}</td><td>${num(k.impressions28)}</td><td>${k.position28 ?? '–'}</td><td>${k.serpPosition ?? '–'}</td><td class="muted">${esc(k.source)}</td>
         <td><div class="flex gap-1 flex-wrap justify-end">
           ${!k.focus && !k.supportsId && k.status !== 'retired' ? `<button class="btn text-xs" data-focus="${k.id}" data-goal="3">Focus</button>` : ''}
-          ${k.status !== 'retired' ? `<button class="btn text-xs" data-write="${k.id}">${['published', 'indexed', 'ranking', 'page1', 'top3'].includes(k.status) ? 'Refresh' : 'Write'}</button>` : ''}
+          ${['published', 'indexed', 'ranking', 'page1', 'top3'].includes(k.status) && k.targetUrl ? (k.refreshAsked ? `<button class="btn text-xs" data-unfix="${k.id}">Cancel fix</button>` : `<button class="btn text-xs" data-fix="${k.id}">Fix</button>`) : ''}
           ${k.status === 'idea' ? `<button class="btn text-xs" data-kw-status="planned" data-id="${k.id}">Plan</button>` : ''}
           ${k.status !== 'retired' && !k.focus ? `<button class="btn text-xs" data-kw-status="retired" data-id="${k.id}">Retire</button>` : `${k.status === 'retired' ? `<button class="btn text-xs" data-kw-status="idea" data-id="${k.id}">Restore</button>` : ''}`}
         </div></td>
@@ -422,16 +425,17 @@
   document.addEventListener('click', async (e) => {
     const f = e.target.closest('[data-focus]');
     const d = e.target.closest('[data-dismiss]');
-    const w = e.target.closest('[data-write]');
     const st = e.target.closest('[data-kw-status]');
+    const fx = e.target.closest('[data-fix]');
+    const ufx = e.target.closest('[data-unfix]');
     try {
       if (f) { const r = await api(`/keywords/${f.dataset.focus}/focus`, { method: 'POST', body: { goal: Number(f.dataset.goal) } }); toast(`Focus started, ${r.supports} supporting posts planned`); show('focus'); }
       if (d) { await api(`/keywords/${d.dataset.dismiss}/dismiss`, { method: 'POST' }); toast('Hidden for 8 weeks'); loadKeywords(); }
-      if (w) {
-        const k = kwCache.find((x) => x.id === w.dataset.write);
-        if (!confirm(`Have Claude write ${w.textContent.trim() === 'Refresh' ? 'a refreshed post' : 'a post'} for "${k?.keyword}" now?`)) return;
-        await api(`/keywords/${w.dataset.write}/write`, { method: 'POST' }); toast('Claude is writing it (a few minutes)'); pollRuns();
+      if (fx) {
+        const reason = prompt('What should the refresh fix? (e.g. rewrite the title to win clicks, add the 2026 permit rules)');
+        if (reason) { await api(`/keywords/${fx.dataset.fix}/refresh`, { method: 'POST', body: { reason } }); toast('Queued: the writer refreshes it next'); loadKeywords(); }
       }
+      if (ufx) { await api(`/keywords/${ufx.dataset.unfix}/refresh`, { method: 'DELETE' }); loadKeywords(); }
       if (st) { await api(`/keywords/${st.dataset.id}`, { method: 'PATCH', body: { status: st.dataset.kwStatus } }); loadKeywords(); }
     } catch (x) { toast(x.message, true); }
   });
@@ -520,8 +524,8 @@
     ['blog', 'Blog pages', 'Articles are plain HTML pages at /articles/<name>/ with a list page at /articles/. Placeholders in the templates: {{TITLE}} {{META_DESCRIPTION}} {{CANONICAL}} {{IMAGE}} {{IMAGE_URL}} {{IMAGE_ALT}} {{BODY}} {{SCHEMA}} {{DATE}} {{DATE_HUMAN}} {{READ_TIME}} {{CATEGORY}} {{BUSINESS_NAME}} {{PHONE}} {{QUOTE_URL}} {{SERVICE_NAME}} {{SERVICE_URL}} {{CITY}} {{REGION}} {{SITE_URL}} {{BLOG_URL}} {{LOGO_URL}} {{FAVICON_URL}} {{NAV}} {{YEAR}}. On the list page, keep the two <!-- 5sf:articles:start --> / <!-- 5sf:articles:end --> markers: the server rewrites what is between them on every publish.'],
     ['sitemap', 'Sitemap', 'Every published article is added to this sitemap file over FTP and the sitemap is resubmitted to Search Console.', 'test-sitemap'],
     ['google', 'Search Console', '', 'test-gsc'],
-    ['keys', 'API keys', 'Blank = the 5StarFlow server key (billed to 5StarFlow). Saved keys are encrypted and never shown again.'],
-    ['autopilot', 'Autopilot', 'When and how Claude writes and posts.'],
+    ['keys', 'API keys', 'Blank = the 5StarFlow server keys (the same Serper and Pexels keys No-BS uses). Saved keys are encrypted and never shown again.'],
+    ['autopilot', 'Autopilot', 'The Claude writer routine (claude.ai) writes; the server checks, uploads and lists every post. These settings decide what it gets and how often.'],
   ];
   const SOURCE_LABEL = { page: 'saved here', env: 'from .env', server: 'server default', default: 'default' };
   let fields = [];

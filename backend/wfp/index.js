@@ -4,7 +4,8 @@
  *   daily  7:17  gsc-sync   Search Console numbers, keyword rescore
  *   Monday 7:37  research   keyword research, Serper discovery + rank tracking, recommendations
  *   daily  8:05  health     setup / FTP / sitemap / posts / Search Console checks
- *   hourly :25   write      autopilot: on a post day after POST_HOUR, Claude writes the next piece and it is published
+ * The writing is done by the Claude routine on claude.ai (wfp/prompts/blog-writer.md), which asks GET /api/wfp/assignment
+ * and hands the post in with POST /api/wfp/publish. Nothing here calls an AI model.
  */
 const cron = require('node-cron');
 const { runJob } = require('./runner');
@@ -15,7 +16,6 @@ const JOBS = {
   'gsc-sync': (ctx) => require('./research').gscSyncTick(ctx),
   research: (ctx) => require('./research').researchTick(ctx),
   health: (ctx) => require('./health').healthTick(ctx),
-  write: (ctx, opts) => require('./publisher').writeTick(ctx, opts),
   'migrate-wordpress': (ctx, opts) => require('./migrate').migrateTick(ctx, opts),
 };
 
@@ -28,7 +28,6 @@ function startWfp() {
   cron.schedule('17 7 * * *', () => run('gsc-sync'), { timezone: TZ });
   cron.schedule('37 7 * * 1', () => run('research'), { timezone: TZ });
   cron.schedule('5 8 * * *', () => run('health'), { timezone: TZ });
-  cron.schedule('25 * * * *', () => run('write'), { timezone: TZ });
   // first boot with Search Console set up: pull the numbers and research once instead of waiting for Monday
   setTimeout(async () => {
     try {

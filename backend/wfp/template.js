@@ -40,9 +40,11 @@ const serviceByName = (cfg, name) => (cfg.services || []).find((s) => s.name.toL
 function siteValues(cfg, category) {
   const svc = serviceByName(cfg, category);
   const nav = (cfg.navLinks || []).map((n) => `<a href="${esc(n.path)}">${esc(n.label)}</a>`).join('');
+  const blogPath = postUrls(cfg, 'x').blogUrl.replace(cfg.SITE_URL, '');
+  const siteNav = (cfg.navLinks || []).map((n) => `<li class="dropdown"><a class="dropdown-item${n.path === blogPath ? ' active' : ''}" href="${esc(/^https?:|^#/.test(n.path) ? n.path : absUrl(cfg, n.path))}">${esc(n.label)}</a></li>`).join('');
   return {
     BUSINESS_NAME: esc(cfg.BUSINESS_NAME), PHONE: esc(cfg.PHONE), QUOTE_URL: esc(cfg.QUOTE_URL || `${cfg.SITE_URL}/`), CITY: esc(cfg.CITY), REGION: esc(cfg.REGION),
-    SITE_URL: esc(cfg.SITE_URL), LOGO_URL: esc(cfg.LOGO_URL), FAVICON_URL: esc(cfg.FAVICON_URL || '/favicon.ico'), NAV: nav,
+    SITE_URL: esc(cfg.SITE_URL), LOGO_URL: esc(cfg.LOGO_URL), FAVICON_URL: esc(cfg.FAVICON_URL || '/favicon.ico'), NAV: nav, SITE_NAV: siteNav,
     SERVICE_NAME: esc(svc ? svc.name : cfg.BUSINESS_NAME), SERVICE_URL: esc(svc?.path ? absUrl(cfg, svc.path) : `${cfg.SITE_URL}/`),
   };
 }
@@ -96,7 +98,7 @@ function renderPost(cfg, post, date) {
     ...siteValues(cfg, post.category),
     TITLE: esc(post.title), META_DESCRIPTION: esc(post.metaDescription), CANONICAL: esc(urls.url), IMAGE: esc(image), IMAGE_URL: esc(image ? absUrl(cfg, image) : ''),
     IMAGE_ALT: esc(post.imageAlt || post.title), DATE: date, DATE_HUMAN: esc(human), READ_TIME: String(post.readTime || 5), CATEGORY: esc(post.category),
-    BLOG_URL: esc(urls.blogUrl), YEAR: date.slice(0, 4),
+    BLOG_URL: esc(urls.blogUrl), YEAR: String(new Date().getFullYear()),
     BODY: sanitizeBody(post.bodyHtml) + faqHtml(post.faq), SCHEMA: schemaJson(cfg, post, urls, date, image),
   };
   let html = String(cfg.POST_TEMPLATE || '');

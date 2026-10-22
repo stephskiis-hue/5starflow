@@ -10,7 +10,8 @@ const settings = require('../wfp/settings');
 const { run } = require('../wfp');
 const { startFocus, stopFocus, focusBoard } = require('../wfp/focus');
 const { roadmap, nextPiece, LIVE } = require('../wfp/plan');
-const { busyKeywords, autopilotDue, publishPost } = require('../wfp/publisher');
+const { busyKeywords, publishPost } = require('../wfp/publisher');
+const { getAssignment, skipAssignment, submitPost, postsThisWeek } = require('../wfp/assign');
 const { testFtp, testGsc } = require('../wfp/health');
 const { templateFromPage } = require('../wfp/template');
 const { addKeywords } = require('../wfp/research');
@@ -30,10 +31,10 @@ router.use((req, res, next) => {
 
 const wrap = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((err) => {
   console.error('[wfp:api]', err.message);
-  res.status(err.status || 500).json({ error: err.message });
+  res.status(err.status || 500).json({ error: err.message, ...(err.details || {}) });
 });
 
-const MANUAL_JOBS = new Set(['gsc-sync', 'research', 'health', 'write', 'migrate-wordpress']);
+const MANUAL_JOBS = new Set(['gsc-sync', 'research', 'health', 'migrate-wordpress']);
 /** Start a job without waiting (the page polls /runs). */
 function startJob(job, trigger, opts) {
   run(job, trigger, opts).catch((e) => console.error(`[wfp:${job}]`, e.message));
@@ -71,7 +72,10 @@ async function overview() {
     health: health ? { at: health.startedAt, summary: health.summary, checks: health.detail?.checks || [] } : null,
     runs, notes, posts,
     next: piece ? { mode: piece.mode, keyword: piece.keyword.keyword, why: piece.why } : null,
-    due: await autopilotDue(cfg),
+    assignment: await prisma.wfpAssignment.findFirst({ where: { status: 'reserved', expiresAt: { gt: new Date() } }, select: { id: true, keyword: true, mode: true, createdAt: true, expiresAt: true } }),
+    week: { posts: await postsThisWeek(new Date()), max: cfg.postsPerWeek, days: cfg.postDays, hour: cfg.postHour },
+    routineUrl: cfg.WRITER_ROUTINE_URL || null,
+    checkRoutineUrl: cfg.CHECK_ROUTINE_URL || null,
   };
 }
 
@@ -102,7 +106,7 @@ router.post('/settings/test-ftp', wrap(async (req, res) => {
 router.post('/settings/test-gsc', wrap(async (req, res) => res.json(await testGsc(await cfgWith(req.body?.values)))));
 router.post('/settings/test-sitemap', wrap(async (req, res) => {
   const cfg = await cfgWith(req.body?.values);
-  const pages = await require('../wfp/writer').sitePages(cfg, 5000);
+  const pages = await require('../wfp/sitepages').sitePages(cfg, 5000);
   res.json({ ok: pages.length > 0, detail: pages.length ? `${pages.length} URLs, e.g. ${pages.slice(0, 3).join(', ')}` : `Could not read ${cfg.SITEMAP_URL || '(no sitemap URL)'}` });
 }));
 router.post('/settings/import-template', wrap(async (req, res) => {
@@ -165,12 +169,27 @@ router.delete('/keywords/:id', wrap(async (req, res) => {
 }));
 router.post('/keywords/:id/focus', wrap(async (req, res) => res.json(await startFocus(req.params.id, Number(req.body?.goal) === 10 ? 10 : 3))));
 router.delete('/keywords/:id/focus', wrap(async (req, res) => res.json(await stopFocus(req.params.id))));
+// a correction: the writer refreshes this article next, with the reason in its brief (owner, weekly check routine)
+router.post('/keywords/:id/refresh', wrap(async (req, res) => {
+  const k = await prisma.wfpKeyword.findUnique({ where: { id: req.params.id } });
+  if (!k) return res.status(404).json({ error: 'not found' });
+  if (!LIVE.has(k.status) || !k.targetUrl) return res.status(409).json({ error: 'Only a keyword with a live article can be refreshed' });
+  const reason = String(req.body?.reason || '').trim().slice(0, 1000);
+  if (!reason) return res.status(400).json({ error: 'reason required: say what the refresh must fix' });
+  res.json(await prisma.wfpKeyword.update({ where: { id: k.id }, data: { refreshAsked: new Date(), refreshReason: `${reason}${triggerOf(req) === 'claude' ? ' (weekly check)' : ''}` } }));
+}));
+router.delete('/keywords/:id/refresh', wrap(async (req, res) => {
+  res.json(await prisma.wfpKeyword.update({ where: { id: req.params.id }, data: { refreshAsked: null, refreshReason: null } }));
+}));
 router.post('/keywords/:id/dismiss', wrap(async (req, res) => {
   res.json(await prisma.wfpKeyword.update({ where: { id: req.params.id }, data: { recommended: false, dismissedUntil: new Date(Date.now() + 56 * 86400000) } }));
 }));
-router.post('/keywords/:id/write', wrap(async (req, res) => {
-  startJob('write', triggerOf(req), { keywordId: req.params.id, force: true });
-  res.status(202).json({ ok: true, started: 'write' });
+// ── the writer routine (claude.ai): one assignment, then the finished post ──
+router.get('/assignment', wrap(async (req, res) => res.json(await getAssignment())));
+router.post('/assignment/:id/skip', wrap(async (req, res) => res.json(await skipAssignment(req.params.id, req.body?.reason))));
+router.post('/publish', express.json({ limit: '2mb' }), wrap(async (req, res) => {
+  if (!req.body?.assignmentId) return res.status(400).json({ error: 'assignmentId required' });
+  res.json(await submitPost(req.body.assignmentId, req.body));
 }));
 router.get('/queries', wrap(async (req, res) => {
   res.json(await prisma.wfpQuery.findMany({ orderBy: { impressions: 'desc' }, take: Math.min(500, Number(req.query.limit) || 200) }));
@@ -227,7 +246,7 @@ router.get('/runs', wrap(async (req, res) => {
 router.post('/jobs/:job/run', wrap(async (req, res) => {
   const job = req.params.job;
   if (!MANUAL_JOBS.has(job)) return res.status(404).json({ error: `unknown job ${job}` });
-  const opts = job === 'write' ? { force: true } : job === 'migrate-wordpress' ? { dryRun: !!req.body?.dryRun, overwrite: !!req.body?.overwrite, redirects: req.body?.redirects !== false } : {};
+  const opts = job === 'migrate-wordpress' ? { dryRun: !!req.body?.dryRun, overwrite: !!req.body?.overwrite, redirects: req.body?.redirects !== false } : {};
   startJob(job, triggerOf(req), opts);
   res.status(202).json({ ok: true, started: job });
 }));
@@ -240,7 +259,7 @@ router.post('/notes', wrap(async (req, res) => {
   const b = req.body || {};
   if (!String(b.body || '').trim()) return res.status(400).json({ error: 'body required' });
   const author = triggerOf(req) === 'claude' ? 'claude' : 'owner';
-  const kind = ['note', 'report', 'instruction'].includes(b.kind) ? b.kind : 'note';
+  const kind = ['note', 'report', 'instruction', 'learning'].includes(b.kind) ? b.kind : 'note';
   res.json(await prisma.wfpNote.create({ data: { author, kind, title: String(b.title || '').slice(0, 200), body: String(b.body).slice(0, 20000) } }));
 }));
 router.patch('/notes/:id', wrap(async (req, res) => {
@@ -263,6 +282,16 @@ router.get('/brief', wrap(async (req, res) => {
     topKeywords: keywords.slice(0, 25).map((k) => ({ id: k.id, keyword: k.keyword, status: k.status, priority: k.priority, impressions28: k.impressions28, position28: k.position28, serp: k.serpPosition, source: k.source })),
     movers,
     roadmap: roadmap(keywords, cfg, { busy: await busyKeywords(), n: 6 }),
+    // every live article with its numbers: what the weekly check judges and learns from
+    articles: keywords.filter((k) => LIVE.has(k.status) && k.targetUrl).map((k) => ({
+      keywordId: k.id, keyword: k.keyword, service: k.service, url: k.targetUrl, status: k.status, publishedAt: k.publishedAt, refreshedAt: k.refreshedAt,
+      position28: k.position28, prevPosition28: k.prevPosition28, impressions28: k.impressions28, clicks28: k.clicks28,
+      ctr: k.impressions28 ? Math.round((k.clicks28 / k.impressions28) * 1000) / 10 : null, google: k.serpPosition, mapPack: k.mapPackPosition,
+      correction: k.refreshAsked ? k.refreshReason : null,
+    })).sort((a, b) => (b.impressions28 || 0) - (a.impressions28 || 0)).slice(0, 60),
+    focusSlots: Math.max(0, cfg.focusMax - (await prisma.wfpKeyword.count({ where: { focus: true, focusStatus: 'active' } }))),
+    learnings: (await prisma.wfpNote.findMany({ where: { kind: 'learning', done: false }, orderBy: { createdAt: 'desc' }, take: 30 })).map((n) => ({ id: n.id, title: n.title, body: n.body, at: n.createdAt })),
+    lastWeek: { posts: await postsThisWeek(new Date()), max: cfg.postsPerWeek },
     posts: await prisma.wfpPost.findMany({ where: { createdAt: { gte: new Date(Date.now() - 30 * 86400000) } }, orderBy: { createdAt: 'desc' }, select: { title: true, keyword: true, status: true, url: true, error: true, publishedAt: true } }),
     failedRuns: o.runs.filter((r) => r.status === 'failed').map((r) => ({ job: r.job, at: r.startedAt, error: r.error })),
     openNotes: o.notes.map((n) => ({ id: n.id, author: n.author, kind: n.kind, title: n.title, body: n.body.slice(0, 500), at: n.createdAt })),

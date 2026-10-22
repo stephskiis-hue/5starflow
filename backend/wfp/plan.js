@@ -32,6 +32,9 @@ function nextPiece(keywords, { busy = new Set(), now = new Date() } = {}) {
       return { mode: 'refresh', keyword: f, focus: f, why: `Refresh: "${f.keyword}" is at ${best == null ? 'no position yet' : `position ${best}`} after ${REFRESH_DAYS}+ days, goal top ${f.focusGoal}` };
     }
   }
+  // corrections queued by the weekly check or the research job (low click rate, stuck rankings), oldest first
+  const fix = keywords.filter((k) => k.refreshAsked && LIVE.has(k.status) && free(k)).sort((a, b) => new Date(a.refreshAsked) - new Date(b.refreshAsked))[0];
+  if (fix) return { mode: 'refresh', keyword: fix, why: `Correction: ${fix.refreshReason || 'refresh asked for'}` };
   const waiting = new Set(focus.map((f) => f.id));
   const queue = keywords
     .filter((k) => k.status === 'planned' && !k.focus && !waiting.has(k.supportsId) && free(k))
@@ -79,7 +82,7 @@ function roadmap(keywords, cfg, { busy = new Set(), now = new Date(), n = 8 } = 
     if (!p) break;
     out.push({ date: slots[i] || null, mode: p.mode, keywordId: p.keyword.id, keyword: p.keyword.keyword, focus: p.focus?.keyword || null, why: p.why });
     const k = sim.find((x) => x.id === p.keyword.id);
-    if (p.mode === 'refresh') k.refreshedAt = at;
+    if (p.mode === 'refresh') { k.refreshedAt = at; k.refreshAsked = null; }
     else { k.status = 'published'; k.publishedAt = at; }
   }
   return out;

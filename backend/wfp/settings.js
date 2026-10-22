@@ -21,7 +21,7 @@ const FIELDS = [
   { key: 'QUOTE_URL', group: 'business', label: 'Quote / contact page URL', def: 'https://www.winnipegfencepros.com/#contactus', help: 'Every post links here' },
   { key: 'LOGO_URL', group: 'business', label: 'Logo (path or URL)', def: '/img/logo.webp', help: 'Shown in the header of every article page' },
   { key: 'FAVICON_URL', group: 'business', label: 'Favicon (path or URL)', def: '/img/logo.ico' },
-  { key: 'NAV_LINKS', group: 'business', label: 'Menu links (one per line: Label | /page)', multiline: true, def: 'Fence | /\nDeck | /decks.html\nPergola | /pergolas.html\nLandscape | /landscaping.html\nArticles | /articles/', help: 'The header and footer menu on the article pages' },
+  { key: 'NAV_LINKS', group: 'business', label: 'Menu links (one per line: Label | /page)', multiline: true, def: 'Fence | /\nDeck | /decks.html\nPergola | /pergolas.html\nLandscape | /landscaping.html\nArticles | /articles/\nOnsite Estimate | /#contactus', help: 'The site menu on the article pages (same as the menu on the rest of the site)' },
   { key: 'SERVICES', group: 'business', label: 'Services = blog categories (one per line: Name | page on the site | words people search)', multiline: true,
     def: 'Fence | / | fence, gate, picket, chain link, privacy\nDeck | /decks.html | deck, decking, railing\nPergola | /pergolas.html | pergola, gazebo, pavilion\nLandscaping | /landscaping.html | landscaping, landscape, retaining wall, patio, paver, garden',
     help: 'Each article is written for one service, filed under its name, and links to its page. Keywords that match no service are ignored. Delete a line to stop writing about it.' },
@@ -49,23 +49,23 @@ const FIELDS = [
   { key: 'GOOGLE_SA_JSON', group: 'google', label: 'Service account JSON (optional)', secret: true, multiline: true,
     help: 'Blank = the 5StarFlow service account. Either way, add its email as a Full user on the property' },
 
-  { key: 'ANTHROPIC_API_KEY', group: 'keys', label: 'Anthropic API key (Claude writer)', secret: true, shared: 'ANTHROPIC_API_KEY' },
   { key: 'SERPER_API_KEY', group: 'keys', label: 'Serper API key (rank tracking + discovery)', secret: true, shared: 'SERPER_API_KEY' },
   { key: 'PEXELS_API_KEY', group: 'keys', label: 'Pexels API key (hero photos)', secret: true, shared: 'PEXELS_API_KEY' },
   { key: 'SERPER_WEEKLY_BUDGET', group: 'keys', label: 'Serper searches per week', def: '80' },
 
-  { key: 'AUTOPILOT', group: 'autopilot', label: 'Autopilot on', bool: true, def: 'false', help: 'Writes and posts on the days below' },
+  { key: 'AUTOPILOT', group: 'autopilot', label: 'Autopilot on', bool: true, def: 'false', help: 'The writer routine gets assignments. Off = it finds nothing to write' },
   { key: 'PUBLISH_MODE', group: 'autopilot', label: 'Publish mode', options: ['auto', 'review'], def: 'auto', help: 'review = posts wait as drafts until you press Publish' },
-  { key: 'POST_DAYS', group: 'autopilot', label: 'Post days', def: 'mon,thu', help: 'mon,tue,wed,thu,fri,sat,sun' },
-  { key: 'POST_HOUR', group: 'autopilot', label: 'Post hour (24h, Winnipeg time)', def: '9' },
+  { key: 'POST_DAYS', group: 'autopilot', label: 'Days the writer routine runs', def: 'mon,thu', help: 'mon,tue,wed,thu,fri,sat,sun. Match the routine schedule; used for the roadmap dates' },
+  { key: 'POST_HOUR', group: 'autopilot', label: 'Hour the writer routine runs (24h, Winnipeg time)', def: '10' },
   { key: 'POSTS_PER_WEEK', group: 'autopilot', label: 'Max posts per 7 days', def: '2' },
   { key: 'FOCUS_MAX', group: 'autopilot', label: 'Focus keywords at once', def: '3' },
   { key: 'FOCUS_SUPPORT', group: 'autopilot', label: 'Supporting posts per focus keyword', def: '4' },
   { key: 'RANK_TRACK_MAX', group: 'autopilot', label: 'Keywords rank-tracked weekly', def: '20' },
   { key: 'RECOMMEND_MAX', group: 'autopilot', label: 'Keyword recommendations per week', def: '5' },
   { key: 'POST_CATEGORY', group: 'autopilot', label: 'Category for keywords with no service', def: 'Fence' },
-  { key: 'WRITER_MODEL', group: 'autopilot', label: 'Claude model', def: 'claude-opus-5-5' },
-  { key: 'WRITER_NOTES', group: 'autopilot', label: 'Notes for Claude (voice, what to always / never say)', multiline: true,
+  { key: 'CHECK_ROUTINE_URL', group: 'autopilot', label: 'Weekly check routine link (claude.ai)', def: '' },
+  { key: 'WRITER_ROUTINE_URL', group: 'autopilot', label: 'Writer routine link (claude.ai)', def: '', help: 'Shown on the Overview so you can open or run the routine' },
+  { key: 'WRITER_NOTES', group: 'autopilot', label: 'Notes for the writer (voice, what to always / never say)', multiline: true,
     def: 'Plain, friendly, practical. Canadian spelling. Talk like a local fence contractor, not a marketer. Never invent prices, reviews, warranties or awards.' },
   { key: 'WP_BLOG_URL', group: 'blog', label: 'Old WordPress blog URL (for the one-time move)', def: 'https://www.winnipegfencepros.com/blog' },
   { key: 'POST_TEMPLATE', group: 'blog', label: 'Article page template', multiline: true, def: DEFAULT_TEMPLATE },
@@ -190,7 +190,6 @@ function missing(cfg) {
   const out = [];
   if (!cfg.SITE_URL) out.push('Website URL');
   if (!cfg.FTP_HOST || !cfg.FTP_USER || !cfg.FTP_PASS) out.push('FTP login');
-  if (!cfg.ANTHROPIC_API_KEY) out.push('Anthropic API key');
   if (!cfg.GSC_PROPERTY) out.push('Search Console property');
   if (!cfg.SERPER_API_KEY) out.push('Serper API key');
   if (cfg.sitemapAuto && !cfg.SITEMAP_URL) out.push('Sitemap URL');

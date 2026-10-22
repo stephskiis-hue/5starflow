@@ -17,14 +17,18 @@ research.js   gscSyncTick (daily 7:17) + researchTick (Monday 7:37): import real
               rank tracking (organic + map pack), weekly history, focus recommendations
 focus.js      focus campaigns: main post → supporting posts (PAA / related / GSC queries) → refresh after 21 days
 plan.js       pure: nextPiece() (what the writer does next) + roadmap() (the next N pieces on the posting days)
-writer.js     Claude on the server: web-search research, then a structured post (JSON schema)
-templates.js  default article page, list page and card in the winnipegfencepros.com look (orange + charcoal, Poppins)
+assign.js     the writer routine's assignment (brief, 6-hour lock, 2 posts a week) and its hand-in: check, render, publish
+check.js      what a handed-in post must pass (title, description, length, keyword, required links, links that exist, dashes, banned words, FAQ, sources)
+sitepages.js  the live site's pages from its sitemap
+templates.js  default article page, list page and card built from the live site's page (its head styles, top bar, full-screen menu, footer, scripts)
 template.js   placeholders, body sanitizing, JSON-LD + breadcrumbs, cards, list page, "import a template from a page"
 migrate.js    optional one-time move of the old WordPress posts into /articles/ (+ redirect file for WordPress)
-publisher.js  writeTick (hourly :25, autopilot) + publishPost → blog_publish.py → sitemap resubmit
+publisher.js  publishPost → blog_publish.py → sitemap resubmit
 blog_publish.py  server version of _blog-autopilot.py: Pexels hero, FTP upload, article list (HTML between markers), sitemap; --batch for the move
 health.js     daily 8:05: setup, FTP, sitemap lists every post, posts load, Search Console access, Serper, failures
-prompts/weekly-check.md   the Claude routine (claude.ai, weekly) that reviews, adds keywords and writes the report
+prompts/blog-writer.md    the writer routine (claude.ai, Mon + Thu 10:00): assignment → research → write → POST /publish
+prompts/weekly-check.md   the weekly check routine (Mon 11:00): learns from the numbers, queues corrections, adds keywords, may start a focus campaign, reports
+../../.claude/skills/wfp-seo/   the writer's skill + fence-knowledge.md (Fence Pros voice and local facts to check)
 ```
 
 ## Blog structure (custom, no WordPress needed)
@@ -44,7 +48,7 @@ prompts/weekly-check.md   the Claude routine (claude.ai, weekly) that reviews, a
 4. Sitemap: public sitemap URL + the file inside the website folder. Each article is added to that file and the sitemap
    is resubmitted to Search Console. A sitemap index can not be patched: point it at the child sitemap.
 5. Search Console: the property, and add the shown service account email as a **Full** user. **Test.**
-6. API keys: Anthropic (writer), Serper (discovery + ranks), Pexels (photos). Blank = the server's keys.
+6. API keys: leave Serper and Pexels blank to use the server keys No-Bs already uses (no Anthropic key: Claude writes as a routine).
 7. Autopilot: days, hour, posts per week, `auto` or `review` (drafts wait for Publish). Turn it on last.
 
 Values are stored in Postgres, not written into `.env`: the container's files are replaced on every deploy. Any blank
@@ -56,7 +60,17 @@ field falls back to `WFP_<KEY>` in `.env` / Railway (e.g. `WFP_FTP_HOST`).
 - `DRY_RUN=true` runs the publisher with `--dry-run` (nothing uploaded) and skips the sitemap submit (`SEO_SUBMIT=on` overrides).
 - `WFP_DISABLED=true` stops the scheduler. `PYTHON_BIN` overrides `python3`.
 
-## Claude routine
-`prompts/weekly-check.md`, scheduled weekly (Monday 10:00 Winnipeg) on claude.ai against the production URL with
-`x-wfp-source: claude`. It reads `GET /api/wfp/brief`, adds researched keywords, retires weak ones, leaves standing
-instructions for the writer and posts a report note. It never changes settings or publishes.
+## How the writing works (same split as No-Bs)
+No AI runs on this server and there is no Anthropic key. Two claude.ai routines do the thinking:
+- **Writer** (`prompts/blog-writer.md`, Mon + Thu): `GET /api/wfp/assignment` gives the next piece and a frozen brief
+  (keyword, service + its page, real Search Console queries, People Also Ask, competitors, required links, pages it may
+  link to, lessons, the owner's notes, the correction reason for a refresh). It researches, writes, and hands in with
+  `POST /api/wfp/publish`. `check.js` returns a 422 listing every problem (nothing uploaded); a clean post is rendered
+  and published (or kept as a draft in review mode). One assignment is locked for 6 hours; 2 posts per 7 days.
+- **Weekly check** (`prompts/weekly-check.md`, Mon after the research): reads `/brief` (every live article with its
+  numbers), saves lessons (`POST /notes kind=learning`, read by the writer in every brief), queues corrections
+  (`POST /keywords/:id/refresh {reason}`, the writer's next assignments), adds researched keywords, may start one focus
+  campaign a week when a slot is free, and posts a report. The Monday research also queues up to 2 corrections a week
+  by itself (seen but not clicked; stuck between positions 8 and 30 for 45+ days).
+- Serper and Pexels use the server's keys (the same ones No-Bs uses) when the page's fields are blank.
+- Set `WFP_ACCESS_KEY` on Railway before the routines can publish; they send it as `x-wfp-key`.

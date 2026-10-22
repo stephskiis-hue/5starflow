@@ -110,9 +110,10 @@ Rules: deterministic work stays in code, Claude only reasons/writes; do not rebu
 ## Winnipeg Fence Pros (backend/wfp/, routes/wfp.js, backend/winnipeg-fence-pros.html)
 A second business's SEO + blog autopilot at `/Winnipeg-Fence-Pros` (no portal login; optional `WFP_ACCESS_KEY`). Read
 `backend/wfp/README.md` first. Completely separate from No-Bs: own `Wfp*` tables (no userId), own scheduler + ledger
-(`wfp/runner.js`, never `ai/runner.js`), own settings (page → `WFP_<KEY>` env → server key), own Claude routine
-(`wfp/prompts/weekly-check.md`). Claude writes on the server (Anthropic API); `wfp/blog_publish.py` publishes over FTP
-and patches the blog index + sitemap. Nothing in `wfp/` may import `ai/` or read No-Bs rows.
+(`wfp/runner.js`, never `ai/runner.js`), own settings (page → `WFP_<KEY>` env → server key), own Claude routines
+(`wfp/prompts/blog-writer.md` writes via GET /api/wfp/assignment + POST /api/wfp/publish, skill `.claude/skills/wfp-seo`;
+`wfp/prompts/weekly-check.md` learns, corrects, reports). No AI on the server (no Anthropic key); `wfp/blog_publish.py`
+publishes /articles/<slug>/ over FTP and patches the article list + sitemap. Nothing in `wfp/` may import `ai/` or read No-Bs rows.
 
 ## Absolute Rules
 1. Jobber GraphQL header required: `X-JOBBER-GRAPHQL-VERSION: 2026-03-10`

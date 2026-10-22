@@ -10,7 +10,7 @@ const prisma = require('../lib/prismaClient');
 const { getConfig, missing } = require('./settings');
 const g = require('./google');
 const { getState } = require('./runner');
-const { sitePages } = require('./writer');
+const { sitePages } = require('./sitepages');
 
 async function testFtp(cfg) {
   const client = new ftp.Client(20000);
@@ -91,7 +91,16 @@ async function healthTick(ctx) {
     const b = g.serperBudget(await getState('serper'), cfg.serperWeeklyBudget);
     add('Serper', b.left() > 0, `${b.left()} of ${cfg.serperWeeklyBudget} searches left this week`);
   }
-  add('Claude', !!cfg.ANTHROPIC_API_KEY, cfg.ANTHROPIC_API_KEY ? `Key set; writer model ${cfg.WRITER_MODEL}` : 'No Anthropic API key');
+  // the writer routine asks for work on its days; a long silence means the routine stopped (plan limit, paused)
+  const lastAsk = await prisma.wfpAssignment.findFirst({ orderBy: { createdAt: 'desc' }, select: { createdAt: true } });
+  const lastPost = await prisma.wfpPost.findFirst({ where: { mode: { not: 'import' }, status: 'published' }, orderBy: { publishedAt: 'desc' }, select: { publishedAt: true } });
+  const lastReport = await prisma.wfpNote.findFirst({ where: { author: 'claude', kind: 'report' }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } });
+  const rd = lastReport ? Math.floor((Date.now() - lastReport.createdAt) / 86400000) : null;
+  add('Weekly check routine', rd != null && rd <= 9, rd == null ? 'No weekly report yet: create the weekly check routine (wfp/prompts/weekly-check.md)' : `Last weekly report ${rd} day${rd === 1 ? '' : 's'} ago`);
+  if (cfg.autopilot) {
+    const days = lastAsk ? Math.floor((Date.now() - lastAsk.createdAt) / 86400000) : null;
+    add('Writer routine', days != null && days <= 8, days == null ? 'The writer routine has never asked for an assignment: create it on claude.ai (wfp/prompts/blog-writer.md)' : `Last assignment ${days} day${days === 1 ? '' : 's'} ago${lastPost ? `; last post ${Math.floor((Date.now() - lastPost.publishedAt) / 86400000)} days ago` : ''}`);
+  }
 
   const failed = await prisma.wfpRun.findMany({ where: { status: 'failed', startedAt: { gte: new Date(Date.now() - 7 * 86400000) } }, orderBy: { startedAt: 'desc' }, take: 5 });
   add('Jobs', !failed.length, failed.length ? failed.map((f) => `${f.job}: ${f.error}`).join(' | ').slice(0, 600) : 'No failures in 7 days');

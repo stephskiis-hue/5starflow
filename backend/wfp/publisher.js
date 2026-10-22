@@ -1,9 +1,9 @@
 /**
- * Write + publish for Winnipeg Fence Pros.
- *   writeTick   picks the next piece (plan.nextPiece, or the keyword the page asked for), has Claude write it,
- *               renders it with the template and stores a WfpPost; in auto mode publishes it straight away
- *   publishPost runs wfp/blog_publish.py (FTP upload, blog index, sitemap), then resubmits the sitemap to Search
- *               Console and moves the keyword to published
+ * Publishing for Winnipeg Fence Pros. The writer is a Claude routine on claude.ai (no AI on this server): it takes an
+ * assignment (wfp/assign.js) and sends the finished post to POST /api/wfp/publish, which checks it (wfp/check.js),
+ * renders it and calls publishPost here:
+ *   publishPost  runs wfp/blog_publish.py (Pexels hero, FTP upload, article list, sitemap), then resubmits the
+ *                sitemap to Search Console and moves the keyword to published
  * DRY_RUN=true on the server runs the script with --dry-run: nothing is uploaded.
  */
 const fs = require('fs/promises');
@@ -12,87 +12,20 @@ const path = require('path');
 const { spawn } = require('child_process');
 const prisma = require('../lib/prismaClient');
 const { getConfig, missing } = require('./settings');
-const { nextPiece, LIVE, localParts } = require('./plan');
-const { writePost } = require('./writer');
-const { renderPost, renderCards, renderIndex, postUrls } = require('./template');
+const { LIVE, localParts } = require('./plan');
+const { renderCards, renderIndex, postUrls } = require('./template');
 const g = require('./google');
-const { note } = require('./runner');
 
 const SCRIPT = path.join(__dirname, 'blog_publish.py');
 const PY = process.env.PYTHON_BIN || 'python3';
-const DAY = 86400000;
 
-/** Keywords that already have a post being written or waiting for review. */
-async function busyKeywords() {
-  const rows = await prisma.wfpPost.findMany({ where: { status: { in: ['writing', 'draft', 'publishing'] } }, select: { keywordId: true } });
-  return new Set(rows.map((r) => r.keywordId).filter(Boolean));
-}
-
-/** Is it time for the autopilot to write? { due, why } */
-async function autopilotDue(cfg, now = new Date()) {
-  if (!cfg.autopilot) return { due: false, why: 'Autopilot is off' };
-  const p = localParts(now);
-  if (!cfg.postDays.includes(p.day)) return { due: false, why: `Not a post day (${cfg.postDays.join(', ')})` };
-  if (p.hour < cfg.postHour) return { due: false, why: `Posting starts at ${cfg.postHour}:00` };
-  const today = await prisma.wfpPost.count({ where: { createdAt: { gte: new Date(now.getTime() - 20 * 3600000) }, mode: { not: 'manual' } } });
-  if (today) return { due: false, why: 'Already wrote today' };
-  const week = await prisma.wfpPost.count({ where: { createdAt: { gte: new Date(now.getTime() - 7 * DAY) }, status: { not: 'failed' } } });
-  if (week >= cfg.postsPerWeek) return { due: false, why: `${week} posts in the last 7 days (max ${cfg.postsPerWeek})` };
-  return { due: true };
-}
-
-/**
- * opts.keywordId: write for this keyword now (the page's "Write now"); otherwise the autopilot's next piece.
- * opts.force: skip the schedule check (manual run).
- */
-async function writeTick(ctx, opts = {}) {
-  const cfg = await getConfig();
-  const gaps = missing(cfg).filter((m) => ['Website URL', 'FTP login', 'Anthropic API key'].includes(m));
-  if (!opts.keywordId && !opts.force) {
-    const due = await autopilotDue(cfg);
-    if (!due.due) return { skipped: true, summary: due.why };
-  }
-  if (gaps.length) throw new Error(`Set up first: ${gaps.join(', ')}`);
-
-  const keywords = await prisma.wfpKeyword.findMany({ where: { status: { not: 'retired' } } });
-  const busy = await busyKeywords();
-  let piece;
-  if (opts.keywordId) {
-    const k = keywords.find((x) => x.id === opts.keywordId);
-    if (!k) throw new Error('Keyword not found');
-    if (busy.has(k.id)) throw new Error('A post for this keyword is already being written or waiting for review');
-    const focus = k.supportsId ? keywords.find((x) => x.id === k.supportsId) : k.focus ? k : null;
-    piece = { mode: LIVE.has(k.status) ? 'refresh' : k.supportsId ? 'support' : 'new', keyword: k, focus, why: 'Asked for on the page' };
-  } else {
-    piece = nextPiece(keywords, { busy });
-    if (!piece) return { skipped: !opts.force, summary: 'Nothing planned: run the keyword research or add keywords' };
-  }
-  ctx.log(`${piece.mode}: "${piece.keyword.keyword}" (${piece.why})`);
-
-  let existing = null;
-  if (piece.mode === 'refresh') {
-    existing = await prisma.wfpPost.findFirst({ where: { keywordId: piece.keyword.id, status: 'published' }, orderBy: { publishedAt: 'desc' } });
-    if (!existing) piece.mode = 'new';
-  }
-  const date = localParts(new Date()).date;
-  const row = await prisma.wfpPost.create({ data: { keywordId: piece.keyword.id, keyword: piece.keyword.keyword, mode: opts.keywordId ? 'manual' : piece.mode, slug: existing?.slug || 'writing', title: `Writing: ${piece.keyword.keyword}`, html: '', status: 'writing' } });
-  try {
-    const post = await writePost(cfg, piece, { log: ctx.log, existing });
-    const { html, urls } = renderPost(cfg, post, date);
-    await prisma.wfpPost.update({
-      where: { id: row.id },
-      data: { slug: post.slug, title: post.title, metaDescription: post.metaDescription, excerpt: post.excerpt, category: post.category || cfg.POST_CATEGORY, readTime: post.readTime, imageQuery: post.imageQuery, html, sources: post.sources, url: urls.url, status: 'draft', log: `${piece.mode}: ${piece.why}` },
-    });
-  } catch (err) {
-    await prisma.wfpPost.update({ where: { id: row.id }, data: { status: 'failed', error: String(err.message).slice(0, 2000), title: `Failed: ${piece.keyword.keyword}` } });
-    throw err;
-  }
-  if (cfg.publishMode === 'review') {
-    await note('system', 'note', 'A post is waiting for review', `"${piece.keyword.keyword}" is written. Open the Posts tab to read it and press Publish.`);
-    return { summary: `Draft ready for review: ${piece.keyword.keyword}`, detail: { postId: row.id } };
-  }
-  const pub = await publishPost(row.id, ctx);
-  return { summary: pub.summary, detail: { postId: row.id, ...pub.detail } };
+/** Keywords that already have work under way: a reserved assignment or a post being published or waiting for review. */
+async function busyKeywords(now = new Date()) {
+  const [posts, assignments] = await Promise.all([
+    prisma.wfpPost.findMany({ where: { status: { in: ['draft', 'publishing'] } }, select: { keywordId: true } }),
+    prisma.wfpAssignment.findMany({ where: { status: 'reserved', expiresAt: { gt: now } }, select: { keywordId: true } }),
+  ]);
+  return new Set([...posts, ...assignments].map((r) => r.keywordId).filter(Boolean));
 }
 
 /** The only environment blog_publish.py gets: the FTP login and the Pexels key. */
@@ -169,7 +102,7 @@ async function publishPost(postId, ctx = { log: () => {} }) {
       if (k) {
         await prisma.wfpKeyword.update({
           where: { id: k.id },
-          data: refresh ? { refreshedAt: now, postId, targetUrl: urls.url } : { status: LIVE.has(k.status) ? k.status : 'published', statusChangedAt: now, publishedAt: k.publishedAt || now, postId, targetUrl: urls.url, recommended: false },
+          data: refresh ? { refreshedAt: now, postId, targetUrl: urls.url, refreshAsked: null, refreshReason: null } : { status: LIVE.has(k.status) ? k.status : 'published', statusChangedAt: now, publishedAt: k.publishedAt || now, postId, targetUrl: urls.url, recommended: false },
         });
       }
     }
@@ -188,4 +121,4 @@ async function publishPost(postId, ctx = { log: () => {} }) {
   }
 }
 
-module.exports = { writeTick, publishPost, autopilotDue, busyKeywords, runScript, ftpEnv };
+module.exports = { publishPost, busyKeywords, runScript, ftpEnv };
