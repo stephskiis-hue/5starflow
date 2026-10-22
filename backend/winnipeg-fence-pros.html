@@ -133,6 +133,7 @@
       <div class="flex flex-wrap gap-2 items-center mb-3">
         <h2 class="font-bold mr-auto">All keywords</h2>
         <input id="kwSearch" placeholder="Search" class="w-40">
+        <select id="kwService"><option value="">All services</option></select>
         <select id="kwStatus"><option value="">Active</option><option>idea</option><option>planned</option><option>published</option><option>indexed</option><option>ranking</option><option>page1</option><option>top3</option><option>retired</option></select>
       </div>
       <div class="scroll-x"><table id="kwTable"></table></div>
@@ -166,6 +167,12 @@
 
   <!-- POSTS -->
   <section data-panel="posts" class="hidden-tab">
+    <div class="card p-4 mb-4">
+      <h2 class="font-bold mb-1">Old WordPress blog (optional, one time)</h2>
+      <p class="muted text-xs mb-3">Copies every post from the old WordPress blog into the new articles section (same address words, date, photos) and adds them to the sitemap. If you start fresh instead, skip this. The preview only reads WordPress and changes nothing.</p>
+      <label class="flex items-center gap-2 text-sm mb-3"><input type="checkbox" id="wpRedirects" checked> Also send visitors from the old links to the new pages (adds one small redirect file to WordPress, delete it to undo)</label>
+      <div class="flex flex-wrap gap-2"><button class="btn" id="wpPreview">Preview the move</button><button class="btn primary" id="wpMove">Move the posts</button></div>
+    </div>
     <div class="card p-4">
       <div class="flex flex-wrap justify-between items-center gap-2 mb-3"><h2 class="font-bold">Posts</h2><button class="btn primary" data-job="write">Write next post now</button></div>
       <div id="postList" class="space-y-3 text-sm"></div>
@@ -190,7 +197,7 @@
   const num = (n) => (n == null ? '–' : Number(n).toLocaleString('en-CA'));
   const STATUS_PILL = { idea: '', planned: 'brand', published: 'warn', indexed: 'warn', ranking: 'warn', page1: 'ok', top3: 'ok', retired: '', draft: 'warn', writing: 'brand', publishing: 'brand', failed: 'bad', replaced: '', completed: 'ok', running: 'brand', skipped: '' };
   const pill = (s, cls) => `<span class="pill ${cls ?? STATUS_PILL[s] ?? ''}">${esc(s)}</span>`;
-  const JOB_NAMES = { 'gsc-sync': 'Search Console sync', research: 'Keyword research', health: 'Health check', write: 'Write + publish', publish: 'Publish' };
+  const JOB_NAMES = { 'gsc-sync': 'Search Console sync', research: 'Keyword research', health: 'Health check', write: 'Write + publish', publish: 'Publish', 'migrate-wordpress': 'WordPress move' };
 
   function getKey() { try { return localStorage.getItem('wfpKey') || ''; } catch { return ''; } }
   function setKey(k) { try { localStorage.setItem('wfpKey', k); } catch {} }
@@ -254,6 +261,8 @@
         <div class="flex justify-between gap-2"><span class="font-semibold">${esc(JOB_NAMES[r.job] || r.job)}</span><span>${pill(r.status)}</span></div>
         <div class="muted text-xs">${fmtTime(r.startedAt)} · ${esc(r.trigger)}</div>
         ${r.summary ? `<div class="text-xs mt-1">${esc(r.summary)}</div>` : ''}
+        ${r.error ? `<div class="text-xs mt-1 text-bad">${esc(r.error)}</div>` : ''}
+        ${r.detail?.log?.length ? `<details class="mt-1"><summary class="muted text-xs cursor-pointer">Log (${r.detail.log.length})</summary><pre class="log">${esc(r.detail.log.join('\n'))}</pre></details>` : ''}
       </div>`).join('') : '<p class="muted">No jobs have run yet.</p>';
   }
 
@@ -371,8 +380,11 @@
     const params = new URLSearchParams();
     if ($('#kwStatus').value) params.set('status', $('#kwStatus').value);
     if ($('#kwSearch').value.trim()) params.set('q', $('#kwSearch').value.trim());
+    if ($('#kwService').value) params.set('service', $('#kwService').value);
     const [{ keywords, recommendations }, queries] = await Promise.all([api(`/keywords?${params}`), api('/queries?limit=150')]);
     kwCache = keywords;
+    const sel = $('#kwService');
+    if (sel.options.length === 1) [...new Set(keywords.map((k) => k.service).filter(Boolean))].sort().forEach((v) => sel.add(new Option(v, v)));
     $('#recs').innerHTML = recommendations.length ? recommendations.map((k) => `
       <div class="p-4 rounded-xl bg-card2">
         <div class="flex justify-between gap-2"><span class="font-bold">${esc(k.keyword)}</span>${pill(k.service || 'other', '')}</div>
@@ -399,6 +411,7 @@
   }
   let kwTimer;
   $('#kwSearch').addEventListener('input', () => { clearTimeout(kwTimer); kwTimer = setTimeout(() => loadKeywords().catch((e) => toast(e.message, true)), 300); });
+  $('#kwService').addEventListener('change', () => loadKeywords().catch((e) => toast(e.message, true)));
   $('#kwStatus').addEventListener('change', () => loadKeywords().catch((e) => toast(e.message, true)));
   $('#addKw').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -491,15 +504,24 @@
     } catch (x) { toast(x.message, true); }
   });
 
+  $('#wpPreview').addEventListener('click', async () => {
+    try { await api('/jobs/migrate-wordpress/run', { method: 'POST', body: { dryRun: true } }); toast('Reading the old posts…'); pollRuns(); } catch (x) { toast(x.message, true); }
+  });
+  $('#wpMove').addEventListener('click', async () => {
+    const redirects = $('#wpRedirects').checked;
+    if (!confirm(`Copy all old WordPress posts into the new articles section and update the sitemap${redirects ? ', plus write the redirect file into WordPress' : ''}? Run the preview first if you have not.`)) return;
+    try { await api('/jobs/migrate-wordpress/run', { method: 'POST', body: { redirects } }); toast('Moving the posts (a few minutes)'); pollRuns(); } catch (x) { toast(x.message, true); }
+  });
+
   // ── settings ──
   const GROUPS = [
-    ['business', 'Business', 'Who the posts are written for.'],
-    ['ftp', 'FTP connection', 'How the server uploads posts, photos and the blog index to the website.', 'test-ftp'],
-    ['sitemap', 'Sitemap', 'Every published post is added to this sitemap file over FTP and the sitemap is resubmitted to Search Console.', 'test-sitemap'],
+    ['business', 'Business and services', 'Who the posts are written for. Each service below is a blog category: every article is written for one service and links to its page.'],
+    ['ftp', 'FTP connection', 'How the server uploads articles, photos and pages to the website.', 'test-ftp'],
+    ['blog', 'Blog pages', 'Articles are plain HTML pages at /articles/<name>/ with a list page at /articles/. Placeholders in the templates: {{TITLE}} {{META_DESCRIPTION}} {{CANONICAL}} {{IMAGE}} {{IMAGE_URL}} {{IMAGE_ALT}} {{BODY}} {{SCHEMA}} {{DATE}} {{DATE_HUMAN}} {{READ_TIME}} {{CATEGORY}} {{BUSINESS_NAME}} {{PHONE}} {{QUOTE_URL}} {{SERVICE_NAME}} {{SERVICE_URL}} {{CITY}} {{REGION}} {{SITE_URL}} {{BLOG_URL}} {{LOGO_URL}} {{FAVICON_URL}} {{NAV}} {{YEAR}}. On the list page, keep the two <!-- 5sf:articles:start --> / <!-- 5sf:articles:end --> markers: the server rewrites what is between them on every publish.'],
+    ['sitemap', 'Sitemap', 'Every published article is added to this sitemap file over FTP and the sitemap is resubmitted to Search Console.', 'test-sitemap'],
     ['google', 'Search Console', '', 'test-gsc'],
     ['keys', 'API keys', 'Blank = the 5StarFlow server key (billed to 5StarFlow). Saved keys are encrypted and never shown again.'],
     ['autopilot', 'Autopilot', 'When and how Claude writes and posts.'],
-    ['template', 'Post template', 'Placeholders: {{TITLE}} {{META_DESCRIPTION}} {{CANONICAL}} {{IMAGE}} {{IMAGE_URL}} {{IMAGE_ALT}} {{BODY}} {{SCHEMA}} {{DATE}} {{DATE_HUMAN}} {{READ_TIME}} {{CATEGORY}} {{BUSINESS_NAME}} {{PHONE}} {{QUOTE_URL}} {{CITY}} {{REGION}} {{SITE_URL}} {{BLOG_URL}} {{YEAR}}. Keep the hero image between <!--HERO--> and <!--/HERO--> so it can be dropped when there is no photo.'],
   ];
   const SOURCE_LABEL = { page: 'saved here', env: 'from .env', server: 'server default', default: 'default' };
   let fields = [];
@@ -509,7 +531,7 @@
     let input;
     if (f.bool) input = `<label class="flex items-center gap-2"><input type="checkbox" id="${id}" name="${f.key}" ${/^(1|true|on|yes)$/i.test(f.value) ? 'checked' : ''}> <span class="text-sm">${esc(f.label)}</span></label>`;
     else if (f.options) input = `<select id="${id}" name="${f.key}" class="w-full">${f.options.map((o) => `<option ${o === f.value ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
-    else if (f.multiline) input = `<textarea id="${id}" name="${f.key}" rows="${f.key === 'POST_TEMPLATE' ? 18 : f.secret ? 3 : 4}" class="w-full font-mono text-xs" placeholder="${f.secret && f.isSet ? 'Saved. Leave blank to keep it.' : ''}" spellcheck="false">${f.secret ? '' : esc(f.value)}</textarea>`;
+    else if (f.multiline) input = `<textarea id="${id}" name="${f.key}" rows="${f.key === 'POST_TEMPLATE' || f.key === 'INDEX_TEMPLATE' ? 16 : f.key === 'CARD_TEMPLATE' ? 8 : f.secret ? 3 : 4}" class="w-full font-mono text-xs" placeholder="${f.secret && f.isSet ? 'Saved. Leave blank to keep it.' : ''}" spellcheck="false">${f.secret ? '' : esc(f.value)}</textarea>`;
     else input = `<input id="${id}" name="${f.key}" type="${f.secret ? 'password' : 'text'}" autocomplete="off" class="w-full" value="${f.secret ? '' : esc(f.value)}" placeholder="${f.secret && f.isSet ? 'Saved. Leave blank to keep it.' : ''}">`;
     const clear = f.secret && f.source === 'page' ? `<label class="text-xs muted flex items-center gap-1 mt-1"><input type="checkbox" data-clear="${f.key}"> remove the saved value</label>` : '';
     return `<div class="${f.multiline ? 'md:col-span-2' : ''}">
@@ -526,7 +548,7 @@
       <div class="card p-4">
         <div class="flex flex-wrap justify-between items-center gap-2 mb-1"><h2 class="font-bold">${title}</h2>
           <div class="flex gap-2">${test ? `<button type="button" class="btn" data-test="${test}">Test</button>` : ''}
-          ${g === 'template' ? `<button type="button" class="btn" id="importTpl">Import from a page on the site</button><button type="button" class="btn" id="resetTpl">Use the default</button>` : ''}</div></div>
+          ${g === 'blog' ? `<button type="button" class="btn" id="importTpl">Make the article template from a page on the site</button><button type="button" class="btn" id="resetTpl">Use the default pages</button>` : ''}</div></div>
         ${help ? `<p class="muted text-xs mb-3">${esc(help)}</p>` : ''}
         ${g === 'google' ? `<p class="text-xs mb-3">${s.serviceAccountEmail ? `In Search Console → Settings → Users and permissions, add <b class="text-primary">${esc(s.serviceAccountEmail)}</b> as a <b>Full</b> user (or paste your own service account JSON below and add its email instead).` : 'The server has no shared Google service account: paste a service account JSON below and add its email as a Full user in Search Console.'}</p>` : ''}
         <div class="grid md:grid-cols-2 gap-4">${fields.filter((f) => f.group === g).map(fieldHtml).join('')}</div>
@@ -556,12 +578,12 @@
       catch (x) { out.innerHTML = `<span class="text-bad">${esc(x.message)}</span>`; }
     }
     if (e.target.id === 'importTpl') {
-      const file = prompt('File name of an existing blog post on the site (inside the website folder), e.g. blog/fence-permits.html');
+      const file = prompt('Path of an existing article page on the site (inside the website folder), e.g. articles/some-post/index.html');
       if (!file) return;
       try { const r = await api('/settings/import-template', { method: 'POST', body: { file } }); document.getElementsByName('POST_TEMPLATE')[0].value = r.template; toast(`Template made from ${file} (${r.replaced.join(', ')}). Check it, then Save.`); } catch (x) { toast(x.message, true); }
     }
-    if (e.target.id === 'resetTpl' && confirm('Replace the template with the default? (Save to keep it)')) {
-      try { await api('/settings', { method: 'PUT', body: { clear: ['POST_TEMPLATE'] } }); toast('Default template restored'); loadSettings(); } catch (x) { toast(x.message, true); }
+    if (e.target.id === 'resetTpl' && confirm('Replace the article, list and card templates with the defaults?')) {
+      try { await api('/settings', { method: 'PUT', body: { clear: ['POST_TEMPLATE', 'INDEX_TEMPLATE', 'CARD_TEMPLATE'] } }); toast('Default pages restored'); loadSettings(); } catch (x) { toast(x.message, true); }
     }
   });
 

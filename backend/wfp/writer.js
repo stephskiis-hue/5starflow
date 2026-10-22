@@ -9,7 +9,7 @@ const axios = require('axios');
 const Anthropic = require('@anthropic-ai/sdk');
 const prisma = require('../lib/prismaClient');
 const kw = require('./keywords');
-const { postUrls } = require('./template');
+const { postUrls, serviceByName, absUrl } = require('./template');
 
 const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
@@ -70,7 +70,7 @@ function businessBlock(cfg) {
   return [
     `Business: ${cfg.BUSINESS_NAME}, a fence company in ${cfg.CITY}, ${cfg.REGION}, Canada.`,
     `Website: ${cfg.SITE_URL}. Quote page: ${cfg.QUOTE_URL || cfg.SITE_URL}. Phone: ${cfg.PHONE || '(none given)'}.`,
-    `Services: ${cfg.services.join(', ')}.`,
+    `Services (the site has a page for each): ${cfg.services.map((s) => (s.path ? `${s.name} (${cfg.SITE_URL}${s.path})` : s.name)).join(', ')}.`,
     `Neighbourhoods served: ${cfg.areas.join(', ')}.`,
   ].join('\n');
 }
@@ -139,7 +139,7 @@ Rules:
 
   const brief = [
     `Write a ${piece.mode === 'refresh' ? 'refreshed version of an existing post' : 'new post'} targeting: "${k.keyword}" (search intent: ${k.intent}, content type: ${kw.contentTypeFor(k.keyword)}).`,
-    k.service ? `Service: ${k.service}.` : '',
+    k.service ? `Service: ${k.service}. Link once to the ${k.service} page (${(() => { const sv = serviceByName(cfg, k.service); return sv?.path ? absUrl(cfg, sv.path) : cfg.SITE_URL; })()}) where it fits naturally, with anchor text that says what the page offers.` : '',
     related.length ? `Search Console queries on this topic (impressions in 28 days, average position):\n${related.map((q) => `- ${q.query} (${q.impressions}, ${q.position})`).join('\n')}` : 'Search Console has no data for this topic yet.',
     k.signals?.paa?.length ? `People Also Ask: ${k.signals.paa.join(' | ')}` : '',
     k.serpTop?.length ? `Pages that rank above us now: ${k.serpTop.map((r) => `${r.title} (${r.link})`).join('; ')}` : '',
@@ -147,7 +147,7 @@ Rules:
     piece.mode === 'refresh' && existing ? `Keep the slug "${existing.slug}". Improve the post below: answer the search better than the pages ranking above it, update facts, add what is missing, keep what works.\n\nCurrent post HTML:\n${existing.html.slice(0, 40000)}` : '',
     `Site pages you may link to:\n${linkPages.join('\n') || '(none listed)'}`,
     `Research notes:\n${notes.notes}`,
-    `Default category: ${cfg.POST_CATEGORY || 'Fencing'}.`,
+    `The category is set by the server (${k.service || cfg.POST_CATEGORY || 'Fence'}); put anything in the category field.`,
   ].filter(Boolean).join('\n\n');
 
   const msg = await ask(api, {
@@ -159,10 +159,11 @@ Rules:
   let post;
   try { post = JSON.parse(textOf(msg)); } catch { throw new Error('Claude returned a post that is not valid JSON'); }
 
+  post.category = k.service || cfg.POST_CATEGORY || 'Fence';
   let slug = existing ? existing.slug : kw.slugify(post.slug || post.title);
   if (!existing) {
     const taken = new Set((await prisma.wfpPost.findMany({ where: { status: { in: ['published', 'draft', 'publishing'] } }, select: { slug: true } })).map((p) => p.slug));
-    const live = new Set(pages.map((u) => { try { return new URL(u).pathname.replace(/^\/+|\.html$/g, '').split('/').pop(); } catch { return ''; } }));
+    const live = new Set(pages.map((u) => { try { return new URL(u).pathname.replace(/\.html$/, '').split('/').filter(Boolean).pop() || ''; } catch { return ''; } }));
     for (let i = 2; taken.has(slug) || live.has(slug); i += 1) slug = `${kw.slugify(post.slug || post.title)}-${i}`;
   }
   const words = String(post.bodyHtml || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;

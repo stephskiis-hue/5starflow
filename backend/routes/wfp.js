@@ -33,7 +33,7 @@ const wrap = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((err) => 
   res.status(err.status || 500).json({ error: err.message });
 });
 
-const MANUAL_JOBS = new Set(['gsc-sync', 'research', 'health', 'write']);
+const MANUAL_JOBS = new Set(['gsc-sync', 'research', 'health', 'write', 'migrate-wordpress']);
 /** Start a job without waiting (the page polls /runs). */
 function startJob(job, trigger, opts) {
   run(job, trigger, opts).catch((e) => console.error(`[wfp:${job}]`, e.message));
@@ -132,6 +132,7 @@ router.get('/keywords', wrap(async (req, res) => {
   if (req.query.status) where.status = String(req.query.status);
   else if (req.query.all !== '1') where.status = { not: 'retired' };
   if (req.query.q) where.keyword = { contains: String(req.query.q).toLowerCase() };
+  if (req.query.service) where.service = String(req.query.service);
   const rows = await prisma.wfpKeyword.findMany({ where, orderBy: [{ focus: 'desc' }, { priority: 'desc' }], take: 600 });
   res.json({ keywords: rows, recommendations: rows.filter((k) => k.recommended).sort((a, b) => b.priority - a.priority) });
 }));
@@ -226,7 +227,8 @@ router.get('/runs', wrap(async (req, res) => {
 router.post('/jobs/:job/run', wrap(async (req, res) => {
   const job = req.params.job;
   if (!MANUAL_JOBS.has(job)) return res.status(404).json({ error: `unknown job ${job}` });
-  startJob(job, triggerOf(req), job === 'write' ? { force: true } : {});
+  const opts = job === 'write' ? { force: true } : job === 'migrate-wordpress' ? { dryRun: !!req.body?.dryRun, overwrite: !!req.body?.overwrite, redirects: req.body?.redirects !== false } : {};
+  startJob(job, triggerOf(req), opts);
   res.status(202).json({ ok: true, started: job });
 }));
 router.get('/notes', wrap(async (req, res) => {
@@ -253,7 +255,7 @@ router.get('/brief', wrap(async (req, res) => {
   const movers = keywords.filter((k) => k.position28 != null && k.prevPosition28 != null).map((k) => ({ keyword: k.keyword, now: k.position28, before: k.prevPosition28, change: Math.round((k.prevPosition28 - k.position28) * 10) / 10 }))
     .sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 10);
   res.json({
-    business: { name: cfg.BUSINESS_NAME, site: cfg.SITE_URL, city: cfg.CITY, services: cfg.services, areas: cfg.areas },
+    business: { name: cfg.BUSINESS_NAME, site: cfg.SITE_URL, city: cfg.CITY, services: cfg.services.map((s) => ({ name: s.name, page: s.path })), areas: cfg.areas },
     setup: { missing: o.missing, autopilot: o.autopilot, publishMode: o.publishMode, dryRun: o.dryRun },
     health: o.health, totals: o.totals, next: o.next,
     focus: (await focusBoard()).map((f) => ({ id: f.id, keyword: f.keyword, status: f.focusStatus, goal: f.focusGoal, position28: f.position28, serp: f.serpPosition, map: f.mapPackPosition, url: f.targetUrl, supports: f.supports.map((s) => ({ keyword: s.keyword, status: s.status })) })),

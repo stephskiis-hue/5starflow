@@ -7,8 +7,9 @@ const { spawnSync } = require('child_process');
 
 const kw = require('../wfp/keywords');
 const { nextPiece, roadmap, nextSlots } = require('../wfp/plan');
-const { toConfig, FIELDS, resolve, DEFAULT_TEMPLATE } = require('../wfp/settings');
-const { renderPost, sanitizeBody, postUrls, templateFromPage } = require('../wfp/template');
+const { toConfig, FIELDS, resolve, DEFAULT_TEMPLATE, parseServices } = require('../wfp/settings');
+const { renderPost, renderCards, renderIndex, sanitizeBody, postUrls, templateFromPage, toggleBlocks } = require('../wfp/template');
+const { convertContent, redirectPlugin, clip } = require('../wfp/migrate');
 const { withCity } = require('../wfp/research');
 
 const DAY = 86400000;
@@ -118,24 +119,113 @@ test('settings: page value beats env beats server key beats default', () => {
   assert.equal(c.host, 'wpgfence.ca');
   assert.equal(c.ftpPort, 21);
   assert.equal(c.autopilot, true);
-  assert.ok(c.services.includes('vinyl fence'));
+  assert.deepEqual(c.services.map((x) => [x.name, x.path]), [['Fence', '/'], ['Deck', '/decks.html'], ['Pergola', '/pergolas.html'], ['Landscaping', '/landscaping.html']]);
+  assert.ok(c.services[0].terms.includes('chain link') && c.services[0].terms.includes('fence'));
+  assert.deepEqual(parseServices('Fence|fences.html|a, b\n\nDeck'), [{ name: 'Fence', path: '/fences.html', terms: ['fence', 'a', 'b'] }, { name: 'Deck', path: '', terms: ['deck'] }]);
+  assert.deepEqual(c.navLinks[1], { label: 'Deck', path: '/decks.html' });
 });
 
-test('template: URLs, sanitized body, one h1, schema, placeholders filled', () => {
-  const c = cfg({ BLOG_DIR: 'blog', QUOTE_URL: 'https://www.wpgfence.ca/quote' });
-  assert.deepEqual(postUrls(c, 'fence-cost'), { file: 'fence-cost.html', remoteDir: 'blog', path: '/blog/fence-cost.html', url: 'https://www.wpgfence.ca/blog/fence-cost.html', image: '/images/fence-cost.webp', blogUrl: 'https://www.wpgfence.ca/blog.html' });
-  assert.equal(postUrls(cfg({ CLEAN_URLS: 'true' }), 'x').url, 'https://www.wpgfence.ca/x');
-  const body = sanitizeBody('<h1>Big</h1><p onclick="x()">Hi <a href="javascript:alert(1)">x</a></p><script>bad()</script><iframe src="x"></iframe>');
-  assert.equal(body, '<h2>Big</h2><p>Hi <a>x</a></p>');
-  const { html } = renderPost(c, { slug: 'fence-cost', title: 'Fence Cost in Winnipeg & More', metaDescription: 'd', excerpt: 'e', category: 'Fencing', readTime: 6, bodyHtml: '<p>Body</p>', faq: [{ q: 'Q?', a: 'A.' }] }, '2026-10-21');
+test('services: each keyword gets the service it is about (longest term wins, then list order)', () => {
+  const sv = cfg().services;
+  const f = (q) => kw.serviceFor(q, sv);
+  assert.equal(f('cedar fence cost winnipeg'), 'Fence');
+  assert.equal(f('how much does a composite deck cost'), 'Deck');
+  assert.equal(f('pergola vs gazebo'), 'Pergola');
+  assert.equal(f('retaining wall winnipeg'), 'Landscaping');
+  assert.equal(f('deck railing codes'), 'Deck');
+  assert.equal(f('hot tub concrete pad'), null);
+  assert.equal(kw.describe('pergola cost winnipeg', cfg()).service, 'Pergola');
+});
+
+test('plan: general queue alternates services unless the other is much weaker', () => {
+  const sv = (id, service, priority, over = {}) => K(id, { service, priority, ...over });
+  const live = sv('live', 'Fence', 1, { status: 'published', publishedAt: new Date(NOW - DAY) });
+  const a = sv('a', 'Fence', 10); const b = sv('b', 'Deck', 8); const c = sv('c', 'Pergola', 2);
+  assert.equal(nextPiece([live, a, b, c], { now: NOW }).keyword.id, 'b');
+  assert.equal(nextPiece([live, a, c], { now: NOW }).keyword.id, 'a');
+  assert.equal(nextPiece([a, b], { now: NOW }).keyword.id, 'a');
+});
+
+test('template: folder URLs, html URLs, list page URL', () => {
+  const c = cfg({ QUOTE_URL: 'https://www.wpgfence.ca/quote' });
+  assert.deepEqual(postUrls(c, 'fence-cost'), { file: 'index.html', remoteDir: 'articles/fence-cost', path: '/articles/fence-cost/', url: 'https://www.wpgfence.ca/articles/fence-cost/', image: '/images/fence-cost.webp', blogUrl: 'https://www.wpgfence.ca/articles/' });
+  const h = postUrls(cfg({ URL_STYLE: 'html', BLOG_INDEX_FILE: 'blog.html', BLOG_DIR: 'blog' }), 'x');
+  assert.deepEqual([h.file, h.remoteDir, h.path, h.blogUrl], ['x.html', 'blog', '/blog/x.html', 'https://www.wpgfence.ca/blog.html']);
+});
+
+test('template: article page is complete, themed, links the service page, one h1', () => {
+  const c = cfg({ QUOTE_URL: 'https://www.wpgfence.ca/quote', PHONE: '204-555-0100' });
+  const post = { slug: 'deck-cost', title: 'Deck Cost in Winnipeg & More', metaDescription: 'd', excerpt: 'e', category: 'Deck', readTime: 6, bodyHtml: '<h1>Big</h1><p onclick="x()">Body <a href="javascript:alert(1)">x</a></p><script>bad()</script>', faq: [{ q: 'Q?', a: 'A.' }] };
+  const { html } = renderPost(c, post, '2026-10-21');
   assert.equal((html.match(/<h1>/g) || []).length, 1);
-  assert.match(html, /<title>Fence Cost in Winnipeg &amp; More \| Winnipeg Fence Pros<\/title>/);
-  assert.match(html, /href="https:\/\/www.wpgfence.ca\/blog\/fence-cost.html"/);
+  assert.match(html, /<title>Deck Cost in Winnipeg &amp; More \| Winnipeg Fence Pros<\/title>/);
+  assert.match(html, /rel="canonical" href="https:\/\/www.wpgfence.ca\/articles\/deck-cost\/"/);
+  assert.match(html, /href="https:\/\/www.wpgfence.ca\/decks.html"[^>]*>See our Deck work/);
+  assert.match(html, /"@type":"BreadcrumbList"/);
   assert.match(html, /"@type":"FAQPage"/);
-  assert.match(html, /<!--HERO-->.*\/images\/fence-cost.webp.*<!--\/HERO-->/);
-  assert.doesNotMatch(html, /\{\{[A-Z_]+\}\}/);
+  assert.match(html, /<img src="\/img\/logo.webp" alt="Winnipeg Fence Pros"/);
+  assert.match(html, /href="\/pergolas.html">Pergola<\/a>/);
+  assert.match(html, /<img class="hero-img" src="\/images\/deck-cost.webp"/);
+  assert.match(html, /tel:204-555-0100/);
+  assert.match(html, /--orange: #fea45a/);
+  assert.doesNotMatch(html, /\{\{[A-Z_]+\}\}|<script>bad|javascript:|onclick/);
+  const noPhone = renderPost(cfg({ PHONE: '' }), { ...post, image: '' }, '2026-10-21').html;
+  assert.ok(!/href="tel:|<img class="hero-img"|<!--HERO/.test(noPhone));
   assert.match(DEFAULT_TEMPLATE, /\{\{BODY\}\}/);
   assert.throws(() => renderPost(cfg({ POST_TEMPLATE: '<html></html>' }), { slug: 'x', title: 't', bodyHtml: '' }, '2026-10-21'), /BODY/);
+  assert.equal(sanitizeBody('<h1>Big</h1><p onclick="x()">Hi</p><iframe src="x"></iframe>'), '<h2>Big</h2><p>Hi</p>');
+});
+
+test('list page: cards newest first, image block dropped when there is none, markers inside the page', () => {
+  const c = cfg();
+  const cards = renderCards(c, [
+    { url: '/articles/old/', title: 'Old <one>', excerpt: 'e', category: 'Fence', readTime: 4, date: '2026-01-02', image: '' },
+    { url: '/articles/new/', title: 'New', excerpt: 'e', category: 'Deck', readTime: 5, date: '2026-09-02', image: '/images/new.webp' },
+  ]);
+  assert.ok(cards.indexOf('/articles/new/') < cards.indexOf('/articles/old/'));
+  assert.match(cards, /data-category="Deck"/);
+  assert.match(cards, /<img src="\/images\/new.webp"/);
+  assert.match(cards, /Old &lt;one&gt;/);
+  assert.equal((cards.match(/<img /g) || []).length, 1);
+  const page = renderIndex(c, cards);
+  assert.match(page, /<!-- 5sf:articles:start -->\n<article class="card"/);
+  assert.match(page, /<!-- 5sf:articles:end -->/);
+  assert.match(page, /rel="canonical" href="https:\/\/www.wpgfence.ca\/articles\/"/);
+  assert.doesNotMatch(page, /\{\{[A-Z_]+\}\}/);
+  assert.equal(toggleBlocks('a<!--X-->b<!--/X-->c', { X: false }), 'ac');
+  assert.equal(toggleBlocks('a<!--X-->b<!--/X-->c', { X: true }), 'abc');
+});
+
+test('migrate: WordPress HTML becomes clean article HTML with local images and rewritten links', () => {
+  const c = cfg();
+  const base = 'https://www.wpgfence.ca/blog';
+  const html = '<!-- wp:image --><figure class="wp-block-image"><img src="https://www.wpgfence.ca/blog/wp-content/uploads/2026/08/hero-1024x683.jpg" srcset="a 1x"></figure><!-- /wp:image -->'
+    + '<p>See <a href="https://www.wpgfence.ca/blog/other-post/">other</a> and <a href="/blog/missing/">gone</a> and <a href="https://www.wpgfence.ca/blog/">all</a>.</p>'
+    + '<p><img src="/blog/wp-content/uploads/2026/08/fence.jpg" srcset="x 2x" sizes="100vw"></p>[caption id="1"]cap[/caption]<p>&nbsp;</p>';
+  const out = convertContent(html, { cfg: c, base, slugs: new Set(['other-post']), featured: 'https://www.wpgfence.ca/blog/wp-content/uploads/2026/08/hero.jpg' });
+  assert.doesNotMatch(out.html, /hero|wp:image|srcset|sizes|\[caption|<p><\/p>/);
+  assert.match(out.html, /href="\/articles\/other-post\/"/);
+  assert.match(out.html, /href="\/blog\/missing\/"/);
+  assert.match(out.html, /href="\/articles\/"/);
+  assert.match(out.html, /src="\/images\/articles\/fence.jpg"/);
+  assert.deepEqual([...out.images.values()], ['fence.jpg']);
+});
+
+test('migrate: excerpts are cut at a word boundary', () => {
+  assert.equal(clip('short', 20), 'short');
+  const c = clip('The best fencing options for Winnipeg homeowners must withstand extreme swings', 40);
+  assert.ok(c.endsWith('…') && c.length <= 40 && !/\s…$/.test(c), c);
+  assert.ok(!/\w…$/.test(c) || c.slice(0, -1).split(' ').every((w) => 'The best fencing options for Winnipeg homeowners must withstand extreme swings'.includes(w)));
+});
+
+test('migrate: the redirect file maps every old slug, escapes quotes and only touches the blog path', () => {
+  const php = redirectPlugin(cfg(), '/blog', { 'a-post': '/articles/a-post/', "it's": '/articles/its/' });
+  assert.match(php, /^<\?php/);
+  assert.match(php, /'a-post' => '\/articles\/a-post\/'/);
+  assert.match(php, /'it\\'s' => '\/articles\/its\/'/);
+  assert.match(php, /\$base = '\/blog\/'/);
+  assert.match(php, /\$site = 'https:\/\/www.wpgfence.ca'/);
+  assert.match(php, /header\('Location: ' \. \$site \. \$to, true, 301\)/);
 });
 
 test('template: import turns a site page into a template', () => {

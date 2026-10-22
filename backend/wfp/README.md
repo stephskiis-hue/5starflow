@@ -18,22 +18,33 @@ research.js   gscSyncTick (daily 7:17) + researchTick (Monday 7:37): import real
 focus.js      focus campaigns: main post → supporting posts (PAA / related / GSC queries) → refresh after 21 days
 plan.js       pure: nextPiece() (what the writer does next) + roadmap() (the next N pieces on the posting days)
 writer.js     Claude on the server: web-search research, then a structured post (JSON schema)
-template.js   POST_TEMPLATE placeholders, body sanitizing, JSON-LD, "import a template from a page on the site"
+templates.js  default article page, list page and card in the winnipegfencepros.com look (orange + charcoal, Poppins)
+template.js   placeholders, body sanitizing, JSON-LD + breadcrumbs, cards, list page, "import a template from a page"
+migrate.js    optional one-time move of the old WordPress posts into /articles/ (+ redirect file for WordPress)
 publisher.js  writeTick (hourly :25, autopilot) + publishPost → blog_publish.py → sitemap resubmit
-blog_publish.py  server version of _blog-autopilot.py: Pexels hero, FTP upload, blog index POSTS array, sitemap
+blog_publish.py  server version of _blog-autopilot.py: Pexels hero, FTP upload, article list (HTML between markers), sitemap; --batch for the move
 health.js     daily 8:05: setup, FTP, sitemap lists every post, posts load, Search Console access, Serper, failures
 prompts/weekly-check.md   the Claude routine (claude.ai, weekly) that reviews, adds keywords and writes the report
 ```
 
+## Blog structure (custom, no WordPress needed)
+- Articles are plain HTML at `/articles/<slug>/` (folder URLs, no rewrite rules), the list is `/articles/`.
+- Services (Settings → Business) are the blog categories: `Name | page | words people search`. Every keyword gets a service,
+  every article is filed under it, links to its page, and the planner alternates between services.
+- The list page contains `<!-- 5sf:articles:start -->` / `<!-- 5sf:articles:end -->`: the server rewrites what is between them
+  with crawlable cards on every publish (and creates the page from the list template if it does not exist).
+- Old WordPress `/blog/` (optional): Posts tab → Preview, then Move. Copies posts + images, adds the new URLs to the sitemap,
+  drops the old `/blog/` URLs from it, and (checkbox) writes `blog/wp-content/mu-plugins/wfp-articles-redirects.php` so the old
+  links 301 to the new pages while WordPress still runs. Delete that file to undo. Rank Math's CSV import is Pro-only, hence the file.
+
 ## Setup (on the page, Settings tab)
-1. Business: site URL, phone, quote page, services, neighbourhoods.
-2. FTP: host, user, password, website folder; blog folder, images folder, blog index file (its `var POSTS = [...]`
-   array gets each post; a page without one is left alone). **Test.**
-3. Sitemap: public sitemap URL + the file inside the website folder. Each post is added to that file and the sitemap
+1. Business: site URL, logo, menu links, phone, quote page, services, neighbourhoods.
+2. FTP: host, user, password, website folder. **Test.**
+3. Blog pages: articles folder, list page, the three templates (defaults match the site; "make the article template from a page on the site" imports one).
+4. Sitemap: public sitemap URL + the file inside the website folder. Each article is added to that file and the sitemap
    is resubmitted to Search Console. A sitemap index can not be patched: point it at the child sitemap.
-4. Search Console: the property, and add the shown service account email as a **Full** user. **Test.**
-5. API keys: Anthropic (writer), Serper (discovery + ranks), Pexels (photos). Blank = the server's keys.
-6. Template: the default is a clean standalone page; "Import from a page on the site" turns an existing post into one.
+5. Search Console: the property, and add the shown service account email as a **Full** user. **Test.**
+6. API keys: Anthropic (writer), Serper (discovery + ranks), Pexels (photos). Blank = the server's keys.
 7. Autopilot: days, hour, posts per week, `auto` or `review` (drafts wait for Publish). Turn it on last.
 
 Values are stored in Postgres, not written into `.env`: the container's files are replaced on every deploy. Any blank

@@ -20,7 +20,8 @@ async function testFtp(cfg) {
     const names = (await client.list(base)).map((f) => f.name);
     const found = [];
     const lack = [];
-    for (const f of [cfg.BLOG_INDEX_FILE, cfg.sitemapAuto ? cfg.SITEMAP_FILE : null].filter(Boolean)) (names.includes(f.split('/')[0]) ? found : lack).push(f);
+    // the article list page is created on the first publish; only the sitemap has to exist already
+    for (const f of [cfg.sitemapAuto ? cfg.SITEMAP_FILE : null].filter(Boolean)) (names.includes(f.split('/')[0]) ? found : lack).push(f);
     return { ok: !lack.length, detail: `Logged in; ${names.length} items in ${base}${found.length ? `; found ${found.join(', ')}` : ''}${lack.length ? `; missing ${lack.join(', ')}` : ''}` };
   } catch (err) {
     return { ok: false, detail: `FTP: ${err.message}` };
@@ -73,6 +74,16 @@ async function healthTick(ctx) {
       if (res.status !== 200) broken.push(`${p.url} (${res.status})`);
     }
     add('Published posts', !broken.length, broken.length ? `Not loading: ${broken.join(', ')}` : `${Math.min(20, published.length)} checked, all load`);
+  }
+
+  const moved = await prisma.wfpPost.findMany({ where: { mode: 'import', status: 'published', oldUrl: { not: null } }, select: { oldUrl: true, slug: true } });
+  if (moved.length) {
+    const bad = [];
+    for (const m of moved) {
+      const res = await axios.get(m.oldUrl, { timeout: 15000, maxRedirects: 0, validateStatus: () => true, headers: { 'User-Agent': '5StarFlow-WFP/1.0' } }).catch((e) => ({ status: e.code || 'error', headers: {} }));
+      if (![301, 308].includes(res.status) || !String(res.headers?.location || '').includes(m.slug)) bad.push(`${m.oldUrl} (${res.status})`);
+    }
+    add('Old blog links', !bad.length, bad.length ? `${bad.length} of ${moved.length} old links do not redirect to the new page: ${bad.slice(0, 3).join(', ')}` : `All ${moved.length} old WordPress links redirect to the new pages`);
   }
 
   if (cfg.GSC_PROPERTY) { const r = await testGsc(cfg); add('Search Console', r.ok, r.detail); }

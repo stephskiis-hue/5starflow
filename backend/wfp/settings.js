@@ -9,70 +9,22 @@
 const prisma = require('../lib/prismaClient');
 const { encryptPassword, decryptPassword } = require('../lib/ftpCrypto');
 
-const DEFAULT_TEMPLATE = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{TITLE}} | {{BUSINESS_NAME}}</title>
-<meta name="description" content="{{META_DESCRIPTION}}">
-<link rel="canonical" href="{{CANONICAL}}">
-<meta property="og:type" content="article">
-<meta property="og:title" content="{{TITLE}}">
-<meta property="og:description" content="{{META_DESCRIPTION}}">
-<meta property="og:url" content="{{CANONICAL}}">
-<meta property="og:image" content="{{IMAGE_URL}}">
-{{SCHEMA}}
-<style>
-  :root { --ink: #1d2327; --muted: #5b6770; --brand: #7a4b22; --brand-dark: #5a3516; --bg: #ffffff; --soft: #f6f2ee; --line: #e6ddd4; }
-  * { box-sizing: border-box; }
-  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.7; }
-  header, footer { background: var(--soft); border-bottom: 1px solid var(--line); }
-  footer { border-top: 1px solid var(--line); border-bottom: 0; margin-top: 3rem; }
-  .wrap { max-width: 780px; margin: 0 auto; padding: 1rem 16px; }
-  header a.brand { color: var(--brand-dark); font-weight: 800; text-decoration: none; font-size: 1.15rem; }
-  header .call { float: right; color: var(--brand-dark); font-weight: 700; text-decoration: none; }
-  h1 { font-size: clamp(1.7rem, 4vw, 2.4rem); line-height: 1.2; margin: 1.5rem 0 .5rem; }
-  h2 { font-size: 1.45rem; margin-top: 2.2rem; line-height: 1.3; }
-  h3 { font-size: 1.15rem; margin-top: 1.6rem; }
-  .meta { color: var(--muted); font-size: .92rem; }
-  .hero { width: 100%; height: auto; border-radius: 10px; margin: 1rem 0; }
-  a { color: var(--brand); }
-  table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; }
-  th, td { border: 1px solid var(--line); padding: .5rem .7rem; text-align: left; }
-  .cta { background: var(--soft); border: 1px solid var(--line); border-radius: 12px; padding: 1.25rem; margin: 2.5rem 0; }
-  .cta a.btn { display: inline-block; background: var(--brand); color: #fff; padding: .7rem 1.2rem; border-radius: 8px; text-decoration: none; font-weight: 700; }
-</style>
-</head>
-<body>
-<header><div class="wrap"><a class="brand" href="{{SITE_URL}}/">{{BUSINESS_NAME}}</a> <a class="call" href="tel:{{PHONE}}">{{PHONE}}</a></div></header>
-<main class="wrap">
-  <article>
-    <p class="meta"><a href="{{BLOG_URL}}">Blog</a> · {{CATEGORY}} · {{DATE_HUMAN}} · {{READ_TIME}} min read</p>
-    <h1>{{TITLE}}</h1>
-    <!--HERO--><img class="hero" src="{{IMAGE}}" alt="{{IMAGE_ALT}}" width="1200" height="675"><!--/HERO-->
-    {{BODY}}
-    <div class="cta">
-      <h2>Get a free fence quote</h2>
-      <p>{{BUSINESS_NAME}} builds and repairs fences across {{CITY}}. Tell us about your yard and we will get back to you with a clear price.</p>
-      <p><a class="btn" href="{{QUOTE_URL}}">Get My Free Quote</a> or call <a href="tel:{{PHONE}}">{{PHONE}}</a></p>
-    </div>
-  </article>
-</main>
-<footer><div class="wrap"><p>&copy; {{YEAR}} {{BUSINESS_NAME}} · {{CITY}}, {{REGION}}</p></div></footer>
-</body>
-</html>`;
+const { POST_TEMPLATE: DEFAULT_TEMPLATE, CARD_TEMPLATE: DEFAULT_CARD, INDEX_TEMPLATE: DEFAULT_INDEX } = require('./templates');
 
 // group: the Settings tab card it appears on. secret: encrypted, write-only. shared: server variable used when blank.
 const FIELDS = [
   { key: 'BUSINESS_NAME', group: 'business', label: 'Business name', def: 'Winnipeg Fence Pros' },
-  { key: 'SITE_URL', group: 'business', label: 'Website URL', help: 'https://www.example.com (no trailing slash)' },
+  { key: 'SITE_URL', group: 'business', label: 'Website URL', def: 'https://www.winnipegfencepros.com', help: 'No trailing slash' },
   { key: 'CITY', group: 'business', label: 'City', def: 'Winnipeg' },
   { key: 'REGION', group: 'business', label: 'Province', def: 'Manitoba' },
   { key: 'PHONE', group: 'business', label: 'Phone', def: '' },
-  { key: 'QUOTE_URL', group: 'business', label: 'Quote / contact page URL', help: 'Every post links here' },
-  { key: 'SERVICES', group: 'business', label: 'Services (one per line)', multiline: true,
-    def: 'fence installation\nfence repair\nwood fence\ncedar fence\nvinyl fence\nchain link fence\ncomposite fence\nprivacy fence\ngate installation\nfence staining\ndeck building' },
+  { key: 'QUOTE_URL', group: 'business', label: 'Quote / contact page URL', def: 'https://www.winnipegfencepros.com/#contactus', help: 'Every post links here' },
+  { key: 'LOGO_URL', group: 'business', label: 'Logo (path or URL)', def: '/img/logo.webp', help: 'Shown in the header of every article page' },
+  { key: 'FAVICON_URL', group: 'business', label: 'Favicon (path or URL)', def: '/img/logo.ico' },
+  { key: 'NAV_LINKS', group: 'business', label: 'Menu links (one per line: Label | /page)', multiline: true, def: 'Fence | /\nDeck | /decks.html\nPergola | /pergolas.html\nLandscape | /landscaping.html\nArticles | /articles/', help: 'The header and footer menu on the article pages' },
+  { key: 'SERVICES', group: 'business', label: 'Services = blog categories (one per line: Name | page on the site | words people search)', multiline: true,
+    def: 'Fence | / | fence, gate, picket, chain link, privacy\nDeck | /decks.html | deck, decking, railing\nPergola | /pergolas.html | pergola, gazebo, pavilion\nLandscaping | /landscaping.html | landscaping, landscape, retaining wall, patio, paver, garden',
+    help: 'Each article is written for one service, filed under its name, and links to its page. Keywords that match no service are ignored. Delete a line to stop writing about it.' },
   { key: 'AREAS', group: 'business', label: 'Neighbourhoods served (one per line)', multiline: true,
     def: 'St. Vital\nSt. Boniface\nTranscona\nRiver Heights\nCharleswood\nFort Garry\nWaverley West\nNorth Kildonan\nSage Creek\nSt. James\nTuxedo\nEast St. Paul' },
   { key: 'BRAND_TERMS', group: 'business', label: 'Brand words (one per line)', multiline: true, def: 'winnipeg fence pros\nwinnipegfencepros', help: 'Searches for your own name are not keyword targets' },
@@ -83,11 +35,11 @@ const FIELDS = [
   { key: 'FTP_PASS', group: 'ftp', label: 'FTP password', secret: true },
   { key: 'FTP_PATH', group: 'ftp', label: 'Website folder on the server', def: '/public_html' },
   { key: 'FTP_SECURE', group: 'ftp', label: 'Use FTPS (TLS)', bool: true, def: 'false' },
-  { key: 'BLOG_DIR', group: 'ftp', label: 'Blog folder inside the website folder', def: '', help: 'Blank = posts sit next to the home page' },
-  { key: 'IMAGES_DIR', group: 'ftp', label: 'Images folder inside the website folder', def: 'images' },
-  { key: 'BLOG_INDEX_FILE', group: 'ftp', label: 'Blog index page', def: 'blog.html', help: 'Its "var POSTS = [...]" list gets each new post. Blank = skip' },
-  { key: 'CLEAN_URLS', group: 'ftp', label: 'Links without .html', bool: true, def: 'false', help: 'Only if the host rewrites /post to /post.html' },
-  { key: 'DEFAULT_IMAGE', group: 'ftp', label: 'Fallback hero image', def: '', help: 'Used when Pexels has nothing, e.g. images/fence.jpg' },
+  { key: 'BLOG_DIR', group: 'blog', label: 'Articles folder inside the website folder', def: 'articles', help: 'Articles are /articles/<name>/. Blank = next to the home page' },
+  { key: 'URL_STYLE', group: 'blog', label: 'Article URL style', options: ['folder', 'html'], def: 'folder', help: 'folder = /articles/name/ (no rewrite rules needed). html = /articles/name.html' },
+  { key: 'IMAGES_DIR', group: 'blog', label: 'Images folder inside the website folder', def: 'images' },
+  { key: 'BLOG_INDEX_FILE', group: 'blog', label: 'Articles list page', def: 'articles/index.html', help: 'Rebuilt between its <!-- 5sf:articles:start --> and <!-- 5sf:articles:end --> markers on every publish. Created from the list template if missing' },
+  { key: 'DEFAULT_IMAGE', group: 'blog', label: 'Fallback hero image', def: '', help: 'Used when Pexels has nothing, e.g. images/fence.jpg' },
 
   { key: 'SITEMAP_URL', group: 'sitemap', label: 'Sitemap URL', help: 'https://www.example.com/sitemap.xml, submitted to Search Console after each post' },
   { key: 'SITEMAP_FILE', group: 'sitemap', label: 'Sitemap file inside the website folder', def: 'sitemap.xml' },
@@ -111,11 +63,14 @@ const FIELDS = [
   { key: 'FOCUS_SUPPORT', group: 'autopilot', label: 'Supporting posts per focus keyword', def: '4' },
   { key: 'RANK_TRACK_MAX', group: 'autopilot', label: 'Keywords rank-tracked weekly', def: '20' },
   { key: 'RECOMMEND_MAX', group: 'autopilot', label: 'Keyword recommendations per week', def: '5' },
-  { key: 'POST_CATEGORY', group: 'autopilot', label: 'Default blog category', def: 'Fencing' },
+  { key: 'POST_CATEGORY', group: 'autopilot', label: 'Category for keywords with no service', def: 'Fence' },
   { key: 'WRITER_MODEL', group: 'autopilot', label: 'Claude model', def: 'claude-opus-5-5' },
   { key: 'WRITER_NOTES', group: 'autopilot', label: 'Notes for Claude (voice, what to always / never say)', multiline: true,
     def: 'Plain, friendly, practical. Canadian spelling. Talk like a local fence contractor, not a marketer. Never invent prices, reviews, warranties or awards.' },
-  { key: 'POST_TEMPLATE', group: 'template', label: 'Post page template', multiline: true, def: DEFAULT_TEMPLATE },
+  { key: 'WP_BLOG_URL', group: 'blog', label: 'Old WordPress blog URL (for the one-time move)', def: 'https://www.winnipegfencepros.com/blog' },
+  { key: 'POST_TEMPLATE', group: 'blog', label: 'Article page template', multiline: true, def: DEFAULT_TEMPLATE },
+  { key: 'INDEX_TEMPLATE', group: 'blog', label: 'Articles list page template (only used when the list page does not exist yet)', multiline: true, def: DEFAULT_INDEX },
+  { key: 'CARD_TEMPLATE', group: 'blog', label: 'Article card on the list page', multiline: true, def: DEFAULT_CARD },
 ];
 const BY_KEY = Object.fromEntries(FIELDS.map((f) => [f.key, f]));
 
@@ -142,6 +97,24 @@ function resolve(field, stored, env = process.env) {
 
 const lines = (s) => String(s || '').split(/\r?\n|,/).map((x) => x.trim()).filter(Boolean);
 const bool = (s) => /^(1|true|on|yes)$/i.test(String(s || '').trim());
+/** "Fence | /fences.html | fence, gate" lines -> { name, path, terms[] }. The name itself is always a term. */
+function parseServices(raw) {
+  return String(raw || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((l) => {
+    const [name, path = '', terms = ''] = l.split('|').map((x) => x.trim());
+    const t = terms.split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+    const low = name.toLowerCase();
+    return { name, path: path ? (path.startsWith('http') ? path : `/${path.replace(/^\/+/, '')}`) : '', terms: t.includes(low) ? t : [low, ...t] };
+  }).filter((x) => x.name);
+}
+
+/** "Deck | /decks.html" lines -> [{ label, path }]. */
+function parseNav(raw) {
+  return String(raw || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((l) => {
+    const [label, path = '/'] = l.split('|').map((x) => x.trim());
+    return { label, path };
+  }).filter((x) => x.label);
+}
+
 const int = (s, d) => { const n = parseInt(s, 10); return Number.isFinite(n) ? n : d; };
 
 /** Typed config every job uses. */
@@ -152,12 +125,13 @@ function toConfig(raw) {
     ...raw,
     SITE_URL: site,
     BLOG_DIR: blogDir,
-    services: lines(raw.SERVICES).map((s) => s.toLowerCase()),
+    services: parseServices(raw.SERVICES),
+    navLinks: parseNav(raw.NAV_LINKS),
+    urlStyle: raw.URL_STYLE === 'html' ? 'html' : 'folder',
     areas: lines(raw.AREAS),
     brandTerms: lines(raw.BRAND_TERMS).map((s) => s.toLowerCase()),
     ftpPort: int(raw.FTP_PORT, 21),
     ftpSecure: bool(raw.FTP_SECURE),
-    cleanUrls: bool(raw.CLEAN_URLS),
     sitemapAuto: bool(raw.SITEMAP_AUTO),
     autopilot: bool(raw.AUTOPILOT),
     publishMode: raw.PUBLISH_MODE === 'review' ? 'review' : 'auto',
@@ -223,4 +197,4 @@ function missing(cfg) {
   return out;
 }
 
-module.exports = { FIELDS, DEFAULT_TEMPLATE, getConfig, publicView, saveSettings, missing, toConfig, resolve, _reset: () => { cache = null; } };
+module.exports = { FIELDS, DEFAULT_TEMPLATE, DEFAULT_CARD, DEFAULT_INDEX, parseServices, parseNav, getConfig, publicView, saveSettings, missing, toConfig, resolve, _reset: () => { cache = null; } };

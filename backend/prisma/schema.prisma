@@ -1345,6 +1345,8 @@ model WfpPost {
   category        String    @default("")
   readTime        Int       @default(5)
   imageQuery      String?
+  image           String? // hero image path on the site; null/empty = no hero
+  oldUrl          String? // the WordPress URL this article replaced (for the redirects)
   html            String
   sources         Json?
   status          String    @default("draft") // draft | publishing | published | failed

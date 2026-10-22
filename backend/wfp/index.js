@@ -16,6 +16,7 @@ const JOBS = {
   research: (ctx) => require('./research').researchTick(ctx),
   health: (ctx) => require('./health').healthTick(ctx),
   write: (ctx, opts) => require('./publisher').writeTick(ctx, opts),
+  'migrate-wordpress': (ctx, opts) => require('./migrate').migrateTick(ctx, opts),
 };
 
 const run = (job, trigger = 'schedule', opts = {}) => runJob(job, (ctx) => JOBS[job](ctx, opts), { trigger });

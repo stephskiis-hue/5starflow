@@ -33,10 +33,15 @@ function nextPiece(keywords, { busy = new Set(), now = new Date() } = {}) {
     }
   }
   const waiting = new Set(focus.map((f) => f.id));
-  const next = keywords
+  const queue = keywords
     .filter((k) => k.status === 'planned' && !k.focus && !waiting.has(k.supportsId) && free(k))
-    .sort((a, b) => b.priority - a.priority)[0];
-  return next ? { mode: 'new', keyword: next, why: `Highest priority planned keyword (score ${next.priority})` } : null;
+    .sort((a, b) => b.priority - a.priority);
+  if (!queue.length) return null;
+  // spread the posts over the services: skip the service of the latest post unless nothing else is nearly as good
+  const last = keywords.filter((k) => LIVE.has(k.status) && k.publishedAt && k.service).sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))[0]?.service;
+  const other = last ? queue.find((k) => k.service && k.service !== last) : null;
+  const next = other && other.priority >= queue[0].priority * 0.7 ? other : queue[0];
+  return { mode: 'new', keyword: next, why: next === queue[0] ? `Highest priority planned keyword (score ${next.priority})` : `Next best keyword for a different service than the last post (${last}): score ${next.priority}` };
 }
 
 /** Business-timezone weekday ("mon") and hour for a Date. */

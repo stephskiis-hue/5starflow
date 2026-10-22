@@ -157,7 +157,7 @@ async function researchTick(ctx, now = new Date()) {
     const pick = [...new Set([0, 1, 2].map((i) => cfg.services[(week * 3 + i) % n]))];
     const found = [];
     for (const svc of pick) {
-      const q = `${svc} ${cfg.CITY}`.toLowerCase();
+      const q = `${svc.name} ${cfg.CITY}`.toLowerCase();
       if (budget.left() < 2 + cfg.rankTrackMax) break; // rank tracking matters more
       budget.take();
       const ac = await g.serper(cfg, '/autocomplete', { q }).catch((e) => { ctx.log(`autocomplete failed: ${e.message}`); return {}; });
@@ -168,7 +168,7 @@ async function researchTick(ctx, now = new Date()) {
       for (const r of sr.relatedSearches || []) found.push({ keyword: r.query, source: 'serper', signals: { related: true } });
     }
     stats.serper = await addKeywords(found.filter((f) => fits(f.keyword, cfg)).slice(0, 40), cfg);
-    ctx.log(`Serper discovery (${pick.join(', ')}): ${stats.serper} new keywords`);
+    ctx.log(`Serper discovery (${pick.map((x) => x.name).join(', ')}): ${stats.serper} new keywords`);
   }
   await rescore(cfg, now);
 

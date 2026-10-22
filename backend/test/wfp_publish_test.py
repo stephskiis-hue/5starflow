@@ -81,6 +81,77 @@ class TestSitemap(unittest.TestCase):
         self.assertEqual(bp.remote({"FTP_PATH": "/"}, "images"), "/images")
 
 
+LIST = """<main><div class="grid">
+<!-- 5sf:articles:start -->
+<article>old card</article>
+<!-- 5sf:articles:end -->
+</div></main>"""
+
+
+class TestListPage(unittest.TestCase):
+    def test_cards_replace_what_is_between_markers_only(self):
+        out = bp.apply_cards(LIST, "<article>A</article>\n<article>B</article>")
+        self.assertIn("<article>A</article>\n<article>B</article>", out)
+        self.assertNotIn("old card", out)
+        self.assertTrue(out.startswith("<main>") and out.rstrip().endswith("</main>"))
+        # re-applying with different cards is stable (no duplicates)
+        again = bp.apply_cards(out, "<article>C</article>")
+        self.assertEqual(again.count("5sf:articles:start"), 1)
+        self.assertNotIn("<article>A</article>", again)
+        self.assertIsNone(bp.apply_cards("<p>no markers</p>", "x"))
+
+    def test_update_index_paths(self):
+        entry = {"title": "T", "date": "2026-10-21", "image": "", "excerpt": "e", "url": "/articles/t/", "category": "Fence", "readTime": 4}
+        # markers win
+        html, how = bp.update_index(LIST, "CARDS", None, entry)
+        self.assertEqual(how, "markers")
+        # missing page: created from the template
+        html, how = bp.update_index(None, "CARDS", LIST, entry)
+        self.assertEqual(how, "created")
+        self.assertIn("CARDS", html)
+        self.assertEqual(bp.update_index(None, "CARDS", None, entry)[0], None)
+        # old inline array still works when there are no markers
+        html, how = bp.update_index(INDEX, None, None, entry)
+        self.assertEqual(how, "posts-array")
+        # neither: untouched
+        self.assertIsNone(bp.update_index("<p>x</p>", "CARDS", None, entry)[0])
+
+    def test_card_image_token(self):
+        cards = '<a><img src="__WFP_IMAGE__" alt="" loading="lazy"></a><a><img src="/images/old.webp"></a>'
+        self.assertIn('src="/images/new.webp"', bp.fix_card_image(cards, "/images/new.webp"))
+        none = bp.fix_card_image(cards, "")
+        self.assertNotIn("__WFP_IMAGE__", none)
+        self.assertIn("/images/old.webp", none)
+        self.assertEqual(none.count("<img"), 1)
+        self.assertIsNone(bp.fix_card_image(None, "x"))
+
+
+class TestSitemapRemoval(unittest.TestCase):
+    XML = """<?xml version="1.0"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+       <loc>https://www.wpgfence.ca/</loc>
+  </url>
+  <url>
+       <loc>https://www.wpgfence.ca/blog/</loc>
+  </url>
+  <url>
+       <loc>https://www.wpgfence.ca/blog/old-post/</loc>
+  </url>
+  <url>
+       <loc>https://www.wpgfence.ca/blogger/</loc>
+  </url>
+</urlset>"""
+
+    def test_prefix_removal_keeps_lookalikes(self):
+        xml, n = bp.remove_sitemap_urls(self.XML, ["https://www.wpgfence.ca/blog/"])
+        self.assertEqual(n, 2)
+        self.assertNotIn("old-post", xml)
+        self.assertIn("https://www.wpgfence.ca/</loc>", xml)
+        self.assertIn("/blogger/", xml)
+        self.assertTrue(xml.rstrip().endswith("</urlset>"))
+
+
 if __name__ == "__main__":
     result = unittest.main(exit=False, verbosity=1).result
     sys.exit(0 if result.wasSuccessful() else 1)

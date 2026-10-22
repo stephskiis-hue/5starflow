@@ -6,20 +6,48 @@ const cheerio = require('cheerio');
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-/** Where a post lives: file name, folder, public URL and the path the blog index links to. */
+/** Keep (markers removed) or drop (with its content) every <!--NAME-->...<!--/NAME--> block. flags: { NAME: true|false }. */
+function toggleBlocks(html, flags) {
+  let out = html;
+  for (const [name, on] of Object.entries(flags)) out = out.replace(new RegExp(`<!--${name}-->([\\s\\S]*?)<!--/${name}-->`, 'g'), on ? '$1' : '');
+  return out;
+}
+
+const absUrl = (cfg, p) => (/^https?:\/\//i.test(p) ? p : `${cfg.SITE_URL}${p.startsWith('/') ? '' : '/'}${p}`);
+
+/** Where a post lives: file name, folder, public URL and the path the list links to. */
 function postUrls(cfg, slug) {
   const dir = cfg.BLOG_DIR ? `${cfg.BLOG_DIR}/` : '';
-  const pathPart = `/${dir}${slug}${cfg.cleanUrls ? '' : '.html'}`;
+  const folder = cfg.urlStyle !== 'html';
+  const pathPart = folder ? `/${dir}${slug}/` : `/${dir}${slug}.html`;
   const imagesDir = String(cfg.IMAGES_DIR || 'images').replace(/^\/+|\/+$/g, '');
+  const index = String(cfg.BLOG_INDEX_FILE || '').replace(/^\/+/, '');
+  const indexPath = !index ? '/' : /(^|\/)index\.html$/.test(index) ? `/${index.replace(/index\.html$/, '')}` : `/${index}`;
   return {
-    file: `${slug}.html`,
-    remoteDir: cfg.BLOG_DIR,
+    file: folder ? 'index.html' : `${slug}.html`,
+    remoteDir: folder ? `${dir}${slug}` : cfg.BLOG_DIR,
     path: pathPart,
     url: `${cfg.SITE_URL}${pathPart}`,
     image: `/${imagesDir}/${slug}.webp`,
-    blogUrl: cfg.BLOG_INDEX_FILE ? `${cfg.SITE_URL}/${cfg.cleanUrls ? cfg.BLOG_INDEX_FILE.replace(/\.html$/, '') : cfg.BLOG_INDEX_FILE}` : `${cfg.SITE_URL}/`,
+    blogUrl: `${cfg.SITE_URL}${indexPath}`,
   };
 }
+
+/** The service (settings) a category name belongs to, or null. */
+const serviceByName = (cfg, name) => (cfg.services || []).find((s) => s.name.toLowerCase() === String(name || '').toLowerCase()) || null;
+
+/** Shared {{PLACEHOLDER}} values for the article page, the list page and the cards. All escaped. */
+function siteValues(cfg, category) {
+  const svc = serviceByName(cfg, category);
+  const nav = (cfg.navLinks || []).map((n) => `<a href="${esc(n.path)}">${esc(n.label)}</a>`).join('');
+  return {
+    BUSINESS_NAME: esc(cfg.BUSINESS_NAME), PHONE: esc(cfg.PHONE), QUOTE_URL: esc(cfg.QUOTE_URL || `${cfg.SITE_URL}/`), CITY: esc(cfg.CITY), REGION: esc(cfg.REGION),
+    SITE_URL: esc(cfg.SITE_URL), LOGO_URL: esc(cfg.LOGO_URL), FAVICON_URL: esc(cfg.FAVICON_URL || '/favicon.ico'), NAV: nav,
+    SERVICE_NAME: esc(svc ? svc.name : cfg.BUSINESS_NAME), SERVICE_URL: esc(svc?.path ? absUrl(cfg, svc.path) : `${cfg.SITE_URL}/`),
+  };
+}
+
+const fill = (html, values) => html.replace(/\{\{([A-Z_]+)\}\}/g, (m, k) => (k in values ? values[k] : m));
 
 /** Claude's body: drop anything that runs code or breaks the page; the template owns the single <h1>. */
 function sanitizeBody(html) {
@@ -35,11 +63,20 @@ function sanitizeBody(html) {
   return $('#wfp-root').html().trim();
 }
 
-function schemaJson(cfg, post, urls, date) {
-  const graph = [{
+function schemaJson(cfg, post, urls, date, image) {
+  const article = {
     '@type': 'BlogPosting', headline: post.title, description: post.metaDescription, datePublished: date, dateModified: date,
-    mainEntityOfPage: urls.url, image: `${cfg.SITE_URL}${urls.image}`,
+    mainEntityOfPage: urls.url, articleSection: post.category,
     author: { '@type': 'Organization', name: cfg.BUSINESS_NAME }, publisher: { '@type': 'Organization', name: cfg.BUSINESS_NAME, url: cfg.SITE_URL },
+  };
+  if (image) article.image = absUrl(cfg, image);
+  const graph = [article, {
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: `${cfg.SITE_URL}/` },
+      { '@type': 'ListItem', position: 2, name: 'Articles', item: urls.blogUrl },
+      { '@type': 'ListItem', position: 3, name: post.title, item: urls.url },
+    ],
   }];
   if (post.faq?.length) graph.push({ '@type': 'FAQPage', mainEntity: post.faq.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) });
   return `<script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': graph }).replace(/</g, '\\u003c')}</script>`;
@@ -50,21 +87,39 @@ function faqHtml(faq) {
   return `\n<h2>Frequently asked questions</h2>\n${faq.map((f) => `<h3>${esc(f.q)}</h3>\n<p>${esc(f.a)}</p>`).join('\n')}`;
 }
 
-/** The full page for a written post. date: YYYY-MM-DD. */
+/** The full page for a written post. date: YYYY-MM-DD. post.image overrides the default hero path ('' = no hero). */
 function renderPost(cfg, post, date) {
   const urls = postUrls(cfg, post.slug);
+  const image = post.image !== undefined && post.image !== null ? post.image : urls.image;
   const human = new Date(`${date}T12:00:00Z`).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
   const values = {
-    TITLE: esc(post.title), META_DESCRIPTION: esc(post.metaDescription), CANONICAL: esc(urls.url), IMAGE: esc(urls.image), IMAGE_URL: esc(`${cfg.SITE_URL}${urls.image}`),
+    ...siteValues(cfg, post.category),
+    TITLE: esc(post.title), META_DESCRIPTION: esc(post.metaDescription), CANONICAL: esc(urls.url), IMAGE: esc(image), IMAGE_URL: esc(image ? absUrl(cfg, image) : ''),
     IMAGE_ALT: esc(post.imageAlt || post.title), DATE: date, DATE_HUMAN: esc(human), READ_TIME: String(post.readTime || 5), CATEGORY: esc(post.category),
-    BUSINESS_NAME: esc(cfg.BUSINESS_NAME), PHONE: esc(cfg.PHONE), QUOTE_URL: esc(cfg.QUOTE_URL || `${cfg.SITE_URL}/`), CITY: esc(cfg.CITY), REGION: esc(cfg.REGION),
-    SITE_URL: esc(cfg.SITE_URL), BLOG_URL: esc(urls.blogUrl), YEAR: date.slice(0, 4),
-    BODY: sanitizeBody(post.bodyHtml) + faqHtml(post.faq), SCHEMA: schemaJson(cfg, post, urls, date),
+    BLOG_URL: esc(urls.blogUrl), YEAR: date.slice(0, 4),
+    BODY: sanitizeBody(post.bodyHtml) + faqHtml(post.faq), SCHEMA: schemaJson(cfg, post, urls, date, image),
   };
   let html = String(cfg.POST_TEMPLATE || '');
   if (!html.includes('{{BODY}}')) throw new Error('The post template has no {{BODY}} placeholder');
-  html = html.replace(/\{\{([A-Z_]+)\}\}/g, (m, k) => (k in values ? values[k] : m));
-  return { html, urls };
+  html = toggleBlocks(html, { HERO: !!image, LOGO: !!cfg.LOGO_URL, NOLOGO: !cfg.LOGO_URL, PHONE: !!cfg.PHONE });
+  return { html: fill(html, values), urls };
+}
+
+/** One card for the list page. p: { slug, url (path), title, excerpt, category, readTime, date (YYYY-MM-DD), image }. */
+function renderCard(cfg, p) {
+  const human = new Date(`${p.date}T12:00:00Z`).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const values = { ...siteValues(cfg, p.category), URL: esc(p.url), TITLE: esc(p.title), EXCERPT: esc(p.excerpt), CATEGORY: esc(p.category), READ_TIME: String(p.readTime || 5), DATE_HUMAN: esc(human), IMAGE: esc(p.image || '') };
+  return fill(toggleBlocks(String(cfg.CARD_TEMPLATE || ''), { IMG: !!p.image }), values);
+}
+
+/** All cards, newest first. */
+const renderCards = (cfg, posts) => [...posts].sort((a, b) => String(b.date).localeCompare(String(a.date))).map((p) => renderCard(cfg, p)).join('\n');
+
+/** The whole list page from INDEX_TEMPLATE (used when the page does not exist yet). */
+function renderIndex(cfg, cardsHtml) {
+  const urls = postUrls(cfg, 'x');
+  const html = toggleBlocks(String(cfg.INDEX_TEMPLATE || ''), { LOGO: !!cfg.LOGO_URL, NOLOGO: !cfg.LOGO_URL, PHONE: !!cfg.PHONE });
+  return fill(html, { ...siteValues(cfg, ''), BLOG_URL: esc(urls.blogUrl), YEAR: String(new Date().getFullYear()), CARDS: cardsHtml });
 }
 
 /**
@@ -94,4 +149,4 @@ function templateFromPage(pageHtml) {
   return { template: $.html(), replaced };
 }
 
-module.exports = { postUrls, sanitizeBody, renderPost, templateFromPage, esc };
+module.exports = { postUrls, sanitizeBody, renderPost, renderCard, renderCards, renderIndex, templateFromPage, toggleBlocks, serviceByName, absUrl, esc };

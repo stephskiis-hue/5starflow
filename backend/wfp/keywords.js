@@ -32,14 +32,24 @@ function matchKey(s) {
 const isBranded = (s, brandTerms = []) => { const n = ` ${normalize(s)} `; return brandTerms.some((b) => b && n.includes(` ${normalize(b)} `)); };
 const isOffTopic = (s) => OFF_TOPIC.test(String(s || ''));
 
-/** The first configured service whose words all appear, longest service first ("vinyl fence" beats "fence"). */
+/**
+ * The service a phrase is about. services: [{ name, terms[] }] (or plain phrases). The service with the longest
+ * matching term wins ("composite deck" beats "composite"); on a tie the one listed first.
+ */
 const GENERIC = new Set(['installation', 'building', 'service', 'company', 'contractor']);
 function serviceFor(s, services = []) {
   const k = ` ${matchKey(s)} `;
-  const sorted = services.map((svc) => ({ svc, words: matchKey(svc).split(' ').filter((w) => w && !GENERIC.has(w)) }))
-    .sort((a, b) => b.words.length - a.words.length);
-  for (const { svc, words } of sorted) if (words.length && words.every((w) => k.includes(` ${w} `))) return svc;
-  return null;
+  let best = null;
+  let bestLen = 0;
+  for (const svc of services) {
+    const name = typeof svc === 'string' ? svc : svc.name;
+    const terms = typeof svc === 'string' ? [svc] : (svc.terms?.length ? svc.terms : [svc.name]);
+    for (const t of terms) {
+      const words = matchKey(t).split(' ').filter((w) => w && !GENERIC.has(w));
+      if (words.length > bestLen && words.every((w) => k.includes(` ${w} `))) { best = name; bestLen = words.length; }
+    }
+  }
+  return best;
 }
 
 function areaFor(s, areas = []) {

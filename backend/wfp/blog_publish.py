@@ -8,8 +8,11 @@ blog index and the sitemap are read from the FTP server, patched and uploaded ag
 
   1. Fetch a Pexels hero photo (or use the fallback image, or drop the hero block)
   2. FTP upload the hero image + the post HTML
-  3. Add the post to the blog index page's inline `var POSTS = [...]` array (read from FTP, re-uploaded)
+  3. Rebuild the article list page between its <!-- 5sf:articles:start/end --> markers (crawlable HTML cards the
+     server rendered; or the old inline `var POSTS = [...]` array; or create the page from a template)
   4. Add the post URL to the sitemap file (read from FTP, re-uploaded)
+  --batch manifest.json uploads many files at once (the one-time WordPress move): one FTP session, one list
+  rebuild, one sitemap edit that can also drop the old /blog/ URLs.
   5. Print one line `WFP_RESULT {json}` for the server
 
 Credentials come from the environment (the server passes the page's settings):
@@ -173,6 +176,36 @@ def patch_posts(html: str, entry: dict):
     return new_html, len(posts)
 
 
+# ── Article list page (cards between markers) ─────────────────────────────────
+
+MARK_RE = re.compile(r"(<!--\s*5sf:articles:start\s*-->)(.*?)(<!--\s*5sf:articles:end\s*-->)", re.S)
+
+
+def apply_cards(html: str, cards: str):
+    """html with the cards between the markers replaced; None when the page has no markers."""
+    if not MARK_RE.search(html):
+        return None
+    return MARK_RE.sub(lambda m: f"{m.group(1)}\n{cards}\n{m.group(3)}", html, count=1)
+
+
+def update_index(existing, cards, template, entry):
+    """(new_html, how) for the list page, or (None, why). existing: current page text or None when it is missing."""
+    if existing is None:
+        if template is None:
+            return None, "list page not found and no template to create it from"
+        built = apply_cards(template, cards)
+        return (built, "created") if built else (None, "the list template has no <!-- 5sf:articles:start/end --> markers")
+    if cards is not None:
+        done = apply_cards(existing, cards)
+        if done is not None:
+            return done, "markers"
+    if entry:
+        new_html, info = patch_posts(existing, entry)
+        if new_html is not None:
+            return new_html, "posts-array"
+    return None, "the list page has neither article markers nor a 'var POSTS' array"
+
+
 # ── Sitemap ────────────────────────────────────────────────────────────────────
 
 def patch_sitemap(xml: str, url: str, date: str):
@@ -193,6 +226,21 @@ def patch_sitemap(xml: str, url: str, date: str):
     entry = f"  <url>\n    <loc>{esc}</loc>\n    <lastmod>{date}</lastmod>\n  </url>\n"
     idx = xml.lower().rfind("</urlset>")
     return xml[:idx] + entry + xml[idx:], "added"
+
+
+def remove_sitemap_urls(xml: str, prefixes):
+    """(new_xml, removed_count) dropping every <url> whose <loc> starts with one of the prefixes."""
+    removed = 0
+
+    def drop(m):
+        nonlocal removed
+        loc = re.search(r"<loc>\s*([^<\s]+)\s*</loc>", m.group(0))
+        if loc and any(loc.group(1).replace("&amp;", "&").startswith(p) for p in prefixes):
+            removed += 1
+            return ""
+        return m.group(0)
+
+    return re.sub(r"[ \t]*<url>.*?</url>[ \t]*\n?", drop, xml, flags=re.S), removed
 
 
 # ── FTP helpers ────────────────────────────────────────────────────────────────
@@ -231,38 +279,134 @@ def ftp_write(ftp, path: str, data: bytes):
 
 
 def ensure_dir(ftp, path: str):
-    try:
-        ftp.cwd(path)
-    except ftplib.error_perm:
-        ftp.mkd(path)
-        print(f"  MKDIR {path}")
+    """Make path and every missing parent folder."""
+    parts = [p for p in path.split("/") if p]
+    cur = "/" if path.startswith("/") else ""
+    for part in parts:
+        cur = f"{cur.rstrip('/')}/{part}" if cur else part
+        try:
+            ftp.cwd(cur)
+        except ftplib.error_perm:
+            ftp.mkd(cur)
+            print(f"  MKDIR {cur}")
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
+def read_local(work: Path, name: str):
+    if not name:
+        return None
+    f = work / name
+    return f.read_text(encoding="utf-8") if f.exists() else None
+
+
+IMG_TOKEN = "__WFP_IMAGE__"
+
+
+def fix_card_image(cards, image: str):
+    """The server can not know a new post's final hero image (Pexels may fail): it sends a token, we fill it in."""
+    if cards is None:
+        return None
+    if image:
+        return cards.replace(IMG_TOKEN, image)
+    return re.sub(r"<img[^>]*" + IMG_TOKEN + r"[^>]*>", "", cards).replace(IMG_TOKEN, "")
+
+
+def upload_index(ftp, env, index_file, cards, template, entry):
+    """Rebuild the article list page on the server. Returns how it was done, or None (with a warning)."""
+    if not index_file or (cards is None and not entry):
+        return None
+    path = remote(env, index_file)
+    existing = ftp_read(ftp, path)
+    new_html, how = update_index(existing, cards, template, entry)
+    if new_html is None:
+        warn(f"list page {path} not updated: {how}")
+        return None
+    ensure_dir(ftp, os.path.dirname(path))
+    ftp_write(ftp, path, new_html.encode("utf-8"))
+    return how
+
+
+def upload_sitemap(ftp, env, sitemap_file, adds, remove_prefixes):
+    """Add/refresh URLs and drop old ones in the sitemap file. adds: [(url, date)]. Returns a short report or None."""
+    if not sitemap_file:
+        return None
+    path = remote(env, sitemap_file)
+    xml = ftp_read(ftp, path)
+    if xml is None:
+        warn(f"sitemap {path} not found -- not updated")
+        return None
+    report = {"added": 0, "updated": 0, "removed": 0}
+    if remove_prefixes:
+        xml, report["removed"] = remove_sitemap_urls(xml, remove_prefixes)
+    for url, date in adds:
+        new_xml, action = patch_sitemap(xml, url, date)
+        if new_xml is None:
+            warn(f"sitemap not updated: {action}")
+            return None
+        xml = new_xml
+        report[action] += 1
+    ftp_write(ftp, path, xml.encode("utf-8"))
+    return report
+
+
+def run_batch(args, env):
+    """One FTP session for many files: the one-time move of the WordPress posts."""
+    work = Path(args.workdir)
+    m = json.loads((work / args.batch).read_text(encoding="utf-8"))
+    if args.dry_run:
+        print(f"DRY RUN: would upload {len(m['uploads'])} files")
+        finish(True, dryRun=True, uploads=len(m["uploads"]))
+    try:
+        ftp = ftp_connect(env)
+    except ftplib.all_errors as e:
+        finish(False, error=f"FTP connection failed: {e}")
+    try:
+        for u in m["uploads"]:
+            target = remote(env, u["remote"])
+            ensure_dir(ftp, os.path.dirname(target))
+            ftp_write(ftp, target, (work / u["local"]).read_bytes())
+        how = upload_index(ftp, env, m.get("indexFile"), read_local(work, m.get("cardsFile")), read_local(work, m.get("indexTemplateFile")), None)
+        sm = upload_sitemap(ftp, env, m.get("sitemapFile"), [(a["url"], a["date"]) for a in m.get("sitemapAdd", [])], m.get("sitemapRemovePrefixes", []))
+        ftp.quit()
+    except ftplib.all_errors as e:
+        finish(False, error=f"FTP error: {e}")
+    finish(True, index=how, sitemap=sm, uploads=len(m["uploads"]))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--workdir", required=True)
-    ap.add_argument("--file", required=True)
-    ap.add_argument("--slug", required=True)
-    ap.add_argument("--title", required=True)
-    ap.add_argument("--date", required=True)
-    ap.add_argument("--category", required=True)
-    ap.add_argument("--excerpt", required=True)
-    ap.add_argument("--readtime", required=True, type=int)
-    ap.add_argument("--image", required=True, help="Site path the HTML uses for the hero, e.g. /images/slug.webp")
-    ap.add_argument("--url-path", required=True, help="Path the blog index links to, e.g. /slug.html")
-    ap.add_argument("--public-url", required=True)
+    ap.add_argument("--batch", default=None, help="manifest.json in the workdir: upload many files at once")
+    ap.add_argument("--file")
+    ap.add_argument("--slug")
+    ap.add_argument("--title")
+    ap.add_argument("--date")
+    ap.add_argument("--category")
+    ap.add_argument("--excerpt")
+    ap.add_argument("--readtime", type=int)
+    ap.add_argument("--image", help="Site path the HTML uses for the hero, e.g. /images/slug.webp")
+    ap.add_argument("--url-path", help="Path the article list links to, e.g. /articles/slug/")
+    ap.add_argument("--public-url")
     ap.add_argument("--fetch-image", default=None, help="Pexels search words")
     ap.add_argument("--fallback-image", default="")
-    ap.add_argument("--blog-dir", default="")
-    ap.add_argument("--blog-index", default="")
+    ap.add_argument("--blog-dir", default="", help="Remote folder (inside the website folder) the HTML file goes to")
+    ap.add_argument("--blog-index", default="", help="Article list page inside the website folder")
+    ap.add_argument("--cards-file", default="", help="Rendered cards HTML (workdir) for the list page markers")
+    ap.add_argument("--index-template-file", default="", help="Full list page (workdir), used when the page does not exist")
     ap.add_argument("--sitemap-file", default="")
     ap.add_argument("--keep-image", action="store_true", help="Refresh: the hero is already on the server")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
     env = load_env()
+    if args.batch:
+        run_batch(args, env)
+        return
+    missing = [k for k in ("file", "slug", "title", "date", "category", "excerpt", "readtime", "image", "url_path", "public_url") if getattr(args, k) in (None, "")]
+    if missing:
+        finish(False, error="missing arguments: " + ", ".join(missing))
+
     work = Path(args.workdir)
     html_path = work / args.file
     if not html_path.exists():
@@ -317,31 +461,14 @@ def main():
             ensure_dir(ftp, post_dir)
         ftp_write(ftp, f"{post_dir}/{args.file}", html.encode("utf-8"))
 
-        if args.blog_index:
-            index_path = remote(env, args.blog_index)
-            index_html = ftp_read(ftp, index_path)
-            if index_html is None:
-                warn(f"blog index {index_path} not found -- not updated")
-            else:
-                new_html, info = patch_posts(index_html, entry)
-                if new_html is None:
-                    warn(f"blog index not updated: {info}")
-                else:
-                    ftp_write(ftp, index_path, new_html.encode("utf-8"))
-                    RESULT["indexPosts"] = info
-
-        if args.sitemap_file:
-            sm_path = remote(env, args.sitemap_file)
-            xml = ftp_read(ftp, sm_path)
-            if xml is None:
-                warn(f"sitemap {sm_path} not found -- not updated")
-            else:
-                new_xml, action = patch_sitemap(xml, args.public_url, args.date)
-                if new_xml is None:
-                    warn(f"sitemap not updated: {action}")
-                else:
-                    ftp_write(ftp, sm_path, new_xml.encode("utf-8"))
-                    RESULT["sitemap"] = action
+        cards = fix_card_image(read_local(work, args.cards_file), image)
+        template = fix_card_image(read_local(work, args.index_template_file), image)
+        how = upload_index(ftp, env, args.blog_index, cards, template, entry)
+        if how:
+            RESULT["index"] = how
+        sm = upload_sitemap(ftp, env, args.sitemap_file, [(args.public_url, args.date)], [])
+        if sm:
+            RESULT["sitemap"] = "updated" if sm["updated"] else "added"
         ftp.quit()
     except ftplib.all_errors as e:
         finish(False, error=f"FTP error: {e}")
