@@ -10,20 +10,26 @@ const kw = require('./keywords');
 const g = require('./google');
 const { getState, setState, note } = require('./runner');
 const { addKeywords, fits, withCity } = require('./research');
+const { serviceByName, absUrl } = require('./template');
 
 async function startFocus(id, goal = 3) {
   const cfg = await getConfig();
   const k = await prisma.wfpKeyword.findUnique({ where: { id } });
   if (!k) throw Object.assign(new Error('Keyword not found'), { status: 404 });
+  if (k.focus && k.focusStatus === 'active') return { ok: true, supports: 0, already: true }; // a second click changes nothing
+  // a hiring search ("fence contractor near me") is won by the service page, not an article: the campaign targets that
+  // page and every supporting article links up to it
+  const svc = serviceByName(cfg, k.service);
+  const pageOwned = !kw.forArticle(k.keyword) && !!svc?.path;
   const active = await prisma.wfpKeyword.count({ where: { focus: true, focusStatus: 'active', id: { not: id } } });
   if (active >= cfg.focusMax) throw Object.assign(new Error(`Already ${active} focus keywords (max ${cfg.focusMax}). Stop one first or raise the limit in Settings.`), { status: 409 });
   await prisma.wfpKeyword.update({
     where: { id },
     data: { focus: true, focusStatus: 'active', focusGoal: goal === 10 ? 10 : 3, focusSince: new Date(), rankTrack: true, recommended: false, supportsId: null,
-      status: k.status === 'idea' || k.status === 'retired' ? 'planned' : k.status },
+      ...(pageOwned ? { status: 'published', targetUrl: absUrl(cfg, svc.path), statusChangedAt: new Date() } : { status: k.status === 'idea' || k.status === 'retired' ? 'planned' : k.status }) },
   });
   const added = await planSupports(id, cfg);
-  await note('system', 'milestone', `Focus started: ${k.keyword}`, `Goal: top ${goal === 10 ? 10 : 3}. ${added} supporting post${added === 1 ? '' : 's'} planned.`);
+  await note('system', 'milestone', `Focus started: ${k.keyword}`, `Goal: top ${goal === 10 ? 10 : 3}. ${pageOwned ? `A hiring search: the ${svc.name} page (${absUrl(cfg, svc.path)}) is the page that should rank; ` : ''}${added} supporting article${added === 1 ? '' : 's'} planned${pageOwned ? ', each linking up to it' : ''}.`);
   return { ok: true, supports: added };
 }
 
@@ -56,13 +62,18 @@ async function planSupports(id, cfg) {
   for (const q of queries) ideas.push(q.query);
   const existing = await prisma.wfpKeyword.findMany({ where: { status: { in: ['idea', 'planned'] }, supportsId: null, focus: false, service: f.service || undefined }, orderBy: { priority: 'desc' }, take: 50 });
   for (const e of existing) ideas.push(e.keyword);
+  if (!kw.forArticle(f.keyword)) {
+    // questions a homeowner asks before hiring: articles that can rank and send readers to the service page
+    const s = String(f.service || cfg.POST_CATEGORY || 'fence').toLowerCase();
+    ideas.push(`how to choose a ${s} contractor in ${cfg.CITY}`, `questions to ask a ${s} contractor`, `${s} installation cost ${cfg.CITY}`, `how long does ${s} installation take`);
+  }
 
   const seen = new Set();
   const chosen = [];
   for (const phrase of ideas) {
     if (chosen.length >= need) break;
     const m = kw.matchKey(phrase);
-    if (!m || seen.has(m) || !onTopic(phrase) || kw.isOffTopic(phrase) || kw.isBranded(phrase, cfg.brandTerms)) continue;
+    if (!m || seen.has(m) || !onTopic(phrase) || !kw.forArticle(phrase) || kw.isOffTopic(phrase) || kw.isBranded(phrase, cfg.brandTerms)) continue;
     seen.add(m);
     const row = await prisma.wfpKeyword.findUnique({ where: { matchKey: m } });
     if (row && (row.focus || row.supportsId || !['idea', 'planned'].includes(row.status))) continue;
