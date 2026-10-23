@@ -219,7 +219,7 @@ const INDEX_TEMPLATE = page(`<title>Fence, Deck &amp; Pergola Articles for Winni
 {{CARDS}}
 <!-- 5sf:articles:end -->
   </div>
-  <p class="wfp-empty" id="wfp-empty" hidden>No articles in this category yet.</p>
+  <p class="wfp-empty" id="wfp-empty" hidden>New articles are on the way. Check back soon.</p>
   <div class="wfp-loadmore"><button class="wfp-btn" id="wfp-more" type="button" hidden>Show more articles</button></div>
 </div></section>
 <script>
