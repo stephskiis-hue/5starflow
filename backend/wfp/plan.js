@@ -5,6 +5,8 @@
  * to it), then a refresh once the focus post is 21 days old and still short of the goal. After that, the highest
  * priority planned keyword.
  */
+const { forArticle } = require('./keywords');
+
 const DAY = 86400000;
 const LIVE = new Set(['published', 'indexed', 'ranking', 'page1', 'top3']);
 const OPEN = new Set(['idea', 'planned']);
@@ -37,7 +39,7 @@ function nextPiece(keywords, { busy = new Set(), now = new Date() } = {}) {
   if (fix) return { mode: 'refresh', keyword: fix, why: `Correction: ${fix.refreshReason || 'refresh asked for'}` };
   const waiting = new Set(focus.map((f) => f.id));
   const queue = keywords
-    .filter((k) => k.status === 'planned' && !k.focus && !waiting.has(k.supportsId) && free(k))
+    .filter((k) => k.status === 'planned' && !k.focus && !waiting.has(k.supportsId) && free(k) && forArticle(k.keyword))
     .sort((a, b) => b.priority - a.priority);
   if (!queue.length) return null;
   // spread the posts over the services: skip the service of the latest post unless nothing else is nearly as good

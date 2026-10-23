@@ -229,6 +229,7 @@ async function researchTick(ctx, now = new Date()) {
   const cands = [];
   for (const k of pool) {
     if (k.dismissedUntil && k.dismissedUntil > now) continue;
+    if (!kw.forArticle(k.keyword)) continue; // hiring searches are for the home/service pages, not a campaign of articles
     const rec = kw.recommendation(k, { hasPost: LIVE.has(k.status) });
     if (rec) cands.push({ ...k, rec });
   }

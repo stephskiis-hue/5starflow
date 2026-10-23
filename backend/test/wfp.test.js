@@ -82,7 +82,7 @@ test('keywords: slugs and city suffix', () => {
   assert.equal(withCity('fence company near me', 'Winnipeg'), 'fence company near me');
 });
 
-const K = (id, over = {}) => ({ id, keyword: id, matchKey: id, status: 'planned', priority: 1, focus: false, focusStatus: null, focusGoal: 3, supportsId: null, position28: null, serpPosition: null, publishedAt: null, refreshedAt: null, ...over });
+const K = (id, over = {}) => ({ id, keyword: `${id} fence cost guide`, matchKey: id, status: 'planned', priority: 1, focus: false, focusStatus: null, focusGoal: 3, supportsId: null, position28: null, serpPosition: null, publishedAt: null, refreshedAt: null, ...over });
 
 test('plan: focus main post first, supports wait for it, then supports, then refresh, then priority', () => {
   const focus = K('f', { focus: true, focusStatus: 'active', focusSince: new Date(NOW - 5 * DAY), priority: 0.5 });
@@ -317,4 +317,15 @@ test('plan: a queued correction comes right after focus work and leaves the road
   assert.equal(nextPiece([a, plain], { now: NOW, busy: new Set(['a']) }).keyword.id, 'p');
   const road = roadmap([a, b, plain], cfg(), { now: NOW, n: 3 });
   assert.deepEqual(road.map((r) => `${r.keywordId}:${r.mode}`), ['b:refresh', 'a:refresh', 'p:new']);
+});
+
+test('keywords: hiring searches and bare head terms are not article topics', () => {
+  for (const q of ['fence contractor near me', 'fence builders', 'fence company', 'fence installation', 'fence', 'best fence company near me', 'residential fence building company'])
+    assert.equal(kw.forArticle(q), false, q);
+  for (const q of ['fence height rules winnipeg', 'wood fence winnipeg', 'how much does a fence cost', 'cedar vs pressure treated fence', 'fence company cost winnipeg', 'when to build a deck', 'pergola permit winnipeg'])
+    assert.equal(kw.forArticle(q), true, q);
+  const hire = K('h', { keyword: 'fence contractor near me', priority: 100 });
+  const art = K('a', { keyword: 'wood fence winnipeg', priority: 8 });
+  assert.equal(nextPiece([hire, art], { now: NOW }).keyword.id, 'a');
+  assert.equal(nextPiece([hire], { now: NOW }), null);
 });

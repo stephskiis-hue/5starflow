@@ -172,6 +172,22 @@ function describe(s, cfg) {
   return { keyword: normalize(s).replace(/\s+/g, ' '), matchKey: matchKey(s), service: serviceFor(s, cfg.services), intent: intentFor(s) };
 }
 
+// Words that make a search about hiring someone, and words that turn it back into a question an article can answer.
+const HIRE_RE = /\b(near me|company|companies|contractors?|builders?|installers?|business|services?|hire|quotes?)\b/;
+const QUESTION_WORDS = /\b(how|what|when|why|which|cost|costs|price|prices|vs|versus|tips|ideas|guide|should|can|do i|rules?|bylaws?|permits?|height|lifespan|last|best time|mistakes|compare)\b/;
+const HEAD_FILLER = new Set(['installation', 'building', 'service', 'company', 'contractor', 'builder', 'installer', 'business', 'near', 'me', 'best', 'local', 'affordable', 'residential', 'cheap', 'top', 'good', 'professional']);
+
+/**
+ * Can a blog article own this search? Hiring searches ("fence company near me", "fence builders") and bare head terms
+ * ("fence", "fence installation") belong to the home and service pages: the writer never gets them (they stay tracked).
+ */
+function forArticle(keyword) {
+  const n = normalize(keyword);
+  if (HIRE_RE.test(n) && !QUESTION_WORDS.test(n)) return false;
+  const core = matchKey(keyword).split(' ').filter((w) => w && !HEAD_FILLER.has(w));
+  return core.length >= 2 || QUESTION_WORDS.test(n);
+}
+
 /** Slug for a post: lowercase words, no stop words at the edges, max 8 words. */
 function slugify(s) {
   const words = normalize(s).split(' ').filter(Boolean);
@@ -179,4 +195,4 @@ function slugify(s) {
   return words.slice(0, 8).join('-').replace(/-+/g, '-').slice(0, 70) || 'post';
 }
 
-module.exports = { normalize, matchKey, isBranded, isOffTopic, serviceFor, areaFor, intentFor, contentTypeFor, ctrAt, seasonFactor, scoreKeyword, statusFor, statusRank, weightedPosition, recommendation, pickRecommendations, describe, slugify };
+module.exports = { forArticle, normalize, matchKey, isBranded, isOffTopic, serviceFor, areaFor, intentFor, contentTypeFor, ctrAt, seasonFactor, scoreKeyword, statusFor, statusRank, weightedPosition, recommendation, pickRecommendations, describe, slugify };
