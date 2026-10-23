@@ -32,8 +32,15 @@ async function getActiveConfig(userId) {
 
 // POST /api/audit/ftp-test
 // Test FTP credentials without saving. Body: { host, user, password, port }
+// Trim like the PC's _blog-autopilot.py does when it reads _blog-ftp.env: a pasted login often carries a
+// trailing space or newline, which the FTP server rejects with 530.
+function ftpFields(body = {}) {
+  const t = (v) => (typeof v === 'string' ? v.trim() : v);
+  return { host: t(body.host), user: t(body.user), password: t(body.password), port: body.port, rootPath: t(body.rootPath) };
+}
+
 router.post('/ftp-test', async (req, res) => {
-  const { host, user, password, port } = req.body || {};
+  const { host, user, password, port } = ftpFields(req.body);
   if (!host || !user || !password) {
     return res.status(400).json({ error: 'host, user, and password are required' });
   }
@@ -49,7 +56,7 @@ router.post('/ftp-test', async (req, res) => {
 // Save FTP credentials. Singleton: replaces existing config.
 // Body: { host, user, password, port, rootPath }
 router.post('/ftp-save', async (req, res) => {
-  const { host, user, password, port, rootPath } = req.body || {};
+  const { host, user, password, port, rootPath } = ftpFields(req.body);
   if (!host || !user || !password) {
     return res.status(400).json({ error: 'host, user, and password are required' });
   }
