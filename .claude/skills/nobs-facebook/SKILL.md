@@ -18,7 +18,7 @@ Kinds and daily caps per platform: `comment 10, dm 5, like 20, follow 10, group_
 Complaints, legal threats, damage or injury claims, refund/price disputes, anything unusual or uncertain, anyone asking for a price (we never quote one). Reply nothing public; `POST /api/ai/tasks` with `dedupKey fb:<person>`.
 
 ## Stop and report (final message + run status `failed`)
-Login screen, 2FA, CAPTCHA, checkpoint, "unusual activity", Chrome unreachable. Do not try to get past them. If the Messenger chat-history PIN prompt appears, skip it and continue.
+Login screen, 2FA, CAPTCHA, checkpoint, "unusual activity", Chrome unreachable. Do not try to get past them. If the Messenger chat-history PIN prompt appears, skip it and continue. MSI connection drops reset the tab group and tabIds: call `tabs_context_mcp` again and use the new tabId. If screenshots hang on one tab (Messenger does this), read it with `find`/`read_page` or open a fresh tab. After 3 drops in a row, or 3 browser calls refused because the safety classifier timed out, stop browser work, file the shortfall task and report.
 
 ## Shift
 1. `GET /brief?agent=social`, `GET /social/budget`, `GET /content/queue?platform=facebook`.
