@@ -9,7 +9,9 @@ const { makeReel } = require('./design/reel');
 const { lintContent } = require('./design/qa');
 const { LAYOUTS } = require('./design/layouts');
 const { saveAsset, resolvePhotos } = require('./vault');
-const { recordAction } = require('./social');
+const { recordAction, isDisabled } = require('./social');
+
+const instagramPostingOff = () => isDisabled('instagram', 'page_post') && isDisabled('instagram', 'story');
 const { recordActivity } = require('./ledger');
 const { notify } = require('../lib/notify');
 const { createTask } = require('./tasks');
@@ -70,7 +72,9 @@ async function createContent(userId, c) {
   const pillar = PILLARS.includes(c.pillar) ? c.pillar : null;
   // no format given: follow the placement rules instead of defaulting everything to a feed post
   const format = FORMATS.includes(c.format) ? c.format : ADVICE_PILLARS.includes(pillar) ? 'story' : pillar === 'offer' ? 'reel' : 'post';
-  const platforms = Array.isArray(c.platforms) && c.platforms.length ? c.platforms : format === 'reel' ? ['facebook', 'instagram'] : ['facebook'];
+  // Instagram posting is off (ai/social.js DISABLED), so nothing new is queued for it
+  const asked = (Array.isArray(c.platforms) && c.platforms.length ? c.platforms : ['facebook']).filter((p) => !instagramPostingOff() || p !== 'instagram');
+  const platforms = asked.length ? asked : ['facebook'];
   if (c.layout && !LAYOUTS[c.layout]) throw Object.assign(new Error(`unknown layout "${c.layout}"`), { code: 'INVALID_CONTENT' });
   const row = await prisma.contentItem.create({
     data: {
@@ -200,6 +204,7 @@ function rerenderStale(userId, rows) {
 
 /** Posts ready to go out now on `platform`: QA-passed 'queued' items (and legacy approved ones). Autopilot off = the owner paused posting. */
 async function publishQueue(userId, { platform, autopilot, limit = 10 } = {}) {
+  if (platform === 'instagram' && instagramPostingOff()) return [];
   const statuses = autopilot ? ['approved', 'queued'] : ['approved'];
   const where = { userId, status: { in: statuses }, OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }] };
   if (platform) where.platforms = { contains: `"${platform}"` };
@@ -261,7 +266,8 @@ async function markPublished(userId, id, { platform, postUrl, groupId, check }) 
       });
     }
   }
-  const targets = platforms.filter((p) => p !== 'group');
+  // a platform the autopilot may not post to never holds an item back from 'published'
+  const targets = platforms.filter((p) => p !== 'group' && (p !== 'instagram' || !instagramPostingOff()));
   const allDone = (targets.length ? targets : [target]).every((p) => done[p]);
   return out(await prisma.contentItem.update({
     where: { id },

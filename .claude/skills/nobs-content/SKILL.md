@@ -27,7 +27,7 @@ Most new photos come from the owner's whole Google Drive (`source: "drive"`, the
 ```bash
 curl -sS -X POST -H "$AUTH" -H "X-Agent: content" -H "Content-Type: application/json" "$BASE/api/ai/content" -d '{
   "title": "Drop the mower. Slowly.", "pillar": "tip", "layout": "TipPost", "format": "post",
-  "platforms": ["facebook","instagram"],
+  "platforms": ["facebook"],
   "slots": {"number":"03","kicker":"WINNIPEG FALL TIP","headline":"Drop the mower. Slowly.","body":"Your last cut of the year should be 2 to 2.5 inches. Lower the deck over your last 2 or 3 mows."},
   "caption": "Winnipeg fall tip: ...\n\nCall or text 204-900-0438.",
   "captionIg": "...\n\n#Winnipeg #LawnCare #fallcleanup",
@@ -62,9 +62,9 @@ The owner wants depth, not "drop the mower a bit". For every tip, seasonal or FA
 | Content | `format` | `platforms` | How it goes out |
 |---|---|---|---|
 | Tips, advice, seasonal how-tos, FAQs (`tip`, `seasonal`, `faq`) | `story` (1 to 6 frames) | `["facebook"]` | Facebook Story, frame by frame |
-| Ads, promos, booking pushes (`offer`) | `reel` (1 to 6 frames) | `["facebook","instagram"]` | Reel on both: the frames as photos with music from the app's library (the server also makes an MP4 fallback) |
+| Ads, promos, booking pushes (`offer`) | `reel` (1 to 6 frames) | `["facebook"]` | Facebook reel: the frames as photos with music from the app's library (the server also makes an MP4 fallback) |
 | Proof, reviews, founder, stories from jobs | `post` or `carousel` | `["facebook"]` | Facebook feed |
-| Anything for Instagram | `reel` only | | Instagram never gets feed posts unless the owner asks |
+| Anything for Instagram | nothing | | Instagram posting is off (owner, Oct 25 2026): the server drops `instagram` from platforms |
 Leave `format`/`platforms` out and the server picks them from the pillar. Breaking a rule is a QA error.
 
 Formats: `post` (1080x1350), `carousel` (`slots:{slides:[{layout,slots}...]}`, 3 to 10 slides, first slide = hook, last = ask), `story` and `reel` (1080x1920, one layout or `slots.slides` with 1 to 6 frames), `reel_cover` (1080x1920), `group_post` (1080x1080, rewrite the text per group). A reel frame can be any layout; real job photos from the vault make the best reels.
@@ -72,6 +72,6 @@ Formats: `post` (1080x1350), `carousel` (`slots:{slides:[{layout,slots}...]}`, 3
 ## SEO focus promotion
 `GET /api/ai/brief?agent=content` can contain `seoFocus`: pages the owner chose to win on Google that have gone live and have no social post yet. Each entry in `promote` is one article (`url`, `title`, `keyword`). Make one post per entry (max 2 a night) that gives the reader the answer in the article's own terms and points to it; set `grounding` to the article url. That is the only link the server needs: once a queued, approved or published content item cites the url, the entry leaves the list. Placement rules and daily caps still apply. Never talk about rankings, keywords or SEO in the post itself.
 
-## Weekly cadence (in season Apr to mid Nov): 1 to 2 Facebook stories a day (tips and advice), 2 to 3 reels a week (Facebook + Instagram), 2 to 3 Facebook feed posts (proof, reviews, founder). Off season: 1 story a day, 1 to 2 reels, 1 to 2 feed posts.
+## Weekly cadence (in season Apr to mid Nov): 1 to 2 Facebook stories a day (tips and advice), 2 to 3 Facebook reels a week, 2 to 3 Facebook feed posts (proof, reviews, founder). Off season: 1 story a day, 1 to 2 reels, 1 to 2 feed posts.
 Never publish yourself: the Social agent publishes from `GET /api/ai/content/queue` whenever it runs. Don't set `scheduledFor` unless a post is date bound (an event, a deadline); the queue posts oldest first. Ads are drafted only; the owner publishes ads and approves any spend.
 After posts have been live 48h, the Social agent records `POST /api/ai/content/:id/metrics`; use `/content/performance` to decide what to make more or less of. Save durable lessons to memory (`agent:content`).

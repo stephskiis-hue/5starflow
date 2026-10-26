@@ -133,13 +133,23 @@ test('social: the exact same group text is refused even after the cooldown passe
   await refusedWith(reserve(db, { kind: 'group_post', groupId: 'g1', text: `  ${text.toUpperCase().replace('NO-BS YARDWORK', 'No-Bs Yardwork')}` }), /already posted/);
 });
 
-test('social: Instagram feed posts must be reels, and groups are Facebook only', async () => {
+test('social: Instagram posts and stories are off, and groups are Facebook only', async () => {
   const db = fakeDb();
   const cap = `Fall cleanup season. No-Bs Yardwork, call or text ${PHONE}.`;
-  await refusedWith(reserve(db, { platform: 'instagram', kind: 'page_post', text: cap }), /reels only/);
-  const reel = await reserve(db, { platform: 'instagram', kind: 'page_post', format: 'reel', text: cap });
-  assert.equal(reel.status, 'reserved');
+  await refusedWith(reserve(db, { platform: 'instagram', kind: 'page_post', format: 'reel', text: cap }), /turned off/);
+  await refusedWith(reserve(db, { platform: 'instagram', kind: 'story' }), /turned off/);
+  const fb = await reserve(db, { kind: 'page_post', text: cap });
+  assert.equal(fb.status, 'reserved', 'Facebook posts still go out');
   await refusedWith(reserve(db, { platform: 'instagram', kind: 'group_join', target: 'g' }), /Facebook only/);
+});
+
+test('social: follows are off on Facebook and Instagram; likes and comments still work', async () => {
+  const db = fakeDb();
+  await refusedWith(reserve(db, { kind: 'follow', target: 'https://facebook.com/acct1' }), /turned off/);
+  await refusedWith(reserve(db, { platform: 'instagram', kind: 'follow', target: 'https://instagram.com/acct1' }), /turned off/);
+  await assert.rejects(social.recordAction('u1', { platform: 'instagram', kind: 'follow', target: 'x' }), (e) => e.code === 'REFUSED');
+  const like = await reserve(db, { platform: 'instagram', kind: 'like', target: 'https://instagram.com/p/1' });
+  assert.equal(like.status, 'reserved');
 });
 
 test('social: comments, DMs and likes without a target are refused (nothing could be verified)', async () => {
@@ -150,9 +160,9 @@ test('social: comments, DMs and likes without a target are refused (nothing coul
 
 test('social: confirm needs a link to the result and cannot be done twice', async () => {
   const db = fakeDb();
-  const r = await reserve(db, { kind: 'follow', target: 'https://instagram.com/acct1' });
+  const r = await reserve(db, { kind: 'like', target: 'https://facebook.com/p/1' });
   await assert.rejects(social.confirmAction('u1', r.id, { status: 'done' }, { db }), /url/);
-  const done = await social.confirmAction('u1', r.id, { status: 'done', url: 'https://instagram.com/acct1' }, { db });
+  const done = await social.confirmAction('u1', r.id, { status: 'done', url: 'https://facebook.com/p/1' }, { db });
   assert.equal(done.status, 'done');
   await assert.rejects(social.confirmAction('u1', r.id, { status: 'failed' }, { db }), (e) => e.code === 'ALREADY_CLOSED');
 });
