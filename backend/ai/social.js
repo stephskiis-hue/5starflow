@@ -21,9 +21,9 @@ const SOCIAL_TARGETS = {
   facebook: { comment: 6, like: 12, follow: 3, group_join: 3, group_post: 3, page_post: 1, story: 1 },
   instagram: { comment: 4, like: 8, follow: 7, page_post: 1, story: 1 },
 };
-// Owner (Oct 25 2026): no automatic follows on either platform, and the autopilot posts nothing to Instagram.
-// Refused by the server; owner_post (a post the owner asked for in a request) is not affected.
-const DISABLED = { facebook: ['follow'], instagram: ['follow', 'page_post', 'story'] };
+// Owner (Oct 25 2026): no automatic follows on either platform, and the autopilot posts and comments nothing on Instagram.
+// Refused by the server; reply (answering someone who contacted us) and owner_post (a post the owner asked for) are not affected.
+const DISABLED = { facebook: ['follow'], instagram: ['follow', 'page_post', 'story', 'comment'] };
 const isDisabled = (platform, kind) => (DISABLED[platform] || []).includes(kind);
 const UNCAPPED = new Set(['reply', 'owner_post']);   // replies, and posts the owner explicitly asked for (logged, but they don't use the autopilot budget)
 const PLATFORMS = ['facebook', 'instagram'];

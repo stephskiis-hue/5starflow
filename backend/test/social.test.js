@@ -71,7 +71,9 @@ test('social: cap is enforced by the server, per platform, and reservations coun
   const db = fakeDb();
   for (let i = 0; i < 10; i++) await reserve(db, { kind: 'comment', target: `t${i}`, text: `Nice one number ${i}` });
   await assert.rejects(reserve(db, { kind: 'comment', target: 't-extra', text: 'One more nice one' }), (e) => e.code === 'CAP_REACHED' && e.cap === 10);
-  const ig = await reserve(db, { platform: 'instagram', kind: 'comment', target: 'ig1', text: 'Beautiful lawn' });
+  for (let i = 0; i < 20; i++) await reserve(db, { kind: 'like', target: `l${i}` });
+  await assert.rejects(reserve(db, { kind: 'like', target: 'l-extra' }), (e) => e.code === 'CAP_REACHED');
+  const ig = await reserve(db, { platform: 'instagram', kind: 'like', target: 'ig1' });
   assert.equal(ig.platform, 'instagram', 'caps are per platform');
 });
 
@@ -150,6 +152,15 @@ test('social: follows are off on Facebook and Instagram; likes and comments stil
   await assert.rejects(social.recordAction('u1', { platform: 'instagram', kind: 'follow', target: 'x' }), (e) => e.code === 'REFUSED');
   const like = await reserve(db, { platform: 'instagram', kind: 'like', target: 'https://instagram.com/p/1' });
   assert.equal(like.status, 'reserved');
+});
+
+test('social: comments are off on Instagram; Facebook comments and Instagram replies still work', async () => {
+  const db = fakeDb();
+  await refusedWith(reserve(db, { platform: 'instagram', kind: 'comment', target: 'https://instagram.com/p/2', text: 'Beautiful lawn' }), /turned off/);
+  const fb = await reserve(db, { kind: 'comment', target: 'https://fb.com/p/2', text: 'Beautiful lawn' });
+  assert.equal(fb.status, 'reserved');
+  const reply = await reserve(db, { platform: 'instagram', kind: 'reply', target: 'https://instagram.com/p/ours', text: 'Thanks so much' });
+  assert.equal(reply.status, 'reserved');
 });
 
 test('social: comments, DMs and likes without a target are refused (nothing could be verified)', async () => {
