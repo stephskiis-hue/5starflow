@@ -233,7 +233,12 @@ router.post('/trigger', async (req, res) => {
   if (!secret) {
     return res.status(500).json({ error: 'SEO_TRIGGER_SECRET not configured' });
   }
-  if (req.query.token !== secret) {
+  // Prefer the token in a header or body so it stays out of URLs, logs and referrers;
+  // fall back to the query param for backward compatibility. Compare in constant time.
+  const provided = req.get('x-trigger-token') || req.body?.token || req.query.token || '';
+  const a = Buffer.from(String(provided));
+  const b = Buffer.from(secret);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
     return res.status(401).json({ error: 'Invalid trigger token' });
   }
   // External trigger runs for all users

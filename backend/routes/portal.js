@@ -15,6 +15,7 @@
 const express  = require('express');
 const router   = express.Router();
 const axios    = require('axios');
+const crypto   = require('crypto');
 const prisma   = require('../lib/prismaClient');
 const { hashPassword, verifyPassword, signToken, setCookie, clearCookie } = require('../lib/auth');
 const { requireAuth, requireAdmin } = require('../middleware/requireAuth');
@@ -57,6 +58,16 @@ router.get('/google', (req, res) => {
     return res.status(500).send('GOOGLE_CLIENT_ID and GOOGLE_LOGIN_REDIRECT_URI must be set.');
   }
 
+  // Anti-CSRF: random state echoed back by Google and checked in the callback against this cookie.
+  const state = crypto.randomBytes(16).toString('hex');
+  res.cookie('g_oauth_state', state, {
+    httpOnly: true,
+    sameSite: 'lax', // sent on the top-level GET redirect back from Google
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 10 * 60 * 1000, // 10 minutes
+    path: '/',
+  });
+
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   url.searchParams.set('client_id',     clientId);
   url.searchParams.set('redirect_uri',  redirectUri);
@@ -64,6 +75,7 @@ router.get('/google', (req, res) => {
   url.searchParams.set('scope',         'openid email profile https://www.googleapis.com/auth/gmail.send');
   url.searchParams.set('access_type',   'offline');
   url.searchParams.set('prompt',        'consent');
+  url.searchParams.set('state',         state);
 
   res.redirect(url.toString());
 });
@@ -72,7 +84,7 @@ router.get('/google', (req, res) => {
 // GET /auth/google/callback — exchange code, create session
 // ---------------------------------------------------------------------------
 router.get('/google/callback', async (req, res) => {
-  const { code, error } = req.query;
+  const { code, error, state } = req.query;
 
   if (error) {
     console.error('[portal] Google OAuth error:', error);
@@ -80,6 +92,14 @@ router.get('/google/callback', async (req, res) => {
   }
   if (!code) {
     return res.redirect('/login.html?error=no_code');
+  }
+
+  // Verify the anti-CSRF state before doing anything with the code.
+  const expectedState = req.cookies?.g_oauth_state;
+  res.clearCookie('g_oauth_state', { path: '/' });
+  if (!state || !expectedState || state !== expectedState) {
+    console.warn('[portal] Google callback state mismatch — possible login CSRF, rejecting');
+    return res.redirect('/login.html?error=' + encodeURIComponent('Login failed — please try again'));
   }
 
   try {

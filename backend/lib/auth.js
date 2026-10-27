@@ -105,6 +105,7 @@ function setCookie(res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production', // HTTPS-only in prod; stays off for local http dev
     maxAge: TOKEN_EXPIRY_DAYS * 86400 * 1000,
     path: '/',
   });

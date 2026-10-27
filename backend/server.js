@@ -88,6 +88,24 @@ const app = express();
 // reflects the real client (needed for per-IP rate limiting below).
 app.set('trust proxy', 1);
 
+// Don't advertise the stack.
+app.disable('x-powered-by');
+
+// Baseline security headers (dependency-free — the essentials helmet would add).
+// No script Content-Security-Policy: the dashboards rely on inline scripts, so a strict
+// CSP would break them. frame-ancestors still blocks clickjacking; nosniff blocks MIME
+// sniffing; HSTS pins HTTPS once we know the request arrived over TLS (behind the proxy).
+app.use((req, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'DENY');
+  res.set('Referrer-Policy', 'no-referrer');
+  res.set('Content-Security-Policy', "frame-ancestors 'none'");
+  if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+    res.set('Strict-Transport-Security', 'max-age=15552000');
+  }
+  next();
+});
+
 // ---------------------------------------------------------------------------
 // Lightweight in-memory rate limiter (dependency-free).
 // Protects unauthenticated public endpoints (Twilio callbacks, inbound SMS,
