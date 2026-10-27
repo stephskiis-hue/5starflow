@@ -21,6 +21,10 @@ const SOCIAL_TARGETS = {
   facebook: { comment: 6, like: 12, follow: 3, group_join: 3, group_post: 3, page_post: 1, story: 1 },
   instagram: { comment: 4, like: 8, follow: 7, page_post: 1, story: 1 },
 };
+// Owner (Oct 25 2026): no automatic follows on either platform, and the autopilot posts and comments nothing on Instagram.
+// Refused by the server; reply (answering someone who contacted us) and owner_post (a post the owner asked for) are not affected.
+const DISABLED = { facebook: ['follow'], instagram: ['follow', 'page_post', 'story', 'comment'] };
+const isDisabled = (platform, kind) => (DISABLED[platform] || []).includes(kind);
 const UNCAPPED = new Set(['reply', 'owner_post']);   // replies, and posts the owner explicitly asked for (logged, but they don't use the autopilot budget)
 const PLATFORMS = ['facebook', 'instagram'];
 const RESERVE_MINUTES = 15;
@@ -66,6 +70,7 @@ async function getBudget(userId, { date } = {}) {
     budget[platform] = {};
     for (const [kind, cap] of Object.entries(DAILY_CAPS)) {
       const u = used[platform]?.[kind] || 0;
+      if (isDisabled(platform, kind)) { budget[platform][kind] = { used: u, cap: 0, remaining: 0, target: 0, toTarget: 0, disabled: true }; continue; }
       const target = Math.min(cap, SOCIAL_TARGETS[platform]?.[kind] || 0);
       budget[platform][kind] = { used: u, cap, remaining: Math.max(0, cap - u), target, toTarget: Math.max(0, target - u) };
     }
@@ -87,6 +92,7 @@ function checkReservation(a, ctx = {}) {
   const now = ctx.now || new Date();
   if (!PLATFORMS.includes(a.platform)) return [`platform must be one of ${PLATFORMS.join(', ')}`];
   if (!a.kind || (!DAILY_CAPS[a.kind] && !UNCAPPED.has(a.kind))) return [`unknown kind "${a.kind}"`];
+  if (isDisabled(a.platform, a.kind)) return [`${a.kind} on ${a.platform} is turned off by the owner. Do not do it.`];
   const text = String(a.text || '').trim();
 
   if (NEEDS_TEXT.has(a.kind) && !text) reasons.push(`"${a.kind}" needs the exact text you will post.`);
@@ -189,6 +195,7 @@ async function recordAction(userId, a) {
   if (!platform) throw invalid(`platform must be one of ${PLATFORMS.join(', ')}`);
   if (!a.kind || (!DAILY_CAPS[a.kind] && !UNCAPPED.has(a.kind))) throw invalid(`unknown kind "${a.kind}"`);
   const status = ['done', 'failed', 'skipped'].includes(a.status) ? a.status : 'done';
+  if (status === 'done' && isDisabled(platform, a.kind)) throw new RefusedError([`${a.kind} on ${platform} is turned off by the owner.`]);
 
   const data = { userId, platform, kind: a.kind, status, target: (a.target || '').slice(0, 200) || null, groupId: a.groupId || null, contentItemId: a.contentItemId || null, summary: (a.summary || '').slice(0, 500), url: (a.url || '').slice(0, 500) || null, text: (a.text || '').slice(0, 4000) || null, shiftId: a.shiftId || null };
   let row;
@@ -224,4 +231,4 @@ async function nextGroups(userId, { promo = false, limit = 3 } = {}) {
     .slice(0, limit);
 }
 
-module.exports = { DAILY_CAPS, SOCIAL_TARGETS, getBudget, recordAction, reserveAction, confirmAction, checkReservation, isCompetitorTarget, nextGroups, CapError, RefusedError, PLATFORMS };
+module.exports = { DAILY_CAPS, SOCIAL_TARGETS, DISABLED, isDisabled, getBudget, recordAction, reserveAction, confirmAction, checkReservation, isCompetitorTarget, nextGroups, CapError, RefusedError, PLATFORMS };

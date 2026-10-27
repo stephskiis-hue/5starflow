@@ -3,7 +3,7 @@
  * (power cut, sleep, reboot) simply picks the missed shift up on its next 5 minute tick.
  *
  *   morning 7:30   inbox, leads, group joins and posts
- *   midday  12:30  engagement comments, likes, follows
+ *   midday  12:30  engagement comments and likes
  *   evening 18:30  inbox, follow-ups, whatever the day is still short of
  *   studio  Mon 10:30  builds the week's content (weekly)
  *
