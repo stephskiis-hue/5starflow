@@ -118,6 +118,15 @@ router.get('/google/callback', async (req, res) => {
         user = await prisma.user.update({ where: { id: user.id }, data: { googleId } });
       }
     } else {
+      // Secure default: do NOT auto-provision arbitrary Google accounts. Only pre-approved
+      // emails (ALLOWED_EMAILS or ADMIN_EMAILS, comma-separated) may create a portal account
+      // via Google sign-in. Existing users are matched above and are unaffected by this gate.
+      const allowed = [process.env.ALLOWED_EMAILS, process.env.ADMIN_EMAILS]
+        .filter(Boolean).join(',').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+      if (!allowed.includes(email.toLowerCase())) {
+        console.warn(`[portal] Google sign-in refused — email not on allow-list: ${email}`);
+        return res.redirect('/login.html?error=' + encodeURIComponent('This account is not authorized'));
+      }
       user = await prisma.user.create({
         data: { email: email.toLowerCase(), googleId, role: 'client' },
       });

@@ -63,7 +63,11 @@ async function aiAuth(req, res, next) {
   }
   const payload = verifyToken(getTokenFromCookies(req.cookies));
   if (!payload) return res.status(401).json({ error: 'Not authenticated' });
-  req.ai = { userId: payload.userId, actor: 'owner', agent: null, admin: payload.role === 'admin' };
+  // Re-check the DB so a deactivated or demoted dashboard user loses access immediately
+  // rather than keeping it for the token's 30-day lifetime (session revocation).
+  const u = await prisma.user.findUnique({ where: { id: payload.userId }, select: { role: true, isActive: true } });
+  if (!u || !u.isActive) return res.status(401).json({ error: 'Not authenticated' });
+  req.ai = { userId: payload.userId, actor: 'owner', agent: null, admin: u.role === 'admin' };
   next();
 }
 const ownerOnly = (req, res, next) => (req.ai.actor === 'owner' ? next() : res.status(403).json({ error: 'Owner session required' }));

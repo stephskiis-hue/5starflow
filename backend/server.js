@@ -120,6 +120,9 @@ function rateLimit({ windowMs = 60_000, max = 60, name = 'public' } = {}) {
 // more there; the referral link is human-clicked, so a tighter cap is fine.
 const twilioLimiter   = rateLimit({ windowMs: 60_000, max: 120, name: 'twilio' });
 const referralLimiter = rateLimit({ windowMs: 60_000, max: 30,  name: 'referral' });
+// Credential endpoints (password login, account setup, Google sign-in start) — strict
+// per-IP cap to stop brute-force / credential-stuffing. Legitimate users never hit this.
+const authLimiter     = rateLimit({ windowMs: 15 * 60_000, max: 10, name: 'auth' });
 
 // ---------------------------------------------------------------------------
 // CORS — allow the static frontend and the local dashboard to call this API
@@ -200,8 +203,8 @@ app.get(['/Winnipeg-Fence-Pros', '/winnipeg-fence-pros', '/winnipeg-fence-pros.h
   res.sendFile(path.join(__dirname, 'winnipeg-fence-pros.html'));
 });
 
-// Portal login/logout/setup-user
-app.use('/auth', portalRouter);
+// Portal login/logout/setup-user — rate-limited to blunt password brute-force / credential stuffing
+app.use('/auth', authLimiter, portalRouter);
 
 // Twilio delivery status callback — public (Twilio posts here, no session)
 app.post('/api/weather/twilio-callback', twilioLimiter, express.urlencoded({ extended: false }), validateTwilioSignature, async (req, res) => {
