@@ -23,7 +23,14 @@ const WORDS = { new: { min: 900, max: 1500 }, support: { min: 700, max: 1200 }, 
 const httpError = (status, message, details) => Object.assign(new Error(message), { status, details });
 
 /** Posts the writer handed in during the last 7 days (moved WordPress posts do not count). */
-const postsThisWeek = (now) => prisma.wfpPost.count({ where: { createdAt: { gte: new Date(now.getTime() - 7 * DAY) }, mode: { not: 'import' }, status: { in: ['published', 'draft', 'publishing', 'replaced'] } } });
+const POST_STATUSES = ['published', 'draft', 'publishing', 'replaced'];
+const postsThisWeek = (now) => prisma.wfpPost.count({ where: { createdAt: { gte: new Date(now.getTime() - 7 * DAY) }, mode: { not: 'import' }, status: { in: POST_STATUSES } } });
+/** Posts already made on today's Winnipeg date: one a day, so a busy stretch never leaves a gap of days. */
+const postsToday = async (now) => {
+  const today = localParts(now).date;
+  const rows = await prisma.wfpPost.findMany({ where: { createdAt: { gte: new Date(now.getTime() - 2 * DAY) }, mode: { not: 'import' }, status: { in: POST_STATUSES } }, select: { createdAt: true } });
+  return rows.filter((r) => localParts(r.createdAt).date === today).length;
+};
 
 /** The editable body of a published post (the default template keeps it in .content). */
 function bodyOf(html) {
@@ -94,8 +101,8 @@ async function getAssignment({ now = new Date() } = {}) {
   if (!cfg.autopilot) return { assignment: null, reason: 'Autopilot is off (Settings tab)' };
   const gaps = missing(cfg).filter((m) => ['Website URL', 'FTP login'].includes(m));
   if (gaps.length) return { assignment: null, reason: `Set up first: ${gaps.join(', ')}` };
-  const week = await postsThisWeek(now);
-  if (week >= cfg.postsPerWeek) return { assignment: null, reason: `${week} posts in the last 7 days (max ${cfg.postsPerWeek})` };
+  const today = await postsToday(now);
+  if (today >= 1) return { assignment: null, reason: `${today} post already made today (one a day)` };
   const keywords = await prisma.wfpKeyword.findMany({ where: { status: { not: 'retired' } } });
   const piece = nextPiece(keywords, { busy: await busyKeywords(now), now });
   if (!piece) return { assignment: null, reason: 'Nothing planned: run the keyword research or add keywords' };

@@ -1,7 +1,7 @@
 # Winnipeg Fence Pros — article writer (Claude routine)
 
 Live routine: a claude.ai cloud routine created with the schedule skill. Slug `wfp-blog-writer` · cloud · Sonnet ·
-Monday to Saturday 10:00 Winnipeg time · this repo attached · secrets: `FIVESTARFLOW_URL`, `WFP_ACCESS_KEY`.
+Every day 10:00 Winnipeg time · this repo attached · secrets: `FIVESTARFLOW_URL`, `WFP_ACCESS_KEY`.
 Paste the block below into it when this file changes. The server checks and publishes; the routine only researches and writes.
 
 ```

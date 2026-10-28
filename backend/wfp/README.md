@@ -17,7 +17,7 @@ research.js   gscSyncTick (daily 7:17) + researchTick (Monday 7:37): import real
               rank tracking (organic + map pack), weekly history, focus recommendations
 focus.js      focus campaigns: main post → supporting posts (PAA / related / GSC queries) → refresh after 21 days
 plan.js       pure: nextPiece() (what the writer does next) + roadmap() (the next N pieces on the posting days)
-assign.js     the writer routine's assignment (brief, 6-hour lock, max posts per 7 days from Settings) and its hand-in: check, render, publish
+assign.js     the writer routine's assignment (brief, 6-hour lock, one post per Winnipeg day) and its hand-in: check, render, publish
 check.js      what a handed-in post must pass (title, description, length, keyword, required links, links that exist, dashes, banned words, FAQ, sources)
 sitepages.js  the live site's pages from its sitemap
 templates.js  default article page, list page and card built from the live site's page (its head styles, top bar, full-screen menu, footer, scripts)
@@ -26,7 +26,7 @@ migrate.js    optional one-time move of the old WordPress posts into /articles/ 
 publisher.js  publishPost → blog_publish.py → sitemap resubmit
 blog_publish.py  server version of _blog-autopilot.py: Pexels hero, FTP upload, article list (HTML between markers), sitemap; --batch for the move
 health.js     daily 8:05: setup, FTP, sitemap lists every post, posts load, Search Console access, Serper, failures
-prompts/blog-writer.md    the writer routine (claude.ai, Mon to Sat 10:00): assignment → research → write → POST /publish
+prompts/blog-writer.md    the writer routine (claude.ai, daily 10:00): assignment → research → write → POST /publish
 prompts/weekly-check.md   the weekly check routine (Mon 11:00): learns from the numbers, queues corrections, adds keywords, may start a focus campaign, reports
 ../../.claude/skills/wfp-seo/   the writer's skill + fence-knowledge.md (Fence Pros voice and local facts to check)
 ```
@@ -62,11 +62,11 @@ field falls back to `WFP_<KEY>` in `.env` / Railway (e.g. `WFP_FTP_HOST`).
 
 ## How the writing works (same split as No-Bs)
 No AI runs on this server and there is no Anthropic key. Two claude.ai routines do the thinking:
-- **Writer** (`prompts/blog-writer.md`, Mon to Sat): `GET /api/wfp/assignment` gives the next piece and a frozen brief
+- **Writer** (`prompts/blog-writer.md`, daily): `GET /api/wfp/assignment` gives the next piece and a frozen brief
   (keyword, service + its page, real Search Console queries, People Also Ask, competitors, required links, pages it may
   link to, lessons, the owner's notes, the correction reason for a refresh). It researches, writes, and hands in with
   `POST /api/wfp/publish`. `check.js` returns a 422 listing every problem (nothing uploaded); a clean post is rendered
-  and published (or kept as a draft in review mode). One assignment is locked for 6 hours; at most "Max posts per 7 days" (Settings, now 6).
+  and published (or kept as a draft in review mode). One assignment is locked for 6 hours; at most one post per Winnipeg day, so a busy stretch never leaves a gap of days.
 - **Weekly check** (`prompts/weekly-check.md`, Mon after the research): reads `/brief` (every live article with its
   numbers), saves lessons (`POST /notes kind=learning`, read by the writer in every brief), queues corrections
   (`POST /keywords/:id/refresh {reason}`, the writer's next assignments), adds researched keywords, may start one focus
