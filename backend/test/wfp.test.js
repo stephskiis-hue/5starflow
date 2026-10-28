@@ -20,7 +20,7 @@ const NOW = new Date('2026-10-21T15:00:00Z');
 const SERVICES = ['fence installation', 'fence repair', 'wood fence', 'vinyl fence', 'chain link fence', 'gate installation', 'deck building'];
 const cfg = (over = {}) => {
   const raw = Object.fromEntries(FIELDS.map((f) => [f.key, f.def ?? '']));
-  return toConfig({ ...raw, SITE_URL: 'https://www.wpgfence.ca/', PHONE: '204-555-0100', POST_DAYS: 'mon,thu', POSTS_PER_WEEK: '2', ...over });
+  return toConfig({ ...raw, SITE_URL: 'https://www.wpgfence.ca/', PHONE: '204-555-0100', POST_DAYS: 'mon,thu', ...over });
 };
 
 test('keywords: phrasings collapse to one key, location words drop out', () => {
@@ -101,10 +101,10 @@ test('plan: focus main post first, supports wait for it, then supports, then ref
   assert.equal(nextPiece([K('idea1', { status: 'idea', priority: 99 })], { now: NOW }), null);
 });
 
-test('plan: slots respect post days and posts per week; roadmap simulates each piece', () => {
+test('plan: slots respect post days; roadmap simulates each piece', () => {
   const slots = nextSlots(cfg(), NOW, 4); // 2026-10-21 is a Wednesday
   assert.deepEqual(slots, ['2026-10-22', '2026-10-26', '2026-10-29', '2026-11-02']);
-  assert.deepEqual(nextSlots(cfg({ POST_DAYS: 'mon,tue,wed,thu,fri', POSTS_PER_WEEK: '1' }), NOW, 2), ['2026-10-22', '2026-10-29']);
+  assert.deepEqual(nextSlots(cfg({ POST_DAYS: 'mon,tue,wed,thu,fri' }), NOW, 2), ['2026-10-22', '2026-10-23']);
   const focus = K('f', { focus: true, focusStatus: 'active', focusSince: NOW });
   const road = roadmap([focus, K('s', { supportsId: 'f' }), K('o', { priority: 5 })], cfg(), { now: NOW, n: 5 });
   assert.deepEqual(road.map((r) => `${r.keywordId}:${r.mode}`), ['f:new', 's:support', 'o:new']);

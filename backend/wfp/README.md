@@ -17,7 +17,7 @@ research.js   gscSyncTick (daily 7:17) + researchTick (Monday 7:37): import real
               rank tracking (organic + map pack), weekly history, focus recommendations
 focus.js      focus campaigns: main post → supporting posts (PAA / related / GSC queries) → refresh after 21 days
 plan.js       pure: nextPiece() (what the writer does next) + roadmap() (the next N pieces on the posting days)
-assign.js     the writer routine's assignment (brief, 6-hour lock, one post per Winnipeg day) and its hand-in: check, render, publish
+assign.js     the writer routine's assignment (brief, 6-hour lock, no post cap) and its hand-in: check, render, publish
 check.js      what a handed-in post must pass (title, description, length, keyword, required links, links that exist, dashes, banned words, FAQ, sources)
 sitepages.js  the live site's pages from its sitemap
 templates.js  default article page, list page and card built from the live site's page (its head styles, top bar, full-screen menu, footer, scripts)
@@ -66,7 +66,7 @@ No AI runs on this server and there is no Anthropic key. Two claude.ai routines 
   (keyword, service + its page, real Search Console queries, People Also Ask, competitors, required links, pages it may
   link to, lessons, the owner's notes, the correction reason for a refresh). It researches, writes, and hands in with
   `POST /api/wfp/publish`. `check.js` returns a 422 listing every problem (nothing uploaded); a clean post is rendered
-  and published (or kept as a draft in review mode). One assignment is locked for 6 hours; at most one post per Winnipeg day, so a busy stretch never leaves a gap of days.
+  and published (or kept as a draft in review mode). One assignment is locked for 6 hours; no post cap: the routine runs once a day and writes one.
 - **Weekly check** (`prompts/weekly-check.md`, Mon after the research): reads `/brief` (every live article with its
   numbers), saves lessons (`POST /notes kind=learning`, read by the writer in every brief), queues corrections
   (`POST /keywords/:id/refresh {reason}`, the writer's next assignments), adds researched keywords, may start one focus

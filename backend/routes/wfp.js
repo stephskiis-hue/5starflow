@@ -73,7 +73,7 @@ async function overview() {
     runs, notes, posts,
     next: piece ? { mode: piece.mode, keyword: piece.keyword.keyword, why: piece.why } : null,
     assignment: await prisma.wfpAssignment.findFirst({ where: { status: 'reserved', expiresAt: { gt: new Date() } }, select: { id: true, keyword: true, mode: true, createdAt: true, expiresAt: true } }),
-    week: { posts: await postsThisWeek(new Date()), max: cfg.postsPerWeek, days: cfg.postDays, hour: cfg.postHour },
+    week: { posts: await postsThisWeek(new Date()), days: cfg.postDays, hour: cfg.postHour },
     routineUrl: cfg.WRITER_ROUTINE_URL || null,
     checkRoutineUrl: cfg.CHECK_ROUTINE_URL || null,
   };
@@ -206,7 +206,7 @@ router.get('/roadmap', wrap(async (req, res) => {
   const upcoming = roadmap(keywords, cfg, { busy: await busyKeywords(), n: Math.min(20, Number(req.query.n) || 10) });
   const recent = await prisma.wfpPost.findMany({ where: { status: { in: ['published', 'replaced'] } }, orderBy: { publishedAt: 'desc' }, take: 20, select: { id: true, title: true, url: true, keyword: true, mode: true, publishedAt: true } });
   const pipeline = Object.fromEntries(['idea', 'planned', 'published', 'indexed', 'ranking', 'page1', 'top3'].map((s) => [s, keywords.filter((k) => k.status === s).length]));
-  res.json({ upcoming, recent, pipeline, schedule: { autopilot: cfg.autopilot, days: cfg.postDays, hour: cfg.postHour, perWeek: cfg.postsPerWeek } });
+  res.json({ upcoming, recent, pipeline, schedule: { autopilot: cfg.autopilot, days: cfg.postDays, hour: cfg.postHour } });
 }));
 router.get('/rankings', wrap(async (req, res) => {
   const rows = await prisma.wfpKeyword.findMany({ where: { OR: [{ rankTrack: true }, { impressions28: { gt: 0 } }], status: { not: 'retired' } }, orderBy: [{ focus: 'desc' }, { impressions28: 'desc' }], take: 300 });
@@ -291,7 +291,7 @@ router.get('/brief', wrap(async (req, res) => {
     })).sort((a, b) => (b.impressions28 || 0) - (a.impressions28 || 0)).slice(0, 60),
     focusSlots: Math.max(0, cfg.focusMax - (await prisma.wfpKeyword.count({ where: { focus: true, focusStatus: 'active' } }))),
     learnings: (await prisma.wfpNote.findMany({ where: { kind: 'learning', done: false }, orderBy: { createdAt: 'desc' }, take: 30 })).map((n) => ({ id: n.id, title: n.title, body: n.body, at: n.createdAt })),
-    lastWeek: { posts: await postsThisWeek(new Date()), max: cfg.postsPerWeek },
+    lastWeek: { posts: await postsThisWeek(new Date()) },
     posts: await prisma.wfpPost.findMany({ where: { createdAt: { gte: new Date(Date.now() - 30 * 86400000) } }, orderBy: { createdAt: 'desc' }, select: { title: true, keyword: true, status: true, url: true, error: true, publishedAt: true } }),
     failedRuns: o.runs.filter((r) => r.status === 'failed').map((r) => ({ job: r.job, at: r.startedAt, error: r.error })),
     openNotes: o.notes.map((n) => ({ id: n.id, author: n.author, kind: n.kind, title: n.title, body: n.body.slice(0, 500), at: n.createdAt })),

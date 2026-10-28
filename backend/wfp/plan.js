@@ -56,18 +56,16 @@ function localParts(d, tz = process.env.BUSINESS_TZ || 'America/Winnipeg') {
   return { day: get('weekday').toLowerCase().slice(0, 3), hour: parseInt(get('hour'), 10), date: `${get('year')}-${get('month')}-${get('day')}` };
 }
 
-/** The next n posting days (YYYY-MM-DD) from `from`, at most postsPerWeek in any 7-day window. */
+/** The next n posting days (YYYY-MM-DD) from `from`. */
 function nextSlots(cfg, from, n) {
   const out = [];
   const days = cfg.postDays.filter((d) => DAYS.includes(d));
-  if (!days.length || !cfg.postsPerWeek) return out;
+  if (!days.length) return out;
   for (let i = 0; out.length < n && i < 120; i += 1) {
     const d = new Date(from.getTime() + i * DAY);
     const p = localParts(d);
     if (i === 0 && p.hour >= cfg.postHour) continue; // today's slot has passed
     if (!days.includes(p.day)) continue;
-    const window = out.filter((s) => (new Date(`${p.date}T12:00:00Z`) - new Date(`${s}T12:00:00Z`)) < 7 * DAY);
-    if (window.length >= cfg.postsPerWeek) continue;
     out.push(p.date);
   }
   return out;

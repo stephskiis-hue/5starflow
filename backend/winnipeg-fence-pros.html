@@ -314,7 +314,7 @@
       : s.next
         ? `<p class="font-semibold">${esc(s.next.keyword)}</p><p class="mt-1">${pill(s.next.mode, 'brand')}</p><p class="muted text-xs mt-2">${esc(s.next.why)}</p>`
         : '<p class="muted">Nothing planned yet. Run the keyword research or add keywords.</p>')
-      + `<p class="muted text-xs mt-3">The writer routine runs ${esc(wk.days.join(' + '))} at ${wk.hour}:00 · ${wk.posts} of ${wk.max} posts this week${s.autopilot ? '' : ' · autopilot is off, so it gets nothing to write'}</p>`;
+      + `<p class="muted text-xs mt-3">The writer routine runs ${esc(wk.days.join(' + '))} at ${wk.hour}:00 · ${wk.posts} posts in the last 7 days${s.autopilot ? '' : ' · autopilot is off, so it gets nothing to write'}</p>`;
     $('#routineLink').innerHTML = (s.routineUrl ? `<a class="btn" href="${esc(s.routineUrl)}" target="_blank" rel="noopener">Writer routine</a>` : '') + (s.checkRoutineUrl ? `<a class="btn" href="${esc(s.checkRoutineUrl)}" target="_blank" rel="noopener">Weekly check routine</a>` : '');
     const h = s.health;
     $('#health').innerHTML = h ? `<p class="muted text-xs mb-2">${fmtTime(h.at)} · ${esc(h.summary)}</p>` + h.checks.map((c) => `
@@ -446,7 +446,7 @@
     const r = await api('/roadmap');
     const order = ['idea', 'planned', 'published', 'indexed', 'ranking', 'page1', 'top3'];
     $('#pipeline').innerHTML = order.map((s) => `<div class="p-3 rounded-xl bg-card2"><div class="text-xl font-extrabold">${num(r.pipeline[s])}</div><div class="muted text-xs">${s}</div></div>`).join('');
-    $('#scheduleLine').textContent = r.schedule.autopilot ? `Autopilot posts on ${r.schedule.days.join(', ')} at ${r.schedule.hour}:00, at most ${r.schedule.perWeek} a week.` : 'Autopilot is off: these are written only when you press Write.';
+    $('#scheduleLine').textContent = r.schedule.autopilot ? `Autopilot posts on ${r.schedule.days.join(', ')} at ${r.schedule.hour}:00.` : 'Autopilot is off: these are written only when you press Write.';
     $('#upcoming').innerHTML = r.upcoming.length ? r.upcoming.map((u, i) => `
       <div class="p-3 rounded-xl bg-card2"><div class="flex justify-between gap-2"><span class="font-semibold">${i + 1}. ${esc(u.keyword)}</span><span class="muted text-xs">${u.date ? esc(u.date) : ''}</span></div>
       <div class="mt-1">${pill(MODE_LABEL[u.mode] || u.mode, 'brand')} ${u.focus ? pill(`focus: ${u.focus}`, '') : ''}</div><div class="muted text-xs mt-1">${esc(u.why)}</div></div>`).join('') : '<p class="muted">Nothing planned yet.</p>';
