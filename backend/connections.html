@@ -403,7 +403,12 @@
           <span class="text-on-surface-variant">Auth method</span>
           <span class="text-zinc-300">App Password</span>
         </div>
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-on-surface-variant">Reads e-transfers</span>
+          <span class="${g.canRead ? 'text-secondary' : 'text-amber-300'}">${g.canRead ? 'Yes' : g.canRead === null ? 'Unknown' : 'No'}</span>
+        </div>
       </div>
+      ${!g.canRead ? '<div class="text-xs text-on-surface-variant mb-4">The e-transfer matcher needs to read Interac deposit emails. <a href="/api/gmail/auth" class="text-primary underline">Reconnect Gmail</a> and allow reading.</div>' : ''}
       ${!ok ? '<div class="text-xs text-on-surface-variant mb-4">Add GMAIL_USER and GMAIL_APP_PASSWORD to .env</div>' : ''}
       <div id="test-result-gmail"></div>
       <div class="flex gap-2 mt-4">

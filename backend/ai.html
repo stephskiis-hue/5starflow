@@ -199,6 +199,7 @@
       <button data-tab="inbox"     class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Inbox <span id="badge-inbox" class="badge b-bad hidden ml-1"></span></button>
       <button data-tab="tasks"     class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Tasks <span id="badge-tasks" class="badge b-warn hidden ml-1"></span></button>
       <button data-tab="approvals" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Approvals <span id="badge-approvals" class="badge b-warn hidden ml-1"></span></button>
+      <button data-tab="payments" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">E-transfers <span id="badge-payments" class="badge b-warn hidden ml-1"></span></button>
       <button data-tab="content" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Content <span id="badge-content" class="badge b-warn hidden ml-1"></span></button>
       <button data-tab="social" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Social</button>
       <button data-tab="vault" class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 transition-all duration-200">Vault</button>
@@ -212,6 +213,7 @@
     <section id="tab-inbox" class="hidden"></section>
     <section id="tab-tasks" class="hidden"></section>
     <section id="tab-approvals" class="hidden"></section>
+    <section id="tab-payments" class="hidden"></section>
     <section id="tab-content" class="hidden"></section>
     <section id="tab-social" class="hidden"></section>
     <section id="tab-vault" class="hidden"></section>
@@ -225,7 +227,7 @@
 
 <script>
   const API = '/api/ai';
-  const TABS = ['home', 'inbox', 'tasks', 'approvals', 'content', 'social', 'vault', 'routines', 'agents', 'activity', 'memory'];
+  const TABS = ['home', 'inbox', 'tasks', 'approvals', 'payments', 'content', 'social', 'vault', 'routines', 'agents', 'activity', 'memory'];
   const AGENT_INFO = {
     orchestrator: ['Orchestrator', 'Coordinates the others, sets priorities, prevents duplicate work.', 'account_tree'],
     communication: ['Communication', 'Nobody important gets left unanswered: SMS, Gmail, reviews, follow-ups.', 'forum'],
@@ -237,7 +239,7 @@
     qa: ['QA', 'Checks everything before it goes out: spelling, facts, brand, group rules.', 'fact_check'],
     system: ['System', 'Background jobs: tokens, queues, syncs, retries.', 'settings_suggest'],
   };
-  const state = { tab: 'home', contentFilter: 'queue', vaultTag: '', vaultMode: '', taskFilter: 'open', memScope: '', memQ: '', openRoutine: null, isOwner: true };
+  const state = { tab: 'home', payFilter: '', contentFilter: 'queue', vaultTag: '', vaultMode: '', taskFilter: 'open', memScope: '', memQ: '', openRoutine: null, isOwner: true };
   let pollTimer = null;
 
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -298,7 +300,7 @@
     if (quiet && ['memory', 'vault'].includes(tab)) return;
     try {
       showErr('');
-      await ({ home: loadHome, inbox: loadInbox, tasks: loadTasks, approvals: loadApprovals, content: loadContent, social: loadSocial, vault: loadVault, routines: loadRoutines, agents: loadAgents, activity: loadActivity, memory: loadMemory }[tab])(quiet);
+      await ({ home: loadHome, inbox: loadInbox, tasks: loadTasks, approvals: loadApprovals, payments: loadPayments, content: loadContent, social: loadSocial, vault: loadVault, routines: loadRoutines, agents: loadAgents, activity: loadActivity, memory: loadMemory }[tab])(quiet);
     } catch (e) { showErr(e.message); }
   }
 
@@ -397,6 +399,59 @@
     const a = e.target.closest('[data-taskact]');
     if (a) { const id = a.closest('[data-task]').dataset.task; a.disabled = true;
       try { await api('/tasks/' + id, { method: 'PATCH', body: { status: a.dataset.taskact } }); toast('Task updated'); await loadTasks(); } catch (err) { toast(err.message); a.disabled = false; } }
+  });
+
+  // ---------------------------------------------------------------- E-TRANSFERS
+  const PAY_STATUS = {
+    needs_review: ['b-warn', 'needs you'], no_match: ['b-bad', 'no match'], failed: ['b-bad', 'record by hand'], to_record: ['b-normal', 'recording'],
+    recorded: ['b-ok', 'paid in Jobber'], matched: ['b-ok', 'matched (test)'], ignored: ['b-mute', 'ignored'], new: ['b-mute', 'new'],
+  };
+  const money = (c) => '$' + (Number(c || 0) / 100).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  async function loadPayments() {
+    const d = await api('/etransfers' + (state.payFilter ? '?status=' + encodeURIComponent(state.payFilter) : ''));
+    setBadge('badge-payments', (d.counts.needs_review || 0) + (d.counts.failed || 0));
+    const modeTxt = { live: ['b-ok', 'Live: exact matches are recorded in Jobber'], shadow: ['b-warn', 'Test mode: matches and texts only, Jobber is not touched'], off: ['b-mute', 'Off'] }[d.mode];
+    const bf = d.backfill; const bfTotal = Object.values(bf).reduce((a, b) => a + b, 0);
+    const chips = [['', 'All'], ['needs_review', 'Needs you'], ['no_match', 'No match'], ['failed', 'Record by hand'], ['to_record', 'Recording'], ['recorded', 'Paid'], ['matched', 'Matched (test)'], ['ignored', 'Ignored']];
+    $('tab-payments').innerHTML = `
+      <div class="glass-card rounded-xl p-5 mb-4">
+        <div class="flex items-center gap-2 flex-wrap"><span class="badge ${modeTxt[0]}">${esc(d.mode)}</span><span class="text-sm text-zinc-200">${esc(modeTxt[1])}</span>${d.dryRun ? '<span class="badge b-bad">DRY_RUN: nothing is recorded</span>' : ''}</div>
+        <p class="text-xs text-zinc-500 mt-2">Every Interac deposit email is matched to one unpaid invoice by full name (or a payer you confirmed) plus the exact amount. The amount alone never matches. You get a text for every e-transfer.</p>
+        ${bfTotal ? `<p class="text-sm text-zinc-300 mt-3">First look at your last 90 days (${bfTotal} e-transfers): <span class="text-secondary">${bf.correct || 0} correct</span> · <span class="${bf.wrong ? 'text-red-300 font-bold' : 'text-zinc-400'}">${bf.wrong || 0} wrong</span> · ${bf.review || 0} would ask you · ${(bf.none || 0) + (bf.unknown || 0)} no match or unsure</p>` : ''}
+        ${state.isOwner ? `<div class="flex gap-2 mt-3 flex-wrap">${['shadow', 'live', 'off'].filter((m) => m !== d.mode).map((m) => `<button class="btn ${m === 'live' ? 'btn-go' : ''}" data-paymode="${m}">${m === 'live' ? 'Go live' : m === 'shadow' ? 'Back to test mode' : 'Turn off'}</button>`).join('')}</div>` : ''}
+      </div>
+      <div class="tabs-scroll mb-4">${chips.map(([k, l]) => `<button class="btn ${state.payFilter === k ? 'tab-active' : ''}" data-payfilter="${k}">${esc(l)}${k && d.counts[k] ? ` (${d.counts[k]})` : ''}</button>`).join('')}</div>
+      ${d.items.length ? d.items.map(payRow).join('') : empty('payments', 'No e-transfers yet', 'Interac deposit emails show up here within 15 minutes, 8 am to 10 pm.')}`;
+  }
+  function payRow(r) {
+    const [cls, label] = PAY_STATUS[r.status] || ['b-mute', r.status];
+    const invs = (r.invoiceIds || []).map((i) => i.webUri ? `<a class="underline" href="${esc(i.webUri)}" target="_blank" rel="noopener">#${esc(i.invoiceNumber)}</a>` : '#' + esc(i.invoiceNumber)).join(' + ');
+    const open = ['needs_review', 'no_match', 'failed'].includes(r.status) && !r.backfill;
+    const verdict = r.backfill && r.backfillVerdict ? `<span class="badge ${r.backfillVerdict === 'correct' ? 'b-ok' : r.backfillVerdict === 'wrong' ? 'b-bad' : 'b-mute'}">history: ${esc(r.backfillVerdict)}</span>` : '';
+    return `<div class="glass-card rounded-xl p-4 mb-3" data-pay="${esc(r.id)}">
+      <div class="flex items-center gap-2 flex-wrap"><span class="text-lg font-black text-zinc-100">${money(r.amountCents)}</span><span class="text-sm text-zinc-200">${esc(r.senderName)}</span><span class="badge ${cls}">${esc(label)}</span>${verdict}<span class="text-xs text-zinc-500 ml-auto">${esc(ago(r.receivedAt))}</span></div>
+      ${invs ? `<p class="text-sm text-zinc-300 mt-2">Invoice ${invs} · ${esc(r.clientName || '')}</p>` : ''}
+      ${r.reason ? `<p class="text-xs text-zinc-400 mt-1">${esc(r.reason)}</p>` : ''}${r.error ? `<p class="text-xs text-red-300 mt-1">${esc(r.error)}</p>` : ''}
+      ${r.message ? `<p class="text-xs text-zinc-400 mt-1">Message: “${esc(r.message)}”</p>` : ''}
+      <p class="text-xs text-zinc-600 mt-1 break-all">Ref ${esc(r.referenceNumber)}${r.senderBank ? ' · ' + esc(r.senderBank) : ''}</p>
+      ${open && state.isOwner ? `<div class="flex gap-2 mt-3 flex-wrap">${(r.candidates || []).map((c) => `<button class="btn btn-go" data-paypick="${esc(c.invoiceId)}">Inv #${esc(c.invoiceNumber)} ${esc(c.clientName)} ${money(c.cents)}</button>`).join('')}<button class="btn" data-payignore="1">Ignore (handled)</button></div>` : ''}
+    </div>`;
+  }
+  document.addEventListener('click', async (e) => {
+    const f = e.target.closest('[data-payfilter]'); if (f) { state.payFilter = f.dataset.payfilter; return loadPayments(); }
+    const m = e.target.closest('[data-paymode]');
+    if (m) {
+      if (m.dataset.paymode === 'live' && !confirm('Go live? Exact matches will be recorded as paid in Jobber by the MSI recorder, and each one is double-checked against the invoice balance.')) return;
+      m.disabled = true;
+      try { await api('/etransfers/mode', { method: 'POST', body: { mode: m.dataset.paymode } }); toast('E-transfer matcher: ' + m.dataset.paymode); await loadPayments(); } catch (err) { toast(err.message); m.disabled = false; }
+      return;
+    }
+    const b = e.target.closest('[data-paypick],[data-payignore]'); if (!b) return;
+    const id = b.closest('[data-pay]').dataset.pay;
+    if (b.dataset.paypick && !confirm('Put this e-transfer on that invoice? It will be remembered for this payer.')) return;
+    b.disabled = true;
+    try { await api(`/etransfers/${id}/resolve`, { method: 'POST', body: b.dataset.paypick ? { invoiceId: b.dataset.paypick } : { ignore: true } }); toast(b.dataset.paypick ? 'Matched' : 'Ignored'); await loadPayments(); }
+    catch (err) { toast(err.message); b.disabled = false; }
   });
 
   // ---------------------------------------------------------------- APPROVALS

@@ -84,6 +84,8 @@ router.get('/status', async (req, res) => {
       configured:  isVerified('gmail'),
       fromAddress: gmailCred?.gmailUser || process.env.GMAIL_USER || null,
       fromName:    gmailCred?.fromName  || null,
+      // null = connected before scopes were recorded; reconnecting records them
+      canRead:     gmailCred ? (gmailCred.scopes ? /gmail\.readonly|mail\.google\.com/.test(gmailCred.scopes) : null) : false,
     };
 
     // ── Twilio ──────────────────────────────────────────────────────────────

@@ -69,6 +69,7 @@ async function aiAuth(req, res, next) {
 const ownerOnly = (req, res, next) => (req.ai.actor === 'owner' ? next() : res.status(403).json({ error: 'Owner session required' }));
 // routines run shared, business-wide jobs (sends, syncs): administrators only
 const adminOnly = (req, res, next) => (req.ai.admin ? next() : res.status(403).json({ error: 'Administrator access required' }));
+const adminOrAgent = (req, res, next) => (req.ai.admin || req.ai.actor === 'agent' ? next() : res.status(403).json({ error: 'Administrator access required' }));
 
 router.use(aiAuth);
 router.use(express.json({ limit: '20mb' }));      // assets arrive as base64
@@ -771,6 +772,32 @@ router.patch('/social/threads/:id', async (req, res) => {
 });
 
 // --------------------------------------------------------------------------- SEO Growth Engine
+// --------------------------------------------------------------------------- e-transfers → Jobber (ai/etransfer)
+const etr = () => require('../ai/etransfer');
+router.get('/etransfers', async (req, res) => {
+  res.json(await etr().overview(req.ai.userId, { status: typeof req.query.status === 'string' ? req.query.status : undefined, limit: int(req.query.limit, 100, 500) }));
+});
+// the MSI recorder: what to enter in Jobber now (each invoice re-read first; empty under DRY_RUN or outside live mode)
+router.get('/etransfers/to-record-count', async (req, res) => res.json({ pending: await etr().pendingRecordCount(req.ai.userId) }));
+router.get('/etransfers/to-record', async (req, res) => res.json({ items: await etr().claimToRecord(req.ai.userId) }));
+router.post('/etransfers/:id/recorded', async (req, res) => {
+  const r = await etr().reportRecorded(req.ai.userId, req.params.id, { ok: req.body?.ok !== false, note: req.body?.note });
+  res.status(r.error === 'not found' ? 404 : 200).json(r);
+});
+router.post('/etransfers/:id/resolve', ownerOnly, async (req, res) => {
+  const r = await etr().resolveFromDashboard(req.ai.userId, req.params.id, { invoiceId: req.body?.invoiceId, ignore: !!req.body?.ignore });
+  res.status(r.ok ? 200 : 400).json(r);
+});
+router.post('/etransfers/mode', ownerOnly, adminOnly, async (req, res) => {
+  try { res.json({ mode: await etr().setMode(req.ai.userId, req.body?.mode) }); } catch (e) { res.status(400).json({ error: e.message }); }
+});
+// read-only: what this Jobber API version offers (balance field, status filter, any payment mutation)
+router.get('/etransfers/probe', adminOrAgent, async (req, res) => {
+  const j = require('../ai/etransfer/jobber');
+  j.resetSchema();
+  res.json(await j.schemaInfo(req.ai.userId));
+});
+
 router.use('/seo', require('./aiSeo'));
 
 router.use((err, req, res, next) => {

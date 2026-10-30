@@ -11,7 +11,8 @@
 - [ ] SEO Growth Engine: add the service account as a **Full** user in Search Console; Railway `SEO_SUBMIT=on`, `GSC_SITE_URL`, confirm `SERPER_API_KEY`; then on the MSI follow `docs/seo/windows-setup.md` (sitemap + blog-index hooks in `_deploy.py`, site fixes, new blog task prompt).
 
 ## Code
-- [ ] Gmail monitor in the backend (needs `gmail.readonly` + Production OAuth) — until then Inbox Watch uses the Gmail connector.
+- [ ] Gmail monitor in the backend: the `gmail.readonly` reader exists now (`ai/etransfer/gmail.js`, Interac deposits only) and can be reused for client email; Inbox Watch still uses the Gmail connector for everything else.
+- [ ] E-transfer matcher go-live: publish the Google OAuth app to Production (Testing-mode refresh tokens expire after 7 days), reconnect Gmail, check the backfill score on the E-transfers tab ("wrong" must be 0), make sure Jobber is signed in on the MSI Chrome, then switch to live.
 - [ ] Website inquiries: register Jobber `REQUEST_CREATE` webhook → CommMessage/Task; or a form endpoint.
 - [ ] `customers/context`: add live Jobber jobs/quotes/invoices (capped query with `first:`), email identity (`ClientIdentity`).
 - [ ] Import the Google "Claude Ops Log" sheet once (FlagLog → Tasks, Corrections/PayrollHistory → Memory, ActionLog/Recovered → Activity).

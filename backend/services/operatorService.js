@@ -334,6 +334,11 @@ async function executeProposal(proposalId) {
         result = await executeRainReschedule(proposal);
         break;
       }
+      case 'etransfer_match': {
+        // The owner confirmed which invoice an e-transfer pays: queue it for recording and remember the payer.
+        result = await require('../ai/etransfer').applyOwnerPick(proposal);
+        break;
+      }
       case 'ad':
       case 'seo':
       case 'quote':
@@ -437,7 +442,15 @@ async function handleInboundFromSteph({ userId, body }) {
 
   // Try YES/NO <code>
   const yn = await matchInboundResponse({ userId, body: trimmed });
-  if (yn.matched) return { matched: true, type: 'yes_no', action: yn.action, proposal: yn.proposal };
+  if (yn.matched) {
+    // a YES to an e-transfer match takes effect now (the reply text confirms it); other categories wait for their runner
+    for (const r of yn.results || []) {
+      if (r.action === 'approved' && r.proposal?.category === 'etransfer_match') {
+        await executeProposal(r.proposal.id).catch((e) => logger.error('operator', `e-transfer approval #${r.shortCode} failed`, { error: e.message }, userId));
+      }
+    }
+    return { matched: true, type: 'yes_no', action: yn.action, proposal: yn.proposal };
+  }
 
   // Try slash command
   const slash = trimmed.match(/^\/(post|quote|save|note)\b/i);

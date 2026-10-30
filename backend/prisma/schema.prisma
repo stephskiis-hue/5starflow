@@ -341,6 +341,7 @@ model GmailCredential {
   accessToken  String    @default("")
   refreshToken String?
   tokenExpiry  DateTime?
+  scopes       String? // space-separated scopes Google granted; gmail.readonly lets the e-transfer watch read deposits
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 }
@@ -1408,4 +1409,65 @@ model WfpAssignment {
   updatedAt  DateTime  @updatedAt
 
   @@index([status, createdAt])
+}
+
+// One Interac e-transfer deposit email, read from Gmail by ai/etransfer (etransfer-watch). The reference number and the
+// Gmail message id are each unique, so a payment is matched, recorded and texted about exactly once.
+// status: new | matched (shadow: would record) | to_record | recorded | needs_review | no_match | ignored | failed
+model EtransferReceipt {
+  id              String    @id @default(cuid())
+  userId          String
+  gmailMessageId  String
+  referenceNumber String
+  senderName      String
+  senderNameNorm  String
+  amountCents     Int
+  sentDate        DateTime?
+  receivedAt      DateTime
+  message         String?
+  senderBank      String?
+  kind            String // deposited | pending_accept | cancelled | request | other
+  authOk          Boolean   @default(false) // DMARC/SPF passed for payments.interac.ca
+  status          String    @default("new")
+  matchKind       String? // name_amount | alias_amount | invoice_in_message | multi_invoice | owner_pick
+  reason          String?
+  jobberInvoiceId String?
+  invoiceNumber   String?
+  invoiceIds      Json? // [{id, invoiceNumber, webUri, payCents, balanceBefore}]: what to record on each invoice
+  jobberClientId  String?
+  clientName      String?
+  jobberWebUri    String?
+  candidates      Json? // [{invoiceId, invoiceNumber, clientName, cents, why}] shown to the owner for review
+  proposalIds     Json?
+  queuedAt        DateTime? // when it became to_record; still unrecorded 3 hours later → failed + link text
+  recordAttempts  Int       @default(0)
+  recordClaimedAt DateTime?
+  markedAt        DateTime? // the recorder said it saved the payment in Jobber
+  verifiedAt      DateTime?
+  notifiedAt      DateTime?
+  backfill        Boolean   @default(false)
+  backfillVerdict String? // correct | wrong | review | none | unknown (what the owner actually marked paid)
+  error           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, referenceNumber])
+  @@unique([userId, gmailMessageId])
+  @@index([userId, status])
+  @@index([userId, receivedAt])
+}
+
+// "This e-transfer name pays for this Jobber client": learned when the owner confirms a match (or from the backfill),
+// so a spouse or a legal name that differs from the Jobber name matches on its own next time.
+model PayerAlias {
+  id             String   @id @default(cuid())
+  userId         String
+  payerNameNorm  String
+  jobberClientId String
+  clientName     String   @default("")
+  source         String   @default("owner_confirmed") // owner_confirmed | backfill
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, payerNameNorm])
 }

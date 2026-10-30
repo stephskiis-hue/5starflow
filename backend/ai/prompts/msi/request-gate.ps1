@@ -72,6 +72,35 @@ try {
   }
 } catch { Log "textnow-watch failed to start: $($_.Exception.Message)" }
 
+# E-transfer Recorder (backend/ai/prompts/etransfer-recorder.md): 8 am to 10 pm, at most every 10 minutes, and only when 5StarFlow has
+# matched e-transfers waiting to be recorded in Jobber (to-record-count; zero in test mode or under DRY_RUN). Claude in Chrome
+# enters each one with Collect Payment; the server re-reads the invoice before calling it paid. Waits while Chrome is busy or the
+# Claude plan limit is waiting to reset; a failure never blocks the inbox.
+try {
+  $etStamp = Join-Path $FsfDir 'etransfer-recorder.stamp'
+  $etHour = (Get-Date).Hour
+  $etDue = ($etHour -ge 8 -and $etHour -lt 22) -and (-not (Test-Path $etStamp) -or ((Get-Item $etStamp).LastWriteTime -lt (Get-Date).AddMinutes(-10)))
+  if ($etDue) {
+    $etHeaders = @{ Authorization = "Bearer $env:FIVESTARFLOW_TOKEN"; 'X-Agent' = 'operations' }
+    $etPending = [int](Invoke-RestMethod -Uri "$env:FIVESTARFLOW_URL/api/ai/etransfers/to-record-count" -Headers $etHeaders -TimeoutSec 20).pending
+    $etLimit = Join-Path $FsfDir 'claude-limit-until.txt'
+    $etWait = (Test-Path $etLimit) -and ((Get-Date) -lt [datetime]::Parse((Get-Content $etLimit -Raw).Trim()))
+    if ($etPending -gt 0 -and -not $etWait -and -not (Test-FsfChromeBusy)) {
+      New-Item -ItemType File -Force -Path $etStamp | Out-Null   # stamp first: a crash must not retry every 5 minutes
+      Log "etransfer-recorder: $etPending waiting, starting"
+      Lock-FsfChrome
+      try {
+        $etChrome = Ensure-FsfChrome -Log 'request-gate'
+        if ($etChrome -eq 'missing') { [void](Ensure-FsfChrome -Restart -Log 'request-gate') }
+        $etPrompt = ((Get-Content (Join-Path $PSScriptRoot '..\etransfer-recorder.md') -Raw) -split '```')[1].Trim()
+        $et = Invoke-FsfClaude $etPrompt $repoRoot 30 'request-gate'
+        $etTail = if ($et.out) { $et.out.Substring([Math]::Max(0, $et.out.Length - 300)) } else { '' }
+        Log "etransfer-recorder: claude exited $($et.code) $etTail"
+      } finally { Unlock-FsfChrome }
+    }
+  }
+} catch { Log "etransfer-recorder failed to start: $($_.Exception.Message)" }
+
 # TextNow Insight (backend/ai/prompts/textnow-insight.md): once a day, the first quiet check after 7 pm. Claude in Chrome reads the
 # day's threads, records what it WOULD have replied, cross-checks the TextNow page and posts the owner summary (5StarFlow texts it
 # every digestEveryDays days). READ ONLY. Waits while an owner request is pending, Chrome is busy or the Claude plan limit is

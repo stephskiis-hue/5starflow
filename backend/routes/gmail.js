@@ -21,7 +21,9 @@ router.get('/auth', requireAuth, (req, res) => {
   url.searchParams.set('client_id',     clientId);
   url.searchParams.set('redirect_uri',  redirectUri);
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope',         'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email');
+  // gmail.readonly lets the e-transfer watch read Interac deposit emails (ai/etransfer); send stays for review emails
+  url.searchParams.set('scope',         'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email');
+  url.searchParams.set('include_granted_scopes', 'true');
   url.searchParams.set('access_type',   'offline');
   url.searchParams.set('prompt',        'consent');  // always ask — guarantees refresh_token
   url.searchParams.set('state',         req.user.userId); // passed back in callback
@@ -59,7 +61,7 @@ router.get('/callback', async (req, res) => {
       grant_type:    'authorization_code',
     });
 
-    const { access_token, refresh_token, expires_in } = tokenResp.data;
+    const { access_token, refresh_token, expires_in, scope } = tokenResp.data;
     const tokenExpiry = new Date(Date.now() + (expires_in || 3600) * 1000);
 
     // 2. Fetch the user's Gmail address
@@ -81,6 +83,7 @@ router.get('/callback', async (req, res) => {
         // Only overwrite refreshToken if Google returned a new one
         ...(refresh_token && { refreshToken: refresh_token }),
         tokenExpiry,
+        scopes:       scope || null,
       },
       create: {
         userId,
@@ -88,6 +91,7 @@ router.get('/callback', async (req, res) => {
         accessToken:  access_token,
         refreshToken: refresh_token || null,
         tokenExpiry,
+        scopes:       scope || null,
       },
     });
 

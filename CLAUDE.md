@@ -102,6 +102,7 @@ lib/taskKeys.js     convTaskKey(channel, phone): ONE dedupKey per conversation (
 ai/design/          design-system layouts + renderer.js (Playwright) + qa.js (brand lint)   ai/vault.js content.js social.js (daily caps)
 ai/prompts/         prompts for the Claude routines (Night Studio, Social Shift, Inbox Watch, Morning Brief, Blog Autopilot)
 ai/seo/             SEO Growth Engine: Search Console sync, site/sitemap/index watch, Serper keyword roadmap, blog assignments, focus campaigns (focus.js, see ai/README.md)
+ai/etransfer/       E-transfer → Jobber matcher: Gmail Interac reader, strict name+amount matcher (amount alone never matches), owner YES approvals, MSI recorder hand-off verified against the invoice balance (see ai/README.md)
 ai/site/            Server-side website publisher: checks, renders and uploads blog posts/pages over FTP, keeps posts.json, blog.html and the sitemaps in step (no AI; see ai/README.md)
 .claude/skills/nobs-*   skills the routines load (api, brand, content, facebook, communication, research)
 ```
@@ -219,5 +220,7 @@ OPERATOR_APPROVER_PHONE           # owner's phone for approvals / urgent custome
 BUSINESS_TZ=America/Winnipeg      # crons, day boundaries, social caps
 CHROMIUM_PATH                     # optional chromium for the graphic renderer (else Playwright's / @sparticuz/chromium)
 TWILIO_SKIP_SIGNATURE             # local dev only
+ETRANSFER_MODE                    # fallback only; the E-transfers tab sets the mode (off | shadow | live, default shadow)
+ETRANSFER_SMS=off                 # mute the per-e-transfer owner texts (they still land in the Notification Centre)
 ```
 
