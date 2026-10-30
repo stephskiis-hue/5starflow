@@ -142,10 +142,10 @@ async function fetchRecentInvoicesWithPayments(userId, { maxPages = 30 } = {}) {
   return (await pageInvoices(userId, s, { payments: true, maxPages })).list;
 }
 
-/** One invoice's live state: re-read right before it is handed out to be recorded, and again after. */
-async function recheckInvoice(userId, id) {
+/** One invoice's live state: re-read right before it is handed out to be recorded, and again after. paid: also when it was paid. */
+async function recheckInvoice(userId, id, { paid = false } = {}) {
   const s = await schemaInfo(userId);
-  const d = await jobberGraphQL(`query One($id: EncodedId!) { invoice(id: $id) { ${invoiceSelection(s)} } }`, { id }, userId);
+  const d = await jobberGraphQL(`query One($id: EncodedId!) { invoice(id: $id) { ${invoiceSelection(s, { payments: paid })} } }`, { id }, userId);
   return d?.invoice ? shape(d.invoice, s) : null;
 }
 

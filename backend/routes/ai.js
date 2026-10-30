@@ -788,6 +788,11 @@ router.post('/etransfers/:id/resolve', ownerOnly, async (req, res) => {
   const r = await etr().resolveFromDashboard(req.ai.userId, req.params.id, { invoiceId: req.body?.invoiceId, ignore: !!req.body?.ignore });
   res.status(r.ok ? 200 : 400).json(r);
 });
+// payer names learned from the first run's history: preview (read-only), then the owner saves the ones they keep
+router.get('/etransfers/learn', async (req, res) => res.json({ pairs: await etr().learnPreview(req.ai.userId) }));
+router.post('/etransfers/learn', ownerOnly, async (req, res) => {
+  res.json({ saved: await etr().saveLearnedPayers(req.ai.userId, Array.isArray(req.body?.pairs) ? req.body.pairs.slice(0, 200) : []) });
+});
 router.post('/etransfers/mode', ownerOnly, adminOnly, async (req, res) => {
   try { res.json({ mode: await etr().setMode(req.ai.userId, req.body?.mode) }); } catch (e) { res.status(400).json({ error: e.message }); }
 });

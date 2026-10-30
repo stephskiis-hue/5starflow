@@ -355,3 +355,16 @@ test('without payment records the backfill grades by the invoice paid date', asy
   await r.tick();
   assert.equal(r.db.t.etransferReceipt[0].backfillVerdict, 'correct');
 });
+
+test('history teaches a payer name only when the suggested invoice was the one actually paid', async () => {
+  const r = rig({});
+  const at = new Date('2026-10-01T12:00:00Z');
+  const row = (id, name, invId, client, why = 'same first name (no last name in Jobber), exact amount') => ({ id, userId: 'u1', backfill: true, status: 'needs_review', senderName: name, senderNameNorm: name, amountCents: 18900, receivedAt: at, candidates: [{ invoiceId: invId, invoiceNumber: invId, clientId: client, clientName: client, cents: 18900, why }] });
+  r.db.t.etransferReceipt.push(row('a', 'KYLE ROSTOSKY', 'paidSoon', 'mrkyle'), row('b', 'DIANNE BOURBONNAIS', 'stillOpen', 'dianne'), row('c', 'SIDY SY', 'x', 'sidy', 'same client, different amount'));
+  r.over.jobber.recheckInvoice = async (_u, id) => (id === 'paidSoon' ? { status: 'paid', receivedDate: '2026-10-02T15:00:00Z' } : { status: 'awaiting_payment', receivedDate: null });
+  const pairs = await et.learnPreview('u1', r.over);
+  assert.deepEqual(pairs.map((p) => [p.payer, p.jobberClientId]), [['KYLE ROSTOSKY', 'mrkyle']]);
+  assert.equal(await et.saveLearnedPayers('u1', pairs, r.db), 1);
+  assert.equal(r.db.t.payerAlias[0].source, 'backfill');
+  assert.deepEqual(await et.learnPreview('u1', r.over), [], 'an already-known payer is not offered again');
+});

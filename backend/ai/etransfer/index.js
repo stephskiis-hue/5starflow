@@ -385,6 +385,51 @@ async function resolveFromDashboard(userId, id, { invoiceId, ignore } = {}, over
   return pickInvoice(d, userId, r, { id: live.id, invoiceNumber: live.invoiceNumber, webUri: live.webUri, clientId: live.client.id, clientName: live.client.name, balanceCents: live.cents });
 }
 
+/**
+ * Payer names worth remembering, learned from the first run's history: an e-transfer the matcher was unsure about
+ * (one suggested invoice, a name hint only) whose suggested invoice Jobber shows as paid within days of it. Nothing
+ * is saved here; the owner reviews the list and saveLearnedPayers stores the ones they keep.
+ */
+async function learnPreview(userId, over = {}) {
+  const d = deps(over);
+  const [rows, known] = await Promise.all([
+    d.db.etransferReceipt.findMany({ where: { userId, backfill: true, status: 'needs_review' }, orderBy: { receivedAt: 'asc' } }),
+    d.db.payerAlias.findMany({ where: { userId } }),
+  ]);
+  const have = new Set(known.map((a) => a.payerNameNorm));
+  const byPayer = new Map();
+  for (const r of rows) {
+    const c = r.candidates || [];
+    if (c.length !== 1 || c[0].why === 'same client, different amount' || !r.senderNameNorm || have.has(r.senderNameNorm)) continue;
+    const live = await d.jobber.recheckInvoice(userId, c[0].invoiceId, { paid: true }).catch(() => null);
+    const paidAt = live?.status === 'paid' && live.receivedDate ? new Date(live.receivedDate).getTime() : null;
+    const t = r.receivedAt.getTime();
+    const ok = paidAt != null && paidAt >= t - DAY && paidAt - t < 30 * DAY;
+    const prev = byPayer.get(r.senderNameNorm);
+    if (prev && prev.jobberClientId !== c[0].clientId) { prev.conflict = true; continue; }
+    if (!ok) continue;
+    const entry = prev || { payer: r.senderName, payerNameNorm: r.senderNameNorm, jobberClientId: c[0].clientId, clientName: c[0].clientName, evidence: [] };
+    entry.evidence.push({ amount: money(r.amountCents), invoiceNumber: c[0].invoiceNumber, paidOn: new Date(paidAt).toISOString().slice(0, 10), why: c[0].why });
+    byPayer.set(r.senderNameNorm, entry);
+  }
+  return [...byPayer.values()].filter((e) => !e.conflict && e.evidence.length);
+}
+
+/** Store the payer → client pairs the owner kept from learnPreview. */
+async function saveLearnedPayers(userId, pairs = [], db = prismaDefault) {
+  let saved = 0;
+  for (const p of pairs) {
+    if (!p?.payerNameNorm || !p?.jobberClientId) continue;
+    await db.payerAlias.upsert({
+      where: { userId_payerNameNorm: { userId, payerNameNorm: String(p.payerNameNorm) } },
+      update: { jobberClientId: String(p.jobberClientId), clientName: String(p.clientName || ''), source: 'backfill' },
+      create: { userId, payerNameNorm: String(p.payerNameNorm), jobberClientId: String(p.jobberClientId), clientName: String(p.clientName || ''), source: 'backfill' },
+    });
+    saved++;
+  }
+  return saved;
+}
+
 async function setMode(userId, mode, db = prismaDefault) {
   if (!MODES.includes(mode)) throw new Error(`mode must be one of ${MODES.join(', ')}`);
   const r = await db.routine.findUnique({ where: { userId_slug: { userId, slug: SLUG } } });
@@ -410,5 +455,5 @@ async function overview(userId, { status, limit = 100 } = {}, db = prismaDefault
 }
 
 module.exports = {
-  etransferWatchTick, applyOwnerPick, claimToRecord, pendingRecordCount, reportRecorded, resolveFromDashboard, setMode, overview, getMode, SLUG,
+  etransferWatchTick, applyOwnerPick, claimToRecord, pendingRecordCount, reportRecorded, learnPreview, saveLearnedPayers, resolveFromDashboard, setMode, overview, getMode, SLUG,
 };
