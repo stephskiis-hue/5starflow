@@ -231,14 +231,23 @@ async function queuedInvoiceIds(d, userId) {
 async function backfill(d, userId, receipts) {
   const all = await d.jobber.fetchRecentInvoicesWithPayments(userId);
   const tally = { correct: 0, wrong: 0, review: 0, none: 0, unknown: 0 };
+  const hasRecords = all.some((i) => i.payments.length);
   for (const r of receipts) {
     const t = r.receivedAt.getTime();
-    const asThen = all.filter((i) => i.totalCents > 0 && i.client.id && (!i.issuedDate || new Date(i.issuedDate).getTime() <= t + DAY) && !i.payments.some((p) => p.at && new Date(p.at).getTime() < t - 12 * 3600 * 1000))
+    // what was still owing then, and which invoices were paid around this payment: Jobber's payment records when the API
+    // exposes them, otherwise the invoice's own paid date (receivedDate) on a now-paid invoice of exactly this total
+    const paidAt = (i) => (i.receivedDate && i.status === 'paid' ? new Date(i.receivedDate).getTime() : null);
+    const paidBefore = (i) => i.payments.some((p) => p.at && new Date(p.at).getTime() < t - 12 * 3600 * 1000) || (paidAt(i) != null && paidAt(i) < t - 12 * 3600 * 1000);
+    const asThen = all.filter((i) => i.totalCents > 0 && i.client.id && (!i.issuedDate || new Date(i.issuedDate).getTime() <= t + DAY) && !paidBefore(i))
       .map((i) => ({ ...i, cents: i.totalCents }));
     const m = matchReceipt(r, asThen);
-    const paidBy = all.filter((i) => i.payments.some((p) => p.cents === r.amountCents && p.at && Math.abs(new Date(p.at).getTime() - t) < 30 * DAY && new Date(p.at).getTime() >= t - DAY));
+    const near = (at) => at != null && at >= t - DAY && at - t < 30 * DAY;
+    const paidBy = all.filter((i) => (i.payments.length
+      ? i.payments.some((p) => p.cents === r.amountCents && p.at && near(new Date(p.at).getTime()))
+      : near(paidAt(i))));
     let verdict = m.decision === 'review' ? 'review' : m.decision === 'none' ? 'none' : 'unknown';
-    if (m.decision === 'auto') verdict = m.invoices.every((i) => paidBy.some((p) => p.id === i.id)) ? 'correct' : paidBy.length ? 'wrong' : 'unknown';
+    // without payment records a different invoice paid that day proves nothing, so a miss is "unknown", never "wrong"
+    if (m.decision === 'auto') verdict = m.invoices.every((i) => paidBy.some((p) => p.id === i.id)) ? 'correct' : paidBy.length && hasRecords ? 'wrong' : 'unknown';
     tally[verdict]++;
     await applyMatch(d, userId, r, m, 'shadow', { backfill: true });
     await d.db.etransferReceipt.update({ where: { id: r.id }, data: { backfillVerdict: verdict, notifiedAt: d.now() } });

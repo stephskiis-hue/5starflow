@@ -346,3 +346,11 @@ test('the first run grades history silently and sends one summary', async () => 
   assert.match(r.texts[0], /1 it would have matched correctly, 0 wrong/);
   assert.deepEqual(await et.claimToRecord('u1', r.over), []);
 });
+
+test('without payment records the backfill grades by the invoice paid date', async () => {
+  const jane = cl('cj', 'Jane Smith', 'Jane', 'Smith');
+  const r = rig({ seeded: false, emails: { h1: ok({ amount: '313.95', name: 'JANE SMITH', ref: 'C1RD' }) }, invoices: [] });
+  r.over.jobber.fetchRecentInvoicesWithPayments = async () => [{ ...inv(jane, 0, { id: 'iRD', issuedDate: '2020-01-01' }), status: 'paid', totalCents: P, receivedDate: new Date().toISOString(), payments: [] }];
+  await r.tick();
+  assert.equal(r.db.t.etransferReceipt[0].backfillVerdict, 'correct');
+});

@@ -61,6 +61,8 @@ async function schemaInfo(userId) {
     street: ['street1', 'street'].find((n) => has(addr, n)) || null,
     webUri: !!invField('jobberWebUri'),
     issuedDate: !!invField('issuedDate'),
+    receivedDate: !!invField('receivedDate'),     // when the invoice was paid: the backfill's truth when payment records are not exposed
+    invoicePayFields: inv.fields.filter((f) => /pay|paid|receiv/i.test(f.name)).map((f) => f.name),
     statusFilter,
     payments: payField && payNode ? { field: payField, amount: has(payNode, 'amount'), entryDate: has(payNode, 'entryDate') } : null,
     paymentMutations: (mutation?.fields || []).filter((f) => /payment/i.test(f.name)).map((f) => ({ name: f.name, args: (f.args || []).map((a) => `${a.name}: ${unwrap(a.type).name}`) })),
@@ -74,6 +76,7 @@ function invoiceSelection(s, { payments = false } = {}) {
     amounts { total ${s.balance} }
     ${s.street ? `billingAddress { ${s.street} }` : ''}
     client { id name ${s.clientFields.join(' ')} }
+    ${payments && s.receivedDate ? 'receivedDate' : ''}
     ${payments && s.payments ? `${s.payments.field}(first: 5) { nodes { ${s.payments.amount ? 'amount' : ''} ${s.payments.entryDate ? 'entryDate' : ''} } }` : ''}`;
 }
 
@@ -81,7 +84,7 @@ function shape(n, s) {
   const toC = (v) => (v == null ? null : toCents(Number(v).toFixed(2)));
   return {
     id: n.id, invoiceNumber: String(n.invoiceNumber ?? ''), status: String(n.invoiceStatus || '').toLowerCase(),
-    issuedDate: n.issuedDate || null, webUri: n.jobberWebUri || null,
+    issuedDate: n.issuedDate || null, receivedDate: n.receivedDate || null, webUri: n.jobberWebUri || null,
     cents: toC(n.amounts?.[s.balance]), totalCents: toC(n.amounts?.total),
     street: s.street ? n.billingAddress?.[s.street] || null : null,
     client: { id: n.client?.id, name: n.client?.name || '', firstName: n.client?.firstName || '', lastName: n.client?.lastName || '', companyName: n.client?.companyName || null },
