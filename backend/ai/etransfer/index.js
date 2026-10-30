@@ -32,6 +32,7 @@ function deps(over = {}) {
     notify: over.notify || require('../../lib/notify').notify,
     op: over.op || require('../../services/operatorService'),
     createTask: over.createTask || require('../tasks').createTask,
+    completeTask: over.completeTask || require('../tasks').completeByDedupKey,
     now: over.now || (() => new Date()),
   };
 }
@@ -172,10 +173,11 @@ async function etransferWatchTick(ctx = {}, over = {}) {
   let ing;
   try { ing = await ingest(d, userId); }
   catch (e) {
-    if (e.code !== 'NEEDS_SCOPE' && e.code !== 'NOT_CONNECTED') throw e;
-    await d.createTask(userId, { dedupKey: 'etransfer:gmail-read', title: 'Reconnect Gmail so e-transfers can be matched', source: 'system', agent: 'operations', urgency: 'high', routineSlug: SLUG, whatHappened: e.message, recommended: 'Connections page → Gmail → Reconnect, and allow 5StarFlow to read email.' }).catch(() => {});
+    if (!['NEEDS_SCOPE', 'NOT_CONNECTED', 'API_DISABLED'].includes(e.code)) throw e;
+    await d.createTask(userId, { dedupKey: 'etransfer:gmail-read', title: e.code === 'API_DISABLED' ? 'Turn on the Gmail API so e-transfers can be matched' : 'Reconnect Gmail so e-transfers can be matched', source: 'system', agent: 'operations', urgency: 'high', routineSlug: SLUG, whatHappened: e.message, recommended: e.code === 'API_DISABLED' ? 'Google Cloud console → APIs and services → Library → Gmail API → Enable.' : 'Connections page → Gmail → Reconnect, and allow 5StarFlow to read email.' }).catch(() => {});
     return { skipped: true, requires_attention: 1, summary: e.message };
   }
+  await d.completeTask(userId, 'etransfer:gmail-read').catch(() => {});   // reading works again
 
   // owner YES replies the SMS path did not get to (it executes them immediately; this is the safety net)
   const approved = await d.db.operatorProposal.findMany({ where: { userId, category: 'etransfer_match', status: 'approved', executedAt: null } });

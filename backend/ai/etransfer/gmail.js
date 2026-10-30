@@ -24,6 +24,7 @@ async function get(token, path, params) {
   } catch (e) {
     const status = e.response?.status;
     const msg = e.response?.data?.error?.message || e.message;
+    if (status === 403 && /has not been used|is disabled|SERVICE_DISABLED/i.test(msg)) throw fail('The Gmail API is turned off in the Google Cloud project: Google Cloud console → APIs and services → Gmail API → Enable.', 'API_DISABLED');
     if (status === 403 || status === 401) throw fail(`Gmail refused the read (${status}): ${msg}. Reconnect Gmail on the Connections page and allow reading.`, 'NEEDS_SCOPE');
     throw fail(`Gmail ${status || 'ERR'}: ${msg}`, 'GMAIL');
   }

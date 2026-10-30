@@ -242,6 +242,7 @@ function rig({ mode = 'live', emails = {}, invoices = [], seeded = true } = {}) 
     notify: async (_u, n) => { texts.push(n.smsText); },
     op: { createProposal: async ({ payload, summary }) => db.operatorProposal.create({ data: { shortCode: String(++codes).padStart(4, '0'), status: 'pending', category: 'etransfer_match', payload, summary } }), executeProposal: async () => ({}) },
     createTask: async () => ({}),
+    completeTask: async () => ({}),
   };
   if (seeded) db.t.etransferReceipt.push({ id: 'seed', userId: 'u1', gmailMessageId: 'old', referenceNumber: 'OLD', status: 'recorded', backfill: true, receivedAt: new Date(0) });
   return { db, texts, live, over, tick: () => et.etransferWatchTick({ userId: 'u1' }, over) };
