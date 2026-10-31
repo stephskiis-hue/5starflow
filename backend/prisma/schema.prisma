@@ -1415,41 +1415,45 @@ model WfpAssignment {
 // Gmail message id are each unique, so a payment is matched, recorded and texted about exactly once.
 // status: new | matched (shadow: would record) | to_record | recorded | needs_review | no_match | ignored | failed
 model EtransferReceipt {
-  id              String    @id @default(cuid())
-  userId          String
-  gmailMessageId  String
-  referenceNumber String
-  senderName      String
-  senderNameNorm  String
-  amountCents     Int
-  sentDate        DateTime?
-  receivedAt      DateTime
-  message         String?
-  senderBank      String?
-  kind            String // deposited | pending_accept | cancelled | request | other
-  authOk          Boolean   @default(false) // DMARC/SPF passed for payments.interac.ca
-  status          String    @default("new")
-  matchKind       String? // name_amount | alias_amount | invoice_in_message | multi_invoice | owner_pick
-  reason          String?
-  jobberInvoiceId String?
-  invoiceNumber   String?
-  invoiceIds      Json? // [{id, invoiceNumber, webUri, payCents, balanceBefore}]: what to record on each invoice
-  jobberClientId  String?
-  clientName      String?
-  jobberWebUri    String?
-  candidates      Json? // [{invoiceId, invoiceNumber, clientName, cents, why}] shown to the owner for review
-  proposalIds     Json?
-  queuedAt        DateTime? // when it became to_record; still unrecorded 3 hours later → failed + link text
-  recordAttempts  Int       @default(0)
-  recordClaimedAt DateTime?
-  markedAt        DateTime? // the recorder said it saved the payment in Jobber
-  verifiedAt      DateTime?
-  notifiedAt      DateTime?
-  backfill        Boolean   @default(false)
-  backfillVerdict String? // correct | wrong | review | none | unknown (what the owner actually marked paid)
-  error           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  userId           String
+  gmailMessageId   String
+  referenceNumber  String
+  senderName       String
+  senderNameNorm   String
+  amountCents      Int
+  sentDate         DateTime?
+  receivedAt       DateTime
+  message          String?
+  senderBank       String?
+  kind             String // deposited | pending_accept | cancelled | request | other
+  authOk           Boolean   @default(false) // DMARC/SPF passed for payments.interac.ca
+  status           String    @default("new")
+  matchKind        String? // name_amount | alias_amount | invoice_in_message | multi_invoice | owner_pick | reasoned: fuzzy_name_amount | message_name_amount | address_amount | evidence_amount | unique_recent
+  reason           String?
+  evidence         Json? // ["name","address","recent",...]: the clues behind the match (match.js EVIDENCE)
+  outcome          String? // pending | confirmed | unconfirmed | wrong: did the match turn out right (confirm sweep, owner picks, Wrong match)
+  outcomeAt        DateTime?
+  outcomeCheckedAt DateTime? // last time the confirm sweep re-read the invoice
+  jobberInvoiceId  String?
+  invoiceNumber    String?
+  invoiceIds       Json? // [{id, invoiceNumber, webUri, payCents, balanceBefore}]: what to record on each invoice
+  jobberClientId   String?
+  clientName       String?
+  jobberWebUri     String?
+  candidates       Json? // [{invoiceId, invoiceNumber, clientName, cents, why}] shown to the owner for review
+  proposalIds      Json?
+  queuedAt         DateTime? // when it became to_record; still unrecorded 3 hours later → failed + link text
+  recordAttempts   Int       @default(0)
+  recordClaimedAt  DateTime?
+  markedAt         DateTime? // the recorder said it saved the payment in Jobber
+  verifiedAt       DateTime?
+  notifiedAt       DateTime?
+  backfill         Boolean   @default(false)
+  backfillVerdict  String? // correct | wrong | review | none | unknown (what the owner actually marked paid)
+  error            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@unique([userId, referenceNumber])
   @@unique([userId, gmailMessageId])
@@ -1465,7 +1469,7 @@ model PayerAlias {
   payerNameNorm  String
   jobberClientId String
   clientName     String   @default("")
-  source         String   @default("owner_confirmed") // owner_confirmed | backfill
+  source         String   @default("owner_confirmed") // owner_confirmed | backfill | learned (a reasoned match that was confirmed)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

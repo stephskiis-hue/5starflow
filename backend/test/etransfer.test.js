@@ -2,7 +2,7 @@ process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://x:x@localho
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { parseInterac, normName, toCents } = require('../ai/etransfer/parse');
-const { matchReceipt } = require('../ai/etransfer/match');
+const { matchReceipt, equivalencesFrom } = require('../ai/etransfer/match');
 
 // Real Interac layouts (Oct 2026 inbox), names and references changed.
 const AUTH_OK = [{ name: 'Authentication-Results', value: 'mx.google.com; dkim=pass header.i=@payments.interac.ca header.s=s1 header.b=abc; spf=pass (google.com: domain of bounce@payments.interac.ca designates 1.2.3.4 as permitted sender) smtp.mailfrom=bounce@payments.interac.ca; dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=payments.interac.ca' }];
@@ -80,7 +80,7 @@ test('not-yet-deposited, outgoing and failed-auth emails are flagged', () => {
 let seq = 0;
 const inv = (client, cents, over = {}) => ({ id: `inv${++seq}`, invoiceNumber: String(900 + seq), cents, issuedDate: `2026-10-${String(10 + (seq % 18)).padStart(2, '0')}`, webUri: `https://secure.getjobber.com/invoices/${seq}`, street: null, client, ...over });
 const cl = (id, name, firstName, lastName, companyName = null) => ({ id, name, firstName, lastName, companyName });
-const rec = (senderName, amountCents, message = null) => ({ senderName, senderNameNorm: normName(senderName), amountCents, message });
+const rec = (senderName, amountCents, message = null, over = {}) => ({ senderName, senderNameNorm: normName(senderName), amountCents, message, ...over });
 
 const P = 31395;   // the spring price
 const crowd = () => Array.from({ length: 50 }, (_, i) => inv(cl(`c${i}`, `Client ${i} Person`, `Client${i}`, 'Person'), P));
@@ -184,16 +184,87 @@ test('street number in the message is a hint for review, not a match', () => {
 test('a payment made before the invoice exists matches once it does', () => {
   const pat = cl('pt', 'Pat Ng', 'Pat', 'Ng');
   const r1 = matchReceipt(rec('PAT NG', 4300), [inv(cl('z', 'Zed Ox', 'Zed', 'Ox'), 4300)]);
-  assert.equal(r1.decision, 'none');
+  assert.equal(r1.decision, 'review', 'someone else\'s old invoice of that amount is only flagged');
   const r2 = matchReceipt(rec('PAT NG', 4300), [inv(pat, 4300)]);
   assert.equal(r2.decision, 'auto');
+});
+
+
+// ------------------------------------------------------------------ reasoning: evidence beyond the full name
+const R = 18900;
+const few = () => [inv(cl('o1', 'Olive Brand', 'Olive', 'Brand'), R), inv(cl('o2', 'Hugo Lane', 'Hugo', 'Lane'), R)];
+
+test('Rostosky: same last name, the client and the street in the message → auto, with every clue in the reason', () => {
+  const jen = cl('kr', 'Jen Rostosky', 'Jen', 'Rostosky');
+  const target = inv(jen, R, { street: '37 Tallgrass Cres' });
+  const r = matchReceipt(rec('KYLE ROSTOSKY', R, 'Rostosky 37 Tallgrass'), [...few(), target]);
+  assert.equal(r.decision, 'auto');
+  assert.equal(r.invoices[0].id, target.id);
+  assert.match(r.reason, /same last name/);
+  assert.match(r.reason, /message names the client/);
+  assert.match(r.reason, /street address in the message/);
+});
+
+test('a first-name-only client ("Kyle", "Mr Kyle") is found by the street, or by being the only invoice of that amount', () => {
+  const kyle = inv(cl('ky', 'Kyle', 'Kyle', ''), R, { street: '37 Tallgrass Cres' });
+  const r = matchReceipt(rec('KYLE ROSTOSKY', R, 'Rostosky 37 Tallgrass'), [...few(), kyle]);
+  assert.equal(r.decision, 'auto');
+  assert.equal(r.invoices[0].id, kyle.id);
+  const mr = inv(cl('mk', 'Mr Kyle', 'Mr', 'Kyle'), R, { issuedDate: '2026-01-05' });
+  const r2 = matchReceipt(rec('KYLE ROSTOSKY', R), [mr]);
+  assert.equal(r2.decision, 'auto');
+  assert.equal(r2.matchKind, 'evidence_amount');
+});
+
+test('MAXIME pays for Max: the same person, even in the spring crowd', () => {
+  const max = inv(cl('mx', 'Max Tremblay', 'Max', 'Tremblay'), P);
+  const r = matchReceipt(rec('MAXIME TREMBLAY', P), [...crowd(), max]);
+  assert.equal(r.decision, 'auto');
+  assert.equal(r.matchKind, 'fuzzy_name_amount');
+  assert.equal(r.invoices[0].id, max.id);
+  const bob = matchReceipt(rec('ROBERT KING', P), [...crowd(), inv(cl('bk', 'Bob King', 'Bob', 'King'), P)]);
+  assert.equal(bob.decision, 'auto', 'a known nickname');
+});
+
+test('MAXIME is not Maxine: a different first name with the same last name only asks', () => {
+  const r = matchReceipt(rec('MAXIME SMITH', P), [...crowd(), inv(cl('ms', 'Maxine Smith', 'Maxine', 'Smith'), P)]);
+  assert.equal(r.decision, 'review');
+});
+
+test('the only open invoice of that amount, made days before the payment → auto; an old one is only flagged', () => {
+  const zed = inv(cl('z', 'Zed Ox', 'Zed', 'Ox'), 4300, { issuedDate: '2026-10-15' });
+  const r = matchReceipt(rec('PAT NG', 4300, null, { receivedAt: new Date('2026-10-20T15:00:00Z') }), [zed, ...few()]);
+  assert.equal(r.decision, 'auto');
+  assert.equal(r.matchKind, 'unique_recent');
+  assert.match(r.reason, /5 day\(s\) before/);
+  const old = matchReceipt(rec('PAT NG', 4300, null, { receivedAt: new Date('2026-10-20T15:00:00Z') }), [{ ...zed, issuedDate: '2026-08-01' }]);
+  assert.equal(old.decision, 'review');
+  assert.equal(old.candidates.length, 1);
+});
+
+test('two invoices of the same amount and nothing tells them apart → flagged, never matched (recency does not break the tie)', () => {
+  const at = { receivedAt: new Date('2026-10-20T15:00:00Z') };
+  const a = inv(cl('a1', 'Ann Bee', 'Ann', 'Bee'), 5500, { issuedDate: '2026-10-18' });
+  const b = inv(cl('b1', 'Cal Dee', 'Cal', 'Dee'), 5500, { issuedDate: '2026-07-01' });
+  const r = matchReceipt(rec('PAT NG', 5500, null, at), [a, b]);
+  assert.equal(r.decision, 'review');
+  assert.equal(r.candidates.length, 2);
+});
+
+test('a first-name pair learned from a confirmed payer helps the next person with those names', () => {
+  const gus = () => [...crowd(), inv(cl('ka', 'Konstantinos Allen', 'Konstantinos', 'Allen'), P)];
+  assert.equal(matchReceipt(rec('GUS ALLEN', P), gus()).decision, 'review');
+  const equivalences = equivalencesFrom([{ payerNameNorm: 'GUS PETERS', clientName: 'Konstantinos Peters' }]);
+  const r = matchReceipt(rec('GUS ALLEN', P), gus(), new Map(), { equivalences });
+  assert.equal(r.decision, 'auto');
+  assert.equal(r.matchKind, 'fuzzy_name_amount');
 });
 
 // ------------------------------------------------------------------ the tick, with fakes for Prisma, Gmail and Jobber
 const et = require('../ai/etransfer');
 
 function fakeDb(mode = 'live') {
-  const t = { etransferReceipt: [], payerAlias: [], operatorProposal: [] };
+  const t = { etransferReceipt: [], payerAlias: [], operatorProposal: [], cachedJobberClient: [] };
   let n = 0;
   const match = (row, where = {}) => Object.entries(where).every(([k, v]) => {
     if (k === 'OR') return v.some((w) => match(row, w));
@@ -217,11 +288,12 @@ function fakeDb(mode = 'live') {
     update: async ({ where, data }) => apply(t[name].find((r) => r.id === where.id), data),
     updateMany: async ({ where, data }) => { const rows = t[name].filter((r) => match(r, where)); rows.forEach((r) => apply(r, data)); return { count: rows.length }; },
     upsert: async ({ where, create, update }) => { const r = t[name].find((x) => match(x, where)); return r ? apply(r, update) : model(name).create({ data: create }); },
+    delete: async ({ where }) => { const i = t[name].findIndex((r) => r.id === where.id); return t[name].splice(i, 1)[0]; },
   });
   return {
     t,
     etransferReceipt: model('etransferReceipt', [['userId', 'referenceNumber'], ['userId', 'gmailMessageId']]),
-    payerAlias: model('payerAlias'), operatorProposal: model('operatorProposal'),
+    payerAlias: model('payerAlias'), operatorProposal: model('operatorProposal'), cachedJobberClient: model('cachedJobberClient'),
     routine: { findUnique: async () => ({ id: 'r1', config: { mode } }) },
   };
 }
@@ -306,8 +378,8 @@ test('an invoice the owner already marked paid is closed without recording it ag
 });
 
 test('unsure match: one text with YES codes, and a YES remembers the payer', async () => {
-  const irina = cl('ir', 'Irina', 'Irina', '');
-  const r = rig({ emails: { m1: ok({ amount: '97.11', name: 'IRINA PETROVA', ref: 'C1Ir' }) }, invoices: [inv(irina, 9711, { id: 'iI', invoiceNumber: '955' })] });
+  const olga = cl('ir', 'Olga', 'Olga', '');
+  const r = rig({ emails: { m1: ok({ amount: '97.11', name: 'IRINA PETROVA', ref: 'C1Ir' }) }, invoices: [inv(olga, 9711, { id: 'iI', invoiceNumber: '955', issuedDate: '2026-01-05' })] });
   await r.tick();
   const row = r.db.t.etransferReceipt.find((x) => x.referenceNumber === 'C1Ir');
   assert.equal(row.status, 'needs_review');
@@ -367,4 +439,74 @@ test('history teaches a payer name only when the suggested invoice was the one a
   assert.equal(await et.saveLearnedPayers('u1', pairs, r.db), 1);
   assert.equal(r.db.t.payerAlias[0].source, 'backfill');
   assert.deepEqual(await et.learnPreview('u1', r.over), [], 'an already-known payer is not offered again');
+});
+
+// ------------------------------------------------------------------ guards, re-checks and learning in the tick
+test('a payer who is a Jobber client of their own is never matched to someone else by reasoning', async () => {
+  const r = rig({ emails: { m1: ok({ amount: '189.00', name: 'KYLE ROSTOSKY', ref: 'C1Own' }) }, invoices: [inv(cl('ky', 'Kyle', 'Kyle', ''), R, { id: 'iK', issuedDate: '2026-01-05' })] });
+  r.db.t.cachedJobberClient.push({ userId: 'u1', jobberClientId: 'other', name: 'Kyle Rostosky' });
+  await r.tick();
+  const row = r.db.t.etransferReceipt.find((x) => x.referenceNumber === 'C1Own');
+  assert.equal(row.status, 'needs_review');
+  assert.match(r.texts[0], /Jobber client of their own/);
+});
+
+test('a waiting e-transfer matches itself once the invoice is made, and its YES codes expire', async () => {
+  const r = rig({ emails: { m1: ok({ amount: '43.00', name: 'PAT NG', ref: 'C1Wait' }) }, invoices: [inv(cl('a', 'Ann Bee', 'Ann', 'Bee'), 4300, { id: 'x1' }), inv(cl('b', 'Cal Dee', 'Cal', 'Dee'), 4300, { id: 'x2' })] });
+  await r.tick();
+  const row = r.db.t.etransferReceipt.find((x) => x.referenceNumber === 'C1Wait');
+  assert.equal(row.status, 'needs_review');
+  assert.equal(r.db.t.operatorProposal.length, 2);
+  await r.tick();
+  assert.equal(r.texts.length, 1, 'still unsure: no second text');
+  r.live.set('iP', inv(cl('pt', 'Pat Ng', 'Pat', 'Ng'), 4300, { id: 'iP' }));
+  await r.tick();
+  assert.equal(row.status, 'to_record');
+  assert.equal(row.jobberInvoiceId, 'iP');
+  assert.ok(r.db.t.operatorProposal.every((p) => p.status === 'expired'));
+  assert.equal(r.texts.length, 2);
+});
+
+test('a recent history row the first run only flagged (Rostosky, 3 days ago) is solved when its invoice is still open', async () => {
+  const jen = cl('kr', 'Jen Rostosky', 'Jen', 'Rostosky');
+  const r = rig({ mode: 'shadow', invoices: [inv(jen, R, { id: 'iRo', street: '37 Tallgrass Cres' }), ...few()] });
+  r.db.t.etransferReceipt.push({ id: 'hist', userId: 'u1', backfill: true, status: 'needs_review', kind: 'deposited', authOk: true, senderName: 'KYLE ROSTOSKY', senderNameNorm: 'KYLE ROSTOSKY', amountCents: R, message: 'Rostosky 37 Tallgrass', referenceNumber: 'C1AJ', receivedAt: new Date(Date.now() - 3 * 24 * 3600 * 1000), proposalIds: null });
+  await r.tick();
+  const row = r.db.t.etransferReceipt.find((x) => x.id === 'hist');
+  assert.equal(row.status, 'matched');
+  assert.equal(row.jobberInvoiceId, 'iRo');
+  assert.match(r.texts[0], /^\[Test mode\].*KYLE ROSTOSKY.*same last name/);
+});
+
+test('a confirmed reasoned match teaches the payer name; a wrong one forgets it and makes that kind ask', async () => {
+  const max = cl('mx', 'Max Tremblay', 'Max', 'Tremblay');
+  const r = rig({ mode: 'shadow', emails: { m1: ok({ amount: '313.95', name: 'MAXIME TREMBLAY', ref: 'C1Mx' }) }, invoices: [inv(max, P, { id: 'iMx' }), ...crowd()] });
+  await r.tick();
+  const row = r.db.t.etransferReceipt.find((x) => x.referenceNumber === 'C1Mx');
+  assert.equal(row.status, 'matched');
+  assert.equal(row.outcome, 'pending');
+
+  Object.assign(r.live.get('iMx'), { cents: 0, status: 'paid', receivedDate: new Date().toISOString() });
+  await r.tick();
+  assert.equal(row.outcome, 'confirmed');
+  assert.deepEqual(r.db.t.payerAlias.map((a) => [a.payerNameNorm, a.jobberClientId, a.source]), [['MAXIME TREMBLAY', 'mx', 'learned']]);
+
+  const tasks = [];
+  r.over.createTask = async (_u, t) => { tasks.push(t); };
+  const res = await et.markWrong('u1', row.id, r.over);
+  assert.equal(res.ok, true);
+  assert.equal(row.status, 'needs_review');
+  assert.equal(row.outcome, 'wrong');
+  assert.equal(r.db.t.payerAlias.length, 0, 'what the wrong match taught is forgotten');
+  assert.match(tasks[0].title, /name looks like the client/);
+
+  const jones = cl('mj', 'Max Jones', 'Max', 'Jones');
+  r.live.set('iJn', inv(jones, P, { id: 'iJn' }));
+  r.over.gmail.listInteracIds = async () => ({ token: 't', ids: ['m2'] });
+  r.over.gmail.getMessage = async (_t, id) => ({ id, ...ok({ amount: '313.95', name: 'MAXIME JONES', ref: 'C1Mj' }), receivedAt: new Date() });
+  await r.tick();
+  const next = r.db.t.etransferReceipt.find((x) => x.referenceNumber === 'C1Mj');
+  assert.equal(next.status, 'needs_review', 'the same kind of reasoning now asks');
+  assert.match(next.reason, /wrong recently/);
+  assert.equal(row.status, 'needs_review', 'the wrong one is not matched again');
 });

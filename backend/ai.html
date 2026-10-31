@@ -407,6 +407,22 @@
     recorded: ['b-ok', 'paid in Jobber'], matched: ['b-ok', 'matched (test)'], ignored: ['b-mute', 'ignored'], new: ['b-mute', 'new'],
   };
   const money = (c) => '$' + (Number(c || 0) / 100).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const PAY_KIND = { name_amount: 'full name', alias_amount: 'known payer', multi_invoice: 'several invoices', invoice_in_message: 'invoice # in the message', owner_pick: 'you picked' };
+  const PAY_CLUE = { name: 'name looks like the client', last: 'same last name', first: 'same first name', message_name: 'message names the client', address: 'address in the message', street_number: 'street number', unique: 'only invoice of this amount', recent: 'invoice made recently', invoice_number: 'invoice # in the message' };
+  const PAY_OUTCOME = { pending: ['b-mute', 'checking'], confirmed: ['b-ok', 'confirmed'], unconfirmed: ['b-mute', 'unconfirmed'], wrong: ['b-bad', 'wrong'] };
+  function payAccuracy(d) {
+    const kinds = Object.entries(d.accuracy || {});
+    const label = (k) => (d.kindLabels || {})[k] || PAY_KIND[k] || k;
+    const rows = kinds.map(([k, a]) => `<tr class="border-t border-white/5"><td class="py-1 pr-3 text-zinc-200">${esc(label(k))}${(d.demoted || []).includes(k) ? ' <span class="badge b-warn">asks you for now</span>' : ''}</td>
+      <td class="py-1 pr-3 text-secondary">${a.confirmed || 0}</td><td class="py-1 pr-3 ${a.wrong ? 'text-red-300 font-bold' : 'text-zinc-500'}">${a.wrong || 0}</td><td class="py-1 pr-3 text-zinc-500">${(a.pending || 0) + (a.unconfirmed || 0)}</td>
+      <td class="py-1 text-zinc-400">${a.history.correct || 0} right · <span class="${a.history.wrong ? 'text-red-300 font-bold' : ''}">${a.history.wrong || 0} wrong</span></td></tr>`).join('');
+    const learned = (d.learned || []).map((a) => `<div class="flex items-center gap-2 py-1 border-t border-white/5" data-alias="${esc(a.payer)}"><span class="text-sm text-zinc-200">${esc(a.payer)}</span><span class="text-xs text-zinc-500">pays for ${esc(a.clientName)}</span><span class="badge b-mute">${esc({ owner_confirmed: 'you said', backfill: 'history', learned: 'learned' }[a.source] || a.source)}</span>${state.isOwner ? '<button class="btn ml-auto" data-payforget="1">Forget</button>' : ''}</div>`).join('');
+    return `<div class="glass-card rounded-xl p-5 mb-4">
+      <div class="flex items-center gap-2 flex-wrap"><span class="text-sm font-semibold text-zinc-100">How the matcher is doing</span>${state.isOwner ? '<button class="btn ml-auto" data-payregrade="1">Re-check history with today\'s rules</button>' : ''}</div>
+      ${rows ? `<div class="overflow-x-auto"><table class="text-xs mt-3 w-full"><thead><tr class="text-zinc-500 text-left"><th class="pr-3 font-normal">Matched by</th><th class="pr-3 font-normal">Confirmed</th><th class="pr-3 font-normal">Wrong</th><th class="pr-3 font-normal">Waiting</th><th class="font-normal">History</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="text-xs text-zinc-500 mt-2">Nothing matched yet.</p>'}
+      ${learned ? `<details class="mt-3"><summary class="text-xs text-zinc-400 cursor-pointer">Payer names it knows (${d.learned.length})</summary><div class="mt-2">${learned}</div></details>` : ''}
+    </div>`;
+  }
   async function loadPayments() {
     const d = await api('/etransfers' + (state.payFilter ? '?status=' + encodeURIComponent(state.payFilter) : ''));
     setBadge('badge-payments', (d.counts.needs_review || 0) + (d.counts.failed || 0));
@@ -416,25 +432,30 @@
     $('tab-payments').innerHTML = `
       <div class="glass-card rounded-xl p-5 mb-4">
         <div class="flex items-center gap-2 flex-wrap"><span class="badge ${modeTxt[0]}">${esc(d.mode)}</span><span class="text-sm text-zinc-200">${esc(modeTxt[1])}</span>${d.dryRun ? '<span class="badge b-bad">DRY_RUN: nothing is recorded</span>' : ''}</div>
-        <p class="text-xs text-zinc-500 mt-2">Every Interac deposit email is matched to one unpaid invoice by full name (or a payer you confirmed) plus the exact amount. The amount alone never matches. You get a text for every e-transfer.</p>
+        <p class="text-xs text-zinc-500 mt-2">Every Interac deposit email is matched to one unpaid invoice of the exact amount by the payer's name, a name it learned, the message (name, street, invoice #) or, for the only open invoice of that amount, a recent invoice date. When two invoices can't be told apart it asks you instead. Press Wrong match on any mistake: it forgets what that match taught and asks you about that kind of match for 60 days. You get a text for every e-transfer.</p>
         ${bfTotal ? `<p class="text-sm text-zinc-300 mt-3">First look at your last 90 days (${bfTotal} e-transfers): <span class="text-secondary">${bf.correct || 0} correct</span> · <span class="${bf.wrong ? 'text-red-300 font-bold' : 'text-zinc-400'}">${bf.wrong || 0} wrong</span> · ${bf.review || 0} would ask you · ${(bf.none || 0) + (bf.unknown || 0)} no match or unsure</p>` : ''}
         ${state.isOwner ? `<div class="flex gap-2 mt-3 flex-wrap">${['shadow', 'live', 'off'].filter((m) => m !== d.mode).map((m) => `<button class="btn ${m === 'live' ? 'btn-go' : ''}" data-paymode="${m}">${m === 'live' ? 'Go live' : m === 'shadow' ? 'Back to test mode' : 'Turn off'}</button>`).join('')}</div>` : ''}
       </div>
       <div class="tabs-scroll mb-4">${chips.map(([k, l]) => `<button class="btn ${state.payFilter === k ? 'tab-active' : ''}" data-payfilter="${k}">${esc(l)}${k && d.counts[k] ? ` (${d.counts[k]})` : ''}</button>`).join('')}</div>
+      ${payAccuracy(d)}
       ${d.items.length ? d.items.map(payRow).join('') : empty('payments', 'No e-transfers yet', 'Interac deposit emails show up here within 15 minutes, 8 am to 10 pm.')}`;
   }
   function payRow(r) {
     const [cls, label] = PAY_STATUS[r.status] || ['b-mute', r.status];
     const invs = (r.invoiceIds || []).map((i) => i.webUri ? `<a class="underline" href="${esc(i.webUri)}" target="_blank" rel="noopener">#${esc(i.invoiceNumber)}</a>` : '#' + esc(i.invoiceNumber)).join(' + ');
-    const open = ['needs_review', 'no_match', 'failed'].includes(r.status) && !r.backfill;
+    const open = ['needs_review', 'no_match', 'failed'].includes(r.status) && (!r.backfill || (r.candidates || []).length > 0);
+    const matched = ['matched', 'to_record', 'recorded'].includes(r.status) && r.matchKind !== 'owner_pick';
     const verdict = r.backfill && r.backfillVerdict ? `<span class="badge ${r.backfillVerdict === 'correct' ? 'b-ok' : r.backfillVerdict === 'wrong' ? 'b-bad' : 'b-mute'}">history: ${esc(r.backfillVerdict)}</span>` : '';
+    const outcome = r.outcome && PAY_OUTCOME[r.outcome] ? `<span class="badge ${PAY_OUTCOME[r.outcome][0]}">${esc(PAY_OUTCOME[r.outcome][1])}</span>` : '';
+    const clues = (r.evidence || []).filter((e) => PAY_CLUE[e]).map((e) => `<span class="badge b-mute">${esc(PAY_CLUE[e])}</span>`).join(' ');
     return `<div class="glass-card rounded-xl p-4 mb-3" data-pay="${esc(r.id)}">
-      <div class="flex items-center gap-2 flex-wrap"><span class="text-lg font-black text-zinc-100">${money(r.amountCents)}</span><span class="text-sm text-zinc-200">${esc(r.senderName)}</span><span class="badge ${cls}">${esc(label)}</span>${verdict}<span class="text-xs text-zinc-500 ml-auto">${esc(ago(r.receivedAt))}</span></div>
+      <div class="flex items-center gap-2 flex-wrap"><span class="text-lg font-black text-zinc-100">${money(r.amountCents)}</span><span class="text-sm text-zinc-200">${esc(r.senderName)}</span><span class="badge ${cls}">${esc(label)}</span>${verdict}${outcome}<span class="text-xs text-zinc-500 ml-auto">${esc(ago(r.receivedAt))}</span></div>
       ${invs ? `<p class="text-sm text-zinc-300 mt-2">Invoice ${invs} · ${esc(r.clientName || '')}</p>` : ''}
-      ${r.reason ? `<p class="text-xs text-zinc-400 mt-1">${esc(r.reason)}</p>` : ''}${r.error ? `<p class="text-xs text-red-300 mt-1">${esc(r.error)}</p>` : ''}
+      ${r.reason ? `<p class="text-xs text-zinc-400 mt-1">${esc(r.reason)}</p>` : ''}${clues ? `<div class="flex gap-1 flex-wrap mt-1">${clues}</div>` : ''}${r.error ? `<p class="text-xs text-red-300 mt-1">${esc(r.error)}</p>` : ''}
       ${r.message ? `<p class="text-xs text-zinc-400 mt-1">Message: “${esc(r.message)}”</p>` : ''}
       <p class="text-xs text-zinc-600 mt-1 break-all">Ref ${esc(r.referenceNumber)}${r.senderBank ? ' · ' + esc(r.senderBank) : ''}</p>
       ${open && state.isOwner ? `<div class="flex gap-2 mt-3 flex-wrap">${(r.candidates || []).map((c) => `<button class="btn btn-go" data-paypick="${esc(c.invoiceId)}">Inv #${esc(c.invoiceNumber)} ${esc(c.clientName)} ${money(c.cents)}</button>`).join('')}<button class="btn" data-payignore="1">Ignore (handled)</button></div>` : ''}
+      ${matched && state.isOwner && r.outcome !== 'wrong' ? '<div class="flex gap-2 mt-3"><button class="btn btn-no" data-paywrong="1">Wrong match</button></div>' : ''}
     </div>`;
   }
   document.addEventListener('click', async (e) => {
@@ -444,6 +465,26 @@
       if (m.dataset.paymode === 'live' && !confirm('Go live? Exact matches will be recorded as paid in Jobber by the MSI recorder, and each one is double-checked against the invoice balance.')) return;
       m.disabled = true;
       try { await api('/etransfers/mode', { method: 'POST', body: { mode: m.dataset.paymode } }); toast('E-transfer matcher: ' + m.dataset.paymode); await loadPayments(); } catch (err) { toast(err.message); m.disabled = false; }
+      return;
+    }
+    const w = e.target.closest('[data-paywrong]');
+    if (w) {
+      if (!confirm('Mark this match as wrong? It goes back to you to pick the right invoice, and this kind of match will ask you first for 60 days.')) return;
+      w.disabled = true;
+      try { const r = await api(`/etransfers/${w.closest('[data-pay]').dataset.pay}/wrong`, { method: 'POST' }); toast(r.note || 'Marked wrong'); await loadPayments(); } catch (err) { toast(err.message); w.disabled = false; }
+      return;
+    }
+    const g = e.target.closest('[data-payregrade]');
+    if (g) {
+      g.disabled = true; toast('Re-checking the history, this takes a minute');
+      try { const r = await api('/etransfers/regrade', { method: 'POST' }); toast(r.summary || 'Done'); await loadPayments(); } catch (err) { toast(err.message); g.disabled = false; }
+      return;
+    }
+    const fg = e.target.closest('[data-payforget]');
+    if (fg) {
+      const payer = fg.closest('[data-alias]').dataset.alias;
+      if (!confirm(`Forget that ${payer} pays for this client?`)) return;
+      try { await api('/etransfers/learn/' + encodeURIComponent(payer), { method: 'DELETE' }); toast('Forgotten'); await loadPayments(); } catch (err) { toast(err.message); }
       return;
     }
     const b = e.target.closest('[data-paypick],[data-payignore]'); if (!b) return;

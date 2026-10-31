@@ -102,7 +102,7 @@ lib/taskKeys.js     convTaskKey(channel, phone): ONE dedupKey per conversation (
 ai/design/          design-system layouts + renderer.js (Playwright) + qa.js (brand lint)   ai/vault.js content.js social.js (daily caps)
 ai/prompts/         prompts for the Claude routines (Night Studio, Social Shift, Inbox Watch, Morning Brief, Blog Autopilot)
 ai/seo/             SEO Growth Engine: Search Console sync, site/sitemap/index watch, Serper keyword roadmap, blog assignments, focus campaigns (focus.js, see ai/README.md)
-ai/etransfer/       E-transfer → Jobber matcher: Gmail Interac reader, strict name+amount matcher (amount alone never matches), owner YES approvals, MSI recorder hand-off verified against the invoice balance (see ai/README.md)
+ai/etransfer/       E-transfer → Jobber matcher: Gmail Interac reader, name/clue reasoning over exact-amount invoices (a crowd never matches on amount; ties are flagged), guards + self-learning outcomes (Wrong match demotes), owner YES approvals, MSI recorder hand-off verified against the invoice balance (see ai/README.md)
 ai/site/            Server-side website publisher: checks, renders and uploads blog posts/pages over FTP, keeps posts.json, blog.html and the sitemaps in step (no AI; see ai/README.md)
 .claude/skills/nobs-*   skills the routines load (api, brand, content, facebook, communication, research)
 ```

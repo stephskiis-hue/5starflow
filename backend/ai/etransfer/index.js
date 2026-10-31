@@ -11,10 +11,14 @@
  * Unsure matches become YES/NO approvals (OperatorProposal category etransfer_match); a YES saves a PayerAlias so the
  * same payer matches on their own next time. The first run backfills 90 days silently and scores itself against what
  * the owner actually marked paid (the go-live check on the E-transfers tab).
+ *
+ * Self-learning: every match gets an outcome (confirmOutcomes: the invoice was paid around the e-transfer, or a week in
+ * Jobber without "Wrong match"). A confirmed reasoned match teaches the payer's name; a wrong one forgets it and makes
+ * that kind of reasoning ask the owner for 60 days.
  */
 const prismaDefault = require('../../lib/prismaClient');
-const { parseInterac } = require('./parse');
-const { matchReceipt, fmt } = require('./match');
+const { parseInterac, normName } = require('./parse');
+const { matchReceipt, fmt, equivalencesFrom, REASONED_KINDS } = require('./match');
 
 const SLUG = 'etransfer-watch';
 const MODES = ['off', 'shadow', 'live'];
@@ -23,6 +27,16 @@ const RECORD_DEADLINE_MS = 3 * 3600 * 1000;
 const MAX_RECORD_ATTEMPTS = 3;
 const PROPOSAL_TTL_HOURS = 72;
 const DAY = 24 * 3600 * 1000;
+const DEMOTE_DAYS = 60;            // a reasoned match kind that was wrong only asks for this long
+const UNCONFIRMED_DAYS = 14;       // test mode: a matched invoice still unpaid after this is "unconfirmed"
+const LIVE_CONFIRM_DAYS = 7;       // live mode: a recorded match nobody called wrong for a week is "confirmed"
+const SWEEP_PER_RUN = 10;
+const SWEEP_EVERY_MS = 6 * 3600 * 1000;
+const LEARNS_FROM = [...REASONED_KINDS, 'invoice_in_message'];
+const KIND_LABEL = {
+  fuzzy_name_amount: 'name looks like the client', message_name_amount: 'message names the client', address_amount: 'address in the message',
+  evidence_amount: 'small clues together', unique_recent: 'only recent invoice of that amount',
+};
 
 function deps(over = {}) {
   return {
@@ -90,20 +104,26 @@ function plan(m) {
 }
 
 async function applyMatch(d, userId, receipt, m, mode, { backfill = false } = {}) {
-  const base = { matchKind: m.matchKind || null, reason: m.reason, candidates: m.candidates?.length ? m.candidates : null };
+  const base = { matchKind: m.matchKind || null, reason: m.reason, candidates: m.candidates?.length ? m.candidates : null, evidence: m.evidence || null };
   if (m.decision === 'auto') {
     const list = plan(m);
     const first = list[0];
     const status = mode === 'live' && !backfill ? 'to_record' : 'matched';
     const row = await d.db.etransferReceipt.update({
       where: { id: receipt.id },
-      data: { ...base, status, jobberInvoiceId: first.id, invoiceNumber: list.map((i) => i.invoiceNumber).join(', '), invoiceIds: list, jobberClientId: m.client.id, clientName: m.client.name, jobberWebUri: first.webUri, queuedAt: status === 'to_record' ? d.now() : null },
+      data: {
+        ...base, status, jobberInvoiceId: first.id, invoiceNumber: list.map((i) => i.invoiceNumber).join(', '), invoiceIds: list, jobberClientId: m.client.id, clientName: m.client.name, jobberWebUri: first.webUri,
+        queuedAt: status === 'to_record' ? d.now() : null, ...(backfill ? {} : { outcome: 'pending', outcomeAt: null, outcomeCheckedAt: null }),
+      },
     });
     if (backfill) return row;
+    // it was waiting on the owner and has since worked itself out (the invoice was made, a payer name was learned)
+    if ((receipt.proposalIds || []).length) await d.db.operatorProposal.updateMany({ where: { id: { in: receipt.proposalIds }, status: 'pending' }, data: { status: 'expired' } });
     const invs = list.map((i) => `#${i.invoiceNumber}`).join(' + ');
+    const why = REASONED_KINDS.includes(m.matchKind) ? `: ${short(m.reason, 100)}.` : '.';
     const text = status === 'to_record'
-      ? `E-transfer ${money(receipt.amountCents)} from ${receipt.senderName} matches Inv ${invs} (${short(m.client.name, 30)}). Recording it as paid in Jobber now. Ref ${receipt.referenceNumber}`
-      : `[Test mode] E-transfer ${money(receipt.amountCents)} from ${receipt.senderName} would be matched to Inv ${invs} (${short(m.client.name, 30)}). Nothing changed in Jobber. Ref ${receipt.referenceNumber}`;
+      ? `E-transfer ${money(receipt.amountCents)} from ${receipt.senderName} matches Inv ${invs} (${short(m.client.name, 30)})${why} Recording it as paid in Jobber now. Ref ${receipt.referenceNumber}`
+      : `[Test mode] E-transfer ${money(receipt.amountCents)} from ${receipt.senderName} would be matched to Inv ${invs} (${short(m.client.name, 30)})${why} Nothing changed in Jobber. Ref ${receipt.referenceNumber}`;
     await say(d, userId, row, `E-transfer ${money(receipt.amountCents)} from ${receipt.senderName}`, text);
     return row;
   }
@@ -184,29 +204,33 @@ async function etransferWatchTick(ctx = {}, over = {}) {
   for (const p of approved) await d.op.executeProposal(p.id).catch(() => {});
 
   const stale = mode === 'live' ? await sweepStale(d, userId) : 0;
+  const confirmed = await confirmOutcomes(d, userId);
   await announceUnmatchable(d, userId, ing.created.filter((r) => r.status !== 'new'));
 
+  // new e-transfers, plus anything from the last 2 weeks still waiting (no match yet, or waiting on the owner), including
+  // the newest history rows: their invoice may still be open. The owner's "wrong" verdicts are never retried.
   const since = new Date(d.now().getTime() - RETRY_NO_MATCH_DAYS * DAY);
-  const open = await d.db.etransferReceipt.findMany({
-    where: { userId, OR: [{ status: 'new' }, { status: 'no_match', backfill: false, receivedAt: { gte: since } }] },
+  const open = (await d.db.etransferReceipt.findMany({
+    where: { userId, OR: [{ status: 'new' }, { status: { in: ['no_match', 'needs_review'] }, kind: 'deposited', authOk: true, receivedAt: { gte: since } }] },
     orderBy: { receivedAt: 'asc' },
-  });
+  })).filter((r) => r.outcome !== 'wrong');
   if (!open.length) {
-    return { items_found: ing.created.length, skipped: !ing.created.length && !approved.length && !stale, summary: ing.created.length ? `${ing.created.length} Interac email(s), nothing to match` : 'No new e-transfers' };
+    return { items_found: ing.created.length, skipped: !ing.created.length && !approved.length && !stale && !confirmed, summary: ing.created.length ? `${ing.created.length} Interac email(s), nothing to match` : 'No new e-transfers' };
   }
 
   // the first run's history is graded silently (also when an interrupted first run left some of it for this one)
-  const old = open.filter((r) => r.backfill);
+  const old = open.filter((r) => r.backfill && r.status === 'new');
   if (old.length) return backfill(d, userId, old);
 
   const { invoices, complete } = await d.jobber.fetchUnpaidInvoices(userId);
-  const aliases = new Map((await d.db.payerAlias.findMany({ where: { userId } })).map((a) => [a.payerNameNorm, a.jobberClientId]));
+  const known = await matchContext(d, userId);
   const taken = await queuedInvoiceIds(d, userId);
   const counts = { auto: 0, review: 0, none: 0 };
   for (const r of open) {
-    let m = matchReceipt(r, invoices.filter((i) => !taken.has(i.id)), aliases);
+    let m = guard(matchReceipt(r, invoices.filter((i) => !taken.has(i.id)), known.aliases, known), r, known, { complete });
     if (m.decision === 'none' && !complete) m = { ...m, reason: `${m.reason} (only part of Jobber's invoice list could be read)` };
-    if (r.status === 'no_match' && m.decision === 'none') continue;   // still nothing; it was already texted
+    // a waiting row only speaks up again when it can now be matched, or can now be asked about for the first time
+    if (r.status !== 'new' && (m.decision === 'none' || (m.decision === 'review' && (r.proposalIds || []).length))) continue;
     await applyMatch(d, userId, r, m, mode);
     if (m.decision === 'auto') for (const i of m.invoices) taken.add(i.id);   // two payments in one run never claim the same invoice
     counts[m.decision]++;
@@ -220,8 +244,117 @@ async function etransferWatchTick(ctx = {}, over = {}) {
 
 /** Invoices another e-transfer is already paying (queued or awaiting proof), so a second payment can't match them too. */
 async function queuedInvoiceIds(d, userId) {
-  const rows = await d.db.etransferReceipt.findMany({ where: { userId, status: { in: ['to_record', 'matched'] }, backfill: false }, select: { invoiceIds: true } });
+  const rows = await d.db.etransferReceipt.findMany({ where: { userId, status: { in: ['to_record', 'matched'] }, OR: [{ backfill: false }, { outcome: 'pending' }] }, select: { invoiceIds: true } });
   return new Set(rows.flatMap((r) => (r.invoiceIds || []).map((i) => i.id)));
+}
+
+// ------------------------------------------------------------------------------------------------ reasoning context + guards
+/**
+ * What the matcher knows besides the invoices: payer names it learned, first names that proved to be the same person,
+ * Jobber clients by exact name, and the reasoned match kinds that were wrong lately (those only ask, for 60 days).
+ */
+async function matchContext(d, userId) {
+  const since = new Date(d.now().getTime() - DEMOTE_DAYS * DAY);
+  const [aliasRows, wrong, clients] = await Promise.all([
+    d.db.payerAlias.findMany({ where: { userId } }),
+    d.db.etransferReceipt.findMany({ where: { userId, outcome: 'wrong', outcomeAt: { gte: since } }, select: { matchKind: true } }),
+    d.db.cachedJobberClient.findMany({ where: { userId }, select: { jobberClientId: true, name: true } }).catch(() => []),
+  ]);
+  const clientsByName = new Map();
+  for (const c of clients) {
+    const n = normName(c.name);
+    if (n.split(' ').length < 2) continue;
+    if (!clientsByName.has(n)) clientsByName.set(n, new Set());
+    clientsByName.get(n).add(c.jobberClientId);
+  }
+  return {
+    aliases: new Map(aliasRows.map((a) => [a.payerNameNorm, a.jobberClientId])),
+    equivalences: equivalencesFrom(aliasRows),
+    demoted: new Set(wrong.map((w) => w.matchKind).filter((k) => REASONED_KINDS.includes(k))),
+    clientsByName,
+  };
+}
+
+/** A reasoned match records itself only when nothing argues against it; otherwise the owner is asked, same candidates. */
+function guard(m, r, ctx, { complete = true } = {}) {
+  if (m.decision !== 'auto' || !REASONED_KINDS.includes(m.matchKind)) return m;
+  const named = ctx.clientsByName.get(r.senderNameNorm);
+  const aliasTo = ctx.aliases.get(r.senderNameNorm);
+  let why = null;
+  if (!complete) why = "only part of Jobber's invoice list could be read";
+  else if (ctx.demoted.has(m.matchKind)) why = 'a match like this was wrong recently, so I ask for now';
+  else if (named && !named.has(m.client.id)) why = `${r.senderName} is a Jobber client of their own (their invoice may not be made yet)`;
+  else if (aliasTo && aliasTo !== m.client.id) why = `${r.senderName} has paid for a different client before`;
+  return why ? { ...m, decision: 'review', reason: `Not sure: ${why} (${m.reason})` } : m;
+}
+
+// ------------------------------------------------------------------------------------------------ outcomes + learning
+/**
+ * Did the matches turn out right? In test mode the owner still marks invoices paid by hand, so the invoice being paid
+ * around the e-transfer confirms the match; in live mode a recorded match counts once a week passes without "Wrong
+ * match". Confirmed reasoned matches teach the payer's name.
+ */
+async function confirmOutcomes(d, userId) {
+  const now = d.now().getTime();
+  const rows = await d.db.etransferReceipt.findMany({ where: { userId, outcome: 'pending' } });
+  const due = rows.filter((r) => !r.outcomeCheckedAt || now - new Date(r.outcomeCheckedAt).getTime() > SWEEP_EVERY_MS).slice(0, SWEEP_PER_RUN);
+  let confirmed = 0;
+  for (const r of due) {
+    const t = r.receivedAt.getTime();
+    let outcome = null;
+    if (r.status === 'recorded') {
+      if (r.verifiedAt && now - new Date(r.verifiedAt).getTime() > LIVE_CONFIRM_DAYS * DAY) outcome = 'confirmed';
+    } else if (r.status === 'matched') {
+      const first = (r.invoiceIds || [])[0];
+      const live = first ? await d.jobber.recheckInvoice(userId, first.id, { paid: true }).catch(() => undefined) : null;
+      if (live === undefined) continue;   // Jobber did not answer: next run
+      const paidAt = live?.receivedDate ? new Date(live.receivedDate).getTime() : null;
+      if (live && (live.status === 'paid' || live.cents === 0)) outcome = paidAt == null || (paidAt >= t - DAY && paidAt - t < 30 * DAY) ? 'confirmed' : 'unconfirmed';
+      else if (!live || now - t > UNCONFIRMED_DAYS * DAY) outcome = 'unconfirmed';
+    } else if (r.status !== 'to_record') outcome = 'unconfirmed';
+    await d.db.etransferReceipt.update({ where: { id: r.id }, data: outcome ? { outcome, outcomeAt: d.now(), outcomeCheckedAt: d.now() } : { outcomeCheckedAt: d.now() } });
+    if (outcome === 'confirmed') { confirmed++; await learnPayer(d, userId, r, 'learned'); }
+  }
+  return confirmed;
+}
+
+/** Remember who this payer pays for, so next time it is a known payer. An existing name (owner-confirmed or learned) is kept. */
+async function learnPayer(d, userId, r, source) {
+  if (!r.senderNameNorm || !r.jobberClientId || !LEARNS_FROM.includes(r.matchKind)) return false;
+  if (await d.db.payerAlias.findFirst({ where: { userId, payerNameNorm: r.senderNameNorm } })) return false;
+  try {
+    await d.db.payerAlias.create({ data: { userId, payerNameNorm: r.senderNameNorm, jobberClientId: r.jobberClientId, clientName: r.clientName || '', source } });
+    return true;
+  } catch (e) {
+    if (e.code === 'P2002') return false;
+    throw e;
+  }
+}
+
+/** The owner says a match is wrong: stop it, forget what it taught, and make that kind of reasoning ask for 60 days. */
+async function markWrong(userId, id, over = {}) {
+  const d = deps(over);
+  const r = await d.db.etransferReceipt.findFirst({ where: { id, userId } });
+  if (!r) return { ok: false, error: 'not found' };
+  if (!r.jobberInvoiceId) return { ok: false, error: 'this e-transfer is not matched to an invoice' };
+  const wrongIds = new Set((r.invoiceIds || []).map((i) => i.id));
+  await d.db.etransferReceipt.update({
+    where: { id },
+    data: {
+      status: 'needs_review', outcome: 'wrong', outcomeAt: d.now(), queuedAt: null, reason: `You said Inv #${r.invoiceNumber} (${r.clientName || ''}) was wrong. ${r.reason || ''}`.trim(),
+      candidates: (r.candidates || []).filter((c) => !wrongIds.has(c.invoiceId)),
+    },
+  });
+  const alias = r.senderNameNorm ? await d.db.payerAlias.findFirst({ where: { userId, payerNameNorm: r.senderNameNorm } }) : null;
+  if (alias && alias.jobberClientId === r.jobberClientId && (alias.source !== 'owner_confirmed' || r.matchKind === 'alias_amount')) await d.db.payerAlias.delete({ where: { id: alias.id } });
+  if (REASONED_KINDS.includes(r.matchKind)) {
+    await d.createTask(userId, {
+      dedupKey: `etransfer:demoted:${r.matchKind}`, title: `E-transfers: "${KIND_LABEL[r.matchKind]}" matches will ask you for 60 days`, source: 'system', agent: 'operations', urgency: 'normal', routineSlug: SLUG,
+      whatHappened: `${money(r.amountCents)} from ${r.senderName} was matched to Inv #${r.invoiceNumber} (${r.clientName}) by "${KIND_LABEL[r.matchKind]}" and you said it was wrong.`,
+      recommended: 'Nothing to do. If this keeps happening, tell Claude which clue misled the matcher.',
+    }).catch(() => {});
+  }
+  return { ok: true, status: 'needs_review', note: r.status === 'recorded' ? `It was already recorded in Jobber: remove that payment from Inv #${r.invoiceNumber} by hand.` : null };
 }
 
 // ------------------------------------------------------------------------------------------------ backfill (first run)
@@ -230,9 +363,10 @@ async function queuedInvoiceIds(d, userId) {
  * own payment records: correct (the invoice we'd pick got that payment), wrong (we'd have picked a different invoice),
  * review / none. Nothing is texted per receipt and nothing is queued; one summary goes to the owner.
  */
-async function backfill(d, userId, receipts) {
+async function backfill(d, userId, receipts, { again = false } = {}) {
   const all = await d.jobber.fetchRecentInvoicesWithPayments(userId);
   const tally = { correct: 0, wrong: 0, review: 0, none: 0, unknown: 0 };
+  let learned = 0;
   const hasRecords = all.some((i) => i.payments.length);
   for (const r of receipts) {
     const t = r.receivedAt.getTime();
@@ -253,15 +387,30 @@ async function backfill(d, userId, receipts) {
     tally[verdict]++;
     await applyMatch(d, userId, r, m, 'shadow', { backfill: true });
     await d.db.etransferReceipt.update({ where: { id: r.id }, data: { backfillVerdict: verdict, notifiedAt: d.now() } });
+    if (verdict === 'correct' && await learnPayer(d, userId, { ...r, matchKind: m.matchKind, jobberClientId: m.client.id, clientName: m.client.name }, 'backfill')) learned++;
   }
+  // unsure history that Jobber proved right is remembered at once (the tab lists every learned name, with Forget)
+  learned += await saveLearnedPayers(userId, await learnPreview(userId, d), d.db);
   const n = receipts.length;
+  const counts = `${tally.correct} it would have matched correctly, ${tally.wrong} wrong, ${tally.review} it would ask you about, ${tally.none + tally.unknown} no match or unsure${learned ? `; learned ${learned} payer name(s)` : ''}`;
   await d.notify(userId, {
     category: 'payments', urgent: process.env.ETRANSFER_SMS !== 'off', routineSlug: SLUG, link: '/ai.html#payments',
-    title: 'E-transfer matcher: first look at your last 90 days',
-    smsText: `E-transfer matcher is set up (test mode). Checked your last ${n} e-transfers: ${tally.correct} it would have matched correctly, ${tally.wrong} wrong, ${tally.review} it would ask you about, ${tally.none + tally.unknown} no match or unsure. Details: E-transfers tab.`,
-    body: JSON.stringify(tally),
+    title: again ? 'E-transfer matcher: history re-checked' : 'E-transfer matcher: first look at your last 90 days',
+    smsText: again
+      ? `E-transfer matcher re-checked ${n} past e-transfers with the new rules: ${counts}. Details: E-transfers tab.`
+      : `E-transfer matcher is set up (test mode). Checked your last ${n} e-transfers: ${counts}. Details: E-transfers tab.`,
+    body: JSON.stringify({ ...tally, learned }),
   });
-  return { items_found: n, actions_taken: [`Backfill graded ${n} e-transfers`], summary: `Backfill: ${tally.correct} correct, ${tally.wrong} wrong, ${tally.review} review, ${tally.none} none, ${tally.unknown} unknown`, learnings: [] };
+  return { items_found: n, actions_taken: [`Backfill graded ${n} e-transfers`], summary: `Backfill: ${tally.correct} correct, ${tally.wrong} wrong, ${tally.review} review, ${tally.none} none, ${tally.unknown} unknown, ${learned} learned`, learnings: [] };
+}
+
+/** Re-run the history check with today's rules (after the matcher learns new tricks). One summary text, nothing queued. */
+async function regrade(userId, over = {}) {
+  const d = deps(over);
+  const rows = (await d.db.etransferReceipt.findMany({ where: { userId, backfill: true, kind: 'deposited', authOk: true }, orderBy: { receivedAt: 'asc' } }))
+    .filter((r) => r.amountCents > 0 && !(r.proposalIds || []).length && !r.outcome && ['matched', 'needs_review', 'no_match'].includes(r.status));
+  if (!rows.length) return { items_found: 0, summary: 'No history to re-check' };
+  return backfill(d, userId, rows, { again: true });
 }
 
 // ------------------------------------------------------------------------------------------------ owner picks (YES / dashboard)
@@ -284,7 +433,7 @@ async function pickInvoice(d, userId, r, inv, { exceptProposal } = {}) {
   const item = { id: inv.id, invoiceNumber: inv.invoiceNumber, webUri: live?.webUri || inv.webUri, payCents: pay, balanceBefore: balance, clientName: inv.clientName };
   const row = await d.db.etransferReceipt.update({
     where: { id: r.id },
-    data: { status, matchKind: 'owner_pick', reason: 'You picked this invoice', jobberInvoiceId: inv.id, invoiceNumber: String(inv.invoiceNumber), invoiceIds: [item], jobberClientId: inv.clientId, clientName: inv.clientName, jobberWebUri: item.webUri, queuedAt: status === 'to_record' ? d.now() : null },
+    data: { status, matchKind: 'owner_pick', reason: 'You picked this invoice', outcome: 'confirmed', outcomeAt: d.now(), jobberInvoiceId: inv.id, invoiceNumber: String(inv.invoiceNumber), invoiceIds: [item], jobberClientId: inv.clientId, clientName: inv.clientName, jobberWebUri: item.webUri, queuedAt: status === 'to_record' ? d.now() : null },
   });
   if (r.senderNameNorm && inv.clientId) {
     await d.db.payerAlias.upsert({
@@ -400,7 +549,8 @@ async function learnPreview(userId, over = {}) {
   const byPayer = new Map();
   for (const r of rows) {
     const c = r.candidates || [];
-    if (c.length !== 1 || c[0].why === 'same client, different amount' || !r.senderNameNorm || have.has(r.senderNameNorm)) continue;
+    // an amount coincidence teaches nothing: the suggestion must have come from the name, the message or the address
+    if (c.length !== 1 || c[0].why === 'same client, different amount' || !/name|street/i.test(c[0].why || '') || !r.senderNameNorm || have.has(r.senderNameNorm)) continue;
     const live = await d.jobber.recheckInvoice(userId, c[0].invoiceId, { paid: true }).catch(() => null);
     const paidAt = live?.status === 'paid' && live.receivedDate ? new Date(live.receivedDate).getTime() : null;
     const t = r.receivedAt.getTime();
@@ -440,20 +590,38 @@ async function setMode(userId, mode, db = prismaDefault) {
 
 async function overview(userId, { status, limit = 100 } = {}, db = prismaDefault) {
   const where = { userId, ...(status ? { status } : {}) };
-  const [rows, byStatus, verdicts, mode] = await Promise.all([
+  const [rows, byStatus, verdicts, mode, outcomes, history, learned, ctx] = await Promise.all([
     db.etransferReceipt.findMany({ where, orderBy: { receivedAt: 'desc' }, take: limit }),
     db.etransferReceipt.groupBy({ by: ['status'], where: { userId }, _count: { _all: true } }),
     db.etransferReceipt.groupBy({ by: ['backfillVerdict'], where: { userId, backfill: true }, _count: { _all: true } }),
     getMode(userId, db),
+    db.etransferReceipt.groupBy({ by: ['matchKind', 'outcome'], where: { userId, outcome: { not: null } }, _count: { _all: true } }),
+    db.etransferReceipt.groupBy({ by: ['matchKind', 'backfillVerdict'], where: { userId, backfill: true, matchKind: { not: null } }, _count: { _all: true } }),
+    db.payerAlias.findMany({ where: { userId }, orderBy: { updatedAt: 'desc' }, take: 200 }),
+    matchContext({ db, now: () => new Date() }, userId),
   ]);
+  // how each kind of match has done: live outcomes, and how it graded on the history
+  const accuracy = {};
+  const slot = (k) => (accuracy[k] = accuracy[k] || { pending: 0, confirmed: 0, unconfirmed: 0, wrong: 0, history: { correct: 0, wrong: 0, unknown: 0 } });
+  for (const g of outcomes) if (g.matchKind) slot(g.matchKind)[g.outcome] = g._count._all;
+  for (const g of history) if (['correct', 'wrong', 'unknown'].includes(g.backfillVerdict)) slot(g.matchKind).history[g.backfillVerdict] = g._count._all;
   return {
     mode, dryRun: process.env.DRY_RUN === 'true',
     counts: Object.fromEntries(byStatus.map((g) => [g.status, g._count._all])),
     backfill: Object.fromEntries(verdicts.map((g) => [g.backfillVerdict || 'unknown', g._count._all])),
+    accuracy, demoted: [...ctx.demoted], kindLabels: KIND_LABEL,
+    learned: learned.map((a) => ({ payer: a.payerNameNorm, clientName: a.clientName, source: a.source, at: a.updatedAt })),
     items: rows,
   };
 }
 
+/** Forget a learned payer name (the owner's Forget button). */
+async function forgetPayer(userId, payerNameNorm, db = prismaDefault) {
+  const r = await db.payerAlias.deleteMany({ where: { userId, payerNameNorm: String(payerNameNorm || '') } });
+  return r.count;
+}
+
 module.exports = {
   etransferWatchTick, applyOwnerPick, claimToRecord, pendingRecordCount, reportRecorded, learnPreview, saveLearnedPayers, resolveFromDashboard, setMode, overview, getMode, SLUG,
+  markWrong, regrade, forgetPayer,
 };
